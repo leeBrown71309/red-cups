@@ -13,6 +13,14 @@ const SPIN_DURATION_MS = 4_200;
 const REDUCED_SPIN_DURATION_MS = 900;
 const FULL_TURNS = 6;
 
+function getWheelEyebrow(pending: PendingWheel): string {
+  if (pending.sourceItemId === "ndoye") return "Ndoye a frappé";
+  if (pending.origin === "tile") return pending.wheelId === "fortune" ? "Case verte" : "Case rouge";
+  if (pending.origin === "chain") return "Encore une roue !";
+  if (pending.origin === "hell") return "Depuis l’Enfer";
+  return "La roue tourne";
+}
+
 /** Remounts for every spin so chained wheels (malheur → bonheur) replay the animation. */
 export function WheelModal() {
   const pending = useGameStore((state) => state.pendingWheel);
@@ -76,7 +84,7 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
   return (
     <ModalShell
       title={WHEEL_TITLES[pending.wheelId]}
-      eyebrow={pending.sourceItemId === "ndoye" ? "Ndoye a frappé" : "La roue tourne"}
+      eyebrow={getWheelEyebrow(pending)}
       tone={pending.wheelId === "fortune" ? "gold" : "grape"}
       size="large"
       className="wheel-modal"

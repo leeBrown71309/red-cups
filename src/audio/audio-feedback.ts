@@ -77,6 +77,12 @@ export function startAudioFeedback(): () => void {
       case "item-used":
         soundEffects.itemUsed();
         break;
+      case "reaction-opened":
+        soundEffects.reveal();
+        break;
+      case "action-cancelled":
+        soundEffects.error();
+        break;
       case "turn-start":
         soundEffects.turnStart();
         break;

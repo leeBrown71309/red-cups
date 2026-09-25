@@ -52,7 +52,10 @@ export const useUiStore = create<UiState>((set) => ({
   setIgnoreArrows: (ignoreArrows) => set({ ignoreArrows, previewNodeId: null }),
   setPreviewNodeId: (previewNodeId) => set({ previewNodeId, hoveredChipNodeId: null }),
   setHoveredChipNodeId: (hoveredChipNodeId) => set({ hoveredChipNodeId }),
-  pushToast: (toast) => set((state) => ({ toasts: [...state.toasts, toast].slice(-MAX_TOASTS) })),
+  pushToast: (toast) =>
+    set((state) => ({
+      toasts: [...state.toasts.filter((existing) => existing.id !== toast.id), toast].slice(-MAX_TOASTS),
+    })),
   dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   showSplash: (playerId) => set((state) => ({ splash: { playerId, key: (state.splash?.key ?? 0) + 1 } })),
   hideSplash: () => set({ splash: null }),

@@ -96,7 +96,18 @@
 }
 
 .game-logo--compact .game-logo__word {
-  font-size: 1.6rem;
+  font-size: 2rem;
+}
+
+/* The chunky outline is sized for the big logo; the small one needs a thinner contour. */
+.game-logo--compact .game-logo__red,
+.game-logo--compact .game-logo__cups {
+  text-shadow:
+    -2px -2px 0 var(--ink),
+    2px -2px 0 var(--ink),
+    -2px 2px 0 var(--ink),
+    2px 2px 0 var(--ink),
+    0 4px 0 var(--ink);
 }
 
 /* ---------- Lobby ---------- */
@@ -320,6 +331,45 @@
   .lobby__facts {
     display: none;
   }
+}
+
+/* ---------- Fullscreen gate (phones) ---------- */
+.fullscreen-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 24px;
+  background:
+    radial-gradient(60% 60% at 50% 40%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%),
+    linear-gradient(180deg, var(--backdrop-top), var(--backdrop-bottom));
+  font-family: var(--font-display);
+  text-align: center;
+  animation: fade-in 240ms ease both;
+}
+
+.fullscreen-gate h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.fullscreen-gate p {
+  max-width: 34ch;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
+}
+
+.fullscreen-gate__steps {
+  display: grid;
+  gap: 6px;
+  max-width: 36ch;
+  padding-left: 1.2em;
+  font-family: var(--font-body);
+  text-align: left;
+  list-style: decimal;
 }
 
 /* ---------- Orientation hint ---------- */

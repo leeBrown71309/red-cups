@@ -8,8 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "format": "prettier --write src index.html",
-    "format:check": "prettier --check src index.html"
+    "format": "prettier --write src scripts index.html",
+    "format:check": "prettier --check src scripts index.html",
+    "simulate": "bun scripts/simulate.ts"
   },
   "dependencies": {
     "react": "^19.2.0",

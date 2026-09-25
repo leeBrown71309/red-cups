@@ -173,16 +173,28 @@ function paintTileDecal(canvas: HTMLCanvasElement, node: BoardNode): void {
   context.fillStyle = "rgba(255, 255, 255, 0.92)";
   context.strokeStyle = "rgba(58, 37, 48, 0.55)";
   context.lineWidth = 7;
-  if (node.kind === "green") drawSymbol(context, "+", size / 2, glyphY);
-  if (node.kind === "red") drawSymbol(context, "−", size / 2, glyphY);
+  if (node.kind === "green" || node.kind === "red") drawWheel(context, size / 2, glyphY + 2, 21);
   if (node.kind === "shop") drawBag(context, size / 2, glyphY);
   if (node.kind === "start") drawStar(context, size / 2, glyphY + 4, 22);
 }
 
-function drawSymbol(context: CanvasRenderingContext2D, symbol: string, x: number, y: number): void {
-  context.font = `700 64px ${DISPLAY_FONT}`;
-  context.strokeText(symbol, x, y);
-  context.fillText(symbol, x, y);
+/** Tiny wheel glyph: stopping on a green or red tile spins a wheel. */
+function drawWheel(context: CanvasRenderingContext2D, x: number, y: number, radius: number): void {
+  context.beginPath();
+  context.arc(x, y, radius, 0, Math.PI * 2);
+  context.stroke();
+  context.fill();
+  context.save();
+  context.strokeStyle = "rgba(58, 37, 48, 0.55)";
+  context.lineWidth = 4;
+  for (let spoke = 0; spoke < 4; spoke += 1) {
+    const angle = (spoke * Math.PI) / 4;
+    context.beginPath();
+    context.moveTo(x - Math.cos(angle) * radius, y - Math.sin(angle) * radius);
+    context.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
+    context.stroke();
+  }
+  context.restore();
 }
 
 function drawBag(context: CanvasRenderingContext2D, x: number, y: number): void {

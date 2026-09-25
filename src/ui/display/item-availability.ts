@@ -48,6 +48,10 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
     return { usable: true, kind: "prepare-boot", actionLabel: "Chausser" };
   }
 
+  if (itemId === "mud" && inHell) {
+    return { usable: false, kind: "instant", actionLabel: "Poser", reason: "La Boue ne tient pas en Enfer." };
+  }
+
   if (itemId === "water-bottle" && !inHell) {
     return { usable: false, kind: "instant", actionLabel: "Boire", reason: "Ne sert qu’à sortir de l’Enfer." };
   }

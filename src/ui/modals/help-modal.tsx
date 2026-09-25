@@ -17,10 +17,13 @@ const TABS: { id: HelpTab; label: string }[] = [
 const TURN_STEPS = [
   "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
   "La Botte se prépare avant de bouger et te fait avancer de deux cases.",
-  "Tu t’arrêtes sur une case bleue ? La boutique s’ouvre : achète autant que ton solde et ton sac le permettent.",
+  "Tu arrives sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Même si on t’y a envoyé !",
+  "Sur une case bleue, la boutique s’ouvre : achète autant que ton solde et ton sac le permettent.",
   "Ramasse 3 Red Cups pour gagner. Chaque Cup occupe une des 4 places de ton sac.",
-  "Passer par le Départ rapporte 200 pièces. À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
+  "Arriver au Départ par la case 8 : +200 pièces. À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
   "En Enfer, tu tournes sa roue à chaque tour. Deux joueurs en Enfer = duel, le gagnant repart du Départ.",
+  "Toujours en Enfer après 5 tours ? Tu sors en case 0 avec les 200 du départ, mais tu paies 500 pièces.",
+  "Non merci : quand un joueur annonce son action, le détenteur du passif peut l’annuler une fois par Red Cup.",
 ];
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
@@ -64,8 +67,10 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                   ›››
                 </span>
                 <span>
-                  <strong>Chemin fléché</strong>
-                  <small>Sens unique : suis les flèches.</small>
+                  <strong>Sortie fléchée</strong>
+                  <small>
+                    Sur une case fléchée, tu dois sortir par sa flèche. On peut y entrer par n’importe quelle route.
+                  </small>
                 </span>
               </li>
               <li>

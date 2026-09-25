@@ -108,8 +108,16 @@ function collectEvents(state: GameState, previous: GameState, walkerId: string |
       (state.bulletBill !== null && previous.bulletBill === null));
   if (boughtItem && activePlayer) events.push({ type: "purchase", playerId: activePlayer.id });
 
+  const cancelled = newLogEntries.some((entry) => entry.text.includes("utilise Non merci"));
+  if (state.pendingReaction && !previous.pendingReaction) events.push({ type: "reaction-opened" });
+  if (cancelled) events.push({ type: "action-cancelled" });
+
   const usedItem =
-    !walkerId && state.turnActionTaken && !previous.turnActionTaken && ["move", "hell"].includes(previous.turnStage);
+    !walkerId &&
+    !cancelled &&
+    state.turnActionTaken &&
+    !previous.turnActionTaken &&
+    ["move", "hell", "reaction"].includes(previous.turnStage);
   if (usedItem) events.push({ type: "item-used" });
 
   if (state.pendingDuel && !previous.pendingDuel) events.push({ type: "duel-started" });

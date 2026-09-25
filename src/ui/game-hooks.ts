@@ -16,13 +16,22 @@ export function useActivePlayer(): Player | undefined {
   return useGameStore((state) => state.players[state.activePlayerIndex]);
 }
 
-/** Player who must act right now: usually the active one, except for New Cup, New Me. */
+/**
+ * Player who must act right now: usually the active one, except for New Cup,
+ * New Me and for a tile wheel owed by someone who was pulled or swapped there.
+ */
+export function getDecidingPlayer(state: GameState): Player | undefined {
+  const deciderId =
+    state.turnStage === "reposition"
+      ? state.pendingCupRepositionPlayerId
+      : state.turnStage === "tile-wheel"
+        ? state.pendingTileWheels[0]?.playerId
+        : null;
+  return state.players.find((player) => player.id === deciderId) ?? state.players[state.activePlayerIndex];
+}
+
 export function useDecidingPlayer(): Player | undefined {
-  return useGameStore((state) => {
-    const repositionerId = state.turnStage === "reposition" ? state.pendingCupRepositionPlayerId : null;
-    const repositioner = state.players.find((player) => player.id === repositionerId);
-    return repositioner ?? state.players[state.activePlayerIndex];
-  });
+  return useGameStore(getDecidingPlayer);
 }
 
 export function computeLegalMoves(state: GameState, ignoreArrows: boolean): LegalMoves {

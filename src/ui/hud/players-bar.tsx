@@ -3,7 +3,7 @@ import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
+import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL } from "../../game/types";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
@@ -27,22 +27,51 @@ export function CupPips({ count, size = 14 }: { count: number; size?: number }) 
   );
 }
 
+const DETAILS_WIDTH = 280;
+const VIEWPORT_MARGIN = 8;
+
+interface DetailsAnchor {
+  playerId: string;
+  left: number;
+  top: number;
+  arrowLeft: number;
+}
+
+/**
+ * Places the details card under its chip, clamped inside the viewport. The
+ * position is computed once on open, so the card appears directly in place.
+ */
+function computeAnchor(playerId: string, chip: HTMLElement): DetailsAnchor {
+  const rect = chip.getBoundingClientRect();
+  const width = Math.min(DETAILS_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2);
+  const center = rect.left + rect.width / 2;
+  const left = Math.min(Math.max(center - width / 2, VIEWPORT_MARGIN), window.innerWidth - width - VIEWPORT_MARGIN);
+  return { playerId, left, top: rect.bottom + 12, arrowLeft: center - left };
+}
+
 /** Everyone's table status at a glance, with details on tap. */
 export function PlayersBar() {
   const players = useGameStore((state) => state.players);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
   const phase = useGameStore((state) => state.phase);
-  const [openPlayerId, setOpenPlayerId] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!openPlayerId) return undefined;
+    if (!anchor) return undefined;
     const close = (event: PointerEvent) => {
-      if (!barRef.current?.contains(event.target as Node)) setOpenPlayerId(null);
+      if (!barRef.current?.contains(event.target as Node)) setAnchor(null);
     };
+    const closeOnResize = () => setAnchor(null);
     window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
-  }, [openPlayerId]);
+    window.addEventListener("resize", closeOnResize);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", closeOnResize);
+    };
+  }, [anchor]);
+
+  const openedPlayer = players.find((player) => player.id === anchor?.playerId);
 
   return (
     <div
@@ -55,7 +84,7 @@ export function PlayersBar() {
       {players.map((player, index) => {
         const active = phase === "playing" && index === activePlayerIndex;
         const cups = countRedCups(player);
-        const open = openPlayerId === player.id;
+        const open = anchor?.playerId === player.id;
         return (
           <div className="player-chip-wrap" role="listitem" key={player.id}>
             <button
@@ -64,7 +93,7 @@ export function PlayersBar() {
                 .filter(Boolean)
                 .join(" ")}
               style={{ "--player-color": player.color } as CSSProperties}
-              onClick={() => setOpenPlayerId(open ? null : player.id)}
+              onClick={(event) => setAnchor(open ? null : computeAnchor(player.id, event.currentTarget))}
               aria-expanded={open}
               aria-label={`${player.name}, ${formatCurrency(player.currency)} pièces, ${cups} Red Cup`}
             >
@@ -85,28 +114,50 @@ export function PlayersBar() {
                 </span>
               )}
             </button>
-            {open && <PlayerDetails player={player} />}
           </div>
         );
       })}
+      {anchor && openedPlayer && <PlayerDetails player={openedPlayer} anchor={anchor} />}
     </div>
   );
 }
 
-function PlayerDetails({ player }: { player: Player }) {
+function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
   const passive = PASSIVE_CATALOG[player.passiveId];
   const capacity = getInventoryCapacity(player);
   const empty = Math.max(0, capacity - player.inventory.length);
+  const cups = countRedCups(player);
+  const position = { left: anchor.left, top: anchor.top, "--arrow-left": `${anchor.arrowLeft}px` } as CSSProperties;
 
   return (
-    <div className="player-details panel" role="dialog" aria-label={`Détails de ${player.name}`}>
+    <div className="player-details panel" role="dialog" aria-label={`Détails de ${player.name}`} style={position}>
       <div className="player-details__head">
         <PlayerAvatar color={player.color} size={52} expression={getAvatarExpression(player)} />
         <div>
           <strong>{player.name}</strong>
           <span className="player-details__where">
-            {player.position === HELL_NODE_ID ? "En Enfer" : `Case ${player.position}`}
+            {player.position === HELL_NODE_ID
+              ? `En Enfer · ${player.hellTurns}/${HELL_TURN_LIMIT} tours`
+              : `Case ${player.position}`}
             {player.skippedTurns > 0 && " · passe son tour"}
+          </span>
+        </div>
+      </div>
+      <div className="player-details__stats">
+        <div className="player-details__stat">
+          <span className="eyebrow">Red Cups</span>
+          <span className="player-details__stat-value">
+            <CupPips count={cups} size={22} />
+            <strong>
+              {cups}/{RED_CUP_GOAL}
+            </strong>
+          </span>
+        </div>
+        <div className="player-details__stat">
+          <span className="eyebrow">Pièces</span>
+          <span className={`player-details__stat-value ${player.currency < 0 ? "is-negative" : ""}`}>
+            <CoinIcon size={22} />
+            <strong>{formatCurrency(player.currency)}</strong>
           </span>
         </div>
       </div>

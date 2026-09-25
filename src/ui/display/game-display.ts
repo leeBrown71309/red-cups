@@ -114,13 +114,13 @@ export const TILE_LEGEND: TileLegendEntry[] = [
   {
     kind: "green",
     title: "Case verte",
-    description: "+100 pièces avec le passif Red light, Green light.",
+    description: "S’y arrêter lance la roue du bonheur (et +100 avec Red light, Green light).",
     color: TILE_COLORS.green.top,
   },
   {
     kind: "red",
     title: "Case rouge",
-    description: "−100 pièces avec le passif Red light, Green light.",
+    description: "S’y arrêter lance la roue du malheur (et −100 avec Red light, Green light).",
     color: TILE_COLORS.red.top,
   },
   { kind: "neutral", title: "Case neutre", description: "Aucun effet particulier.", color: TILE_COLORS.neutral.top },

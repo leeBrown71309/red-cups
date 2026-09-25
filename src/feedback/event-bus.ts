@@ -21,6 +21,8 @@ export type FeedbackEvent =
   | { type: "bullet-hit"; playerId: PlayerId }
   | { type: "turn-skipped" }
   | { type: "item-used" }
+  | { type: "reaction-opened" }
+  | { type: "action-cancelled" }
   | { type: "victory"; playerId: PlayerId }
   | { type: "log"; entry: GameLogEntry }
   | { type: "pawn-hop" }
