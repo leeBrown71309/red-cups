@@ -35,7 +35,26 @@ describe("board movement rules", () => {
 
   it("returns a legal two-step path for a boot move", () => {
     const player = makePlayer();
-    expect(findLegalPath(player, 2, 2)).toEqual([5, 2]);
+    expect(findLegalPath(player, 5, 2)).toEqual([2, 5]);
+  });
+
+  it("leaves the start only upwards or leftwards and enters it only from 8", () => {
+    expect(getNeighbors(0).sort()).toEqual([2, 4]);
+    expect(getNeighbors(8)).toContain(0);
+    expect(getNeighbors(2)).not.toContain(0);
+    expect(getNeighbors(4)).not.toContain(0);
+  });
+
+  it("takes the wrap-around tunnel from 7 to 1 only", () => {
+    expect(getNeighbors(7)).toContain(1);
+    expect(getNeighbors(1)).not.toContain(7);
+    expect(getNeighbors(1, true)).toContain(7);
+  });
+
+  it("never offers Hell as a normal destination", () => {
+    for (let nodeId = 0; nodeId <= 10; nodeId += 1) {
+      expect(getNeighbors(nodeId, true)).not.toContain(11);
+    }
   });
 });
 

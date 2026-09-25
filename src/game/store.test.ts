@@ -11,6 +11,14 @@ function startDeterministicGame(): void {
   }));
 }
 
+function placeActivePlayer(nodeId: number): void {
+  useGameStore.setState((state) => ({
+    players: state.players.map((player, index) =>
+      index === state.activePlayerIndex ? { ...player, position: nodeId } : player,
+    ),
+  }));
+}
+
 describe("Red Cups game store", () => {
   afterEach(() => {
     useGameStore.getState().resetGame();
@@ -29,6 +37,7 @@ describe("Red Cups game store", () => {
 
   it("collects the starting Cup and opens the shop on a blue space", () => {
     startDeterministicGame();
+    placeActivePlayer(10);
     useGameStore.getState().movePlayer(8);
     const state = useGameStore.getState();
 
@@ -41,6 +50,7 @@ describe("Red Cups game store", () => {
 
   it("allows multiple affordable purchases during one shop visit", () => {
     startDeterministicGame();
+    placeActivePlayer(10);
     useGameStore.getState().movePlayer(8);
     useGameStore.getState().buyItem("boot");
     useGameStore.getState().buyItem("ndoye");
@@ -77,11 +87,11 @@ describe("Red Cups game store", () => {
     ];
     useGameStore.setState({
       redCupNodeId: 4,
-      players: useGameStore.getState().players.map((candidate) =>
-        candidate.id === player.id
-          ? { ...candidate, inventory: fullInventory }
-          : candidate,
-      ),
+      players: useGameStore
+        .getState()
+        .players.map((candidate) =>
+          candidate.id === player.id ? { ...candidate, inventory: fullInventory } : candidate,
+        ),
     });
 
     useGameStore.getState().movePlayer(4);
@@ -98,9 +108,7 @@ describe("Red Cups game store", () => {
     startDeterministicGame();
     const playerId = useGameStore.getState().players[1].id;
     useGameStore.setState((state) => ({
-      players: state.players.map((player) =>
-        player.id === playerId ? { ...player, currency: -200 } : player,
-      ),
+      players: state.players.map((player) => (player.id === playerId ? { ...player, currency: -200 } : player)),
     }));
     vi.spyOn(Math, "random").mockReturnValue(0);
 
@@ -159,6 +167,25 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().players.filter((player) => player.position === 11)).toHaveLength(1);
   });
 
+  it("charges Délinquant only when the move really goes against an arrow", () => {
+    startDeterministicGame();
+    useGameStore.setState((state) => ({
+      players: state.players.map((player, index) => (index === 0 ? { ...player, passiveId: "delinquent" } : player)),
+    }));
+
+    placeActivePlayer(7);
+    useGameStore.getState().movePlayer(4, true);
+    expect(useGameStore.getState().players[0].currency).toBe(2_000);
+
+    useGameStore.setState({ turnStage: "move" });
+    useGameStore.getState().movePlayer(0, true);
+    const player = useGameStore.getState().players[0];
+    expect(player.position).toBe(0);
+    // −200 for the reversed arrow, then +200 for landing on the start tile.
+    expect(player.currency).toBe(2_000);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(true);
+  });
+
   it("offers Calme-toi as an optional reaction after a Cup spawns nearby", () => {
     startDeterministicGame();
     const players = useGameStore.getState().players;
@@ -170,6 +197,7 @@ describe("Red Cups game store", () => {
     });
     vi.spyOn(Math, "random").mockReturnValue(0);
 
+    placeActivePlayer(10);
     useGameStore.getState().movePlayer(8);
     const state = useGameStore.getState();
     expect(state.turnStage).toBe("passive-choice");
@@ -180,6 +208,31 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().pendingCalmDown).toBeNull();
   });
 
+  it("records the walked path so the board can animate it", () => {
+    startDeterministicGame();
+    placeActivePlayer(7);
+    const playerId = useGameStore.getState().players[0].id;
+
+    useGameStore.getState().movePlayer(1);
+
+    expect(useGameStore.getState().lastMovement).toEqual(expect.objectContaining({ playerId, from: 7, path: [1] }));
+  });
+
+  it("refuses a Corde aimed at its own user", () => {
+    startDeterministicGame();
+    const players = useGameStore.getState().players;
+    useGameStore.setState({
+      players: players.map((player, index) =>
+        index === 0 ? { ...player, inventory: [{ id: "rope-1", kind: "item", itemId: "rope" }] } : player,
+      ),
+    });
+
+    useGameStore.getState().useItem("rope-1", players[0].id);
+
+    expect(useGameStore.getState().players[0].inventory).toHaveLength(1);
+    expect(useGameStore.getState().turnStage).toBe("move");
+  });
+
   it("lets Je note copy the object that triggers a wheel", () => {
     startDeterministicGame();
     const players = useGameStore.getState().players;
@@ -188,9 +241,7 @@ describe("Red Cups game store", () => {
       players: players.map((player, index) => ({
         ...player,
         passiveId: index === 1 ? "i-take-notes" : "built-like-a-tank",
-        inventory: index === 0
-          ? [{ id: "ndoye-1", kind: "item", itemId: "ndoye" }]
-          : player.inventory,
+        inventory: index === 0 ? [{ id: "ndoye-1", kind: "item", itemId: "ndoye" }] : player.inventory,
       })),
     });
     vi.spyOn(Math, "random").mockReturnValue(0);

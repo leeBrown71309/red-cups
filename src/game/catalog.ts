@@ -7,6 +7,8 @@ export interface ItemDefinition {
   symbol: string;
   description: string;
   target: "self" | "player" | "none" | "special";
+  /** Only meaningful for player-targeted items. */
+  canTargetSelf?: boolean;
 }
 
 export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
@@ -17,6 +19,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "◉",
     description: "Fait tourner la roue du malheur pour un joueur, toi compris.",
     target: "player",
+    canTargetSelf: true,
   },
   "hollow-purple": {
     id: "hollow-purple",
@@ -25,6 +28,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✦",
     description: "Envoie un joueur en Enfer. Peut te cibler.",
     target: "player",
+    canTargetSelf: true,
   },
   rope: {
     id: "rope",
@@ -73,6 +77,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✋",
     description: "Fait passer le prochain tour d’un joueur. Peut te cibler.",
     target: "player",
+    canTargetSelf: true,
   },
   "monopoly-man": {
     id: "monopoly-man",
@@ -246,10 +251,7 @@ export const WHEEL_RESULTS: Record<WheelId, WeightedWheelResult[]> = {
   ],
 };
 
-export function chooseWheelResult(
-  wheelId: WheelId,
-  randomValue: number,
-): WheelResult {
+export function chooseWheelResult(wheelId: WheelId, randomValue: number): WheelResult {
   const results = WHEEL_RESULTS[wheelId];
   const totalWeight = results.reduce((sum, result) => sum + result.weight, 0);
   const normalizedValue = Math.min(Math.max(randomValue, 0), 0.999_999_999);
