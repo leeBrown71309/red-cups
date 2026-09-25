@@ -1,17 +1,7 @@
 import { BOARD_NODES, BOARD_EDGES, getNeighbors, getPathsOfLength } from "./board";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "./catalog";
-import type {
-  InventoryEntry,
-  ItemId,
-  NodeId,
-  Player,
-  PlayerId,
-} from "./types";
-import {
-  BASE_INVENTORY_CAPACITY,
-  HELL_NODE_ID,
-  START_NODE_ID,
-} from "./types";
+import type { InventoryEntry, ItemId, NodeId, Player, PlayerId } from "./types";
+import { BASE_INVENTORY_CAPACITY, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 export function getInventoryCapacity(player: Player): number {
   const passiveBonus = player.passiveId === "penta" ? 1 : 0;
@@ -29,19 +19,13 @@ export function countRedCups(player: Player): number {
 export function canAddItem(player: Player, itemId: ItemId): boolean {
   if (getOpenInventorySlots(player) === 0) return false;
 
-  const itemCount = player.inventory.filter(
-    (entry) => entry.kind === "item" && entry.itemId === itemId,
-  ).length;
+  const itemCount = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
 
   if (itemId === "eraser" && itemCount >= 1) return false;
   return itemCount < 2;
 }
 
-export function getLegalMoveOptions(
-  player: Player,
-  distance = 1,
-  ignoreArrows = false,
-): NodeId[][] {
+export function getLegalMoveOptions(player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
   if (player.position === HELL_NODE_ID || distance < 1) return [];
 
   return getPathsOfLength(player.position, distance, ignoreArrows).filter(
@@ -49,18 +33,8 @@ export function getLegalMoveOptions(
   );
 }
 
-export function getUniqueLegalDestinations(
-  player: Player,
-  distance = 1,
-  ignoreArrows = false,
-): NodeId[] {
-  return [
-    ...new Set(
-      getLegalMoveOptions(player, distance, ignoreArrows).map(
-        (path) => path[path.length - 1],
-      ),
-    ),
-  ];
+export function getUniqueLegalDestinations(player: Player, distance = 1, ignoreArrows = false): NodeId[] {
+  return [...new Set(getLegalMoveOptions(player, distance, ignoreArrows).map((path) => path[path.length - 1]))];
 }
 
 export function findLegalPath(
@@ -70,16 +44,11 @@ export function findLegalPath(
   ignoreArrows = false,
 ): NodeId[] | null {
   return (
-    getLegalMoveOptions(player, distance, ignoreArrows).find(
-      (path) => path[path.length - 1] === destination,
-    ) ?? null
+    getLegalMoveOptions(player, distance, ignoreArrows).find((path) => path[path.length - 1] === destination) ?? null
   );
 }
 
-export function getPlayerById(
-  players: Player[],
-  playerId: PlayerId,
-): Player | undefined {
+export function getPlayerById(players: Player[], playerId: PlayerId): Player | undefined {
   return players.find((player) => player.id === playerId);
 }
 
@@ -91,10 +60,7 @@ export function getItemPrice(itemId: ItemId, bootPrice: number): number {
   return itemId === "boot" ? bootPrice : ITEM_CATALOG[itemId].price;
 }
 
-export function getRandomItemCandidate(
-  player: Player,
-  maximumPrice = Number.POSITIVE_INFINITY,
-): ItemId | null {
+export function getRandomItemCandidate(player: Player, maximumPrice = Number.POSITIVE_INFINITY): ItemId | null {
   const candidates = Object.values(ITEM_CATALOG)
     .filter((item) => item.id !== "bullet-bill")
     .filter((item) => item.price <= maximumPrice)
@@ -103,10 +69,7 @@ export function getRandomItemCandidate(
   return candidates[0]?.id ?? null;
 }
 
-export function getNearestPlayer(
-  sourceNodeId: NodeId,
-  players: Player[],
-): Player | undefined {
+export function getNearestPlayer(sourceNodeId: NodeId, players: Player[]): Player | undefined {
   const source = BOARD_NODES.find((node) => node.id === sourceNodeId);
   if (!source) return undefined;
 
@@ -126,9 +89,7 @@ export function getNearestPlayer(
 export function getPathDistance(fromNodeId: NodeId, toNodeId: NodeId): number {
   if (fromNodeId === toNodeId) return 0;
 
-  const queue: { nodeId: NodeId; distance: number }[] = [
-    { nodeId: fromNodeId, distance: 0 },
-  ];
+  const queue: { nodeId: NodeId; distance: number }[] = [{ nodeId: fromNodeId, distance: 0 }];
   const visited = new Set<NodeId>([fromNodeId]);
 
   while (queue.length > 0) {
@@ -153,10 +114,7 @@ export function chooseRandom<T>(items: T[], randomValue: number): T | undefined 
   return items[Math.floor(normalizedValue * items.length)];
 }
 
-export function createInventoryEntry(
-  kind: InventoryEntry["kind"],
-  itemId?: ItemId,
-): InventoryEntry {
+export function createInventoryEntry(kind: InventoryEntry["kind"], itemId?: ItemId): InventoryEntry {
   const id = crypto.randomUUID();
   if (kind === "red-cup") return { id, kind };
   if (!itemId) throw new Error("An item id is required for an item entry.");
@@ -172,24 +130,15 @@ export function getPlayerTileEffects(player: Player): number {
 }
 
 export function getCanUseBoot(player: Player): boolean {
-  return player.inventory.some(
-    (entry) => entry.kind === "item" && entry.itemId === "boot",
-  );
+  return player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "boot");
 }
 
 export function getItems(player: Player): ItemId[] {
-  return player.inventory.flatMap((entry) =>
-    entry.kind === "item" ? [entry.itemId] : [],
-  );
+  return player.inventory.flatMap((entry) => (entry.kind === "item" ? [entry.itemId] : []));
 }
 
-export function getRandomOpponentIds(
-  players: Player[],
-  excludedPlayerIds: PlayerId[],
-): PlayerId[] {
-  return players
-    .filter((player) => !excludedPlayerIds.includes(player.id))
-    .map((player) => player.id);
+export function getRandomOpponentIds(players: Player[], excludedPlayerIds: PlayerId[]): PlayerId[] {
+  return players.filter((player) => !excludedPlayerIds.includes(player.id)).map((player) => player.id);
 }
 
 export function getPassiveDescription(player: Player): string {
@@ -205,7 +154,5 @@ export function isHellNode(nodeId: NodeId): boolean {
 }
 
 export function isDirectedEdge(fromNodeId: NodeId, toNodeId: NodeId): boolean {
-  return BOARD_EDGES.some(
-    (edge) => edge.oneWay && edge.from === fromNodeId && edge.to === toNodeId,
-  );
+  return BOARD_EDGES.some((edge) => edge.oneWay && edge.from === fromNodeId && edge.to === toNodeId);
 }

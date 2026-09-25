@@ -40,15 +40,18 @@ Le plateau illustré contient douze cases numérotées de 0 à 11 :
 - Case 11, violette : Enfer. Elle n’est pas parcourue comme une case normale ; des effets y téléportent les joueurs.
 - Case 8 : emplacement initial de la première Red Cup.
 
-Le graphe de connexions et le sens exact des flèches doivent être transcrits depuis l’illustration du plateau. La représentation en données doit rester configurable, sans coder les règles de déplacement dans la scène Three.js.
+La représentation en données reste configurable (`src/game/board.ts`), sans coder les règles de déplacement dans la scène Three.js.
 
-Pour le prototype, le graphe repris de l’illustration est :
+Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Sur l’original, les flèches sont dessinées **sur les cases** 0, 1, 2, 3, 8 et 9 et pointent vers l’une de leurs routes : cette route ne se prend que dans le sens de la flèche. La case 0 porte deux flèches (vers 2 et vers 4).
 
-- Liens dans les deux sens : 9–5, 4–7, 7–3, 4–3, 6–1, 10–8, 5–0, 2–0 et 0–8.
-- Liens à sens unique : 5→2, 9→4, 3→6, 1→10 et 0→4.
-- Les cases bleues de boutique sont 3, 8 et 9 ; la Red Cup initiale en case 8 peut donc être ramassée avant un arrêt boutique au même emplacement.
+- Liens dans les deux sens : 9–5, 4–7, 4–3, 7–3, 6–1 et 10–8.
+- Liens à sens unique : 2→5, 0→2, 0→4, 8→0, 9→4, 3→6 et 1→10.
+- Tunnel à sens unique 7→1 : la route grise quitte la case 7 par le bord gauche du plateau et revient par le bord droit dans la case 1. Il compte comme un seul pas.
+- Il n’existe pas de lien 5–0 (erreur de la première transcription).
+- La case 0 n’est donc atteignable que depuis la case 8 : on touche les 200 pièces du départ en bouclant le circuit.
+- Les cases bleues de boutique sont 3, 8 et 9 ; la Red Cup initiale en case 8 peut être ramassée juste avant l’arrêt boutique au même emplacement.
 
-Cette transcription de départ doit être comparée à la présentation pendant les essais. Les connexions et flèches restent modifiables dans la configuration du plateau.
+Lecture alternative à confirmer : les flèches pourraient aussi signifier « quand on est sur cette case, on doit en sortir dans le sens de la flèche ». Cela rendrait aussi à sens unique 9–5, 3–7, 3–4, 1–6 et 8–10. Le MVP applique la règle écrite dans la présentation (« les routes peuvent être prises dans les deux sens sauf s’il y a une flèche imposant la direction ») : seule la route fléchée est contrainte.
 
 ### 3.2 Règles de déplacement
 
@@ -58,7 +61,8 @@ Cette transcription de départ doit être comparée à la présentation pendant 
 - Les bifurcations laissent le choix au joueur entre les routes légales.
 - La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement.
 - Lorsqu’un joueur entre sur une case rouge ou verte, le passif **Red light, Green light** peut modifier son solde.
-- Entrer ou repasser par la case 0 donne 200 pièces, sauf avec le passif **Je suis Cups**. Le déclenchement exact est à tester au moment où le chemin du plateau est transcrit.
+- Entrer ou repasser par la case 0 donne 200 pièces, sauf avec le passif **Je suis Cups**.
+- Délinquant ne paie ses 200 pièces que si la destination choisie oblige réellement à remonter une flèche.
 
 ### 3.3 Red Cups
 
@@ -241,7 +245,7 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 
 ## 12. Points à revisiter
 
-- Vérifier la transcription du graphe exact et des flèches sur le plateau illustré.
+- Confirmer la lecture des flèches (route fléchée seule, ou sortie imposée depuis la case fléchée) — voir 3.1.
 - Vérifier les prix objet par objet avec les éléments source de meilleure qualité.
 - Rééquilibrer les roues et remplacer les résultats provisoires si les anciennes règles sont retrouvées.
 - Confirmer si une Red Cup peut apparaître en Enfer ; le MVP exclut la case 11 du tirage initial pour éviter un objectif inaccessible.

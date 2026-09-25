@@ -1,16 +1,6 @@
 import { create } from "zustand";
-import {
-  BOARD_NODES,
-  NORMAL_NODE_IDS,
-  getPathsOfLength,
-  getShortestPath,
-} from "./board";
-import {
-  ITEM_CATALOG,
-  ITEM_ORDER,
-  PASSIVE_ORDER,
-  chooseWheelResult,
-} from "./catalog";
+import { BOARD_NODES, NORMAL_NODE_IDS, getPathsOfLength, getShortestPath } from "./board";
+import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
   countRedCups,
@@ -45,6 +35,14 @@ import {
   START_NODE_ID,
 } from "./types";
 
+const DELINQUENT_COST = 200;
+
+const WHEEL_LOG_NAMES: Record<WheelId, string> = {
+  hell: "de l’Enfer",
+  fortune: "du bonheur",
+  misfortune: "du malheur",
+};
+
 interface GameActions {
   startGame: (playerNames: string[]) => void;
   resetGame: () => void;
@@ -54,12 +52,7 @@ interface GameActions {
   useItem: (entryId: string, targetPlayerId?: PlayerId) => void;
   endTurn: () => void;
   spinHellWheel: () => void;
-  spinWheel: (
-    wheelId: WheelId,
-    playerId: PlayerId,
-    resumeStage: TurnStage,
-    sourceItemId?: ItemId,
-  ) => void;
+  spinWheel: (wheelId: WheelId, playerId: PlayerId, resumeStage: TurnStage, sourceItemId?: ItemId) => void;
   resolveWheel: () => void;
   cancelWheel: () => void;
   challengePlayer: (targetPlayerId: PlayerId) => void;
@@ -76,11 +69,7 @@ function makeLog(text: string, tone: GameLogEntry["tone"] = "neutral"): GameLogE
   return { id: crypto.randomUUID(), text, tone };
 }
 
-function addLog(
-  state: GameState,
-  text: string,
-  tone: GameLogEntry["tone"] = "neutral",
-): GameState {
+function addLog(state: GameState, text: string, tone: GameLogEntry["tone"] = "neutral"): GameState {
   return { ...state, log: [makeLog(text, tone), ...state.log].slice(0, 60) };
 }
 
@@ -98,16 +87,10 @@ function shuffle<T>(values: T[]): T[] {
   return result;
 }
 
-function updatePlayer(
-  state: GameState,
-  playerId: PlayerId,
-  updater: (player: Player) => Player,
-): GameState {
+function updatePlayer(state: GameState, playerId: PlayerId, updater: (player: Player) => Player): GameState {
   return {
     ...state,
-    players: state.players.map((player) =>
-      player.id === playerId ? updater(player) : player,
-    ),
+    players: state.players.map((player) => (player.id === playerId ? updater(player) : player)),
   };
 }
 
@@ -127,11 +110,7 @@ function removeInventoryEntry(player: Player, entryId: string): Player {
   };
 }
 
-function applyCurrencyChange(
-  state: GameState,
-  playerId: PlayerId,
-  amount: number,
-): GameState {
+function applyCurrencyChange(state: GameState, playerId: PlayerId, amount: number): GameState {
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!player || amount === 0) return state;
 
@@ -140,18 +119,12 @@ function applyCurrencyChange(
   let nextInventory = player.inventory;
 
   if (amount < 0 && nextCurrency < 0) {
-    const helmet = player.inventory.find(
-      (entry) => entry.kind === "item" && entry.itemId === "helmet",
-    );
+    const helmet = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "helmet");
 
     if (helmet) {
       nextCurrency = 0;
       nextInventory = player.inventory.filter((entry) => entry.id !== helmet.id);
-      nextState = addLog(
-        nextState,
-        `${player.name} active son Casque et évite de passer sous zéro.`,
-        "good",
-      );
+      nextState = addLog(nextState, `${player.name} active son Casque et évite de passer sous zéro.`, "good");
     }
   }
 
@@ -173,36 +146,22 @@ function applyCurrencyChange(
     );
   } else {
     const sign = amount > 0 ? "+" : "−";
-    nextState = addLog(
-      nextState,
-      `${player.name} ${sign}${Math.abs(amount)} pièces.`,
-      amount > 0 ? "good" : "bad",
-    );
+    nextState = addLog(nextState, `${player.name} ${sign}${Math.abs(amount)} pièces.`, amount > 0 ? "good" : "bad");
   }
 
   return nextState;
 }
 
-function startDuel(
-  state: GameState,
-  playerOneId: PlayerId,
-  playerTwoId: PlayerId,
-  resumeStage: TurnStage,
-): GameState {
+function startDuel(state: GameState, playerOneId: PlayerId, playerTwoId: PlayerId, resumeStage: TurnStage): GameState {
   const playerOne = state.players.find((player) => player.id === playerOneId);
   const playerTwo = state.players.find((player) => player.id === playerTwoId);
   if (!playerOne || !playerTwo || playerOneId === playerTwoId) return state;
 
-  const otherPlayers = state.players.filter(
-    (player) => player.id !== playerOneId && player.id !== playerTwoId,
-  );
+  const otherPlayers = state.players.filter((player) => player.id !== playerOneId && player.id !== playerTwoId);
   const availableModes: DuelMode[] = ["coin-flip", "rock-paper-scissors"];
   if (otherPlayers.length > 0) availableModes.push("player-vote");
   const mode = randomChoice(availableModes) ?? "coin-flip";
-  const coinWinnerId =
-    mode === "coin-flip"
-      ? randomChoice([playerOneId, playerTwoId])
-      : undefined;
+  const coinWinnerId = mode === "coin-flip" ? randomChoice([playerOneId, playerTwoId]) : undefined;
 
   let nextState: GameState = {
     ...state,
@@ -219,21 +178,14 @@ function startDuel(
   nextState = addLog(
     nextState,
     `${playerOne.name} et ${playerTwo.name} s’affrontent en ${
-      mode === "coin-flip"
-        ? "pile ou face"
-        : mode === "rock-paper-scissors"
-          ? "pierre-feuille-ciseaux"
-          : "vote"
+      mode === "coin-flip" ? "pile ou face" : mode === "rock-paper-scissors" ? "pierre-feuille-ciseaux" : "vote"
     }.`,
     "event",
   );
   return nextState;
 }
 
-function maybeStartHellDuel(
-  state: GameState,
-  resumeStage: TurnStage,
-): GameState {
+function maybeStartHellDuel(state: GameState, resumeStage: TurnStage): GameState {
   if (
     state.pendingDuel ||
     state.pendingDiscard ||
@@ -243,17 +195,13 @@ function maybeStartHellDuel(
   ) {
     return state;
   }
-  const hellPlayers = state.players.filter(
-    (player) => player.position === HELL_NODE_ID,
-  );
+  const hellPlayers = state.players.filter((player) => player.position === HELL_NODE_ID);
   if (hellPlayers.length < 2) return { ...state, turnStage: resumeStage };
   return startDuel(state, hellPlayers[0].id, hellPlayers[1].id, resumeStage);
 }
 
 function createCupNode(previousNodeId: NodeId): NodeId {
-  const candidates = NORMAL_NODE_IDS.filter(
-    (nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId,
-  );
+  const candidates = NORMAL_NODE_IDS.filter((nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId);
   return randomChoice(candidates) ?? 1;
 }
 
@@ -262,9 +210,7 @@ function applyTrollEffects(state: GameState): GameState {
   const trolls = state.players.filter((player) => player.passiveId === "troll");
 
   for (const troll of trolls) {
-    const targets = shuffle(
-      state.players.filter((player) => player.id !== troll.id),
-    ).slice(0, 2);
+    const targets = shuffle(state.players.filter((player) => player.id !== troll.id)).slice(0, 2);
 
     for (const target of targets) {
       nextState = applyCurrencyChange(nextState, target.id, -100);
@@ -275,11 +221,7 @@ function applyTrollEffects(state: GameState): GameState {
   return nextState;
 }
 
-function finishCupCollection(
-  state: GameState,
-  playerId: PlayerId,
-  cupNodeId: NodeId,
-): GameState {
+function finishCupCollection(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!player) return state;
 
@@ -287,14 +229,8 @@ function finishCupCollection(
     ...currentPlayer,
     inventory: [...currentPlayer.inventory, { id: crypto.randomUUID(), kind: "red-cup" }],
   }));
-  const totalCups = countRedCups(
-    nextState.players.find((candidate) => candidate.id === playerId) ?? player,
-  );
-  nextState = addLog(
-    nextState,
-    `${player.name} récupère une Red Cup (${totalCups}/${RED_CUP_GOAL}).`,
-    "good",
-  );
+  const totalCups = countRedCups(nextState.players.find((candidate) => candidate.id === playerId) ?? player);
+  nextState = addLog(nextState, `${player.name} récupère une Red Cup (${totalCups}/${RED_CUP_GOAL}).`, "good");
 
   if (totalCups >= RED_CUP_GOAL) {
     nextState = {
@@ -309,9 +245,7 @@ function finishCupCollection(
   }
 
   const nextCupNodeId = createCupNode(cupNodeId);
-  const repositioner = nextState.players.find(
-    (candidate) => candidate.passiveId === "new-cup-new-me",
-  );
+  const repositioner = nextState.players.find((candidate) => candidate.passiveId === "new-cup-new-me");
   const resumeStage = state.turnStage === "discard" ? "turn-end" : state.turnStage;
 
   nextState = {
@@ -327,20 +261,12 @@ function finishCupCollection(
   };
 
   nextState = applyTrollEffects(nextState);
-  nextState = addLog(
-    nextState,
-    "Une nouvelle Red Cup apparaît sur le plateau.",
-    "event",
-  );
+  nextState = addLog(nextState, "Une nouvelle Red Cup apparaît sur le plateau.", "event");
   if (!repositioner) nextState = addCupCycleEffects(nextState, playerId);
   return nextState;
 }
 
-function collectCupOrRequestDiscard(
-  state: GameState,
-  playerId: PlayerId,
-  nodeId: NodeId,
-): GameState {
+function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!player || state.redCupNodeId !== nodeId) return state;
 
@@ -361,24 +287,16 @@ function collectCupOrRequestDiscard(
 }
 
 function randomNormalNode(excludeNodeId?: NodeId): NodeId {
-  const nodes = NORMAL_NODE_IDS.filter(
-    (nodeId) => nodeId !== HELL_NODE_ID && nodeId !== excludeNodeId,
-  );
+  const nodes = NORMAL_NODE_IDS.filter((nodeId) => nodeId !== HELL_NODE_ID && nodeId !== excludeNodeId);
   return randomChoice(nodes) ?? START_NODE_ID;
 }
 
-function itemCopyForPassive(
-  state: GameState,
-  targetPlayerId: PlayerId,
-  itemId: ItemId,
-): GameState {
+function itemCopyForPassive(state: GameState, targetPlayerId: PlayerId, itemId: ItemId): GameState {
   const target = state.players.find((player) => player.id === targetPlayerId);
   if (!target || target.passiveId !== "i-take-notes") return state;
 
   if (canAddItem(target, itemId)) {
-    const nextState = updatePlayer(state, targetPlayerId, (player) =>
-      appendItem(player, itemId),
-    );
+    const nextState = updatePlayer(state, targetPlayerId, (player) => appendItem(player, itemId));
     return addLog(nextState, `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`, "event");
   }
 
@@ -419,11 +337,7 @@ function addStartBonus(state: GameState, playerId: PlayerId): GameState {
   return applyCurrencyChange(state, playerId, 200);
 }
 
-function addRedGreenBonuses(
-  state: GameState,
-  playerId: PlayerId,
-  path: NodeId[],
-): GameState {
+function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!player || player.passiveId !== "red-light-green-light") return state;
 
@@ -456,30 +370,19 @@ function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId): GameS
 
 function addCupCycleEffects(state: GameState, collectorId: PlayerId): GameState {
   let nextState = state;
-  const calmDownPlayer = nextState.players.find(
-    (player) => player.passiveId === "calm-down",
-  );
+  const calmDownPlayer = nextState.players.find((player) => player.passiveId === "calm-down");
   if (calmDownPlayer && nextState.redCupNodeId !== null) {
     const collector = nextState.players.find((player) => player.id === collectorId);
     const distance = collector
-      ? getShortestPath(nextState.redCupNodeId, collector.position, true)?.length ?? Infinity
+      ? (getShortestPath(nextState.redCupNodeId, collector.position, true)?.length ?? Infinity)
       : Infinity;
     if (!collector || distance < 1 || distance >= 3) return nextState;
 
-    const retreatPath = getPathsOfLength(collector.position, 3, true)
-      .sort((left, right) => {
-        const leftDistance = getShortestPath(
-          nextState.redCupNodeId!,
-          left[left.length - 1],
-          true,
-        )?.length ?? 0;
-        const rightDistance = getShortestPath(
-          nextState.redCupNodeId!,
-          right[right.length - 1],
-          true,
-        )?.length ?? 0;
-        return rightDistance - leftDistance;
-      })[0];
+    const retreatPath = getPathsOfLength(collector.position, 3, true).sort((left, right) => {
+      const leftDistance = getShortestPath(nextState.redCupNodeId!, left[left.length - 1], true)?.length ?? 0;
+      const rightDistance = getShortestPath(nextState.redCupNodeId!, right[right.length - 1], true)?.length ?? 0;
+      return rightDistance - leftDistance;
+    })[0];
 
     const retreatNode = retreatPath?.[retreatPath.length - 1];
     if (retreatNode === undefined) return nextState;
@@ -494,11 +397,7 @@ function addCupCycleEffects(state: GameState, collectorId: PlayerId): GameState 
         resumeStage: state.turnStage,
       },
     };
-    nextState = addLog(
-      nextState,
-      `${calmDownPlayer.name} peut utiliser Calme-toi contre ${collector.name}.`,
-      "event",
-    );
+    nextState = addLog(nextState, `${calmDownPlayer.name} peut utiliser Calme-toi contre ${collector.name}.`, "event");
   }
   return nextState;
 }
@@ -539,11 +438,7 @@ function moveBulletBill(state: GameState, round: number): GameState {
       ...player,
       skippedTurns: player.skippedTurns + 1,
     }));
-    nextState = addLog(
-      nextState,
-      `Bullet Bill percute ${target.player.name} : −200 pièces et un tour sauté.`,
-      "bad",
-    );
+    nextState = addLog(nextState, `Bullet Bill percute ${target.player.name} : −200 pièces et un tour sauté.`, "bad");
     nextState = { ...nextState, bulletBill: null };
   }
 
@@ -610,9 +505,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   ...EMPTY_GAME_STATE,
 
   startGame: (playerNames) => {
-    const names = playerNames
-      .slice(0, 8)
-      .map((name, index) => name.trim() || `Joueur ${index + 1}`);
+    const names = playerNames.slice(0, 8).map((name, index) => name.trim() || `Joueur ${index + 1}`);
     if (names.length < 2) return;
 
     const passives = shuffle(PASSIVE_ORDER).slice(0, names.length);
@@ -647,13 +540,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const player = state.players[state.activePlayerIndex];
     if (state.phase !== "playing" || state.turnStage !== "move" || !player) return;
 
-    const canIgnoreArrows = ignoreArrows && player.passiveId === "delinquent";
-    const path = findLegalPath(player, destination, state.moveDistance, canIgnoreArrows);
+    // Délinquant only pays when the chosen destination really requires going against an arrow.
+    const regularPath = findLegalPath(player, destination, state.moveDistance, false);
+    const rebelPath =
+      ignoreArrows && canUseDelinquent(player) ? findLegalPath(player, destination, state.moveDistance, true) : null;
+    const path = regularPath ?? rebelPath;
     if (!path) return;
 
     let nextState: GameState = state;
-    if (canIgnoreArrows) {
-      nextState = applyCurrencyChange(nextState, player.id, -200);
+    if (!regularPath && rebelPath) {
+      nextState = applyCurrencyChange(nextState, player.id, -DELINQUENT_COST);
       nextState = addLog(nextState, `${player.name} ignore les flèches grâce à Délinquant.`, "event");
     }
 
@@ -665,8 +561,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     nextState = addRedGreenBonuses(nextState, player.id, path);
 
     if (path.includes(START_NODE_ID) && player.passiveId !== "im-cups") {
+      nextState = addLog(nextState, `${player.name} passe par le départ.`, "good");
       nextState = addStartBonus(nextState, player.id);
-      nextState = addLog(nextState, `${player.name} repasse par le départ et gagne 200 pièces.`, "good");
     }
 
     nextState = {
@@ -674,16 +570,23 @@ export const useGameStore = create<GameStore>((set, get) => ({
       moveDistance: 1,
       turnActionTaken: true,
       pendingCupRepositionPlayerId: null,
+      lastMovement: {
+        seq: (state.lastMovement?.seq ?? 0) + 1,
+        playerId: player.id,
+        from: player.position,
+        path,
+      },
     };
 
     const finalPlayer = nextState.players.find((candidate) => candidate.id === player.id);
     nextState = {
       ...nextState,
-      turnStage: nextState.phase === "finished"
-        ? "finished"
-        : BOARD_NODES.find((node) => node.id === finalPlayer?.position)?.kind === "shop"
-          ? "shop"
-          : "turn-end",
+      turnStage:
+        nextState.phase === "finished"
+          ? "finished"
+          : BOARD_NODES.find((node) => node.id === finalPlayer?.position)?.kind === "shop"
+            ? "shop"
+            : "turn-end",
     };
     nextState = triggerMud(nextState, player.id, destination);
 
@@ -711,9 +614,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const itemId = getItemEntry(player, entryId);
     if (itemId !== "boot") return;
 
-    let nextState = updatePlayer(state, player.id, (currentPlayer) =>
-      removeInventoryEntry(currentPlayer, entryId),
-    );
+    let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, entryId));
     nextState = {
       ...nextState,
       moveDistance: 2,
@@ -756,9 +657,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!canAddItem(player, itemId)) return;
 
     let nextState = applyCurrencyChange(state, player.id, -price);
-    nextState = updatePlayer(nextState, player.id, (currentPlayer) =>
-      appendItem(currentPlayer, itemId),
-    );
+    nextState = updatePlayer(nextState, player.id, (currentPlayer) => appendItem(currentPlayer, itemId));
     if (itemId === "boot" && !state.bootFirstPurchased) {
       nextState = {
         ...nextState,
@@ -784,19 +683,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (itemId === "boot") return;
     if (itemId === "water-bottle" && !inHell) return;
 
-    const target = targetPlayerId
-      ? state.players.find((candidate) => candidate.id === targetPlayerId)
-      : undefined;
-    if (
-      ["ndoye", "hollow-purple", "rope", "middle-finger", "monopoly-man"].includes(itemId) &&
-      !target
-    ) {
-      return;
+    const target = targetPlayerId ? state.players.find((candidate) => candidate.id === targetPlayerId) : undefined;
+    const itemDefinition = ITEM_CATALOG[itemId];
+    if (itemDefinition.target === "player") {
+      if (!target) return;
+      if (target.id === player.id && !itemDefinition.canTargetSelf) return;
     }
 
-    let nextState = updatePlayer(state, player.id, (currentPlayer) =>
-      removeInventoryEntry(currentPlayer, entryId),
-    );
+    let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, entryId));
     nextState = { ...nextState, turnActionTaken: true };
 
     switch (itemId) {
@@ -807,6 +701,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
           nextState = {
             ...nextState,
             pendingWheel: {
+              id: crypto.randomUUID(),
               wheelId: "misfortune",
               playerId: target!.id,
               result,
@@ -854,10 +749,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       case "mud":
         nextState = {
           ...nextState,
-          mudTraps: [
-            ...nextState.mudTraps,
-            { id: crypto.randomUUID(), nodeId: player.position, ownerId: player.id },
-          ],
+          mudTraps: [...nextState.mudTraps, { id: crypto.randomUUID(), nodeId: player.position, ownerId: player.id }],
           turnStage: "turn-end",
         };
         nextState = addLog(nextState, `${player.name} pose de la Boue en case ${player.position}.`, "event");
@@ -920,9 +812,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         };
         nextState = addLog(nextState, "Draven envoie toute la table en Enfer.", "bad");
         {
-          const noteHolder = nextState.players.find(
-            (candidate) => candidate.passiveId === "i-take-notes",
-          );
+          const noteHolder = nextState.players.find((candidate) => candidate.passiveId === "i-take-notes");
           if (noteHolder) nextState = itemCopyForPassive(nextState, noteHolder.id, itemId);
         }
         if (!nextState.pendingDiscard) nextState = maybeStartHellDuel(nextState, "turn-end");
@@ -941,11 +831,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const noLegalMove =
       state.turnStage === "move" &&
       activePlayer !== undefined &&
-      getUniqueLegalDestinations(
-        activePlayer,
-        state.moveDistance,
-        activePlayer.passiveId === "delinquent",
-      ).length === 0;
+      getUniqueLegalDestinations(activePlayer, state.moveDistance, activePlayer.passiveId === "delinquent").length ===
+        0;
     if (!["shop", "turn-end"].includes(state.turnStage) && !noLegalMove) return;
     set(beginNextTurn({ ...state, turnStage: "turn-end" }));
   },
@@ -963,6 +850,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const nextState: GameState = {
       ...state,
       pendingWheel: {
+        id: crypto.randomUUID(),
         wheelId,
         playerId,
         result,
@@ -971,7 +859,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       } satisfies PendingWheel,
       turnStage: "wheel-result",
     };
-    set(addLog(nextState, `La roue ${wheelId === "hell" ? "de l’Enfer" : wheelId === "fortune" ? "du bonheur" : "du malheur"} indique : ${result.label}.`, "event"));
+    set(addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]} indique : ${result.label}.`, "event"));
   },
 
   resolveWheel: () => {
@@ -983,12 +871,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!player) return;
 
     if (pending.result.id === "spin-fortune") {
-      get().spinWheel(
-        "fortune",
-        pending.playerId,
-        pending.resumeStage,
-        pending.sourceItemId,
-      );
+      get().spinWheel("fortune", pending.playerId, pending.resumeStage, pending.sourceItemId);
       return;
     }
 
@@ -1070,9 +953,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         );
         const freeItem = randomChoice(options);
         if (freeItem) {
-          nextState = updatePlayer(nextState, player.id, (currentPlayer) =>
-            appendItem(currentPlayer, freeItem),
-          );
+          nextState = updatePlayer(nextState, player.id, (currentPlayer) => appendItem(currentPlayer, freeItem));
           nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[freeItem].name} gratuitement.`, "good");
         } else {
           nextState = applyCurrencyChange(nextState, player.id, 200);
@@ -1087,11 +968,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (pending.sourceItemId) {
       nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId);
     }
-    if (
-      nextState.pendingDiscard ||
-      nextState.pendingCupRepositionPlayerId ||
-      nextState.pendingCalmDown
-    ) {
+    if (nextState.pendingDiscard || nextState.pendingCupRepositionPlayerId || nextState.pendingCalmDown) {
       set(nextState);
       return;
     }
@@ -1104,14 +981,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const pending = state.pendingWheel;
     if (!pending) return;
     const player = state.players.find((candidate) => candidate.id === pending.playerId);
-    const eraser = player?.inventory.find(
-      (entry) => entry.kind === "item" && entry.itemId === "eraser",
-    );
+    const eraser = player?.inventory.find((entry) => entry.kind === "item" && entry.itemId === "eraser");
     if (!player || !eraser) return;
 
-    let nextState = updatePlayer(state, player.id, (currentPlayer) =>
-      removeInventoryEntry(currentPlayer, eraser.id),
-    );
+    let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, eraser.id));
     nextState = {
       ...nextState,
       pendingWheel: null,
@@ -1157,17 +1030,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
       pendingDuel: null,
       turnStage: duel.resumeStage,
     };
-    nextState = addLog(nextState, `${winner.name} gagne le duel et retourne en case 0. ${loser.name} reste en Enfer.`, "good");
-    const hellPlayers = nextState.players.filter(
-      (player) => player.position === HELL_NODE_ID,
+    nextState = addLog(
+      nextState,
+      `${winner.name} gagne le duel et retourne en case 0. ${loser.name} reste en Enfer.`,
+      "good",
     );
+    const hellPlayers = nextState.players.filter((player) => player.position === HELL_NODE_ID);
     if (hellPlayers.length >= 2) {
-      nextState = startDuel(
-        nextState,
-        hellPlayers[0].id,
-        hellPlayers[1].id,
-        duel.resumeStage,
-      );
+      nextState = startDuel(nextState, hellPlayers[0].id, hellPlayers[1].id, duel.resumeStage);
     }
     set(nextState);
   },
@@ -1180,9 +1050,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const entry = player?.inventory.find((candidate) => candidate.id === entryId);
     if (!player || !entry || entry.kind === "red-cup") return;
 
-    let nextState = updatePlayer(state, player.id, (currentPlayer) =>
-      removeInventoryEntry(currentPlayer, entryId),
-    );
+    let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, entryId));
     nextState = {
       ...nextState,
       pendingDiscard: null,
@@ -1193,11 +1061,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (pending.reason === "red-cup" && pending.cupNodeId !== undefined) {
       nextState = finishCupCollection(nextState, player.id, pending.cupNodeId);
     } else if (pending.reason === "forced-item" && pending.itemId) {
-      nextState = updatePlayer(nextState, player.id, (currentPlayer) =>
-        appendItem(currentPlayer, pending.itemId!),
-      );
+      nextState = updatePlayer(nextState, player.id, (currentPlayer) => appendItem(currentPlayer, pending.itemId!));
       nextState = { ...nextState, turnStage: pending.resumeStage };
-      nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[pending.itemId].name} grâce à Je note.`, "event");
+      nextState = addLog(
+        nextState,
+        `${player.name} reçoit ${ITEM_CATALOG[pending.itemId].name} grâce à Je note.`,
+        "event",
+      );
     }
     if (nextState.phase === "playing") {
       nextState = maybeStartHellDuel(nextState, pending.resumeStage);
@@ -1210,11 +1080,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const playerId = state.pendingCupRepositionPlayerId;
     const collectorId = state.pendingCupCollectorId;
     const resumeStage = state.pendingCupRepositionResumeStage ?? "turn-end";
-    if (
-      !playerId ||
-      state.pendingCupRevealNodeId === null ||
-      !NORMAL_NODE_IDS.includes(destination)
-    ) {
+    if (!playerId || state.pendingCupRevealNodeId === null || !NORMAL_NODE_IDS.includes(destination)) {
       return;
     }
 
@@ -1243,9 +1109,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     const pending = state.pendingCalmDown;
     if (!pending) return;
-    const passivePlayer = state.players.find(
-      (player) => player.id === pending.passivePlayerId,
-    );
+    const passivePlayer = state.players.find((player) => player.id === pending.passivePlayerId);
     const collector = state.players.find((player) => player.id === pending.collectorId);
     if (!passivePlayer || !collector) return;
 
@@ -1305,10 +1169,19 @@ export const useGameStore = create<GameStore>((set, get) => ({
       moveDistance: 1,
       turnActionTaken: true,
     };
-    nextState = addLog(nextState, `${voter.name} utilise Non merci : l’action de ${activePlayer.name} est annulée.`, "event");
+    nextState = addLog(
+      nextState,
+      `${voter.name} utilise Non merci : l’action de ${activePlayer.name} est annulée.`,
+      "event",
+    );
     set(nextState);
   },
 }));
+
+/** Délinquant pays 200 coins per ignored arrow, so it is unusable without the funds. */
+export function canUseDelinquent(player: Player): boolean {
+  return player.passiveId === "delinquent" && player.currency >= DELINQUENT_COST;
+}
 
 export function getActivePlayer(state: GameState): Player | undefined {
   return state.players[state.activePlayerIndex];

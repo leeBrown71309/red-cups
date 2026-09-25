@@ -51,9 +51,7 @@ export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote";
 export type RpsChoice = "rock" | "paper" | "scissors";
 
-export type InventoryEntry =
-  | { id: string; kind: "red-cup" }
-  | { id: string; kind: "item"; itemId: ItemId };
+export type InventoryEntry = { id: string; kind: "red-cup" } | { id: string; kind: "item"; itemId: ItemId };
 
 export interface Player {
   id: PlayerId;
@@ -79,6 +77,8 @@ export interface BoardEdge {
   from: NodeId;
   to: NodeId;
   oneWay?: boolean;
+  /** A tunnel leaves the board on one side and comes back on the other. */
+  kind?: "road" | "tunnel";
 }
 
 export type TurnStage =
@@ -120,6 +120,8 @@ export interface WheelResult {
 }
 
 export interface PendingWheel {
+  /** Unique per spin so the UI can replay the animation for chained wheels. */
+  id: string;
   wheelId: WheelId;
   playerId: PlayerId;
   result: WheelResult;
@@ -167,6 +169,14 @@ export interface BulletBillState {
   spawnRound: number;
 }
 
+/** Last walk on the board, kept so the scene can animate the hops. */
+export interface PlayerMovement {
+  seq: number;
+  playerId: PlayerId;
+  from: NodeId;
+  path: NodeId[];
+}
+
 export interface GameLogEntry {
   id: string;
   text: string;
@@ -200,6 +210,7 @@ export interface GameState {
   moveDistance: number;
   turnActionTaken: boolean;
   winnerId: PlayerId | null;
+  lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
 }
 
@@ -230,5 +241,6 @@ export const EMPTY_GAME_STATE: GameState = {
   turnActionTaken: false,
   duelResumeStage: "turn-end",
   winnerId: null,
+  lastMovement: null,
   log: [],
 };

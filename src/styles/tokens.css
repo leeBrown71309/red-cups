@@ -1,0 +1,55 @@
+/*
+ * Red Cups art direction: "toy box party".
+ * Warm cream paper, chunky ink outlines, candy buttons and a signature cup red.
+ */
+:root {
+  --font-display: "Fredoka", "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Nunito", "Segoe UI", system-ui, sans-serif;
+
+  --ink: #3a2530;
+  --ink-soft: #6b5360;
+  --ink-faint: #a38f98;
+
+  --cream: #fff8ee;
+  --cream-2: #fdeedb;
+  --cream-3: #f6e0c4;
+  --paper-edge: #e8cfae;
+  --white: #ffffff;
+
+  --cup: #e8453c;
+  --cup-deep: #b92f2c;
+  --cup-light: #ffd9d4;
+  --gold: #ffc44d;
+  --gold-deep: #d9951a;
+  --gold-light: #fff0c7;
+  --mint: #5cc46a;
+  --mint-deep: #379447;
+  --mint-light: #dff5d9;
+  --sky: #4fa5f2;
+  --sky-deep: #2d78c7;
+  --sky-light: #dcefff;
+  --grape: #8e5bd9;
+  --grape-deep: #6038a8;
+  --grape-light: #efe3ff;
+
+  --backdrop-top: #fff3e2;
+  --backdrop-mid: #ffe0c6;
+  --backdrop-bottom: #f5bea3;
+
+  --radius-xl: 28px;
+  --radius-l: 22px;
+  --radius-m: 16px;
+  --radius-s: 12px;
+  --border: 3px solid var(--ink);
+  --shadow-chunky: 0 4px 0 var(--ink);
+  --shadow-float: 0 18px 40px rgba(58, 37, 48, 0.22);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --hud-inset: 12px;
+}
