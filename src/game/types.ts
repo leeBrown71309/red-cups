@@ -5,6 +5,15 @@ export const RED_CUP_GOAL = 3;
 export const STARTING_CURRENCY = 2_000;
 export const BASE_INVENTORY_CAPACITY = 4;
 export const CURRENCY_RESET_THRESHOLD = -300;
+export const START_BONUS = 200;
+export const MUD_PENALTY = 200;
+/** Délinquant pays this for every move that goes against an arrow. */
+export const DELINQUENT_COST = 200;
+/** After this many of their own turns in Hell, a player is released at the start, for a toll. */
+export const HELL_TURN_LIMIT = 5;
+export const HELL_EXIT_TOLL = 500;
+/** When Non merci cancels an item, the item is still spent (confirmed by the game's author). */
+export const CANCELLED_ITEM_IS_CONSUMED = true;
 
 export const PLAYER_COLORS = [
   "#f16a53",
@@ -63,6 +72,8 @@ export interface Player {
   passiveId: PassiveId;
   skippedTurns: number;
   noThanksUsedCycle: number;
+  /** Own turns spent in Hell since the last trip there, skipped ones included. */
+  hellTurns: number;
 }
 
 export interface BoardNode {
@@ -76,14 +87,21 @@ export interface BoardNode {
 export interface BoardEdge {
   from: NodeId;
   to: NodeId;
-  oneWay?: boolean;
+  /**
+   * An arrow drawn on the `from` tile, pointing along this road. A tile that
+   * carries arrows can only be left through them; it can still be entered by
+   * any road, including this one walked backwards.
+   */
+  arrow?: boolean;
   /** A tunnel leaves the board on one side and comes back on the other. */
   kind?: "road" | "tunnel";
 }
 
 export type TurnStage =
   | "move"
+  | "reaction"
   | "shop"
+  | "tile-wheel"
   | "turn-end"
   | "hell"
   | "wheel-result"
@@ -119,6 +137,9 @@ export interface WheelResult {
   amount?: number;
 }
 
+/** Why a wheel spins; only used to phrase the wheel screen. */
+export type WheelOrigin = "tile" | "item" | "hell" | "chain";
+
 export interface PendingWheel {
   /** Unique per spin so the UI can replay the animation for chained wheels. */
   id: string;
@@ -127,6 +148,20 @@ export interface PendingWheel {
   result: WheelResult;
   resumeStage: TurnStage;
   sourceItemId?: ItemId;
+  origin?: WheelOrigin;
+}
+
+/** An action announced by the active player, waiting for a possible Non merci. */
+export type DeclaredAction =
+  | { type: "move"; destination: NodeId; ignoreArrows: boolean }
+  | { type: "item"; entryId: string; itemId: ItemId; targetPlayerId?: PlayerId };
+
+export interface PendingReaction {
+  actorId: PlayerId;
+  action: DeclaredAction;
+  /** Players who may still cancel the action with Non merci this Red Cup cycle. */
+  reactorIds: PlayerId[];
+  resumeStage: TurnStage;
 }
 
 export interface PendingDuel {
@@ -155,6 +190,12 @@ export interface PendingCalmDown {
   collectorId: PlayerId;
   retreatNodeId: NodeId;
   resumeStage: TurnStage;
+}
+
+/** A player who arrived on a green or red tile and still has to spin its wheel. */
+export interface PendingTileWheel {
+  playerId: PlayerId;
+  nodeId: NodeId;
 }
 
 export interface MudTrap {
@@ -201,6 +242,11 @@ export interface GameState {
   pendingCupRepositionResumeStage: TurnStage | null;
   pendingCupCollectorId: PlayerId | null;
   pendingCalmDown: PendingCalmDown | null;
+  pendingReaction: PendingReaction | null;
+  /** Tile wheels still to spin, in arrival order; filled by walks and teleports alike. */
+  pendingTileWheels: PendingTileWheel[];
+  /** Stage to return to once every queued tile wheel has spun. */
+  tileWheelResumeStage: TurnStage;
   duelResumeStage: TurnStage;
   mudTraps: MudTrap[];
   bulletBill: BulletBillState | null;
@@ -232,6 +278,9 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingCupRepositionResumeStage: null,
   pendingCupCollectorId: null,
   pendingCalmDown: null,
+  pendingReaction: null,
+  pendingTileWheels: [],
+  tileWheelResumeStage: "turn-end",
   mudTraps: [],
   bulletBill: null,
   bootPrice: 100,

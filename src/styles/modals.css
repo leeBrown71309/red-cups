@@ -667,6 +667,61 @@
   margin-bottom: 12px;
 }
 
+/* ---------- Non merci reaction ---------- */
+.reaction {
+  display: grid;
+  gap: 12px;
+}
+
+.reaction__announce {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--cream-2);
+  font-size: 1.05rem;
+}
+
+.reaction__reactors {
+  display: grid;
+  gap: 8px;
+}
+
+.reaction__reactors li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 6px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 14px;
+  background: var(--white);
+}
+
+.reaction__reactor-name {
+  flex: 1;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.reaction__countdown {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--white);
+  font-size: 0.85rem;
+}
+
+.reaction__hint {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
 /* ---------- Help ---------- */
 .help-board {
   display: grid;

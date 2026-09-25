@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useGameStore } from "../../game/store";
 import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
-import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal } from "../modals/decision-modals";
+import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
 import { DuelModal } from "../modals/duel-modal";
 import { HelpModal } from "../modals/help-modal";
 import { JournalModal, PauseMenu } from "../modals/menu-modals";
@@ -42,6 +42,7 @@ export function GameHud() {
   let decision: ReactNode = null;
   if (settled) {
     if (game.phase === "finished") decision = <VictoryModal />;
+    else if (game.pendingReaction) decision = <ReactionModal />;
     else if (game.pendingDiscard) decision = <DiscardModal />;
     else if (game.pendingWheel) decision = <WheelModal />;
     else if (game.pendingDuel) decision = <DuelModal />;

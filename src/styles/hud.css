@@ -195,17 +195,67 @@
   transform: scale(1.1);
 }
 
+/*
+ * Fixed and positioned from the chip when it opens. The old version centred
+ * itself with a transform that the pop-in animation overwrote, hence the jump.
+ */
 .player-details {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
+  position: fixed;
   z-index: 30;
   display: grid;
   gap: 10px;
-  width: 260px;
+  width: min(280px, calc(100vw - 16px));
   padding: 12px;
-  transform: translateX(-50%);
-  animation: pop-in 220ms var(--ease-out);
+  transform-origin: var(--arrow-left, 50%) top;
+  animation: details-in 200ms var(--ease-out) both;
+}
+
+.player-details::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: calc(var(--arrow-left, 50%) - 9px);
+  width: 16px;
+  height: 16px;
+  border-top: var(--border);
+  border-left: var(--border);
+  border-radius: 4px 0 0 0;
+  background: var(--cream);
+  transform: rotate(45deg);
+}
+
+@keyframes details-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.94);
+  }
+}
+
+.player-details__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.player-details__stat {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.player-details__stat-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+}
+
+.player-details__stat-value.is-negative {
+  color: var(--cup-deep);
 }
 
 .player-details__head {
@@ -731,6 +781,20 @@
 
   .player-chip:not(.is-active) .player-chip__name {
     max-width: 6ch;
+  }
+
+  .player-details {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .player-details__head > svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .player-details__passive p {
+    font-size: 0.78rem;
   }
 
   .event-toasts {

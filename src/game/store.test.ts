@@ -177,12 +177,19 @@ describe("Red Cups game store", () => {
     useGameStore.getState().movePlayer(4, true);
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
 
+    // 4 → 0 walks against the start's arrow, but 4 carries no arrow: free, and no start bonus either.
     useGameStore.setState({ turnStage: "move" });
     useGameStore.getState().movePlayer(0, true);
+    expect(useGameStore.getState().players[0].currency).toBe(2_000);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(false);
+
+    // Tile 3 must be left towards 6: reaching 4 from it really ignores an arrow.
+    placeActivePlayer(3);
+    useGameStore.setState({ turnStage: "move" });
+    useGameStore.getState().movePlayer(4, true);
     const player = useGameStore.getState().players[0];
-    expect(player.position).toBe(0);
-    // −200 for the reversed arrow, then +200 for landing on the start tile.
-    expect(player.currency).toBe(2_000);
+    expect(player.position).toBe(4);
+    expect(player.currency).toBe(1_800);
     expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(true);
   });
 

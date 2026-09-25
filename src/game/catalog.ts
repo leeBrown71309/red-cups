@@ -188,7 +188,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "i-take-notes",
     name: "Je note",
     shortName: "Je note",
-    description: "Quand un objet t’affecte, tu en reçois une copie.",
+    description: "Quand un objet t’affecte, tu en reçois une copie (sauf Draven).",
   },
   "calm-down": {
     id: "calm-down",

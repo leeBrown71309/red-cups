@@ -23,30 +23,43 @@ lisible sur desktop et sur mobile en paysage, sons et musique, et une direction 
 5. [x] **Feedback** (`src/feedback/`) : évènements de présentation synchronisés avec les animations.
 6. [x] **Qualité** : Prettier (120 colonnes), 31 tests, vérification TypeScript et build.
 
+## Deuxième passe (règles, bots, mobile)
+
+7. [x] Roues sur les cases vertes (bonheur) et rouges (malheur) quand on s’y arrête.
+8. [x] Non merci en fenêtre de réaction entre l’annonce et l’application d’une action.
+9. [x] Sauvegarde de la partie dans le navigateur, effacée en fin de partie.
+10. [x] Tests par bots : 400 parties + 30 par passif dans `bun run test`, script `bun run simulate`.
+    Bugs trouvés et corrigés : 3ᵉ exemplaire d’un objet via Je note ; Bullet Bill qui ne touchait jamais un joueur
+    posté sur sa case.
+11. [x] Plein écran forcé sur téléphone (un tap, verrouillage paysage), manifeste d’application web et aide iPhone.
+12. [x] Fiche joueur sans saut à l’ouverture, avec Red Cups et argent.
+
+## Règles confirmées par l’auteur
+
+13. [x] Non merci : l’objet annulé est perdu.
+14. [x] Roues aussi après un déplacement subi (Corde, Monopoly Man, Bouteille d’eau, Calme-toi, New Cup, New Me).
+15. [x] Je note ne copie jamais Draven.
+16. [x] Flèches : une case fléchée impose sa sortie, on peut y entrer par n’importe quelle route. Bonus du départ
+    seulement en arrivant par 8 (pas de 4 → 0 à répétition).
+17. [x] Enfer : peine maximale de 5 tours (tours sautés compris), puis sortie en case 0 avec le bonus de 200 et un dû de
+    500 pièces.
+
 ## Axes d’amélioration proposés
 
 ### Règles à trancher
 
-- **Lecture des flèches** : route fléchée seule (appliqué) ou sortie imposée depuis la case fléchée (voir la spec 3.1).
-- **Objectif de Red Cups** : la présentation dit que le nombre est « fixé par les joueurs » ; ajouter un réglage 1–5
-  dans le lobby.
-- **Non merci** : aujourd’hui il annule le tour avant l’action. Une vraie fenêtre de réaction après l’annonce d’un objet
-  serait plus fidèle.
 - **Botte** : autoriser ou non l’aller-retour (A → B → A) en deux pas.
-- **Apparition de la Red Cup** : la présentation parle d’une roue ; une petite roulette des cases rendrait le moment
-  plus fort.
-- **Cas limites** : Corde ou Monopoly Man visant un joueur en Enfer, Draven suivi de duels en chaîne.
+- **Apparition de la Red Cup** : la présentation parle d’une roue ; une roulette des cases rendrait le moment plus fort.
 
 ### Jeu et expérience
 
-- Sauvegarde automatique de la partie en cours (reprise après un rechargement).
-- Choix de la couleur et de l’accessoire dans le lobby, émotes et réactions des pions (joie, larmes, colère).
+- Choix de la couleur et de l’accessoire dans le lobby, émotes et réactions des pions.
 - Effets 3D dédiés par objet : corde qui tire, rayon Hollow Purple, haches de Draven, échange du Monopoly Man.
 - Navigation clavier sur le plateau (tabulation entre cases légales) pour l’accessibilité.
 
 ### Technique et en ligne
 
-- Transformer les actions du store en commandes sérialisables (réducteur pur) pour un serveur autoritaire.
+- Les actions du store sont déjà des fonctions pures (plan / apply) : les exécuter côté serveur autoritaire.
+- Réactions prises par chaque joueur sur son appareil (Non merci, Calme-toi, duels) au lieu du maître du jeu.
 - Salons en ligne, spectateurs, reconnexion ; vocal via WebRTC (LiveKit ou équivalent).
 - Qualité graphique adaptative (ombres, densité d’herbe) sur les mobiles modestes.
-- Si le jeu doit être traduit : installer Lingui et externaliser les textes.

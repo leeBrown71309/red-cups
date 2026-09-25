@@ -3,7 +3,7 @@ import { useGameStore } from "../game/store";
 import type { NodeId } from "../game/types";
 import { INITIAL_RED_CUP_NODE_ID } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
-import { selectDestinationFromBoard, useLegalMoves } from "../ui/game-hooks";
+import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves } from "../ui/game-hooks";
 import { BoardWorld, type BoardView } from "./board-world";
 import type { CameraMode } from "./camera-rig";
 import { waitForDisplayFont } from "./text-sprites";
@@ -116,8 +116,7 @@ function useBoardView(mode: CameraMode): BoardView {
 
   return useMemo(() => {
     const activePlayer = game.players[game.activePlayerIndex];
-    const repositioner = game.players.find((player) => player.id === game.pendingCupRepositionPlayerId);
-    const decider = game.turnStage === "reposition" && repositioner ? repositioner : activePlayer;
+    const decider = getDecidingPlayer(game);
     const playing = mode === "play" && game.phase !== "setup";
     return {
       mode,

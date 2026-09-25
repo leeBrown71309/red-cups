@@ -32,8 +32,9 @@ function getClearance(nodeId: NodeId, point: THREE.Vector3): number {
 }
 
 /**
- * Stepping-stone roads between tiles. One-way roads carry animated chevrons
- * flowing in the travel direction; free roads stay plain, as on the original.
+ * Stepping-stone roads between tiles. An arrow tile's forced exit carries
+ * animated chevrons on the half of the road next to that tile (the road itself
+ * can still be walked in), tunnels carry them all the way; free roads stay plain.
  */
 export class RoadNetwork {
   readonly group = new THREE.Group();
@@ -124,11 +125,11 @@ export class RoadNetwork {
 
   private addChevrons(kit: SceneKit, segment: RoadSegment, startClearance: number, endClearance: number): void {
     const direction = segment.end.clone().sub(segment.start);
-    const length = direction.length();
     direction.normalize();
     const from = segment.start.clone().addScaledVector(direction, startClearance);
-    const to = segment.end.clone().addScaledVector(direction, -endClearance);
-    const count = Math.max(2, Math.round((length - startClearance - endClearance) / CHEVRON_SPACING));
+    const roadEnd = segment.end.clone().addScaledVector(direction, -endClearance);
+    const to = segment.tunnel ? roadEnd : from.clone().lerp(roadEnd, 0.55);
+    const count = Math.max(2, Math.round(from.distanceTo(to) / CHEVRON_SPACING));
     const shapeGeometry = kit.geometry("chevron", () => new THREE.ShapeGeometry(createChevronShape()));
     const color = segment.tunnel ? SCENE_COLORS.chevronTunnel : "#ff8f3f";
 

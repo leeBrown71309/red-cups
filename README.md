@@ -24,13 +24,26 @@ bun run build
 bun run format:check
 ```
 
+### Tests par bots
+
+Les tests incluent une campagne de 400 parties jouées par des bots, plus 30 parties par passif. Des bots jouent
+toutes les places (déplacements, objets, boutique, roues, duels, réactions Non merci) et un vérificateur contrôle les
+règles après chaque action. Chaque anomalie est rapportée avec sa graine et son numéro d’action pour la rejouer.
+
+```sh
+bun run simulate -- --games 1000 --min 2 --max 8
+```
+
+Le script affiche le taux de parties terminées, les règles violées et la couverture (actions et étapes visitées).
+
 ## Direction artistique — « toy box party »
 
 - **Plateau** : diorama low poly posé dans un plateau-jouet crème, comme un vrai jeu de société. Cases facettées aux
   couleurs du jeu original (bleu boutique, rouge, vert, gris, départ doré), chemins en pas japonais, arbres et buissons
   en icosaèdres, étang, Enfer en cratère violet qui sourit (clin d’œil au smiley de la case 11).
-- **Sens de circulation** : les routes à sens unique portent des chevrons orange animés dans le sens de la marche ; les
-  routes libres n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
+- **Sens de circulation** : la sortie imposée d’une case fléchée porte des chevrons orange animés, sur la moitié de
+  route qui part de cette case (on peut y entrer par cette route, mais on doit en sortir par là). Les routes libres
+  n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
 - **Personnages** : petits blobs chibi aux grands yeux, une couleur et un accessoire par siège (chapeau de fête, pousse,
   nœud, antenne, cornes, oreilles de chat, bonnet, auréole) pour rester reconnaissables même sans les couleurs.
 - **Interface** : papier crème, contours encre prune épais, boutons « bonbon » qui s’enfoncent, typographies Fredoka
@@ -48,12 +61,15 @@ bun run format:check
 - Caméra : glisser pour déplacer, molette ou pincement pour zoomer, clic droit ou deux doigts pour pivoter, boutons de
   zoom, vue d’ensemble et suivi du joueur actif.
 - Les fenêtres (boutique, roue, duel…) attendent la fin des animations des pions.
+- Sur téléphone, un écran d’accueil passe le jeu en plein écran et en paysage. Sur iPhone, le jeu explique comment
+  l’ajouter à l’écran d’accueil pour masquer les barres de Safari.
+- La partie en cours survit à un rafraîchissement de la page et s’efface à la fin de la partie.
 
 ## Architecture
 
 ```
 src/
-  game/       moteur de règles pur et store Zustand (sérialisable, réutilisable côté serveur)
+  game/       moteur de règles pur, store Zustand sauvegardé, bots de simulation (simulation/)
   theme/      palette, looks des joueurs, timings partagés entre 3D et interface
   scene/      scène Three.js : plateau, modèles low poly, caméra, pions animés, effets
   feedback/   traduit les changements d’état en évènements de présentation (sons, textes, confettis)

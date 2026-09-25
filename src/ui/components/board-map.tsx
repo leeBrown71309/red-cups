@@ -93,10 +93,10 @@ export function BoardMap({ highlightNodeId }: { highlightNodeId?: NodeId }) {
               strokeWidth="9"
               strokeLinecap="round"
             />
-            {edge.oneWay && (
+            {edge.arrow && (
               <>
-                <ArrowHead from={start} to={end} at={0.42} color="#ff8f3f" />
-                <ArrowHead from={start} to={end} at={0.66} color="#ff8f3f" />
+                <ArrowHead from={start} to={end} at={0.2} color="#ff8f3f" />
+                <ArrowHead from={start} to={end} at={0.38} color="#ff8f3f" />
               </>
             )}
           </g>

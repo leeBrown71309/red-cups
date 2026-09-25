@@ -65,7 +65,7 @@ function buildRoadSegments(): RoadSegment[] {
   return BOARD_EDGES.flatMap((edge): RoadSegment[] => {
     const start = getNodePosition(edge.from);
     const end = getNodePosition(edge.to);
-    const directed = edge.oneWay === true;
+    const directed = edge.arrow === true || edge.kind === "tunnel";
 
     if (edge.kind === "tunnel") {
       const tunnel = getTunnelLayout(edge);

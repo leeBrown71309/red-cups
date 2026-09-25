@@ -21,6 +21,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      # Includes the bot campaign: a rule broken by the engine blocks the deployment.
+      - run: bun run test
       - run: bun run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

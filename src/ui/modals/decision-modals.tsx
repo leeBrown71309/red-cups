@@ -1,6 +1,7 @@
+import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
-import type { ItemId, Player, PlayerId } from "../../game/types";
+import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -163,6 +164,83 @@ export function CalmDownModal() {
         <button type="button" className="btn btn--cup" onClick={() => resolveCalmDown(true)} data-autofocus>
           Recule !
         </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+const REACTION_COUNTDOWN_SECONDS = 8;
+
+function describeDeclaredAction(action: DeclaredAction, actorId: PlayerId, players: Player[]): string {
+  if (action.type === "move") return `aller en case ${action.destination}`;
+  const itemName = ITEM_CATALOG[action.itemId].name;
+  if (!action.targetPlayerId) return `utiliser ${itemName}`;
+  if (action.targetPlayerId === actorId) return `utiliser ${itemName} sur lui-même`;
+  const target = players.find((player) => player.id === action.targetPlayerId);
+  return `utiliser ${itemName} sur ${target?.name ?? "un joueur"}`;
+}
+
+/**
+ * Non merci: before an action applies, its holders may cancel it. In local
+ * play the host asks them aloud; without an answer the action goes through.
+ */
+export function ReactionModal() {
+  const pending = useGameStore((state) => state.pendingReaction);
+  const players = useGameStore((state) => state.players);
+  const resolveReaction = useGameStore((state) => state.resolveReaction);
+  const [secondsLeft, setSecondsLeft] = useState(REACTION_COUNTDOWN_SECONDS);
+  const [countdownActive, setCountdownActive] = useState(true);
+
+  useEffect(() => {
+    if (!countdownActive) return undefined;
+    if (secondsLeft <= 0) {
+      resolveReaction(null);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setSecondsLeft((value) => value - 1), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [countdownActive, secondsLeft, resolveReaction]);
+
+  const actor = players.find((player) => player.id === pending?.actorId);
+  if (!pending || !actor) return null;
+  const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
+
+  return (
+    <ModalShell title="Non merci ?" eyebrow="Réaction possible" tone="grape" className="reaction-modal">
+      <div className="reaction" onPointerDown={() => setCountdownActive(false)}>
+        <div className="reaction__announce">
+          <PlayerAvatar color={actor.color} size={54} expression={getAvatarExpression(actor)} />
+          <p>
+            <strong>{actor.name}</strong> veut {describeDeclaredAction(pending.action, actor.id, players)}.
+          </p>
+        </div>
+
+        <ul className="reaction__reactors">
+          {reactors.map((reactor) => (
+            <li key={reactor.id}>
+              <PlayerAvatar color={reactor.color} size={44} />
+              <span className="reaction__reactor-name">{reactor.name}</span>
+              <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
+                <UiIcon name="hand" size={18} /> Non merci !
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          className="btn btn--cream btn--block"
+          onClick={() => resolveReaction(null)}
+          data-autofocus
+        >
+          Laisser faire
+          {countdownActive && <span className="reaction__countdown">{secondsLeft}</span>}
+        </button>
+        <p className="reaction__hint">
+          {countdownActive
+            ? "Sans réponse, l’action se fait automatiquement."
+            : "Compte à rebours en pause : à vous de décider."}
+        </p>
       </div>
     </ModalShell>
   );

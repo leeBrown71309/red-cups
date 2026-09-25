@@ -1,7 +1,9 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
-import { canUseDelinquent, useGameStore } from "../../game/store";
+import { canUseDelinquent, getTileWheel } from "../../game/rules";
+import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
+import { HELL_EXIT_TOLL, HELL_TURN_LIMIT } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
@@ -65,6 +67,8 @@ function DockPrompt({ title, hint, children }: { title: string; hint?: ReactNode
 function StageContent({ player, stage, onOpenShop }: { player: Player; stage: string; onOpenShop: () => void }) {
   const endTurn = useGameStore((state) => state.endTurn);
   const spinHellWheel = useGameStore((state) => state.spinHellWheel);
+  const spinTileWheel = useGameStore((state) => state.spinTileWheel);
+  const tileWheels = useGameStore((state) => state.pendingTileWheels);
   const players = useGameStore((state) => state.players);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
 
@@ -75,14 +79,18 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <RepositionContent />;
     case "hell": {
       const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
+      const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
+      const countdown = lastTurn
+        ? `Dernier tour : sans évasion, tu sors en case 0 contre ${HELL_EXIT_TOLL} pièces.`
+        : `Tour ${player.hellTurns}/${HELL_TURN_LIMIT} : au bout de ${HELL_TURN_LIMIT}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
       return (
         <DockPrompt
           title="Bienvenue en Enfer…"
-          hint={
+          hint={`${
             hasBottle
               ? "Tourne la roue, ou bois ta Bouteille d’eau depuis ton sac."
               : "Tourne la roue pour tenter de t’échapper."
-          }
+          } ${countdown}`}
         >
           <button type="button" className="btn btn--grape" onClick={spinHellWheel}>
             <UiIcon name="flame" size={20} /> Tourner la roue
@@ -90,6 +98,34 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
         </DockPrompt>
       );
     }
+    case "tile-wheel": {
+      const spinner = players.find((candidate) => candidate.id === tileWheels[0]?.playerId) ?? player;
+      const fortune = getTileWheel(spinner.position) === "fortune";
+      const pushedThere = spinner.id !== player.id;
+      return (
+        <DockPrompt
+          title={fortune ? "Case verte : roue du bonheur !" : "Case rouge : roue du malheur…"}
+          hint={
+            pushedThere
+              ? `${spinner.name} a atterri en case ${spinner.position} : à lui de tourner la roue.`
+              : fortune
+                ? "Tourne la roue, la chance te sourit peut-être."
+                : "Tourne la roue et croise les doigts."
+          }
+        >
+          <button
+            type="button"
+            className={`btn ${fortune ? "btn--mint" : "btn--grape"} btn--pulse`}
+            onClick={spinTileWheel}
+            data-autofocus
+          >
+            <UiIcon name="sparkle" size={20} /> Tourner la roue
+          </button>
+        </DockPrompt>
+      );
+    }
+    case "reaction":
+      return <DockPrompt title="Action annoncée…" hint="Un joueur peut encore répondre « Non merci »." />;
     case "shop":
       return (
         <DockPrompt title="La boutique est ouverte" hint="Achète autant que tu veux, puis termine ton tour.">
@@ -139,10 +175,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
 
 function MoveContent({ player }: { player: Player }) {
   const moveDistance = useGameStore((state) => state.moveDistance);
-  const redCupCycle = useGameStore((state) => state.redCupCycle);
-  const players = useGameStore((state) => state.players);
   const endTurn = useGameStore((state) => state.endTurn);
-  const cancelWithNoThanks = useGameStore((state) => state.resolvePassiveVote);
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
   const previewNodeId = useUiStore((state) => state.previewNodeId);
@@ -150,18 +183,6 @@ function MoveContent({ player }: { player: Player }) {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const [armedInterrupt, setArmedInterrupt] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!armedInterrupt) return undefined;
-    const timer = window.setTimeout(() => setArmedInterrupt(null), 3_000);
-    return () => window.clearTimeout(timer);
-  }, [armedInterrupt]);
-
-  const interrupters = players.filter(
-    (candidate) =>
-      candidate.passiveId === "no-thanks" && candidate.id !== player.id && candidate.noThanksUsedCycle !== redCupCycle,
-  );
   const isDelinquent = player.passiveId === "delinquent";
 
   if (destinations.length === 0) {
@@ -224,21 +245,6 @@ function MoveContent({ player }: { player: Player }) {
           {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} · −200
         </button>
       )}
-      {interrupters.map((interrupter) => (
-        <button
-          key={interrupter.id}
-          type="button"
-          className={`btn btn--small ${armedInterrupt === interrupter.id ? "btn--grape" : "btn--cream"}`}
-          onClick={() => {
-            if (armedInterrupt === interrupter.id) cancelWithNoThanks(interrupter.id, true);
-            else setArmedInterrupt(interrupter.id);
-          }}
-          title={`${interrupter.name} peut annuler l’action (Non merci)`}
-        >
-          <UiIcon name="hand" size={16} />
-          {armedInterrupt === interrupter.id ? `Confirmer (${interrupter.name})` : `Non merci · ${interrupter.name}`}
-        </button>
-      ))}
     </DockPrompt>
   );
 }

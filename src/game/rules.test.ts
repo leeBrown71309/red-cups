@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { chooseWheelResult } from "./catalog";
-import { getNeighbors } from "./board";
-import {
-  canAddItem,
-  chooseRandom,
-  countRedCups,
-  findLegalPath,
-  getInventoryCapacity,
-  getOpenInventorySlots,
-} from "./rules";
+import { earnsStartBonus, getNeighbors } from "./board";
+import { canAddItem, countRedCups, findLegalPath, getInventoryCapacity, getOpenInventorySlots } from "./rules";
 import type { Player } from "./types";
 
 function makePlayer(overrides: Partial<Player> = {}): Player {
@@ -21,16 +14,17 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     inventory: [],
     passiveId: "built-like-a-tank",
     skippedTurns: 0,
+    hellTurns: 0,
     noThanksUsedCycle: -1,
     ...overrides,
   };
 }
 
 describe("board movement rules", () => {
-  it("allows movement along a one-way edge only in its arrow direction", () => {
-    expect(getNeighbors(3)).toContain(6);
-    expect(getNeighbors(6)).not.toContain(3);
-    expect(getNeighbors(6, true)).toContain(3);
+  it("forces the exit of an arrow tile but lets players walk into it against the arrow", () => {
+    expect(getNeighbors(3)).toEqual([6]);
+    expect(getNeighbors(6)).toContain(3);
+    expect(getNeighbors(3, true).sort((left, right) => left - right)).toEqual([4, 6, 7]);
   });
 
   it("returns a legal two-step path for a boot move", () => {
@@ -38,11 +32,20 @@ describe("board movement rules", () => {
     expect(findLegalPath(player, 5, 2)).toEqual([2, 5]);
   });
 
-  it("leaves the start only upwards or leftwards and enters it only from 8", () => {
+  it("leaves the start only upwards or leftwards", () => {
     expect(getNeighbors(0).sort()).toEqual([2, 4]);
-    expect(getNeighbors(8)).toContain(0);
+    expect(getNeighbors(8)).toEqual([0]);
     expect(getNeighbors(2)).not.toContain(0);
-    expect(getNeighbors(4)).not.toContain(0);
+    expect(getNeighbors(4)).toContain(0);
+  });
+
+  it("pays the start bonus only when entering the start from 8", () => {
+    expect(earnsStartBonus(8, [0])).toBe(true);
+    expect(earnsStartBonus(10, [8, 0])).toBe(true);
+    expect(earnsStartBonus(4, [0])).toBe(false);
+    expect(earnsStartBonus(4, [0, 2])).toBe(false);
+    expect(earnsStartBonus(2, [0])).toBe(false);
+    expect(earnsStartBonus(0, [2])).toBe(false);
   });
 
   it("takes the wrap-around tunnel from 7 to 1 only", () => {
@@ -55,6 +58,28 @@ describe("board movement rules", () => {
     for (let nodeId = 0; nodeId <= 10; nodeId += 1) {
       expect(getNeighbors(nodeId, true)).not.toContain(11);
     }
+  });
+});
+
+describe("board transcription", () => {
+  // Written down independently from BOARD_EDGES, from slide 1 and the author's reading of its arrows:
+  // an arrow tile must be left through its arrow, any other road is free in both directions.
+  const EXPECTED_EXITS: Record<number, number[]> = {
+    0: [2, 4],
+    1: [10],
+    2: [5],
+    3: [6],
+    4: [0, 3, 7, 9],
+    5: [2, 9],
+    6: [1, 3],
+    7: [1, 3, 4],
+    8: [0],
+    9: [4],
+    10: [1, 8],
+  };
+
+  it.each(Object.entries(EXPECTED_EXITS))("lets a player leave tile %s only towards %j", (nodeId, exits) => {
+    expect(getNeighbors(Number(nodeId)).sort((left, right) => left - right)).toEqual(exits);
   });
 });
 
@@ -94,11 +119,5 @@ describe("random event selection", () => {
     expect(chooseWheelResult("fortune", 0).id).toBe("gain-100");
     expect(chooseWheelResult("fortune", 0.5).id).toBe("gain-300");
     expect(chooseWheelResult("fortune", 0.999).id).toBe("escape");
-  });
-
-  it("selects a valid random candidate at both range boundaries", () => {
-    expect(chooseRandom(["first", "second"], 0)).toBe("first");
-    expect(chooseRandom(["first", "second"], 1)).toBe("second");
-    expect(chooseRandom([], 0)).toBeUndefined();
   });
 });

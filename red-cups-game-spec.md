@@ -20,7 +20,10 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Achats | Plusieurs objets peuvent être achetés pendant cette visite, dans la limite du solde et des emplacements libres. Les achats se font avant la fin du tour. |
 | Monnaie initiale | 2 000 pièces par joueur. Les « points » du diaporama sont une monnaie, pas un score. |
 | Seuil négatif | À −300 pièces ou moins, le solde revient à 0 et le prochain tour du joueur est annulé. |
-| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. |
+| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Nombre fixe pour l’instant ; un autre mode pourra le changer plus tard. |
+| Cases vertes et rouges | S’arrêter sur une case verte lance la roue du bonheur, sur une case rouge la roue du malheur (règle confirmée par l’auteur du jeu). |
+| Non merci | Fenêtre de réaction : quand un joueur annonce son action, les détenteurs du passif peuvent l’annuler avant qu’elle s’applique. |
+| Sauvegarde | La partie en cours est sauvegardée dans le navigateur et survit au rafraîchissement ; la sauvegarde est effacée à la fin de la partie. |
 | Inventaire | Quatre emplacements de base. Chaque Red Cup occupe un emplacement. Le passif Penta ajoute un emplacement. |
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
@@ -36,33 +39,55 @@ Le plateau illustré contient douze cases numérotées de 0 à 11 :
 
 - Case 0 : départ.
 - Cases bleues : boutiques.
-- Cases rouges et vertes : déclenchent les effets correspondants du passif **Red light, Green light**.
+- Cases vertes : s’y arrêter lance la **roue du bonheur**.
+- Cases rouges : s’y arrêter lance la **roue du malheur**.
+- Le passif **Red light, Green light** ajoute ±100 pièces à chaque passage sur ces cases, en plus des roues.
 - Case 11, violette : Enfer. Elle n’est pas parcourue comme une case normale ; des effets y téléportent les joueurs.
 - Case 8 : emplacement initial de la première Red Cup.
 
 La représentation en données reste configurable (`src/game/board.ts`), sans coder les règles de déplacement dans la scène Three.js.
 
-Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Sur l’original, les flèches sont dessinées **sur les cases** 0, 1, 2, 3, 8 et 9 et pointent vers l’une de leurs routes : cette route ne se prend que dans le sens de la flèche. La case 0 porte deux flèches (vers 2 et vers 4).
+Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Sur l’original, les flèches sont dessinées **sur les cases** 0, 1, 2, 3, 8 et 9 et pointent vers l’une de leurs routes. La case 0 porte deux flèches (vers 2 et vers 4).
 
-- Liens dans les deux sens : 9–5, 4–7, 4–3, 7–3, 6–1 et 10–8.
-- Liens à sens unique : 2→5, 0→2, 0→4, 8→0, 9→4, 3→6 et 1→10.
+- Routes : 9–5, 2–5, 0–2, 8–0, 9–4, 0–4, 4–7, 4–3, 7–3, 3–6, 6–1, 1–10 et 10–8.
+- Flèches (sortie imposée) : 0→2 et 0→4, 1→10, 2→5, 3→6, 8→0, 9→4.
 - Tunnel à sens unique 7→1 : la route grise quitte la case 7 par le bord gauche du plateau et revient par le bord droit dans la case 1. Il compte comme un seul pas.
 - Il n’existe pas de lien 5–0 (erreur de la première transcription).
-- La case 0 n’est donc atteignable que depuis la case 8 : on touche les 200 pièces du départ en bouclant le circuit.
 - Les cases bleues de boutique sont 3, 8 et 9 ; la Red Cup initiale en case 8 peut être ramassée juste avant l’arrêt boutique au même emplacement.
 
-Lecture alternative à confirmer : les flèches pourraient aussi signifier « quand on est sur cette case, on doit en sortir dans le sens de la flèche ». Cela rendrait aussi à sens unique 9–5, 3–7, 3–4, 1–6 et 8–10. Le MVP applique la règle écrite dans la présentation (« les routes peuvent être prises dans les deux sens sauf s’il y a une flèche imposant la direction ») : seule la route fléchée est contrainte.
+**Lecture des flèches (règle confirmée par l’auteur)** : une flèche contraint la case sur laquelle elle est dessinée. Un joueur posé sur une case fléchée doit en sortir par sa flèche. Toutes les routes restent connectées : on peut donc entrer dans une case fléchée par n’importe quelle route, y compris à contresens de sa flèche.
+
+- Exemple : de 6, on peut aller en 3 ; mais une fois en 3, on doit repartir vers 6 (pas vers 4 ni 7).
+- De 10, on peut revenir en 1 ou aller en 8 ; une fois en 8, on doit aller en 0.
+- De 4, on peut aller en 3, 7, 9 ou 0 ; une fois en 9, on doit redescendre en 4 (pas vers 5).
+
+| Case | Sorties possibles |
+| ---- | ----------------- |
+| 0    | 2, 4              |
+| 1    | 10                |
+| 2    | 5                 |
+| 3    | 6                 |
+| 4    | 0, 3, 7, 9        |
+| 5    | 2, 9              |
+| 6    | 1, 3              |
+| 7    | 1 (tunnel), 3, 4  |
+| 8    | 0                 |
+| 9    | 4                 |
+| 10   | 1, 8              |
 
 ### 3.2 Règles de déplacement
 
 - Un déplacement normal va vers une case adjacente autorisée.
-- Si une liaison comporte une flèche, elle est utilisable uniquement dans son sens.
-- Sans flèche, la liaison est utilisable dans les deux sens.
+- Sur une case fléchée, on sort uniquement par sa flèche ; ailleurs, toute route connectée se prend dans les deux sens (voir 3.1).
 - Les bifurcations laissent le choix au joueur entre les routes légales.
 - La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement.
-- Lorsqu’un joueur entre sur une case rouge ou verte, le passif **Red light, Green light** peut modifier son solde.
-- Entrer ou repasser par la case 0 donne 200 pièces, sauf avec le passif **Je suis Cups**.
-- Délinquant ne paie ses 200 pièces que si la destination choisie oblige réellement à remonter une flèche.
+- Lorsqu’un joueur **termine son déplacement** sur une case verte ou rouge, il tourne la roue correspondante (bonheur ou malheur). Simplement passer dessus avec la Botte ne déclenche pas de roue.
+- Ordre de résolution à l’arrivée : Boue, puis Red Cup (avec ses passifs), puis la roue de la case.
+- Les déplacements subis déclenchent aussi la roue (règle confirmée) : tiré par la Corde, échangé par le Monopoly Man, téléporté par la Bouteille d’eau, reculé par Calme-toi ou repositionné par New Cup, New Me. C’est tout l’intérêt de pousser un adversaire sur une case rouge.
+- Si plusieurs joueurs arrivent sur une case colorée en même temps (Monopoly Man), chacun tourne sa roue, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
+- Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
+- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus.
+- Délinquant (200 pièces) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement.
 
 ### 3.3 Red Cups
 
@@ -78,14 +103,15 @@ Lecture alternative à confirmer : les flèches pourraient aussi signifier « qu
 
 Un tour suit ces phases :
 
-1. Le joueur actif choisit son action : se déplacer ou utiliser un objet.
-2. Les effets provoqués par le déplacement sont résolus : passage sur des cases colorées, boue, Red Cup, arrivée en boutique.
-3. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
-4. Le joueur termine son tour. Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
+1. Le joueur actif annonce son action : se déplacer ou utiliser un objet.
+2. Si un autre joueur possède **Non merci** (non utilisé depuis la dernière Red Cup), une fenêtre de réaction s’ouvre : il peut annuler l’action ou la laisser passer.
+3. L’action s’applique. Pour un déplacement : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
+4. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
+5. Le joueur termine son tour. Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
 
 Utiliser un objet est une action. Une seule action principale est faite par tour. L’achat est une phase spéciale autorisée après l’arrivée en boutique et ne remplace pas le déplacement. La Botte est l’exception préparatoire au déplacement ; la Gomme est une réaction à un effet de roue.
 
-Le passif **Non merci** ouvre une fenêtre d’interruption avant l’action d’un adversaire. Il peut l’annuler une fois par cycle de Red Cup.
+Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Il peut l’annuler une fois par cycle de Red Cup (jusqu’à la prochaine apparition d’une Red Cup). Une action annulée met fin au tour de l’acteur ; un objet annulé est perdu (règle confirmée). En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 8 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
 
 ## 5. Monnaie et inventaire
 
@@ -153,7 +179,7 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Penta | Ajoute un emplacement à l’inventaire. |
 | Troll | À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
 | Je suis Cups | Le joueur ne reçoit pas le bonus de 200 pièces lié au départ. |
-| Je note | Quand le joueur subit l’effet d’un objet, il reçoit une copie de cet objet. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. |
+| Je note | Quand le joueur subit l’effet d’un objet, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
 | Calme-toi | Quand un joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases. Le MVP affiche cette décision avant de poursuivre le tour. |
 
 ## 9. Enfer, roues et duels
@@ -165,6 +191,11 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 - Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 ; le perdant y reste.
 - Certains effets spéciaux peuvent aussi faire sortir de l’Enfer. La Bouteille d’eau en est un exemple ; une roue positive peut en devenir un autre.
 - Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 et le perdant reste en Enfer.
+- **Peine maximale (règle confirmée par l’auteur)** : un joueur ne reste jamais plus de **5 de ses tours** en Enfer. Si, à la fin de son 5ᵉ tour, il ne s’est pas échappé (roue, objet, passif, duel), il sort en case 0 et paie **500 pièces**. Comme toute sortie de l’Enfer, il touche le bonus de 200 pièces du départ (sauf **Je suis Cups**) : la roue de l’Enfer peut lui avoir coûté bien plus. Le bonus est versé avant le dû, soit −300 pièces au total. Il rejoue normalement au tour suivant.
+  - Les tours sautés en Enfer comptent dans les 5 tours.
+  - Le compteur repart à zéro à chaque nouvel envoi en Enfer. Un joueur déjà en Enfer (Draven, par exemple) garde son compteur.
+  - Les règles habituelles de l’argent s’appliquent ensuite au dû : le Casque évite de passer sous zéro ; à −300 pièces, le solde repart à 0 et le joueur saute son prochain tour.
+  - Le dock affiche le décompte (« Tour 3/5 ») et la fiche joueur indique les tours déjà passés en Enfer.
 
 ### 9.2 Sélection et résolution des duels
 
@@ -236,6 +267,7 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 
 ## 11. Architecture
 
+- **Tests par bots** : `src/game/simulation/` fait jouer des centaines de parties complètes par des bots sur le vrai moteur, avec des graines fixes. Après chaque action, un vérificateur contrôle les règles (déplacements légaux, bonus du départ, roues des cases, Non merci, inventaire, Enfer, victoire…). Lancer `bun run simulate -- --games 1000` pour une campagne plus longue.
 - **React + TypeScript** : interface de jeu, lobby local, panneaux et dialogues.
 - **Three.js** : scène 3D du plateau, pions, cases, Red Cup et interactions de sélection.
 - **Zustand** : état partagé côté client et actions de partie.
@@ -245,11 +277,11 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 
 ## 12. Points à revisiter
 
-- Confirmer la lecture des flèches (route fléchée seule, ou sortie imposée depuis la case fléchée) — voir 3.1.
 - Vérifier les prix objet par objet avec les éléments source de meilleure qualité.
 - Rééquilibrer les roues et remplacer les résultats provisoires si les anciennes règles sont retrouvées.
 - Confirmer si une Red Cup peut apparaître en Enfer ; le MVP exclut la case 11 du tirage initial pour éviter un objectif inaccessible.
 - Préciser l’effet de la Bouteille d’eau lorsqu’elle est utilisée : la slide indique une destination aléatoire hors Enfer.
-- Tester les interactions des passifs avec les objets, surtout Non merci, Je note, Troll et Calme-toi.
+- Lecture des flèches : un nouveau comportement, plus permissif mais contrôlé, est en préparation par l’auteur.
+- Mode en ligne : les réactions (Non merci, Calme-toi, votes, pierre-feuille-ciseaux) devront être prises par chaque joueur sur son appareil, sans maître du jeu.
 - Préciser le comportement des effets touchant simultanément tous les joueurs, notamment Draven et Bullet Bill.
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.

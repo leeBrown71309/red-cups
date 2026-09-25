@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeVertices } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SCENE_COLORS } from "../theme/palette";
+import { createSeededRandom } from "../utils/seeded-random";
 
 /**
  * Shared low-poly building blocks: a per-world material cache, seeded noise
@@ -78,16 +79,7 @@ export class SceneKit {
 }
 
 /** Deterministic PRNG so scenery stays identical between sessions. */
-export function createRandom(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
-    let value = state;
-    value = Math.imul(value ^ (value >>> 15), value | 1);
-    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
-    return ((value ^ (value >>> 14)) >>> 0) / 4_294_967_296;
-  };
-}
+export const createRandom = createSeededRandom;
 
 /**
  * Displaces vertices to break perfect symmetry. Vertices are merged first so
