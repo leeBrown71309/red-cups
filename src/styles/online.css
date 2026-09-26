@@ -1,0 +1,262 @@
+/* ---------- Online: lobby, account, room ---------- */
+.lobby__hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.online .lobby__panel {
+  overflow-y: auto;
+}
+
+.online .lobby__hero {
+  max-width: 420px;
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.field > span {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.field .lobby-player__input:disabled {
+  opacity: 0.75;
+}
+
+.account-panel {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+}
+
+.account-panel__who {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.account-panel__who div {
+  display: grid;
+  min-width: 0;
+}
+
+.account-panel__who span {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-panel__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.avatar-picker {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.avatar-picker__option {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  border: 2px solid var(--paper-edge);
+  border-radius: 14px;
+  background: var(--white);
+  cursor: pointer;
+  transition:
+    transform 140ms var(--ease-bounce),
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.avatar-picker__option svg {
+  width: 100%;
+  max-width: 46px;
+  height: auto;
+}
+
+.avatar-picker__option:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.avatar-picker__option.is-selected {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--gold);
+}
+
+.avatar-picker__option:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+  opacity: 0.45;
+}
+
+.online__divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+}
+
+.online__divider::before,
+.online__divider::after {
+  height: 2px;
+  background: var(--paper-edge);
+  content: "";
+}
+
+.online__join {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.online__code-input {
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.online__code {
+  letter-spacing: 0.08em;
+}
+
+.online__waiting {
+  padding: 12px;
+  border: 2px dashed var(--paper-edge);
+  border-radius: var(--radius-m);
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  text-align: center;
+}
+
+.online__change-avatar summary {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.online__change-avatar[open] summary {
+  margin-bottom: 8px;
+}
+
+.online__error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 2px solid var(--cup);
+  border-radius: var(--radius-s);
+  background: var(--cup-light);
+  font-size: 0.9rem;
+}
+
+.online-player {
+  grid-template-columns: 22px 40px minmax(0, 1fr) auto;
+}
+
+.online-player__name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-player__name em {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-style: normal;
+}
+
+.online-player__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--gold-deep);
+}
+
+.online-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.online-dot.is-online {
+  background: var(--mint);
+}
+
+.online-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: var(--border);
+  border-radius: 999px;
+  background: var(--cream);
+  box-shadow: var(--shadow-chunky);
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.06em;
+}
+
+.online-chip.is-offline {
+  background: var(--cup-light);
+  animation: pulse-soft 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  50% {
+    opacity: 0.6;
+  }
+}
+
+/* ---------- Waiting for another player (online) ---------- */
+.waiting-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 2px dashed var(--paper-edge);
+  border-radius: var(--radius-m);
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-weight: 500;
+  text-align: center;
+}
+
+@media (max-height: 520px) {
+  .online .lobby__hero .lobby__tagline,
+  .online .account-panel__form {
+    display: none;
+  }
+
+  .avatar-picker__option {
+    border-radius: 10px;
+  }
+}
+
+@media (max-width: 720px) {
+  .online-chip strong {
+    display: none;
+  }
+}

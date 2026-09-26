@@ -3,7 +3,9 @@ import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
+import { useCanActFor } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
+import { WaitingNote } from "../components/waiting-note";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
@@ -87,12 +89,17 @@ export function ChallengeModal() {
   const players = useGameStore((state) => state.players);
   const challengePlayer = useGameStore((state) => state.challengePlayer);
   const challenger = players.find((player) => player.id === pending?.playerId);
+  const canAct = useCanActFor([pending?.playerId]);
   if (!pending || !challenger) return null;
 
   return (
     <ModalShell title="Choisis ton adversaire" eyebrow={`${challenger.name} appelle en duel`} tone="grape">
       <p className="modal-lead">L’adversaire te rejoint en Enfer. Le gagnant repart du Départ.</p>
-      <PlayerPickList players={players.filter((player) => player.id !== challenger.id)} onPick={challengePlayer} />
+      {canAct ? (
+        <PlayerPickList players={players.filter((player) => player.id !== challenger.id)} onPick={challengePlayer} />
+      ) : (
+        <WaitingNote player={challenger} text={`${challenger.name} choisit son adversaire…`} />
+      )}
     </ModalShell>
   );
 }
@@ -102,6 +109,7 @@ export function DiscardModal() {
   const players = useGameStore((state) => state.players);
   const discard = useGameStore((state) => state.discardInventoryEntry);
   const player = players.find((candidate) => candidate.id === pending?.playerId);
+  const canAct = useCanActFor([pending?.playerId]);
   if (!pending || !player) return null;
 
   const incoming: ItemId | "red-cup" = pending.reason === "red-cup" ? "red-cup" : (pending.itemId ?? "red-cup");
@@ -116,6 +124,7 @@ export function DiscardModal() {
             : `Je note : fais de la place pour ${ITEM_CATALOG[incoming].name}.`}
         </p>
       </div>
+      {!canAct && <WaitingNote player={player} text={`${player.name} choisit quel objet jeter…`} />}
       <div className="discard-grid">
         {player.inventory.map((entry) =>
           entry.kind === "red-cup" ? (
@@ -124,7 +133,13 @@ export function DiscardModal() {
               <small>Red Cup</small>
             </span>
           ) : (
-            <button key={entry.id} type="button" className="discard-card" onClick={() => discard(entry.id)}>
+            <button
+              key={entry.id}
+              type="button"
+              className="discard-card"
+              onClick={() => discard(entry.id)}
+              disabled={!canAct}
+            >
               <ItemIcon itemId={entry.itemId} size={42} />
               <small>{ITEM_CATALOG[entry.itemId].name}</small>
               <span className="discard-card__drop">
@@ -144,6 +159,7 @@ export function CalmDownModal() {
   const resolveCalmDown = useGameStore((state) => state.resolveCalmDown);
   const holder = players.find((player) => player.id === pending?.passivePlayerId);
   const collector = players.find((player) => player.id === pending?.collectorId);
+  const canAct = useCanActFor([pending?.passivePlayerId]);
   if (!pending || !holder || !collector) return null;
 
   return (
@@ -157,14 +173,18 @@ export function CalmDownModal() {
         <strong>{collector.name}</strong> est trop près de la nouvelle Red Cup. {holder.name}, tu le fais reculer de 3
         cases (case {pending.retreatNodeId}) ?
       </p>
-      <div className="modal-actions">
-        <button type="button" className="btn btn--cream" onClick={() => resolveCalmDown(false)}>
-          Laisser passer
-        </button>
-        <button type="button" className="btn btn--cup" onClick={() => resolveCalmDown(true)} data-autofocus>
-          Recule !
-        </button>
-      </div>
+      {canAct ? (
+        <div className="modal-actions">
+          <button type="button" className="btn btn--cream" onClick={() => resolveCalmDown(false)}>
+            Laisser passer
+          </button>
+          <button type="button" className="btn btn--cup" onClick={() => resolveCalmDown(true)} data-autofocus>
+            Recule !
+          </button>
+        </div>
+      ) : (
+        <WaitingNote player={holder} text={`${holder.name} décide…`} />
+      )}
     </ModalShell>
   );
 }
@@ -188,18 +208,20 @@ export function ReactionModal() {
   const pending = useGameStore((state) => state.pendingReaction);
   const players = useGameStore((state) => state.players);
   const resolveReaction = useGameStore((state) => state.resolveReaction);
+  const canReact = useCanActFor(pending?.reactorIds ?? []);
   const [secondsLeft, setSecondsLeft] = useState(REACTION_COUNTDOWN_SECONDS);
   const [countdownActive, setCountdownActive] = useState(true);
 
   useEffect(() => {
-    if (!countdownActive) return undefined;
+    // Online, the clock runs on the holder's device only: the answer is theirs to give.
+    if (!countdownActive || !canReact) return undefined;
     if (secondsLeft <= 0) {
       resolveReaction(null);
       return undefined;
     }
     const timer = window.setTimeout(() => setSecondsLeft((value) => value - 1), 1_000);
     return () => window.clearTimeout(timer);
-  }, [countdownActive, secondsLeft, resolveReaction]);
+  }, [countdownActive, canReact, secondsLeft, resolveReaction]);
 
   const actor = players.find((player) => player.id === pending?.actorId);
   if (!pending || !actor) return null;
@@ -215,32 +237,41 @@ export function ReactionModal() {
           </p>
         </div>
 
-        <ul className="reaction__reactors">
-          {reactors.map((reactor) => (
-            <li key={reactor.id}>
-              <PlayerAvatar color={reactor.color} size={44} />
-              <span className="reaction__reactor-name">{reactor.name}</span>
-              <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                <UiIcon name="hand" size={18} /> Non merci !
-              </button>
-            </li>
-          ))}
-        </ul>
+        {!canReact && (
+          <WaitingNote player={reactors[0]} text={`${reactors.map((reactor) => reactor.name).join(", ")} réfléchit…`} />
+        )}
+        {canReact && (
+          <ul className="reaction__reactors">
+            {reactors.map((reactor) => (
+              <li key={reactor.id}>
+                <PlayerAvatar color={reactor.color} size={44} />
+                <span className="reaction__reactor-name">{reactor.name}</span>
+                <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
+                  <UiIcon name="hand" size={18} /> Non merci !
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        <button
-          type="button"
-          className="btn btn--cream btn--block"
-          onClick={() => resolveReaction(null)}
-          data-autofocus
-        >
-          Laisser faire
-          {countdownActive && <span className="reaction__countdown">{secondsLeft}</span>}
-        </button>
-        <p className="reaction__hint">
-          {countdownActive
-            ? "Sans réponse, l’action se fait automatiquement."
-            : "Compte à rebours en pause : à vous de décider."}
-        </p>
+        {canReact && (
+          <>
+            <button
+              type="button"
+              className="btn btn--cream btn--block"
+              onClick={() => resolveReaction(null)}
+              data-autofocus
+            >
+              Laisser faire
+              {countdownActive && <span className="reaction__countdown">{secondsLeft}</span>}
+            </button>
+            <p className="reaction__hint">
+              {countdownActive
+                ? "Sans réponse, l’action se fait automatiquement."
+                : "Compte à rebours en pause : à vous de décider."}
+            </p>
+          </>
+        )}
       </div>
     </ModalShell>
   );
