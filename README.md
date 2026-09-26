@@ -26,9 +26,10 @@ bun run format:check
 
 ### Tests par bots
 
-Les tests incluent une campagne de 400 parties jouées par des bots, plus 30 parties par passif. Des bots jouent
-toutes les places (déplacements, objets, boutique, roues, duels, réactions Non merci) et un vérificateur contrôle les
-règles après chaque action. Chaque anomalie est rapportée avec sa graine et son numéro d’action pour la rejouer.
+Les tests incluent une campagne de 400 parties jouées par des bots, plus 30 parties par passif et 30 parties
+commencées sans le sou (pour éprouver le Tour de Bénédiction). Des bots jouent toutes les places (déplacements,
+objets, boutique, roues, duels, réactions Non merci, abandons) et un vérificateur contrôle les règles après chaque
+action. Chaque anomalie est rapportée avec sa graine et son numéro d’action pour la rejouer.
 
 ```sh
 bun run simulate -- --games 1000 --min 2 --max 8
@@ -60,7 +61,11 @@ Le script affiche le taux de parties terminées, les règles violées et la couv
   second tap ou « Confirmer » = déplacement.
 - Caméra : glisser pour déplacer, molette ou pincement pour zoomer, clic droit ou deux doigts pour pivoter, boutons de
   zoom, vue d’ensemble et suivi du joueur actif.
-- Les fenêtres (boutique, roue, duel…) attendent la fin des animations des pions.
+- Les fenêtres (boutique, roue, duel…) attendent la fin des animations des pions et de Bullet Bill.
+- Une pastille rappelle le numéro d’une case quand des pions ou la Red Cup le cachent.
+- Les grands évènements de table (arrivée, charge et explosion de Bullet Bill, Tour de Bénédiction) s’affichent dans
+  une bannière ; une puce dans la barre du haut suit Bullet Bill tant qu’il est sur le plateau.
+- Menu pause › « Abandonner » : un joueur quitte la partie, les autres continuent.
 - Sur téléphone, un écran d’accueil passe le jeu en plein écran et en paysage. Sur iPhone, le jeu explique comment
   l’ajouter à l’écran d’accueil pour masquer les barres de Safari.
 - La partie en cours survit à un rafraîchissement de la page et s’efface à la fin de la partie.

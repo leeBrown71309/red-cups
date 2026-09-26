@@ -25,7 +25,7 @@ import {
   updatePlayer,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
-import { CANCELLED_ITEM_IS_CONSUMED, DELINQUENT_COST, HELL_NODE_ID } from "./types";
+import { CANCELLED_ITEM_IS_CONSUMED, DELINQUENT_COST, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS } from "./types";
 
 /**
  * The two actions a player can take on their turn — moving or using an item —
@@ -47,7 +47,7 @@ export function planMove(state: GameState, destination: NodeId, ignoreArrows: bo
   if (regularPath) return { path: regularPath, rebel: false };
 
   // Délinquant only pays when the destination really requires going against an arrow.
-  if (!ignoreArrows || !canUseDelinquent(player)) return null;
+  if (!ignoreArrows || !canUseDelinquent(player, state.round)) return null;
   const rebelPath = findLegalPath(player, destination, state.moveDistance, true);
   return rebelPath ? { path: rebelPath, rebel: true } : null;
 }
@@ -104,6 +104,19 @@ export interface ItemPlan {
 /** Items that are not "used" as an action: they react or trigger on their own. */
 const NON_ACTION_ITEMS: ItemId[] = ["eraser", "helmet", "bullet-bill", "boot"];
 
+/**
+ * Laid before the turn's action, like the Botte is prepared: the player may
+ * still move or use another item afterwards, but lays one mud per turn.
+ */
+const PREPARATION_ITEMS: ItemId[] = ["mud"];
+
+/** Pulled by the Corde or swapped by the Monopoly Man: moved, but nobody spins a wheel for it. */
+const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
+
+function isPreparationItem(itemId: ItemId): boolean {
+  return PREPARATION_ITEMS.includes(itemId);
+}
+
 export function planItemUse(state: GameState, entryId: string, targetPlayerId?: PlayerId): ItemPlan | null {
   const player = getActivePlayer(state);
   if (!player || state.phase !== "playing") return null;
@@ -115,7 +128,7 @@ export function planItemUse(state: GameState, entryId: string, targetPlayerId?: 
   if (!itemId || NON_ACTION_ITEMS.includes(itemId)) return null;
   if (itemId === "water-bottle" && !inHell) return null;
   // Nobody walks into Hell, so mud placed there could never be stepped on.
-  if (itemId === "mud" && inHell) return null;
+  if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
 
   const definition = ITEM_CATALOG[itemId];
   if (definition.target !== "player") return { itemId };
@@ -132,7 +145,9 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   const { itemId, target } = plan;
 
   let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, entryId));
-  nextState = { ...nextState, turnActionTaken: true, turnStage: "turn-end" };
+  nextState = isPreparationItem(itemId)
+    ? { ...nextState, mudPlacedThisTurn: true }
+    : { ...nextState, turnActionTaken: true, turnStage: "turn-end" };
 
   switch (itemId) {
     case "ndoye":
@@ -213,8 +228,8 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   }
 
   if (nextState.phase !== "playing") return nextState;
-  // Pulled, swapped or teleported onto a green or red tile: the wheel spins all the same.
-  nextState = queueWheelsForMovedPlayers(state, nextState);
+  // Teleported onto a green or red tile, the wheel spins all the same; a pull or a swap never earns one.
+  if (!MOVES_WITHOUT_ARRIVAL.includes(itemId)) nextState = queueWheelsForMovedPlayers(state, nextState);
   return settleBoard(nextState, nextState.turnStage);
 }
 
@@ -241,8 +256,7 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
 export function getNoThanksReactors(state: GameState, actorId: PlayerId): PlayerId[] {
   return state.players
     .filter(
-      (player) =>
-        player.passiveId === "no-thanks" && player.id !== actorId && player.noThanksUsedCycle !== state.redCupCycle,
+      (player) => player.passiveId === "no-thanks" && player.id !== actorId && player.noThanksReadyRound <= state.round,
     )
     .map((player) => player.id);
 }
@@ -263,10 +277,19 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   const actor = findPlayer(state, pending.actorId);
   if (!reactor || !actor) return state;
 
-  let nextState = updatePlayer(state, reactor.id, (player) => ({ ...player, noThanksUsedCycle: state.redCupCycle }));
+  let nextState = updatePlayer(state, reactor.id, (player) => ({
+    ...player,
+    noThanksReadyRound: state.round + NO_THANKS_COOLDOWN_ROUNDS,
+  }));
   const { action } = pending;
   if (action.type === "item" && CANCELLED_ITEM_IS_CONSUMED) {
     nextState = updatePlayer(nextState, actor.id, (player) => removeInventoryEntry(player, action.entryId));
+  }
+
+  // A cancelled mud is lost, but it was never the turn's action: the actor still gets to play.
+  if (action.type === "item" && isPreparationItem(action.itemId)) {
+    nextState = { ...nextState, pendingReaction: null, turnStage: pending.resumeStage, mudPlacedThisTurn: true };
+    return addLog(nextState, `${reactor.name} utilise Non merci : la Boue de ${actor.name} est perdue.`, "event");
   }
 
   nextState = {

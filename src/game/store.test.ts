@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGameStore } from "./store";
+import { DELINQUENT_COST } from "./types";
 
 function startDeterministicGame(): void {
   useGameStore.getState().startGame(["Ada", "Benoît"]);
@@ -189,7 +190,7 @@ describe("Red Cups game store", () => {
     useGameStore.getState().movePlayer(4, true);
     const player = useGameStore.getState().players[0];
     expect(player.position).toBe(4);
-    expect(player.currency).toBe(1_800);
+    expect(player.currency).toBe(2_000 - DELINQUENT_COST);
     expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(true);
   });
 

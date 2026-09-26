@@ -1,5 +1,6 @@
 import { countRedCups } from "../../game/rules";
 import { useGameStore } from "../../game/store";
+import type { Player } from "../../game/types";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CupPips } from "../hud/players-bar";
@@ -10,7 +11,9 @@ const CONFETTI_PIECES = 36;
 
 export function VictoryModal() {
   const players = useGameStore((state) => state.players);
+  const abandonedPlayers = useGameStore((state) => state.abandonedPlayers);
   const winnerId = useGameStore((state) => state.winnerId);
+  const winReason = useGameStore((state) => state.winReason);
   const startGame = useGameStore((state) => state.startGame);
   const resetGame = useGameStore((state) => state.resetGame);
   const winner = players.find((player) => player.id === winnerId);
@@ -19,6 +22,9 @@ export function VictoryModal() {
   const standings = [...players].sort(
     (left, right) => countRedCups(right) - countRedCups(left) || right.currency - left.currency,
   );
+  // Players who left are listed last, most recent departure first.
+  const leavers = [...abandonedPlayers].reverse();
+  const canRematch = players.length >= 2;
 
   return (
     <div className="modal-layer victory" role="dialog" aria-modal="true" aria-labelledby="victory-title">
@@ -33,37 +39,54 @@ export function VictoryModal() {
           <UiIcon name="crown" size={42} className="victory__crown" />
           <PlayerAvatar color={winner.color} size={120} />
         </div>
-        <span className="modal-card__eyebrow">Trois Red Cups. Une légende.</span>
+        <span className="modal-card__eyebrow">
+          {winReason === "forfeit" ? "Dernière personne à table" : "Trois Red Cups. Une légende."}
+        </span>
         <h2 id="victory-title" className="victory__title">
           {winner.name} gagne la partie !
         </h2>
         <ol className="standings">
           {standings.map((player, index) => (
-            <li key={player.id} className={player.id === winner.id ? "is-winner" : ""}>
-              <span className="standings__rank">{index + 1}</span>
-              <PlayerAvatar color={player.color} size={34} />
-              <span className="standings__name">{player.name}</span>
-              <CupPips count={countRedCups(player)} size={14} />
-              <span className="standings__coins">
-                <CoinIcon size={14} /> {formatCurrency(player.currency)}
-              </span>
-            </li>
+            <StandingRow key={player.id} player={player} rank={index + 1} isWinner={player.id === winner.id} />
+          ))}
+          {leavers.map((player) => (
+            <StandingRow key={player.id} player={player} rank={null} isWinner={false} />
           ))}
         </ol>
         <div className="modal-actions">
-          <button type="button" className="btn btn--cream" onClick={resetGame}>
+          <button type="button" className={`btn ${canRematch ? "btn--cream" : "btn--cup"}`} onClick={resetGame}>
             Menu principal
           </button>
-          <button
-            type="button"
-            className="btn btn--cup"
-            onClick={() => startGame(players.map((player) => player.name))}
-            data-autofocus
-          >
-            <UiIcon name="refresh" size={20} /> Revanche !
-          </button>
+          {canRematch && (
+            <button
+              type="button"
+              className="btn btn--cup"
+              onClick={() => startGame(players.map((player) => player.name))}
+              data-autofocus
+            >
+              <UiIcon name="refresh" size={20} /> Revanche !
+            </button>
+          )}
         </div>
       </section>
     </div>
+  );
+}
+
+/** `rank` is null for a player who abandoned. */
+function StandingRow({ player, rank, isWinner }: { player: Player; rank: number | null; isWinner: boolean }) {
+  return (
+    <li className={[isWinner && "is-winner", rank === null && "is-abandoned"].filter(Boolean).join(" ")}>
+      <span className="standings__rank">{rank ?? "–"}</span>
+      <PlayerAvatar color={player.color} size={34} expression={rank === null ? "sleepy" : "happy"} />
+      <span className="standings__name">
+        {player.name}
+        {rank === null && <small className="standings__tag">Abandon</small>}
+      </span>
+      <CupPips count={countRedCups(player)} size={14} />
+      <span className="standings__coins">
+        <CoinIcon size={14} /> {formatCurrency(player.currency)}
+      </span>
+    </li>
   );
 }

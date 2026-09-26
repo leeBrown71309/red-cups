@@ -1,4 +1,5 @@
 import { NORMAL_NODE_IDS, getPathsOfLength, getShortestPath } from "./board";
+import { advanceBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
@@ -25,6 +26,7 @@ import {
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
   HELL_TURN_LIMIT,
+  MUD_OWNER_REWARD,
   MUD_PENALTY,
   RED_CUP_GOAL,
   START_BONUS,
@@ -162,7 +164,18 @@ export function settleBoard(state: GameState, resumeStage: TurnStage): GameState
   if (withWheels.pendingTileWheels.length > 0) {
     return { ...withWheels, turnStage: "tile-wheel", tileWheelResumeStage: stage };
   }
+  if (stage === "blessing") return continueBlessing(withWheels);
   return { ...withWheels, turnStage: stage };
+}
+
+/**
+ * Tour de Bénédiction: the next player spins, or, once the whole table has
+ * spun, the turn that was ending passes as usual.
+ */
+function continueBlessing(state: GameState): GameState {
+  if (state.blessingQueue.length > 0) return { ...state, turnStage: "blessing" };
+  const ended = addLog({ ...state, turnStage: "turn-end" }, "Fin du Tour de Bénédiction : la partie reprend.", "event");
+  return beginNextTurn(ended);
 }
 
 export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameState {
@@ -242,6 +255,7 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
       turnStage: "finished",
       redCupNodeId: null,
       winnerId: playerId,
+      winReason: "red-cups",
       pendingCalmDown: null,
       pendingReaction: null,
     };
@@ -342,48 +356,15 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
   let nextState: GameState = { ...state, mudTraps: state.mudTraps.filter((candidate) => candidate.id !== trap.id) };
   nextState = addLog(nextState, `${player.name} tombe dans la Boue.`, "bad");
   nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
+  // Stepping in your own mud pays nobody.
+  const owner = findPlayer(nextState, trap.ownerId);
+  if (owner && owner.id !== playerId) {
+    nextState = addLog(nextState, `${owner.name} touche ${MUD_OWNER_REWARD} pièces grâce à sa Boue.`, "good");
+    nextState = applyCurrencyChange(nextState, owner.id, MUD_OWNER_REWARD);
+  }
   // A Red Cup on the same tile may already need the only discard slot, so Je note skips the copy there.
   if (nextState.redCupNodeId === nodeId) return nextState;
   return itemCopyForPassive(nextState, playerId, "mud");
-}
-
-function moveBulletBill(state: GameState, round: number): GameState {
-  const bullet = state.bulletBill;
-  if (!bullet) return state;
-
-  if (bullet.status === "waiting") {
-    if (bullet.spawnRound > round) return state;
-    const spawned: GameState = {
-      ...state,
-      bulletBill: { status: "active", position: START_NODE_ID, spawnRound: round },
-    };
-    return addLog(spawned, "Bullet Bill apparaît au départ.", "event");
-  }
-
-  const target = state.players
-    .filter((player) => player.position !== HELL_NODE_ID)
-    .map((player) => ({ player, path: getShortestPath(bullet.position, player.position, true) }))
-    .filter((entry): entry is { player: (typeof entry)["player"]; path: NodeId[] } => entry.path !== null)
-    .sort((left, right) => left.path.length - right.path.length)[0];
-
-  if (!target) return state;
-  // A player standing on Bullet Bill's tile is hit straight away.
-  const steps = target.path.length <= 2 ? 1 : 2;
-  const position = target.path.length === 0 ? bullet.position : target.path[Math.min(steps, target.path.length) - 1];
-  let nextState: GameState = { ...state, bulletBill: { ...bullet, position } };
-  nextState = addLog(nextState, "Bullet Bill avance vers le joueur le plus proche.", "event");
-
-  if (position === target.player.position) {
-    nextState = applyCurrencyChange(nextState, target.player.id, -200);
-    nextState = updatePlayer(nextState, target.player.id, (player) => ({
-      ...player,
-      skippedTurns: player.skippedTurns + 1,
-    }));
-    nextState = addLog(nextState, `Bullet Bill percute ${target.player.name} : −200 pièces et un tour sauté.`, "bad");
-    nextState = { ...nextState, bulletBill: null };
-  }
-
-  return nextState;
 }
 
 const MAXIMUM_BOOT_PRICE = 500;
@@ -445,18 +426,28 @@ export function beginNextTurn(state: GameState): GameState {
   if (outgoing && hasServedHellSentence(nextState, outgoing.id)) {
     nextState = releaseFromHellWithToll(nextState, outgoing.id);
   }
-  nextState = resetHellCountdowns(nextState);
+  return passTurnFrom(nextState, state.activePlayerIndex);
+}
 
-  let nextIndex = state.activePlayerIndex;
+/**
+ * Hands the turn to the first player seated after `fromIndex` who may play.
+ * `fromIndex` is −1 when the seat before the first one was just emptied, so
+ * the round goes on from the first seat without starting a new one.
+ */
+export function passTurnFrom(state: GameState, fromIndex: number): GameState {
+  if (state.players.length === 0) return state;
+  let nextState = resetHellCountdowns(state);
+  const seatCount = nextState.players.length;
+  let nextIndex = fromIndex;
   let nextRound = state.round;
   let attempts = 0;
 
   do {
     nextIndex += 1;
-    if (nextIndex >= state.players.length) {
+    if (nextIndex >= seatCount) {
       nextIndex = 0;
       nextRound += 1;
-      nextState = moveBulletBill(nextState, nextRound);
+      nextState = advanceBulletBill(nextState, nextRound);
       if (nextState.bootFirstPurchased && nextRound > state.bootLastPriceRound) {
         nextState = {
           ...nextState,
@@ -479,7 +470,7 @@ export function beginNextTurn(state: GameState): GameState {
       nextState = releaseFromHellWithToll(nextState, nextPlayer.id);
     }
     attempts += 1;
-  } while (attempts < state.players.length * 3);
+  } while (attempts < seatCount * 3);
 
   nextState = serveHellTurn(nextState, nextState.players[nextIndex].id);
   const activePlayer = nextState.players[nextIndex];
@@ -490,6 +481,8 @@ export function beginNextTurn(state: GameState): GameState {
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
     turnActionTaken: false,
     moveDistance: 1,
+    mudPlacedThisTurn: false,
+    blessingQueue: [],
     pendingWheel: null,
     pendingChallenge: null,
     pendingDiscard: null,

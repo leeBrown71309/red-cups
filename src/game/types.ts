@@ -7,8 +7,15 @@ export const BASE_INVENTORY_CAPACITY = 4;
 export const CURRENCY_RESET_THRESHOLD = -300;
 export const START_BONUS = 200;
 export const MUD_PENALTY = 200;
+/** Paid to whoever laid the mud when somebody else steps in it. */
+export const MUD_OWNER_REWARD = 100;
 /** Délinquant pays this for every move that goes against an arrow. */
-export const DELINQUENT_COST = 200;
+export const DELINQUENT_COST = 400;
+/** The round the game opens with; Délinquant may not break out of the start during it. */
+export const FIRST_ROUND = 1;
+/** Rounds Non merci needs to recharge after cancelling an action. */
+export const NO_THANKS_COOLDOWN_ROUNDS = 3;
+export const BULLET_BILL_DAMAGE = 200;
 /** After this many of their own turns in Hell, a player is released at the start, for a toll. */
 export const HELL_TURN_LIMIT = 5;
 export const HELL_EXIT_TOLL = 500;
@@ -71,7 +78,8 @@ export interface Player {
   inventory: InventoryEntry[];
   passiveId: PassiveId;
   skippedTurns: number;
-  noThanksUsedCycle: number;
+  /** First round in which Non merci may cancel an action again. */
+  noThanksReadyRound: number;
   /** Own turns spent in Hell since the last trip there, skipped ones included. */
   hellTurns: number;
 }
@@ -110,6 +118,7 @@ export type TurnStage =
   | "target"
   | "reposition"
   | "passive-choice"
+  | "blessing"
   | "finished";
 
 export type WheelOutcomeId =
@@ -120,6 +129,7 @@ export type WheelOutcomeId =
   | "skip-turn"
   | "go-to-hell"
   | "spin-fortune"
+  | "spin-misfortune"
   | "nothing"
   | "gain-100"
   | "gain-200"
@@ -138,7 +148,7 @@ export interface WheelResult {
 }
 
 /** Why a wheel spins; only used to phrase the wheel screen. */
-export type WheelOrigin = "tile" | "item" | "hell" | "chain";
+export type WheelOrigin = "tile" | "item" | "hell" | "chain" | "blessing";
 
 export interface PendingWheel {
   /** Unique per spin so the UI can replay the animation for chained wheels. */
@@ -204,11 +214,25 @@ export interface MudTrap {
   ownerId: PlayerId;
 }
 
+/** Bullet Bill waits on the start from its purchase, then charges from round `spawnRound` on. */
 export interface BulletBillState {
   status: "waiting" | "active";
   position: NodeId;
   spawnRound: number;
 }
+
+/** Last charge of Bullet Bill, kept so the scene can replay the flight and the explosion. */
+export interface BulletFlight {
+  seq: number;
+  from: NodeId;
+  path: NodeId[];
+  /** Nearest player Bullet Bill was chasing. */
+  targetId: PlayerId;
+  /** Set when the charge reached its target. */
+  victimId: PlayerId | null;
+}
+
+export type WinReason = "red-cups" | "forfeit";
 
 /** Last walk on the board, kept so the scene can animate the hops. */
 export interface PlayerMovement {
@@ -249,13 +273,21 @@ export interface GameState {
   tileWheelResumeStage: TurnStage;
   duelResumeStage: TurnStage;
   mudTraps: MudTrap[];
+  /** Mud does not use up the turn's action, but only one can be laid per turn. */
+  mudPlacedThisTurn: boolean;
   bulletBill: BulletBillState | null;
+  lastBulletFlight: BulletFlight | null;
+  /** Tour de Bénédiction: players who still have to spin the wheel of fortune, in turn order. */
+  blessingQueue: PlayerId[];
+  /** Players who left before the end, kept for the final standings. */
+  abandonedPlayers: Player[];
   bootPrice: number;
   bootFirstPurchased: boolean;
   bootLastPriceRound: number;
   moveDistance: number;
   turnActionTaken: boolean;
   winnerId: PlayerId | null;
+  winReason: WinReason | null;
   lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
 }
@@ -282,7 +314,11 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingTileWheels: [],
   tileWheelResumeStage: "turn-end",
   mudTraps: [],
+  mudPlacedThisTurn: false,
   bulletBill: null,
+  lastBulletFlight: null,
+  blessingQueue: [],
+  abandonedPlayers: [],
   bootPrice: 100,
   bootFirstPurchased: false,
   bootLastPriceRound: 0,
@@ -290,6 +326,7 @@ export const EMPTY_GAME_STATE: GameState = {
   turnActionTaken: false,
   duelResumeStage: "turn-end",
   winnerId: null,
+  winReason: null,
   lastMovement: null,
   log: [],
 };

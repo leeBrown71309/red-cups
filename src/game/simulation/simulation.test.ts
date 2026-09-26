@@ -45,6 +45,7 @@ describe("bot campaign", () => {
     expect([...outcomes].filter((outcome) => !actions[`wheel:${outcome}`])).toEqual([]);
 
     expect(["coin-flip", "rock-paper-scissors", "player-vote"].filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
+    expect(actions.abandon).toBeGreaterThan(0);
 
     const expectedStages: TurnStage[] = [
       "move",
@@ -62,6 +63,21 @@ describe("bot campaign", () => {
     ];
     expect(expectedStages.filter((stage) => !stages[stage])).toEqual([]);
   });
+});
+
+describe("broke table games", () => {
+  it(
+    "keeps the rules through Tours de Bénédiction",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE }, (_, index) =>
+        runBotGame({ seed: 20_000 + index, playerCount: 2 + (index % 7), startingCurrency: 0 }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(mergeCounts(reports, "stageCounts").blessing).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
 });
 
 describe("passive stress games", () => {

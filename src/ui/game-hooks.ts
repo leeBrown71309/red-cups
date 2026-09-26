@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { NORMAL_NODE_IDS } from "../game/board";
 import { getLegalMoveOptions } from "../game/rules";
 import { canUseDelinquent, useGameStore } from "../game/store";
-import type { GameState, NodeId, Player } from "../game/types";
+import type { GameState, NodeId, Player, PlayerId } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
 
@@ -18,15 +18,16 @@ export function useActivePlayer(): Player | undefined {
 
 /**
  * Player who must act right now: usually the active one, except for New Cup,
- * New Me and for a tile wheel owed by someone who was pulled or swapped there.
+ * New Me, a tile wheel owed by someone who was teleported or pushed there,
+ * and the next spinner of a Tour de Bénédiction.
  */
 export function getDecidingPlayer(state: GameState): Player | undefined {
-  const deciderId =
-    state.turnStage === "reposition"
-      ? state.pendingCupRepositionPlayerId
-      : state.turnStage === "tile-wheel"
-        ? state.pendingTileWheels[0]?.playerId
-        : null;
+  const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
+    reposition: state.pendingCupRepositionPlayerId,
+    "tile-wheel": state.pendingTileWheels[0]?.playerId,
+    blessing: state.blessingQueue[0],
+  };
+  const deciderId = deciderIds[state.turnStage];
   return state.players.find((player) => player.id === deciderId) ?? state.players[state.activePlayerIndex];
 }
 
@@ -45,7 +46,7 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   }
 
   if (state.turnStage !== "move") return { origin: null, paths };
-  const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer);
+  const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer, state.round);
   for (const path of getLegalMoveOptions(activePlayer, state.moveDistance, canIgnoreArrows)) {
     const destination = path[path.length - 1];
     if (!paths.has(destination)) paths.set(destination, path);

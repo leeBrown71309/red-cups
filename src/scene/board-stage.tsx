@@ -131,7 +131,10 @@ function useBoardView(mode: CameraMode): BoardView {
         : [],
       redCupNodeId: playing ? lagged.redCupNodeId : INITIAL_RED_CUP_NODE_ID,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
-      bulletBillNodeId: playing && game.bulletBill?.status === "active" ? game.bulletBill.position : null,
+      // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
+      bulletBill:
+        playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,
+      bulletFlightSeq: playing ? (game.lastBulletFlight?.seq ?? null) : null,
       legalPaths: playing ? legalMoves.paths : new Map(),
       pathOrigin: legalMoves.origin,
       markerColor: decider?.color ?? "#ffffff",

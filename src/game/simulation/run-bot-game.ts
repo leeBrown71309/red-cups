@@ -16,6 +16,8 @@ export interface BotGameOptions {
   playerCount: number;
   /** Forces passives on the first seats, e.g. to stress one passive. */
   passives?: PassiveId[];
+  /** Overrides everybody's starting coins, e.g. 0 to open with a Tour de Bénédiction. */
+  startingCurrency?: number;
   maxSteps?: number;
 }
 
@@ -92,6 +94,12 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     store.getState().resetGame();
     store.getState().startGame(Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`));
     if (options.passives) store.setState((state) => ({ players: assignPassives(state.players, options.passives!) }));
+    const { startingCurrency } = options;
+    if (startingCurrency !== undefined) {
+      store.setState((state) => ({
+        players: state.players.map((player) => ({ ...player, currency: startingCurrency })),
+      }));
+    }
 
     let idle = 0;
     for (let step = 0; step < maxSteps; step += 1) {

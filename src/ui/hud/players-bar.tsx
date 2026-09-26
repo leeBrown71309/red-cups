@@ -123,7 +123,14 @@ export function PlayersBar() {
 }
 
 function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
+  const round = useGameStore((state) => state.round);
   const passive = PASSIVE_CATALOG[player.passiveId];
+  const noThanksStatus =
+    player.passiveId !== "no-thanks"
+      ? null
+      : player.noThanksReadyRound <= round
+        ? "Prêt à servir."
+        : `De retour au tour ${player.noThanksReadyRound}.`;
   const capacity = getInventoryCapacity(player);
   const empty = Math.max(0, capacity - player.inventory.length);
   const cups = countRedCups(player);
@@ -165,6 +172,7 @@ function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnch
         <span className="eyebrow">Passif</span>
         <strong>{passive.name}</strong>
         <p>{passive.description}</p>
+        {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
       </div>
       <div className="player-details__bag">
         <span className="eyebrow">

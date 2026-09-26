@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../game/store";
-import type { PendingWheel } from "../../game/types";
+import type { PendingWheel, WheelOutcomeId } from "../../game/types";
 import { soundEffects } from "../../audio/sound-effects";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -18,8 +18,15 @@ function getWheelEyebrow(pending: PendingWheel): string {
   if (pending.origin === "tile") return pending.wheelId === "fortune" ? "Case verte" : "Case rouge";
   if (pending.origin === "chain") return "Encore une roue !";
   if (pending.origin === "hell") return "Depuis l’Enfer";
+  if (pending.origin === "blessing") return "Tour de Bénédiction";
   return "La roue tourne";
 }
+
+/** Results that hand over to another wheel say so on their button. */
+const CHAINED_WHEEL_ACTIONS: Partial<Record<WheelOutcomeId, string>> = {
+  "spin-fortune": "Tourner la roue du bonheur",
+  "spin-misfortune": "Tourner la roue du malheur",
+};
 
 /** Remounts for every spin so chained wheels (malheur → bonheur) replay the animation. */
 export function WheelModal() {
@@ -115,8 +122,7 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
               <strong className="wheel-result__label">{pending.result.label}</strong>
               <div className="wheel-result__actions">
                 <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
-                  <UiIcon name="check" size={20} />{" "}
-                  {pending.result.id === "spin-fortune" ? "Tourner la roue du bonheur" : "Appliquer"}
+                  <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
                 </button>
                 {hasEraser && (
                   <button type="button" className="btn btn--cream btn--block" onClick={cancelWheel}>

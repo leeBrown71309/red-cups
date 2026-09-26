@@ -1,7 +1,7 @@
 import { getBoardNode, getPathsOfLength } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import type { BoardNode, ItemId, NodeId, Player, WheelId } from "./types";
-import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, HELL_NODE_ID } from "./types";
+import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
@@ -53,9 +53,22 @@ export function findLegalPath(
   );
 }
 
-/** Délinquant pays per ignored arrow, so the passive is unusable without the funds. */
-export function canUseDelinquent(player: Player): boolean {
-  return player.passiveId === "delinquent" && player.currency >= DELINQUENT_COST;
+export type DelinquentBlocker = "not-delinquent" | "too-poor" | "first-round-start";
+
+/**
+ * Délinquant pays per ignored arrow, so the passive is unusable without the
+ * funds. On the first round it may not leave the start against its arrows:
+ * 0 → 8 would grab the first Red Cup before anybody else could move.
+ */
+export function getDelinquentBlocker(player: Player, round: number): DelinquentBlocker | null {
+  if (player.passiveId !== "delinquent") return "not-delinquent";
+  if (player.currency < DELINQUENT_COST) return "too-poor";
+  if (round <= FIRST_ROUND && player.position === START_NODE_ID) return "first-round-start";
+  return null;
+}
+
+export function canUseDelinquent(player: Player, round: number): boolean {
+  return getDelinquentBlocker(player, round) === null;
 }
 
 export function getNodeKind(nodeId: NodeId): BoardNode["kind"] | undefined {

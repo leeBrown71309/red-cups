@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { BoardNode, NodeId } from "../../game/types";
 import { SCENE_COLORS, TILE_COLORS } from "../../theme/palette";
 import { addOutline, type SceneKit } from "../scene-kit";
-import { DISPLAY_FONT } from "../text-sprites";
+import { DISPLAY_FONT, createLabelSprite } from "../text-sprites";
 
 export const TILE_RADIUS = 1.1;
 export const START_TILE_RADIUS = 1.45;
@@ -22,6 +22,8 @@ export interface TileVisual {
   topY: number;
   pickMesh: THREE.Mesh;
   setHighlight: (highlight: TileHighlight) => void;
+  /** Pawns or props hide the painted number: a badge on the tile's edge keeps it readable. */
+  setCovered: (covered: boolean) => void;
   update: (elapsed: number, delta: number) => void;
   repaintDecal: () => void;
 }
@@ -75,6 +77,23 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
   };
   repaintDecal();
 
+  // Front-left edge: the ring of pawns leaves the diagonals free, and no shop stall stands there.
+  const badge = createLabelSprite(String(node.id), {
+    background: colors.top,
+    color: "#ffffff",
+    stroke: SCENE_COLORS.ink,
+    fontSize: 64,
+    worldHeight: 0.66,
+  });
+  const badgeMaterial = badge.material as THREE.SpriteMaterial;
+  badgeMaterial.depthTest = false;
+  badgeMaterial.opacity = 0;
+  badge.renderOrder = 6;
+  badge.visible = false;
+  badge.position.set(-radius * 0.74, TILE_HEIGHT + 0.36, radius * 0.72);
+  lift.add(badge);
+  let covered = false;
+
   const ring = new THREE.Mesh(
     new THREE.RingGeometry(radius * 1.08, radius * 1.3, 24),
     new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0, depthWrite: false }),
@@ -110,7 +129,13 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
       marker.visible = next.legal;
       markerMaterial.color.set(next.markerColor);
     },
+    setCovered: (next) => {
+      covered = next;
+    },
     update: (elapsed, delta) => {
+      const badgeOpacity = covered ? 1 : 0;
+      badgeMaterial.opacity += (badgeOpacity - badgeMaterial.opacity) * Math.min(1, delta * 8);
+      badge.visible = badgeMaterial.opacity > 0.02;
       const liftTarget = highlight.hovered ? 0.16 : highlight.legal ? 0.05 : 0;
       lift.position.y += (liftTarget - lift.position.y) * Math.min(1, delta * 12);
 

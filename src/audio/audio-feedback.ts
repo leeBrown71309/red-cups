@@ -65,11 +65,20 @@ export function startAudioFeedback(): () => void {
       case "mud-triggered":
         soundEffects.mudSplat();
         break;
-      case "bullet-spawned":
-        soundEffects.bulletWhistle();
+      case "bullet-launched":
+        soundEffects.bulletAlarm();
+        break;
+      case "bullet-flight":
+        soundEffects.bulletCharge();
         break;
       case "bullet-hit":
-        soundEffects.bulletHit();
+        soundEffects.explosion();
+        break;
+      case "blessing-started":
+        soundEffects.blessing();
+        break;
+      case "player-left":
+        soundEffects.tunnel();
         break;
       case "turn-skipped":
         soundEffects.snore();

@@ -21,6 +21,8 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Monnaie initiale | 2 000 pièces par joueur. Les « points » du diaporama sont une monnaie, pas un score. |
 | Seuil négatif | À −300 pièces ou moins, le solde revient à 0 et le prochain tour du joueur est annulé. |
 | Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Nombre fixe pour l’instant ; un autre mode pourra le changer plus tard. |
+| Abandon | Un joueur peut quitter une partie en cours ; les autres continuent. S’il ne reste qu’un joueur, il gagne par abandon (patch 0.1.1). |
+| Tour de Bénédiction | Si, à la fin d’un tour, tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle avant de reprendre la partie (patch 0.1.1). |
 | Cases vertes et rouges | S’arrêter sur une case verte lance la roue du bonheur, sur une case rouge la roue du malheur (règle confirmée par l’auteur du jeu). |
 | Non merci | Fenêtre de réaction : quand un joueur annonce son action, les détenteurs du passif peuvent l’annuler avant qu’elle s’applique. |
 | Sauvegarde | La partie en cours est sauvegardée dans le navigateur et survit au rafraîchissement ; la sauvegarde est effacée à la fin de la partie. |
@@ -83,11 +85,12 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement.
 - Lorsqu’un joueur **termine son déplacement** sur une case verte ou rouge, il tourne la roue correspondante (bonheur ou malheur). Simplement passer dessus avec la Botte ne déclenche pas de roue.
 - Ordre de résolution à l’arrivée : Boue, puis Red Cup (avec ses passifs), puis la roue de la case.
-- Les déplacements subis déclenchent aussi la roue (règle confirmée) : tiré par la Corde, échangé par le Monopoly Man, téléporté par la Bouteille d’eau, reculé par Calme-toi ou repositionné par New Cup, New Me. C’est tout l’intérêt de pousser un adversaire sur une case rouge.
-- Si plusieurs joueurs arrivent sur une case colorée en même temps (Monopoly Man), chacun tourne sa roue, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
+- Être téléporté par la Bouteille d’eau ou reculé par Calme-toi déclenche aussi la roue de la case d’arrivée.
+- **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
+- Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
 - Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
 - Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus.
-- Délinquant (200 pièces) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement.
+- Délinquant (400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
 
 ### 3.3 Red Cups
 
@@ -104,14 +107,29 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 Un tour suit ces phases :
 
 1. Le joueur actif annonce son action : se déplacer ou utiliser un objet.
-2. Si un autre joueur possède **Non merci** (non utilisé depuis la dernière Red Cup), une fenêtre de réaction s’ouvre : il peut annuler l’action ou la laisser passer.
+2. Si un autre joueur possède **Non merci** (rechargé : pas utilisé depuis 3 tours de table), une fenêtre de réaction s’ouvre : il peut annuler l’action ou la laisser passer.
 3. L’action s’applique. Pour un déplacement : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
 4. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
-5. Le joueur termine son tour. Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
+5. Le joueur termine son tour. Si tous les joueurs ont alors 0 pièce ou moins, le **Tour de Bénédiction** a lieu d’abord (voir 4.1). Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
 
-Utiliser un objet est une action. Une seule action principale est faite par tour. L’achat est une phase spéciale autorisée après l’arrivée en boutique et ne remplace pas le déplacement. La Botte est l’exception préparatoire au déplacement ; la Gomme est une réaction à un effet de roue.
+Utiliser un objet est une action. Une seule action principale est faite par tour. L’achat est une phase spéciale autorisée après l’arrivée en boutique et ne remplace pas le déplacement. La Botte et la Boue sont des préparations : on les utilise avant son action (se déplacer ou utiliser un autre objet), une seule Boue par tour. La Gomme est une réaction à un effet de roue.
 
-Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Il peut l’annuler une fois par cycle de Red Cup (jusqu’à la prochaine apparition d’une Red Cup). Une action annulée met fin au tour de l’acteur ; un objet annulé est perdu (règle confirmée). En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 8 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
+Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Depuis le patch 0.1.1, il sert une fois tous les 3 tours de table : utilisé au tour N, il revient au tour N + 3, quelles que soient les Red Cups. Une action annulée met fin au tour de l’acteur ; un objet annulé est perdu (règle confirmée). Seule exception : une Boue annulée est perdue mais, comme elle n’était pas l’action du tour, l’acteur joue encore. En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 15 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
+
+### 4.1 Tour de Bénédiction (patch 0.1.1)
+
+- Il se déclenche quand un tour se termine alors que **tous** les joueurs ont 0 pièce ou moins.
+- Chaque joueur tourne la roue du bonheur, dans l’ordre du tour, en commençant par celui qui devait jouer ensuite ; celui dont le tour vient de finir tourne en dernier.
+- Les résultats s’appliquent normalement, y compris « Tourner la roue du malheur » et la Gomme.
+- Le tour passe ensuite comme d’habitude (tours sautés, peine de l’Enfer, Bullet Bill).
+
+### 4.2 Abandon (patch 0.1.1)
+
+- Depuis le menu pause, l’hôte choisit le joueur qui quitte la partie, puis confirme.
+- L’abandon attend que la table soit au repos : pas pendant une roue, un duel ou une décision.
+- Le joueur quitte la table avec ses Red Cups et ses objets ; sa Boue reste sur le plateau mais ne lui rapporte plus rien.
+- Si c’était son tour, la main passe au joueur suivant. S’il ne reste qu’un joueur, celui-ci gagne par abandon.
+- Les joueurs partis figurent en bas du classement final.
 
 ## 5. Monnaie et inventaire
 
@@ -152,13 +170,13 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | --- | --- |
 | Ndoye | Fait tourner la roue du malheur pour une cible, soi-même compris. |
 | Hollow Purple | Envoie un joueur en Enfer ; peut cibler son utilisateur. |
-| Corde | Rapproche un autre joueur de l’utilisateur, jusqu’à sa position. Baraqué réduit la distance de déplacement imposée de moitié. |
+| Corde | Rapproche un autre joueur de l’utilisateur, jusqu’à sa position. Baraqué réduit la distance de déplacement imposée de moitié. Ni roue ni boutique pour ce déplacement. |
 | Botte | Permet de se déplacer de deux cases au lieu d’une ; à utiliser avant le déplacement. Son prix augmente comme décrit plus haut. |
-| Boue | Se pose sur la case de l’utilisateur. Le prochain joueur qui y entre perd 200 pièces. Le poseur peut aussi déclencher la boue. |
+| Boue | Se pose sur la case de l’utilisateur, avant son action : il peut ensuite se déplacer (ou utiliser un autre objet) dans le même tour. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
-| Bullet Bill | N’appartient à personne. Après l’achat, il apparaît au départ au début du prochain tour de table, puis se dirige vers le joueur le plus proche sans tenir compte du sens des flèches. Il avance de deux cases, sauf lorsqu’une cible est proche. Il retire 200 pièces à sa victime et l’étourdit pendant un tour. |
+| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases, sauf lorsqu’une cible est proche (une case). Il retire 200 pièces à sa victime et l’étourdit pendant un tour. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
-| Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. |
+| Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. |
@@ -172,10 +190,10 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Passif | Effet |
 | --- | --- |
 | Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Le Monopoly Man n’a aucun effet sur lui. |
-| New Cup, New Me | À chaque apparition d’une nouvelle Red Cup, le joueur peut se repositionner avant que sa destination ne soit révélée. |
+| New Cup, New Me | À chaque apparition d’une nouvelle Red Cup, le joueur peut se repositionner avant que sa destination ne soit révélée. Ce repositionnement ne donne ni roue ni boutique. |
 | Red light, Green light | Gagne 100 pièces en passant sur une case verte et perd 100 pièces en passant sur une case rouge. |
-| Non merci | Une fois par cycle de Red Cup, le joueur peut annuler l’action d’un autre joueur. |
-| Délinquant | Peut ignorer le sens d’une flèche, au prix de 200 pièces à chaque utilisation. |
+| Non merci | Une fois tous les 3 tours de table, le joueur peut annuler l’action d’un autre joueur. |
+| Délinquant | Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
 | Penta | Ajoute un emplacement à l’inventaire. |
 | Troll | À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
 | Je suis Cups | Le joueur ne reçoit pas le bonus de 200 pièces lié au départ. |
@@ -222,7 +240,7 @@ Ces résultats servent de configuration initiale et ne prétendent pas reproduir
 7. Tourner la roue du bonheur.
 8. Aucun effet.
 
-**Roue du bonheur / paradis — nom provisoire, neuf secteurs pondérés :**
+**Roue du bonheur / paradis — nom provisoire, dix secteurs pondérés :**
 
 1–2. +100 pièces.
 3–4. +200 pièces.
@@ -230,7 +248,8 @@ Ces résultats servent de configuration initiale et ne prétendent pas reproduir
 6. +400 pièces.
 7. +500 pièces.
 8. Objet gratuit tiré parmi ceux coûtant au plus 300 pièces. Si l’inventaire est plein, gagner 200 pièces à la place.
-9. Libération de l’Enfer vers la case 0 si le joueur y est ; sinon +500 pièces.
+9. Tourner la roue du malheur (patch 0.1.1).
+10. Libération de l’Enfer vers la case 0 si le joueur y est ; sinon +500 pièces.
 
 Ce tableau initial garde une sortie rare de l’Enfer sur une roue positive. Les résultats restent configurables.
 
@@ -285,3 +304,19 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Mode en ligne : les réactions (Non merci, Calme-toi, votes, pierre-feuille-ciseaux) devront être prises par chaque joueur sur son appareil, sans maître du jeu.
 - Préciser le comportement des effets touchant simultanément tous les joueurs, notamment Draven et Bullet Bill.
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
+
+## 13. Historique des versions
+
+### 0.1.1 — septembre 2026
+
+- **Délinquant** : ignorer une flèche coûte 400 pièces (au lieu de 200) ; au premier tour de table, il ne peut plus quitter le départ à contresens pour prendre directement la Red Cup de la case 8.
+- **Corde et Monopoly Man** : la cible et l’utilisateur ne tournent aucune roue et n’ouvrent aucune boutique grâce à ce déplacement.
+- **New Cup, New Me** : le repositionnement ne donne ni roue ni boutique.
+- **Bullet Bill** : visible au départ dès l’achat, il s’active au tour de table suivant. Bannière d’alerte, puce d’état dans la barre du haut, charge animée avec traînée de fumée et explosion à l’impact.
+- **Roue du bonheur** : nouveau secteur « Tourner la roue du malheur ».
+- **Abandon** : un joueur peut quitter la partie sans l’arrêter pour les autres.
+- **Numéros des cases** : une pastille rappelle le numéro d’une case occupée par des pions ou par la Red Cup.
+- **Boue** : se pose avant de se déplacer dans le même tour ; 100 pièces reviennent au poseur quand un autre joueur marche dedans.
+- **Non merci** : utilisable une fois tous les 3 tours de table au lieu d’une fois par cycle de Red Cup.
+- **Tour de Bénédiction** : si tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle.
+- **Interface** : la boutique ne se ferme plus un instant après chaque achat ; la fenêtre Non merci laisse 15 secondes pour réagir (au lieu de 8).
