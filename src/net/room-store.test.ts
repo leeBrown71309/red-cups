@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   fetchRoom: vi.fn(),
   leaveRoom: vi.fn(),
   openRoom: vi.fn(),
+  shuffleRoom: vi.fn(),
   advanceRoom: vi.fn(),
   touchSeat: vi.fn(),
 }));
@@ -111,5 +112,29 @@ describe("room store lobby", () => {
     expect(api.claimSeat).toHaveBeenCalledWith(ROOM_CODE, "Invite", 1);
     expect(room).toMatchObject({ view: "lobby", code: ROOM_CODE, myUserId: GUEST_ID });
     expect(room.players).toHaveLength(2);
+  });
+
+  it("lets the host draw the turn order again and shows the order the database returns", async () => {
+    session.ensureSession.mockResolvedValue(HOST_ID);
+    api.createRoom.mockResolvedValue(ROOM_CODE);
+    api.fetchRoom.mockResolvedValue(lobbySnapshot([HOST_ID, GUEST_ID]));
+    await useRoomStore.getState().createAndJoin("Hote", 0);
+
+    api.shuffleRoom.mockResolvedValue(undefined);
+    api.fetchRoom.mockResolvedValue(lobbySnapshot([GUEST_ID, HOST_ID]));
+    await useRoomStore.getState().shuffleOrder();
+
+    expect(api.shuffleRoom).toHaveBeenCalledWith(ROOM_CODE);
+    expect(useRoomStore.getState().players.map((player) => player.userId)).toEqual([GUEST_ID, HOST_ID]);
+  });
+
+  it("does not let a guest draw the turn order", async () => {
+    session.ensureSession.mockResolvedValue(GUEST_ID);
+    api.fetchRoom.mockResolvedValue(lobbySnapshot([HOST_ID, GUEST_ID]));
+    await useRoomStore.getState().join(ROOM_CODE, "Invite", 1);
+
+    await useRoomStore.getState().shuffleOrder();
+
+    expect(api.shuffleRoom).not.toHaveBeenCalled();
   });
 });

@@ -6,7 +6,8 @@ façons de jouer :
 - **En local** : un hôte pilote la partie sur un seul écran (desktop ou mobile en paysage) et peut la partager sur
   Discord ou Meet.
 - **En ligne** : chacun sur son appareil, dans un salon rejoint par code ou par lien. Seuls les joueurs assis
-  rejoignent un salon : il n’y a pas de spectateurs.
+  rejoignent un salon : il n’y a pas de spectateurs. Avant de lancer, l’hôte peut mélanger l’ordre du tour ; le tirage
+  est fait par la base (`shuffle_room`), donc tout le monde voit l’ordre qui sera joué.
 
 Les règles, décisions confirmées et points ouverts sont dans [`red-cups-game-spec.md`](./red-cups-game-spec.md).
 
