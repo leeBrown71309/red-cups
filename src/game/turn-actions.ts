@@ -1,3 +1,4 @@
+import { createEngineId } from "./engine-random";
 import { earnsStartBonus, getShortestPath } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import {
@@ -171,7 +172,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
     case "mud":
       nextState = {
         ...nextState,
-        mudTraps: [...nextState.mudTraps, { id: crypto.randomUUID(), nodeId: player.position, ownerId: player.id }],
+        mudTraps: [...nextState.mudTraps, { id: createEngineId(), nodeId: player.position, ownerId: player.id }],
       };
       nextState = addLog(nextState, `${player.name} pose de la Boue en case ${player.position}.`, "event");
       break;

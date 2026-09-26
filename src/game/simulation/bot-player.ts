@@ -1,11 +1,12 @@
 import { canAbandon } from "../abandon";
+import { getDuelVoterIds } from "../duel";
 import { NORMAL_NODE_IDS, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
-import type { InventoryEntry, NodeId, PlayerId } from "../types";
+import type { InventoryEntry, NodeId, PlayerId, RpsChoice } from "../types";
 import type { AppliedItem } from "./rule-invariants";
 
 /**
@@ -22,6 +23,8 @@ export interface BotAction {
 }
 
 type Random = () => number;
+
+const RPS_CHOICES: RpsChoice[] = ["rock", "paper", "scissors"];
 
 function pick<T>(values: T[], random: Random): T | undefined {
   return values.length === 0 ? undefined : values[Math.floor(random() * values.length)];
@@ -119,6 +122,26 @@ function chooseAbandon(store: GameStore, random: Random): BotAction | null {
   return { label: "abandon", perform: (current) => current.abandonGame(leaver.id) };
 }
 
+/** Plays the duel the way the table would: flip the coin, pick hands, cast votes, then settle. */
+function chooseDuelAction(store: GameStore, random: Random): BotAction | null {
+  const duel = store.pendingDuel;
+  if (!duel) return null;
+  const { winnerId } = duel;
+  if (winnerId) return { label: `duel:${duel.mode}`, perform: (current) => current.resolveDuel(winnerId) };
+
+  if (duel.mode === "coin-flip") return { label: "duel:flip", perform: (current) => current.flipDuelCoin() };
+  if (duel.mode === "rock-paper-scissors") {
+    const chooserId = [duel.playerOneId, duel.playerTwoId].find((id) => !duel.rpsChoices[id]);
+    const choice = pick(RPS_CHOICES, random);
+    if (!chooserId || !choice) return null;
+    return { label: "duel:hand", perform: (current) => current.pickDuelHand(chooserId, choice) };
+  }
+  const voterId = getDuelVoterIds(store, duel).find((id) => !duel.votes[id]);
+  const candidateId = pick([duel.playerOneId, duel.playerTwoId], random);
+  if (!voterId || !candidateId) return null;
+  return { label: "duel:vote", perform: (current) => current.castDuelVote(voterId, candidateId) };
+}
+
 /** Returns the bot's next decision, or null when the game offers none (a blocked state). */
 export function chooseBotAction(store: GameStore, random: Random): BotAction | null {
   if (store.phase !== "playing") return null;
@@ -154,14 +177,8 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
     }
 
-    case "duel": {
-      const duel = store.pendingDuel;
-      if (!duel) return null;
-      const winnerId =
-        duel.mode === "coin-flip" ? duel.coinWinnerId : pick([duel.playerOneId, duel.playerTwoId], random);
-      if (!winnerId) return null;
-      return { label: `duel:${duel.mode}`, perform: (current) => current.resolveDuel(winnerId) };
-    }
+    case "duel":
+      return chooseDuelAction(store, random);
 
     case "target": {
       const challengerId = store.pendingChallenge?.playerId;
