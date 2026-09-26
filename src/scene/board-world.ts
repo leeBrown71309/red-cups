@@ -5,10 +5,11 @@ import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { SCENE_COLORS } from "../theme/palette";
 import { SHOP_STALL_PLACEMENTS, START_FLAG_OFFSET, getNodePosition, getTunnelLayout } from "./board-layout";
+import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
-import { createBulletBill, createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
+import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
 import { createPond, createScenery, createTray } from "./models/scenery-model";
 import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-model";
 import { PawnController, type PawnInput } from "./pawn-controller";
@@ -20,7 +21,9 @@ export interface BoardView {
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
-  bulletBillNodeId: NodeId | null;
+  bulletBill: BulletView | null;
+  /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
+  bulletFlightSeq: number | null;
   /** Destination → path from `pathOrigin`, for every legal choice. */
   legalPaths: Map<NodeId, NodeId[]>;
   pathOrigin: NodeId | null;
@@ -53,14 +56,13 @@ export class BoardWorld {
   private readonly effects = new EffectsLayer();
   private readonly animated: AnimatedProp[] = [];
   private readonly redCup: AnimatedProp;
-  private readonly bulletBill: AnimatedProp;
+  private readonly bullet: BulletBillActor;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly resizeObserver: ResizeObserver;
   private readonly timer = new THREE.Timer();
   private readonly unsubscribeFeedback: () => void;
-  private readonly bulletTarget = new THREE.Vector3();
   private view: BoardView | null = null;
   private hoveredNodeId: NodeId | null = null;
   private pointerStart: { x: number; y: number; time: number; id: number } | null = null;
@@ -94,9 +96,8 @@ export class BoardWorld {
     this.redCup.group.visible = false;
     this.scene.add(this.redCup.group);
 
-    this.bulletBill = createBulletBill(this.kit);
-    this.bulletBill.group.visible = false;
-    this.scene.add(this.bulletBill.group);
+    this.bullet = new BulletBillActor(this.kit, this.effects);
+    this.scene.add(this.bullet.group);
 
     this.scene.add(this.effects.group);
 
@@ -134,17 +135,8 @@ export class BoardWorld {
     }
 
     this.syncMud(view.mudNodeIds);
-
-    this.bulletBill.group.visible = view.bulletBillNodeId !== null;
-    if (view.bulletBillNodeId !== null) {
-      const target = getNodePosition(view.bulletBillNodeId).add(new THREE.Vector3(0.7, 0, -0.5));
-      if (!this.bulletTarget.equals(target) && this.bulletTarget.lengthSq() === 0) {
-        this.bulletBill.group.position.copy(target);
-      }
-      this.bulletTarget.copy(target);
-    } else {
-      this.bulletTarget.set(0, 0, 0);
-    }
+    this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
+    this.refreshCoveredTiles(view);
   }
 
   recenter(): void {
@@ -286,6 +278,16 @@ export class BoardWorld {
     }
   }
 
+  /**
+   * Tiles whose painted number is hidden by pawns or the floating Red Cup show it on a badge.
+   * Bullet Bill hovers behind the number, so it never hides it.
+   */
+  private refreshCoveredTiles(view: BoardView): void {
+    const covered = new Set<NodeId>(view.pawns.map((pawn) => pawn.position));
+    if (view.redCupNodeId !== null) covered.add(view.redCupNodeId);
+    for (const [nodeId, tile] of this.tiles) tile.setCovered(covered.has(nodeId));
+  }
+
   private refreshHighlights(): void {
     const view = this.view;
     if (!view) return;
@@ -323,15 +325,7 @@ export class BoardWorld {
       this.redCup.group.scale.setScalar(Math.max(0.001, easeOutBack(this.cupPopProgress)));
     }
 
-    if (this.bulletBill.group.visible) {
-      const position = this.bulletBill.group.position;
-      const toTarget = this.bulletTarget.clone().sub(position);
-      if (toTarget.lengthSq() > 0.0004) {
-        this.bulletBill.group.rotation.y = Math.atan2(toTarget.x, toTarget.z);
-        position.lerp(this.bulletTarget, 1 - Math.exp(-delta * 3.5));
-      }
-      this.bulletBill.update(elapsed, delta);
-    }
+    this.bullet.update(elapsed, delta);
 
     this.renderer.render(this.scene, this.rig.camera);
   };
@@ -412,9 +406,23 @@ export class BoardWorld {
       case "mud-triggered":
         this.effects.spawnPoof(getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
         return;
+      case "bullet-flight": {
+        this.bullet.launch(event.flight);
+        const landing = event.flight.path[event.flight.path.length - 1] ?? event.flight.from;
+        if (this.view?.mode === "play" && this.view.followActivePlayer) {
+          this.rig.focusOn(getNodePosition(landing), 0.78);
+        }
+        return;
+      }
       case "bullet-hit": {
+        this.effects.spawnExplosion(getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+        this.rig.shakeFor(0.45, 650);
+        this.pawns.knockOut(event.playerId);
+        return;
+      }
+      case "player-left": {
         const position = this.pawns.getPawnPosition(event.playerId);
-        if (position) this.effects.spawnPoof(position, "#3b3440");
+        if (position) this.effects.spawnPoof(position, "#ffffff");
         return;
       }
       case "turn-start": {

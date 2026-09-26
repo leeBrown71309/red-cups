@@ -25,6 +25,7 @@ const UI_ICON_PATHS = {
   check: "M5 12.5l4.5 4.5L19 7",
   crown: "M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
+  flag: "M5 21V4M5 4h12l-2.5 4.5L17 13H5",
   play: "M8 5v14l11-7L8 5z",
   refresh: "M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6",
   info: "M12 21a9 9 0 1 0 0-18a9 9 0 1 0 0 18M12 11v6M12 7.5h.01",

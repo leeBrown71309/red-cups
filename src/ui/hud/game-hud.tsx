@@ -4,18 +4,19 @@ import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
 import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
 import { DuelModal } from "../modals/duel-modal";
 import { HelpModal } from "../modals/help-modal";
-import { JournalModal, PauseMenu } from "../modals/menu-modals";
+import { AbandonModal, JournalModal, PauseMenu } from "../modals/menu-modals";
 import { ShopModal } from "../modals/shop-modal";
 import { VictoryModal } from "../modals/victory-modal";
 import { WheelModal } from "../modals/wheel-modal";
 import { ActionDock } from "./action-dock";
+import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
 import { InventoryTray } from "./inventory-tray";
 import { TopBar } from "./top-bar";
 import { TurnSplash } from "./turn-splash";
 
-type Overlay = "menu" | "help" | "journal" | null;
+type Overlay = "menu" | "help" | "journal" | "abandon" | null;
 
 /**
  * In-game heads-up display laid over the 3D board. Only one blocking decision
@@ -31,13 +32,16 @@ export function GameHud() {
   const [targetEntryId, setTargetEntryId] = useState<string | null>(null);
   const [shopClosed, setShopClosed] = useState(false);
 
+  // Keyed on the player rather than the seat: seats shift when an earlier player abandons.
+  const activePlayerId = game.players[game.activePlayerIndex]?.id;
+
   useEffect(() => {
     setShopClosed(false);
     setTargetEntryId(null);
     setPreviewNodeId(null);
-  }, [game.turnStage, game.activePlayerIndex, setPreviewNodeId]);
+  }, [game.turnStage, activePlayerId, setPreviewNodeId]);
 
-  useEffect(() => setIgnoreArrows(false), [game.activePlayerIndex, setIgnoreArrows]);
+  useEffect(() => setIgnoreArrows(false), [activePlayerId, setIgnoreArrows]);
 
   let decision: ReactNode = null;
   if (settled) {
@@ -63,16 +67,19 @@ export function GameHud() {
         <ActionDock onOpenShop={() => setShopClosed(false)} />
       </div>
       <TurnSplash />
+      <AlertBannerView />
       {decision}
       {overlay === "menu" && (
         <PauseMenu
           onClose={() => setOverlay(null)}
           onOpenHelp={() => setOverlay("help")}
           onOpenJournal={() => setOverlay("journal")}
+          onOpenAbandon={() => setOverlay("abandon")}
         />
       )}
       {overlay === "help" && <HelpModal onClose={() => setOverlay(null)} />}
       {overlay === "journal" && <JournalModal onClose={() => setOverlay(null)} />}
+      {overlay === "abandon" && <AbandonModal onClose={() => setOverlay(null)} />}
     </div>
   );
 }

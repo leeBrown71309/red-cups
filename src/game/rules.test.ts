@@ -15,7 +15,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     passiveId: "built-like-a-tank",
     skippedTurns: 0,
     hellTurns: 0,
-    noThanksUsedCycle: -1,
+    noThanksReadyRound: 1,
     ...overrides,
   };
 }
@@ -117,7 +117,7 @@ describe("inventory rules", () => {
 describe("random event selection", () => {
   it("selects wheel results according to weighted ranges", () => {
     expect(chooseWheelResult("fortune", 0).id).toBe("gain-100");
-    expect(chooseWheelResult("fortune", 0.5).id).toBe("gain-300");
+    expect(chooseWheelResult("fortune", 0.45).id).toBe("gain-300");
     expect(chooseWheelResult("fortune", 0.999).id).toBe("escape");
   });
 });

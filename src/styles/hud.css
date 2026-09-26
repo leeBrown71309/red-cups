@@ -740,8 +740,219 @@
   }
 }
 
+/* ---------- Table alerts: Bullet Bill, Tour de Bénédiction ---------- */
+.alert-banner-layer {
+  position: fixed;
+  top: calc(var(--hud-inset) + var(--safe-top) + 70px);
+  right: 0;
+  left: 0;
+  z-index: 55;
+  display: flex;
+  justify-content: center;
+  padding: 0 16px;
+  pointer-events: none;
+}
+
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: min(580px, 100%);
+  padding: 10px 26px 10px 12px;
+  border: 4px solid var(--ink);
+  border-radius: 24px;
+  box-shadow:
+    0 7px 0 var(--ink),
+    0 24px 50px rgba(58, 37, 48, 0.35);
+  color: var(--white);
+  /* Entrance only: the component removes the banner, so reduced motion still shows it. */
+  animation: alert-in 480ms var(--ease-bounce) both;
+}
+
+.alert-banner--danger {
+  background:
+    repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.1) 0 14px, transparent 14px 28px),
+    linear-gradient(135deg, var(--cup), var(--cup-deep));
+}
+
+.alert-banner--blessing {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.45), transparent 55%),
+    linear-gradient(135deg, var(--gold), var(--mint));
+}
+
+.alert-banner__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--gold-deep);
+}
+
+.alert-banner--danger .alert-banner__icon {
+  animation: alert-rumble 180ms ease-in-out 6 alternate;
+}
+
+.alert-banner__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alert-banner__eyebrow {
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 0 rgba(58, 37, 48, 0.5);
+  text-transform: uppercase;
+}
+
+.alert-banner__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 3.6vw, 2.2rem);
+  font-weight: 700;
+  line-height: 1.05;
+  text-shadow:
+    -2px -2px 0 var(--ink),
+    2px -2px 0 var(--ink),
+    -2px 2px 0 var(--ink),
+    2px 2px 0 var(--ink),
+    0 4px 0 var(--ink);
+}
+
+.alert-banner__detail {
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-shadow: 0 2px 0 rgba(58, 37, 48, 0.5);
+}
+
+@keyframes alert-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.75);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes alert-rumble {
+  from {
+    transform: rotate(-9deg) translateX(-2px);
+  }
+  to {
+    transform: rotate(9deg) translateX(2px);
+  }
+}
+
+/* Bullet Bill status, next to the round counter. */
+.bullet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 10px 0 6px;
+  border: var(--border);
+  border-radius: 14px;
+  background: var(--cup-light);
+  box-shadow: var(--shadow-chunky);
+  color: var(--ink);
+  line-height: 1;
+  animation: bullet-chip-pulse 1.4s ease-in-out infinite;
+}
+
+.bullet-chip.is-hunting {
+  background: #ffc2bb;
+}
+
+.bullet-chip__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.bullet-chip__text small {
+  color: var(--cup-deep);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.bullet-chip__text strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+@keyframes bullet-chip-pulse {
+  0%,
+  100% {
+    box-shadow:
+      var(--shadow-chunky),
+      0 0 0 0 rgba(232, 69, 60, 0.55);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-chunky),
+      0 0 0 7px rgba(232, 69, 60, 0);
+  }
+}
+
+.player-details__passive .player-details__passive-status {
+  margin-top: 2px;
+  color: var(--grape-deep);
+  font-weight: 800;
+}
+
 /* ---------- Compact HUD for landscape phones ---------- */
 @media (max-height: 520px) {
+  .alert-banner-layer {
+    top: calc(var(--hud-inset) + var(--safe-top) + 52px);
+  }
+
+  .alert-banner {
+    gap: 10px;
+    padding: 6px 18px 6px 8px;
+    border-width: 3px;
+    border-radius: 18px;
+  }
+
+  .alert-banner__icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .alert-banner__icon > svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .alert-banner__title {
+    font-size: 1.25rem;
+  }
+
+  .alert-banner__detail {
+    font-size: 0.78rem;
+  }
+
+  .bullet-chip {
+    height: 38px;
+    padding-right: 8px;
+  }
+
+  .bullet-chip > svg {
+    width: 22px;
+    height: 22px;
+  }
+
   :root {
     --hud-inset: 8px;
   }

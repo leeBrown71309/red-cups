@@ -29,6 +29,7 @@ const OUTCOME_SHORT_LABELS: Record<WheelOutcomeId, string> = {
   "skip-turn": "Passe",
   "go-to-hell": "Enfer",
   "spin-fortune": "Bonheur !",
+  "spin-misfortune": "Malheur…",
   nothing: "Rien",
   "gain-100": "+100",
   "gain-200": "+200",
@@ -63,6 +64,11 @@ export interface WheelSegment {
   color: string;
 }
 
+/** Wedges painted in another wheel's colours, so the table sees at a glance where they lead. */
+const WEDGE_COLOR_OVERRIDES: Partial<Record<WheelOutcomeId, string>> = {
+  "spin-misfortune": WHEEL_THEMES.misfortune.segments[0],
+};
+
 /**
  * Expands weighted results into equal wedges, spreading duplicates around
  * the wheel like a real carnival wheel instead of one oversized wedge.
@@ -86,7 +92,8 @@ export function getWheelSegments(wheelId: WheelId): WheelSegment[] {
     let colorIndex = index % colors.length;
     // Avoid two identical neighbours where the wheel wraps around.
     if (index === ordered.length - 1 && colorIndex === 0) colorIndex = Math.min(1, colors.length - 1) + 1;
-    return { ...segment, color: colors[colorIndex % colors.length] };
+    const color = WEDGE_COLOR_OVERRIDES[segment.outcomeId] ?? colors[colorIndex % colors.length];
+    return { ...segment, color };
   });
 }
 

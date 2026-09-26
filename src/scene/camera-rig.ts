@@ -31,6 +31,9 @@ export class CameraRig {
   private tween: CameraTween | null = null;
   private mode: CameraMode = "attract";
   private attractTime = 0;
+  /** Offset added on top of the controlled position, removed again before the next update. */
+  private readonly shakeOffset = new THREE.Vector3();
+  private shake = { strength: 0, remaining: 0, duration: 1 };
 
   constructor(domElement: HTMLElement) {
     this.controls = new MapControls(this.camera, domElement);
@@ -102,7 +105,17 @@ export class CameraRig {
     this.startTween(this.controls.target.clone(), new THREE.Spherical(distance, current.phi, current.theta), 320);
   }
 
+  /** A short rumble, e.g. when Bullet Bill explodes. Respects reduced-motion preferences. */
+  shakeFor(strength: number, durationMs: number): void {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.shake = { strength, remaining: durationMs / 1_000, duration: durationMs / 1_000 };
+  }
+
   update(deltaSeconds: number): void {
+    // Controls read the camera position back each frame: the shake must not drift into it.
+    this.camera.position.sub(this.shakeOffset);
+    this.shakeOffset.set(0, 0, 0);
+
     if (this.mode === "attract") {
       this.attractTime += deltaSeconds;
       const azimuth = Math.sin(this.attractTime * 0.11) * 0.5;
@@ -132,6 +145,19 @@ export class CameraRig {
 
     this.controls.update();
     this.clampTarget();
+    this.applyShake(deltaSeconds);
+  }
+
+  private applyShake(deltaSeconds: number): void {
+    if (this.shake.remaining <= 0) return;
+    this.shake.remaining = Math.max(0, this.shake.remaining - deltaSeconds);
+    const amplitude = this.shake.strength * (this.shake.remaining / this.shake.duration) ** 2;
+    this.shakeOffset.set(
+      (Math.random() - 0.5) * 2 * amplitude,
+      (Math.random() - 0.5) * amplitude,
+      (Math.random() - 0.5) * 2 * amplitude,
+    );
+    this.camera.position.add(this.shakeOffset);
   }
 
   dispose(): void {

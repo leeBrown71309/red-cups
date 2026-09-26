@@ -22,7 +22,10 @@ type PawnAction =
   | { type: "hop"; to: THREE.Vector3; duration: number }
   | { type: "slide"; to: THREE.Vector3; duration: number }
   | { type: "vanish"; duration: number }
-  | { type: "appear"; at: THREE.Vector3; duration: number };
+  | { type: "appear"; at: THREE.Vector3; duration: number }
+  | { type: "tumble"; duration: number };
+
+const TUMBLE_MS = 820;
 
 interface Pawn {
   id: string;
@@ -99,6 +102,12 @@ export class PawnController {
   getPawnPosition(id: string): THREE.Vector3 | null {
     const pawn = this.pawns.get(id);
     return pawn ? pawn.visual.root.position.clone() : null;
+  }
+
+  /** Blown into the air by Bullet Bill: a cartwheel on the spot. */
+  knockOut(id: string): void {
+    const pawn = this.pawns.get(id);
+    if (pawn && pawn.actions.length === 0) pawn.actions.push({ type: "tumble", duration: TUMBLE_MS });
   }
 
   isAnimating(): boolean {
@@ -204,12 +213,19 @@ export class PawnController {
         body.rotation.y = (1 - progress) * Math.PI * 2;
         break;
       }
+      case "tumble": {
+        root.position.y = pawn.actionStart.y + Math.sin(progress * Math.PI) * 1.6;
+        body.rotation.z = easeInOutCubic(progress) * Math.PI * 2;
+        break;
+      }
     }
 
     if (progress >= 1) {
       pawn.actions.shift();
       pawn.actionElapsed = 0;
       body.rotation.y = 0;
+      body.rotation.z = 0;
+      if (action.type === "tumble") root.position.y = pawn.actionStart.y;
       if (action.type === "hop") {
         root.position.copy(action.to);
         pawn.landingTimer = LANDING_MS;

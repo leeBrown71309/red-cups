@@ -3,17 +3,24 @@ import { ITEM_ORDER } from "../catalog";
 import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameState, ItemId, Player, PlayerId, TurnStage } from "../types";
-import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, START_NODE_ID } from "../types";
+import {
+  CURRENCY_RESET_THRESHOLD,
+  FIRST_ROUND,
+  HELL_NODE_ID,
+  HELL_TURN_LIMIT,
+  NO_THANKS_COOLDOWN_ROUNDS,
+  RED_CUP_GOAL,
+  START_NODE_ID,
+} from "../types";
+import { checkAbandon, checkBlessing, checkBulletBill, checkMudReward } from "./event-invariants";
+import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
+
+export type { RuleViolation } from "./invariant-helpers";
 
 /**
  * Rule checks run by the bots after every single action. Each violation names
  * the rule it breaks, so a failing campaign reads like a bug report.
  */
-
-export interface RuleViolation {
-  rule: string;
-  message: string;
-}
 
 const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
   "wheel-result": "pendingWheel",
@@ -26,13 +33,18 @@ const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
 };
 
 /** Stages where the table is "at rest": no effect is half-resolved. */
-const RESTING_STAGES: TurnStage[] = ["move", "hell", "shop", "tile-wheel", "turn-end"];
+const RESTING_STAGES: TurnStage[] = ["move", "hell", "shop", "tile-wheel", "turn-end", "blessing"];
+
+/** Normal play; a Tour de Bénédiction in progress must be over before any of these. */
+const NORMAL_PLAY_STAGES: TurnStage[] = ["move", "hell", "shop", "tile-wheel", "turn-end"];
+
+/** A pull or a swap moves players without earning a wheel. */
+const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
+
+/** What an arrival on a tile can open; moves without arrival must lead to neither. */
+const ARRIVAL_STAGES: TurnStage[] = ["tile-wheel", "shop"];
 
 const ALL_NODE_IDS = [...NORMAL_NODE_IDS, HELL_NODE_ID];
-
-function violation(rule: string, message: string): RuleViolation {
-  return { rule, message };
-}
 
 function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   const found: RuleViolation[] = [];
@@ -107,6 +119,21 @@ export function checkState(state: GameState): RuleViolation[] {
     if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken) {
       found.push(violation("skipped-player-plays", `${active.name} plays despite a skipped turn`));
     }
+    if (state.turnStage === "blessing" && state.blessingQueue.length === 0) {
+      found.push(violation("blessing-stage", "Tour de Bénédiction with nobody left to spin"));
+    }
+    if (state.blessingQueue.length > 0 && NORMAL_PLAY_STAGES.includes(state.turnStage)) {
+      found.push(violation("blessing-unfinished", `play resumed with ${state.blessingQueue.length} blessing(s) owed`));
+    }
+    if (state.blessingQueue.some((playerId) => !findPlayer(state, playerId))) {
+      found.push(violation("blessing-seats", "an unknown player waits for the Tour de Bénédiction"));
+    }
+  }
+
+  const bullet = state.bulletBill;
+  const bulletAway = bullet?.status === "waiting" && bullet.position !== START_NODE_ID;
+  if (bullet && (!NORMAL_NODE_IDS.includes(bullet.position) || bulletAway)) {
+    found.push(violation("bullet-tile", `Bullet Bill ${bullet.status} on tile ${bullet.position}`));
   }
 
   for (const player of state.players) {
@@ -135,8 +162,12 @@ export function checkState(state: GameState): RuleViolation[] {
   if (champions.length > 0 && (state.phase !== "finished" || state.winnerId !== champions[0].id)) {
     found.push(violation("instant-victory", `${champions[0].name} has 3 Cups but the game goes on`));
   }
-  if (state.phase === "finished" && champions.length === 0) {
-    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner"));
+  const wonByForfeit = state.winReason === "forfeit" && state.players.length === 1;
+  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit) {
+    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner or a forfeit"));
+  }
+  if (state.winReason === "forfeit" && state.players.length !== 1) {
+    found.push(violation("forfeit-last-player", `a forfeit win with ${state.players.length} players left`));
   }
 
   if (state.bootPrice < 100 || state.bootPrice > 500 || state.bootPrice % 50 !== 0) {
@@ -153,31 +184,13 @@ export function checkState(state: GameState): RuleViolation[] {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
       } else if (reactor.id === state.pendingReaction.actorId) {
         found.push(violation("no-self-reaction", `${reactor.name} may cancel their own action`));
-      } else if (reactor.noThanksUsedCycle === state.redCupCycle) {
-        found.push(violation("no-thanks-once-per-cycle", `${reactor.name} is offered Non merci twice this cycle`));
+      } else if (reactor.noThanksReadyRound > state.round) {
+        found.push(violation("no-thanks-cooldown", `${reactor.name} is offered Non merci before it recharged`));
       }
     }
   }
 
   return found;
-}
-
-function newLogTexts(previous: GameState, next: GameState): string[] {
-  const texts: string[] = [];
-  for (const entry of next.log) {
-    if (entry.id === previous.log[0]?.id) break;
-    texts.push(entry.text);
-  }
-  return texts;
-}
-
-/** Expected balance after a single coin change, including the Casque and the −300 reset. */
-function expectedBalance(player: Player, delta: number): number {
-  let balance = player.currency + delta;
-  const hasHelmet = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "helmet");
-  if (delta < 0 && balance < 0 && hasHelmet) balance = 0;
-  if (balance <= CURRENCY_RESET_THRESHOLD) balance = 0;
-  return balance;
 }
 
 function checkMovement(previous: GameState, next: GameState, found: RuleViolation[]): void {
@@ -197,6 +210,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
 
   const rebel = logs.some((text) => text.includes("Délinquant"));
+  if (rebel && previous.round <= FIRST_ROUND && movement.from === START_NODE_ID) {
+    found.push(violation("delinquent-first-round", `${mover.name} broke out of the start on the first round`));
+  }
   let from = movement.from;
   for (const step of movement.path) {
     const allowed = getNeighbors(from, rebel && mover.passiveId === "delinquent");
@@ -269,7 +285,25 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   }
 }
 
-function checkTileWheelSpin(previous: GameState, next: GameState, found: RuleViolation[]): void {
+/** Pulled, swapped or repositioned players: they moved, but the move earns nothing on arrival. */
+function playersMovedWithoutArrival(previous: GameState, appliedItem?: AppliedItem): Set<PlayerId> {
+  const exempt = new Set<PlayerId>();
+  if (appliedItem && MOVES_WITHOUT_ARRIVAL.includes(appliedItem.itemId)) {
+    exempt.add(appliedItem.userId);
+    if (appliedItem.targetPlayerId) exempt.add(appliedItem.targetPlayerId);
+  }
+  if (previous.turnStage === "reposition" && previous.pendingCupRepositionPlayerId) {
+    exempt.add(previous.pendingCupRepositionPlayerId);
+  }
+  return exempt;
+}
+
+function checkTileWheelSpin(
+  previous: GameState,
+  next: GameState,
+  found: RuleViolation[],
+  appliedItem?: AppliedItem,
+): void {
   if (previous.turnStage === "tile-wheel" && next.pendingWheel) {
     const spinner = findPlayer(previous, next.pendingWheel.playerId);
     const expected = spinner ? getTileWheel(spinner.position) : null;
@@ -280,22 +314,40 @@ function checkTileWheelSpin(previous: GameState, next: GameState, found: RuleVio
     }
   }
 
-  // Walking, being pulled, swapped or teleported: landing on green or red always owes a wheel.
+  // Walking, being teleported or pushed back: landing on green or red owes a wheel. A pull, a swap or
+  // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
+  const exempt = playersMovedWithoutArrival(previous, appliedItem);
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
     if (!before || before.position === player.position || getTileWheel(player.position) === null) continue;
     const queued = next.pendingTileWheels.some(
       (entry) => entry.playerId === player.id && entry.nodeId === player.position,
     );
-    if (!queued)
+    if (exempt.has(player.id) && queued) {
+      found.push(violation("no-arrival-wheel", `${player.name} spins on tile ${player.position} after being moved`));
+    } else if (!exempt.has(player.id) && !queued) {
       found.push(violation("arrival-wheel", `${player.name} reached tile ${player.position} without a wheel`));
+    }
+  }
+}
+
+/** New Cup, New Me moves the player before the Cup appears; the new tile's shop does not open for it. */
+function checkReposition(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const repositionerId = previous.pendingCupRepositionPlayerId;
+  if (previous.turnStage !== "reposition" || !repositionerId) return;
+  const before = findPlayer(previous, repositionerId);
+  const after = findPlayer(next, repositionerId);
+  const isActive = getActivePlayer(previous)?.id === repositionerId;
+  if (before && after && before.position !== after.position && isActive && next.turnStage === "shop") {
+    found.push(violation("reposition-no-shop", `${before.name} shops on tile ${after.position} after repositioning`));
   }
 }
 
 function checkTurnChange(previous: GameState, next: GameState, found: RuleViolation[]): void {
-  const changed = previous.activePlayerIndex !== next.activePlayerIndex || previous.round !== next.round;
-  if (!changed || !["move", "hell"].includes(next.turnStage)) return;
+  // Seats shift when a player leaves; checkAbandon covers that turn change.
+  if (previous.players.length !== next.players.length) return;
+  if (!turnChanged(previous, next) || !["move", "hell"].includes(next.turnStage)) return;
 
   const logs = newLogTexts(previous, next);
   const count = previous.players.length;
@@ -317,7 +369,7 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
 function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleViolation[]): void {
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
-    if (!before || before.noThanksUsedCycle === player.noThanksUsedCycle) continue;
+    if (!before || before.noThanksReadyRound === player.noThanksReadyRound) continue;
     const pending = previous.pendingReaction;
     const legal =
       previous.turnStage === "reaction" &&
@@ -325,8 +377,8 @@ function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleVio
       pending.reactorIds.includes(player.id) &&
       pending.actorId !== player.id &&
       player.passiveId === "no-thanks" &&
-      before.noThanksUsedCycle !== previous.redCupCycle &&
-      player.noThanksUsedCycle === previous.redCupCycle;
+      before.noThanksReadyRound <= previous.round &&
+      player.noThanksReadyRound === previous.round + NO_THANKS_COOLDOWN_ROUNDS;
     if (!legal) found.push(violation("no-thanks-usage", `${player.name} spent Non merci illegally`));
   }
 
@@ -338,7 +390,10 @@ function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleVio
     if (actorAfter.position !== actorBefore.position) {
       found.push(violation("no-thanks-cancels", `${actorBefore.name} still moved after Non merci`));
     }
-    if (next.turnStage !== "turn-end") {
+    // Mud is laid before the turn's action: cancelling it leaves the actor their turn.
+    const cancelledMud = pending.action.type === "item" && pending.action.itemId === "mud";
+    const expectedStage = cancelledMud ? pending.resumeStage : "turn-end";
+    if (next.turnStage !== expectedStage) {
       found.push(violation("no-thanks-ends-action", `after Non merci the stage is ${next.turnStage}`));
     }
   }
@@ -396,6 +451,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       if (target && targetAfter && !tank && targetAfter.position !== user.position) {
         found.push(violation("rope", `${label}: target ended on ${targetAfter.position}, not ${user.position}`));
       }
+      if (ARRIVAL_STAGES.includes(next.turnStage)) {
+        found.push(violation("rope-no-arrival", `${label}: the pull led to ${next.turnStage}`));
+      }
       break;
     case "monopoly-man":
       if (target && targetAfter && !tank) {
@@ -404,6 +462,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
         }
       } else if (target && targetAfter && tank && targetAfter.position !== target.position) {
         found.push(violation("monopoly-man-tank", `${label}: Baraqué was moved anyway`));
+      }
+      if (ARRIVAL_STAGES.includes(next.turnStage)) {
+        found.push(violation("monopoly-man-no-arrival", `${label}: the swap led to ${next.turnStage}`));
       }
       break;
     case "draven":
@@ -420,11 +481,17 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
         }
       }
       break;
-    case "mud":
+    case "mud": {
       if (!next.mudTraps.some((trap) => trap.nodeId === user.position && trap.ownerId === user.id)) {
         found.push(violation("mud", `${label}: no mud on tile ${user.position}`));
       }
+      const stageBefore = previous.pendingReaction?.resumeStage ?? previous.turnStage;
+      if (next.turnStage !== stageBefore || next.turnActionTaken !== previous.turnActionTaken) {
+        found.push(violation("mud-keeps-turn", `${label}: the turn went from ${stageBefore} to ${next.turnStage}`));
+      }
+      if (!next.mudPlacedThisTurn) found.push(violation("mud-once-per-turn", `${label}: the turn forgot the mud`));
       break;
+    }
     case "water-bottle":
       if (userAfter.position === HELL_NODE_ID) found.push(violation("water-bottle", `${label}: still in Hell`));
       break;
@@ -438,11 +505,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   }
 }
 
-/** Checks the consequences of one action, comparing the table before and after. */
 /** Nobody stays in Hell past their sentence, and nobody is let out early. */
 function checkHellSentence(previous: GameState, next: GameState, found: RuleViolation[]): void {
-  const changed = previous.activePlayerIndex !== next.activePlayerIndex || previous.round !== next.round;
-  if (!changed || next.phase !== "playing") return;
+  if (!turnChanged(previous, next) || next.phase !== "playing") return;
 
   const outgoing = getActivePlayer(previous);
   const outgoingAfter = outgoing && findPlayer(next, outgoing.id);
@@ -462,16 +527,24 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
   }
 }
 
+/** Checks the consequences of one action, comparing the table before and after. */
 export function checkTransition(previous: GameState, next: GameState, appliedItem?: AppliedItem): RuleViolation[] {
   if (previous.phase !== "playing") return [];
   const found: RuleViolation[] = [];
-  if (appliedItem) checkItemEffect(previous, next, appliedItem, found);
+  // An item announced to a Non merci holder has not happened yet.
+  const itemApplied = appliedItem && next.turnStage !== "reaction" ? appliedItem : undefined;
+  if (itemApplied) checkItemEffect(previous, next, itemApplied, found);
   checkMovement(previous, next, found);
   checkWheelResolution(previous, next, found);
-  checkTileWheelSpin(previous, next, found);
+  checkTileWheelSpin(previous, next, found, itemApplied);
+  checkReposition(previous, next, found);
   checkTurnChange(previous, next, found);
   checkHellSentence(previous, next, found);
   checkNoThanksUsage(previous, next, found);
   checkCupRelocation(previous, next, found);
+  checkBulletBill(previous, next, found);
+  checkBlessing(previous, next, found);
+  checkAbandon(previous, next, found);
+  checkMudReward(previous, next, found);
   return found;
 }

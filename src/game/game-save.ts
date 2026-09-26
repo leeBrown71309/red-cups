@@ -1,11 +1,11 @@
 import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middleware";
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
 import type { GameState } from "./types";
-import { EMPTY_GAME_STATE } from "./types";
+import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
-/** Bump when GameState changes shape: older saves are then dropped instead of crashing. */
-export const GAME_SAVE_VERSION = 4;
+/** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
+export const GAME_SAVE_VERSION = 5;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -52,16 +52,44 @@ const gameSaveStorage: PersistStorage<GameState> = {
   removeItem: (name) => removeStorage(name),
 };
 
+/** Saves from before this version do not have the shape the upgrade below expects. */
+const OLDEST_UPGRADABLE_VERSION = 3;
+
+type SaveRecord = Record<string, unknown>;
+
+/**
+ * Fills in what later versions added, as it stands at the start of a game.
+ * Version 4 added the Hell countdown; version 5 (patch 0.1.1) the mud turn
+ * flag, Bullet Bill's flight, the Tour de Bénédiction, abandons and the Non
+ * merci cooldown, which replaces the once-per-Cup rule.
+ */
+function upgradeSave(save: SaveRecord): SaveRecord {
+  const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
+  return {
+    ...save,
+    mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
+    lastBulletFlight: save.lastBulletFlight ?? null,
+    blessingQueue: save.blessingQueue ?? [],
+    abandonedPlayers: save.abandonedPlayers ?? [],
+    winReason: save.winReason ?? null,
+    players: players.map(({ noThanksUsedCycle: _replaced, ...player }) => ({
+      ...player,
+      hellTurns: player.hellTurns ?? 0,
+      noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
+    })),
+  };
+}
+
 /**
  * Upgrades a save written by an older version when the change is additive,
  * so a game in progress survives an update. Anything older is dropped.
  */
 export function migrateGameSave(persisted: unknown, version: number): GameState {
-  if (version === 3 && isRestorableGame(persisted)) {
-    // Version 4 added the Hell countdown: nobody has served any turn of it yet.
-    return { ...persisted, players: persisted.players.map((player) => ({ ...player, hellTurns: 0 })) };
+  if (version < OLDEST_UPGRADABLE_VERSION || !persisted || typeof persisted !== "object") {
+    return { ...EMPTY_GAME_STATE };
   }
-  return { ...EMPTY_GAME_STATE };
+  const upgraded = upgradeSave(persisted as SaveRecord);
+  return isRestorableGame(upgraded) ? upgraded : { ...EMPTY_GAME_STATE };
 }
 
 export function createGameSaveOptions<Store extends GameState>(): PersistOptions<Store, GameState> {

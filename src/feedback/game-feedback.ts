@@ -1,8 +1,14 @@
 import { countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
-import type { GameState } from "../game/types";
+import type { BulletFlight, GameState } from "../game/types";
 import { HELL_NODE_ID } from "../game/types";
-import { CUP_CELEBRATION_MS, estimateMovementMs } from "../theme/timing";
+import {
+  BULLET_IMPACT_PAUSE_MS,
+  BULLET_LANDING_PAUSE_MS,
+  CUP_CELEBRATION_MS,
+  estimateBulletFlightMs,
+  estimateMovementMs,
+} from "../theme/timing";
 import { emitFeedback, type FeedbackEvent } from "./event-bus";
 import { useUiStore } from "./ui-store";
 
@@ -44,12 +50,31 @@ export function startGameFeedback(): () => void {
     const walkDuration = walked && movement ? estimateMovementMs(movement.from, movement.path) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
     const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
-    const busyUntil = Math.max(gameJustStarted ? 0 : ui.boardBusyUntil, now + walkDuration + introDelay);
-    const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null);
+    const flight = getNewBulletFlight(state, previous);
+    const flightMs = flight ? estimateBulletFlightMs(flight.path) : 0;
+    const impactPauseMs = flight ? (flight.victimId ? BULLET_IMPACT_PAUSE_MS : BULLET_LANDING_PAUSE_MS) : 0;
+
+    // Timeline: the walk (or the camera intro), Bullet Bill's charge, its impact, then the next turn.
+    const startsAt = Math.max(gameJustStarted ? 0 : ui.boardBusyUntil, now + walkDuration + introDelay);
+    const impactAt = startsAt + flightMs;
+    const nextTurnAt = impactAt + impactPauseMs;
+    const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
     const celebrates = events.some((event) => event.type === "cup-collected");
 
-    ui.setBoardBusyUntil(busyUntil + (celebrates ? CUP_CELEBRATION_MS : 0));
-    schedule(events, busyUntil - now);
+    if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
+    schedule(
+      events.filter((event) => event.type !== "turn-start"),
+      impactAt - now,
+    );
+    schedule(
+      events.filter((event) => event.type === "turn-start"),
+      nextTurnAt - now,
+    );
+
+    // Only real animations hold modals back: moving the deadline to "now" would unmount an open
+    // modal for a frame (the shop used to blink after every purchase).
+    const settlesAt = nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0);
+    if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
   });
 
   return () => {
@@ -58,9 +83,25 @@ export function startGameFeedback(): () => void {
   };
 }
 
-function collectEvents(state: GameState, previous: GameState, walkerId: string | null): FeedbackEvent[] {
+function getNewBulletFlight(state: GameState, previous: GameState): BulletFlight | null {
+  const flight = state.lastBulletFlight;
+  return flight && flight.seq !== previous.lastBulletFlight?.seq ? flight : null;
+}
+
+function collectEvents(
+  state: GameState,
+  previous: GameState,
+  walkerId: string | null,
+  flight: BulletFlight | null,
+): FeedbackEvent[] {
   const events: FeedbackEvent[] = [];
   const activePlayer = state.players[state.activePlayerIndex];
+
+  for (const player of previous.players) {
+    if (!state.players.some((candidate) => candidate.id === player.id)) {
+      events.push({ type: "player-left", playerId: player.id });
+    }
+  }
 
   const newLogEntries = [];
   const previousNewestId = previous.log[0]?.id;
@@ -130,21 +171,20 @@ function collectEvents(state: GameState, previous: GameState, walkerId: string |
     if (triggered) events.push({ type: "mud-triggered", nodeId: triggered.nodeId });
   }
 
-  if (state.bulletBill?.status === "active" && previous.bulletBill?.status === "waiting") {
-    events.push({ type: "bullet-spawned" });
-  }
-  if (previous.bulletBill?.status === "active" && state.bulletBill === null) {
-    const victim = state.players.find((player) => {
-      const before = previous.players.find((candidate) => candidate.id === player.id);
-      return before !== undefined && player.skippedTurns > before.skippedTurns;
-    });
-    if (victim) events.push({ type: "bullet-hit", playerId: victim.id });
+  if (state.bulletBill && !previous.bulletBill) events.push({ type: "bullet-launched" });
+  if (flight?.victimId) {
+    const nodeId = flight.path[flight.path.length - 1] ?? flight.from;
+    events.push({ type: "bullet-hit", playerId: flight.victimId, nodeId });
   }
 
+  if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+
+  // Compared by player, not by seat: seats shift when someone before the active player leaves.
+  const previousActiveId = previous.players[previous.activePlayerIndex]?.id;
   const turnChanged =
     state.phase === "playing" &&
     (previous.phase !== "playing" ||
-      state.activePlayerIndex !== previous.activePlayerIndex ||
+      activePlayer?.id !== previousActiveId ||
       state.round !== previous.round ||
       (["turn-end", "shop"].includes(previous.turnStage) && ["move", "hell"].includes(state.turnStage)));
   if (turnChanged && activePlayer) events.push({ type: "turn-start", playerId: activePlayer.id });

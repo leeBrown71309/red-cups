@@ -10,7 +10,7 @@ import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 import { getAvatarExpression } from "../hud/players-bar";
 
-function PlayerPickList({
+export function PlayerPickList({
   players,
   isDisabled,
   onPick,
@@ -169,7 +169,7 @@ export function CalmDownModal() {
   );
 }
 
-const REACTION_COUNTDOWN_SECONDS = 8;
+const REACTION_COUNTDOWN_SECONDS = 15;
 
 function describeDeclaredAction(action: DeclaredAction, actorId: PlayerId, players: Player[]): string {
   if (action.type === "move") return `aller en case ${action.destination}`;
