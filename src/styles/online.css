@@ -125,7 +125,9 @@
   gap: 8px;
 }
 
+/* Same height as the "Rejoindre" button beside it (.btn min-height). */
 .online__code-input {
+  height: 48px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }

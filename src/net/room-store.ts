@@ -14,6 +14,7 @@ import {
   fetchRoom,
   leaveRoom,
   openRoom,
+  shuffleRoom,
   touchSeat,
   type RoomPlayer,
   type RoomSnapshot,
@@ -61,6 +62,7 @@ interface RoomState {
   createAndJoin: (name: string, avatar: number) => Promise<void>;
   join: (code: string, name: string, avatar: number) => Promise<void>;
   updateSeat: (name: string, avatar: number) => Promise<void>;
+  shuffleOrder: () => Promise<void>;
   startGame: () => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
@@ -288,7 +290,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
   const sitDown = async (code: string, name: string, avatar: number) => {
     const userId = await ensureSession();
     await claimSeat(code, name, avatar);
-    set({ myUserId: userId, preview: null });
+    // `resync` reloads whichever room is stored, so the code must be stored before it runs.
+    set({ myUserId: userId, code, preview: null });
     rememberRoom(code);
     await resync();
     await connect(code, userId);
@@ -351,6 +354,16 @@ export const useRoomStore = create<RoomState>((set, get) => {
         const code = get().code;
         if (!code) return;
         await claimSeat(code, name, avatar);
+        await resync();
+        broadcast({ kind: "roster" });
+      }),
+
+    // The new order reaches the other players as a roster change: they reload the lobby.
+    shuffleOrder: () =>
+      run(async () => {
+        const { code, myUserId, hostId } = get();
+        if (!code || myUserId !== hostId) return;
+        await shuffleRoom(code);
         await resync();
         broadcast({ kind: "roster" });
       }),

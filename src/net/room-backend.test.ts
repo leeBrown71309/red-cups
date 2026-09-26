@@ -133,6 +133,46 @@ describe("lobby", () => {
   });
 });
 
+describe("shuffle_room", () => {
+  it("is for the host only, and shows everybody the drawn order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès", "Tom"]);
+    expect(await refusal(ids[1], `select shuffle_room($1)`, [code])).toMatch(/hôte peut mélanger/);
+
+    await as(ids[0], `select shuffle_room($1)`, [code]);
+    const hostView = await room(code, ids[0]);
+    const drawn = hostView!.seatOrder;
+    expect([...drawn].sort()).toEqual([...ids].sort());
+    expect(hostView?.players.map((player) => player.userId)).toEqual(drawn);
+
+    const guestView = await room(code, ids[2]);
+    const newcomerView = await room(code, await person());
+    expect(guestView?.players.map((player) => player.userId)).toEqual(drawn);
+    expect(newcomerView?.players.map((player) => player.name)).toEqual(hostView?.players.map((player) => player.name));
+  });
+
+  it("seats a player who arrives after the draw at the end of the order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès"]);
+    await as(ids[0], `select shuffle_room($1)`, [code]);
+    const drawn = (await room(code, ids[0]))!.seatOrder;
+
+    const late = await person();
+    await as(late, `select claim_seat($1, 'Tom', 5::smallint)`, [code]);
+    expect((await room(code, late))?.players.map((player) => player.userId)).toEqual([...drawn, late]);
+  });
+
+  it("starts the game in the drawn order, then refuses to draw again", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès", "Tom"]);
+    await as(ids[0], `select shuffle_room($1)`, [code]);
+    const lobbyView = await room(code, ids[0]);
+
+    const state = await kickoff(code, ids[0]);
+    const started = await room(code, ids[0]);
+    expect(started?.seatOrder).toEqual(lobbyView?.seatOrder);
+    expect(state.players.map((player) => player.name)).toEqual(lobbyView?.players.map((player) => player.name));
+    expect(await refusal(ids[0], `select shuffle_room($1)`, [code])).toMatch(/hôte peut mélanger/);
+  });
+});
+
 describe("kickoff", () => {
   it("is for the host only", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);

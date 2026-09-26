@@ -128,6 +128,11 @@ export function leaveRoom(code: string): Promise<void> {
   return callRoomFunction("leave_room", { p_code: code });
 }
 
+/** Host only, in the lobby: the database draws a new turn order, returned by `fetchRoom` as the roster order. */
+export function shuffleRoom(code: string): Promise<void> {
+  return callRoomFunction("shuffle_room", { p_code: code });
+}
+
 export function openRoom(code: string, state: GameState, seatOrder: string[]): Promise<void> {
   return callRoomFunction("open_room", { p_code: code, p_state: state, p_seat_order: seatOrder });
 }

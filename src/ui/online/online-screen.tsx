@@ -202,18 +202,19 @@ function RoomLobby() {
   const startGame = useRoomStore((state) => state.startGame);
   const leave = useRoomStore((state) => state.leave);
   const updateSeat = useRoomStore((state) => state.updateSeat);
-  const [copied, setCopied] = useState(false);
+  const shuffleOrder = useRoomStore((state) => state.shuffleOrder);
+  const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const me = players.find((player) => player.userId === myUserId);
   const isHost = myUserId !== null && myUserId === hostId;
   const takenByOthers = players.filter((player) => player.userId !== myUserId).map((player) => player.avatar);
 
   if (!code) return null;
 
-  const copyInvite = async () => {
+  const copy = async (what: "code" | "link") => {
     try {
-      await navigator.clipboard.writeText(buildInviteLink(code));
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2_000);
+      await navigator.clipboard.writeText(what === "code" ? code : buildInviteLink(code));
+      setCopied(what);
+      window.setTimeout(() => setCopied(null), 2_000);
     } catch {
       // Clipboard access can be refused; the code stays visible to read aloud.
     }
@@ -231,11 +232,31 @@ function RoomLobby() {
         </span>
       </header>
 
-      <button type="button" className="btn btn--cream btn--small" onClick={copyInvite}>
-        <UiIcon name={copied ? "check" : "link"} size={18} /> {copied ? "Lien copié !" : "Copier le lien d’invitation"}
-      </button>
+      <div className="lobby__tools">
+        <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("code")}>
+          <UiIcon name={copied === "code" ? "check" : "copy"} size={18} />{" "}
+          {copied === "code" ? "Code copié !" : "Copier le code"}
+        </button>
+        <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("link")}>
+          <UiIcon name={copied === "link" ? "check" : "link"} size={18} />{" "}
+          {copied === "link" ? "Lien copié !" : "Copier le lien"}
+        </button>
+      </div>
 
       <RosterList players={players} hostId={hostId} myUserId={myUserId} />
+
+      {isHost && (
+        <div className="lobby__tools">
+          <button
+            type="button"
+            className="btn btn--cream btn--small"
+            onClick={() => void shuffleOrder()}
+            disabled={busy || players.length < MIN_PLAYERS}
+          >
+            <UiIcon name="dice" size={18} /> Mélanger l’ordre
+          </button>
+        </div>
+      )}
 
       {me && (
         <details className="online__change-avatar">
@@ -266,7 +287,7 @@ function RoomLobby() {
       <p className="lobby__note">
         {players.length < MIN_PLAYERS
           ? "Il faut au moins deux joueurs. Partage le code ou le lien."
-          : "L’ordre du tour suit l’ordre d’arrivée. Les passifs sont tirés au hasard."}
+          : "L’ordre du tour est celui de la liste. Les passifs sont tirés au hasard."}
       </p>
       <button type="button" className="btn btn--cream btn--small" onClick={() => void leave()} disabled={busy}>
         <UiIcon name="logout" size={18} /> Quitter le salon

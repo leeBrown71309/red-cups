@@ -20,7 +20,8 @@ create table if not exists public.rooms (
   host_id      uuid not null,
   state        jsonb,                          -- GameState snapshot
   version      integer not null default 0,     -- compare-and-set counter
-  seat_order   jsonb not null default '[]',    -- user ids in turn order, frozen at kickoff
+  -- User ids in turn order: drawn by `shuffle_room` in the lobby, frozen at kickoff.
+  seat_order   jsonb not null default '[]',
   -- How long the room outlives its last active player, in seconds.
   idle_seconds integer not null default 600 check (idle_seconds between 30 and 3600),
   created_at   timestamptz not null default now(),
@@ -109,6 +110,8 @@ $$;
 -- The only way to see a room. A player gets everything. Anybody else only
 -- gets what they need to sit down: the lobby's roster, or the fact that the
 -- game has started without them. They never get the board.
+-- The roster comes in turn order: the drawn `seat_order` first, then anybody
+-- who sat down after the draw, by arrival.
 create or replace function public.get_room(p_code text)
 returns jsonb
 language plpgsql
@@ -138,8 +141,11 @@ begin
         select jsonb_agg(jsonb_build_object(
           'user_id', p.user_id, 'seat', p.seat, 'name', p.name, 'avatar', p.avatar,
           'absent', p.last_seen < now() - interval '75 seconds'
-        ) order by p.joined_at)
-        from public.room_players p where p.room_code = r.code
+        ) order by drawn.position nulls last, p.joined_at)
+        from public.room_players p
+        left join jsonb_array_elements_text(r.seat_order) with ordinality as drawn(user_id, position)
+          on drawn.user_id = p.user_id::text
+        where p.room_code = r.code
       ), '[]'::jsonb) else '[]'::jsonb end
     )
     from public.rooms r where r.code = p_code
@@ -251,6 +257,30 @@ begin
   end if;
   delete from public.room_players where room_code = p_code and user_id = me;
   delete from public.rooms where code = p_code and host_id = me and status = 'lobby';
+end;
+$$;
+
+-- Drawing the turn order again, by the host only, while the lobby is open.
+-- The draw is made here rather than on the host's device, so the order every
+-- player sees in the lobby is the one the game is started with.
+create or replace function public.shuffle_room(p_code text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.rooms where code = p_code and host_id = auth.uid() and status = 'lobby') then
+    raise exception 'Seul l''hôte peut mélanger l''ordre' using errcode = '42501';
+  end if;
+
+  update public.rooms
+     set seat_order = coalesce((
+           select jsonb_agg(p.user_id::text order by random())
+             from public.room_players p where p.room_code = p_code
+         ), '[]'::jsonb),
+         updated_at = now()
+   where code = p_code;
 end;
 $$;
 
@@ -404,6 +434,7 @@ begin
     'public.claim_seat(text, text, smallint)',
     'public.touch_seat(text)',
     'public.leave_room(text)',
+    'public.shuffle_room(text)',
     'public.open_room(text, jsonb, jsonb)',
     'public.advance_room(text, jsonb, integer)',
     'public.get_my_profile()',
