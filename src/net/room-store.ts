@@ -288,7 +288,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
   const sitDown = async (code: string, name: string, avatar: number) => {
     const userId = await ensureSession();
     await claimSeat(code, name, avatar);
-    set({ myUserId: userId, preview: null });
+    // `resync` reloads whichever room is stored, so the code must be stored before it runs.
+    set({ myUserId: userId, code, preview: null });
     rememberRoom(code);
     await resync();
     await connect(code, userId);
