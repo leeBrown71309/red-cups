@@ -180,6 +180,17 @@ export interface PendingDuel {
   mode: DuelMode;
   coinWinnerId?: PlayerId;
   resumeStage: TurnStage;
+  /** Secret picks of the current rock-paper-scissors round, by duellist. */
+  rpsChoices: Partial<Record<PlayerId, RpsChoice>>;
+  /** Picks of the last round that ended in a tie, shown before the replay. */
+  rpsTiedRound: Partial<Record<PlayerId, RpsChoice>> | null;
+  rpsTies: number;
+  /** Secret votes of the other players: voter id → chosen duellist id. */
+  votes: Partial<Record<PlayerId, PlayerId>>;
+  /** A tied vote is settled by a coin the engine flips. */
+  voteTieBroken: boolean;
+  /** Set once the duel is decided; resolving it then has to name this player. */
+  winnerId: PlayerId | null;
 }
 
 export interface PendingDiscard {
@@ -248,6 +259,13 @@ export interface GameLogEntry {
   tone: "neutral" | "good" | "bad" | "event";
 }
 
+/** Seeded luck of an online game, stored in the state so every device draws the same. */
+export interface SeededRandomState {
+  rngState: number;
+  /** Next engine id, so ids match across devices too. */
+  nextId: number;
+}
+
 export interface GameState {
   phase: "setup" | "playing" | "finished";
   turnStage: TurnStage;
@@ -290,6 +308,8 @@ export interface GameState {
   winReason: WinReason | null;
   lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
+  /** Null in a local game, which keeps Math.random; set in an online game. */
+  seededRandom: SeededRandomState | null;
 }
 
 export const EMPTY_GAME_STATE: GameState = {
@@ -329,4 +349,5 @@ export const EMPTY_GAME_STATE: GameState = {
   winReason: null,
   lastMovement: null,
   log: [],
+  seededRandom: null,
 };

@@ -1,3 +1,4 @@
+import { createEngineId, drawEngineRandom } from "./engine-random";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
@@ -6,23 +7,23 @@ import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 const MAX_LOG_ENTRIES = 60;
 
 export function makeLog(text: string, tone: GameLogEntry["tone"] = "neutral"): GameLogEntry {
-  return { id: crypto.randomUUID(), text, tone };
+  return { id: createEngineId(), text, tone };
 }
 
 export function addLog(state: GameState, text: string, tone: GameLogEntry["tone"] = "neutral"): GameState {
   return { ...state, log: [makeLog(text, tone), ...state.log].slice(0, MAX_LOG_ENTRIES) };
 }
 
-/** Uses Math.random so simulations can seed the whole engine from one place. */
+/** Draws from the engine source, so a local game and an online game share one code path. */
 export function randomChoice<T>(values: T[]): T | undefined {
   if (values.length === 0) return undefined;
-  return values[Math.floor(Math.random() * values.length)];
+  return values[Math.floor(drawEngineRandom() * values.length)];
 }
 
 export function shuffle<T>(values: T[]): T[] {
   const result = [...values];
   for (let index = result.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(Math.random() * (index + 1));
+    const swapIndex = Math.floor(drawEngineRandom() * (index + 1));
     [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
   }
   return result;
@@ -49,7 +50,7 @@ export function placeInHell(player: Player): Player {
 }
 
 export function appendItem(player: Player, itemId: ItemId): Player {
-  const entry: InventoryEntry = { id: crypto.randomUUID(), kind: "item", itemId };
+  const entry: InventoryEntry = { id: createEngineId(), kind: "item", itemId };
   return { ...player, inventory: [...player.inventory, entry] };
 }
 

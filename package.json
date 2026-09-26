@@ -13,12 +13,14 @@
     "simulate": "bun scripts/simulate.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.186.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

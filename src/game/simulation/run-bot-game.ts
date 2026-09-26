@@ -7,8 +7,8 @@ import { checkState, checkTransition, type RuleViolation } from "./rule-invarian
 
 /**
  * Plays complete games with bots on the real store and records every rule
- * violation. The engine's Math.random is seeded, so any failure can be
- * replayed exactly from its seed.
+ * violation. Games start from a seed, like an online game, so any failure can
+ * be replayed exactly from its seed and the seeded path is covered too.
  */
 
 export interface BotGameOptions {
@@ -65,8 +65,6 @@ function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
 }
 
 export function runBotGame(options: BotGameOptions): BotGameReport {
-  const originalRandom = Math.random;
-  const engineRandom = createSeededRandom(options.seed);
   const botRandom = createSeededRandom(options.seed * 7_919 + 17);
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
   const report: BotGameReport = {
@@ -88,11 +86,11 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     }
   };
 
-  Math.random = engineRandom;
+  const store = useGameStore;
   try {
-    const store = useGameStore;
     store.getState().resetGame();
-    store.getState().startGame(Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`));
+    const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
+    store.getState().startGame(botNames, options.seed);
     if (options.passives) store.setState((state) => ({ players: assignPassives(state.players, options.passives!) }));
     const { startingCurrency } = options;
     if (startingCurrency !== undefined) {
@@ -146,9 +144,8 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     const final = store.getState();
     report.finished = final.phase === "finished";
     report.rounds = final.round;
-    store.getState().resetGame();
   } finally {
-    Math.random = originalRandom;
+    store.getState().resetGame();
   }
 
   return report;

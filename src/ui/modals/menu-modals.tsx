@@ -2,6 +2,7 @@ import { useState } from "react";
 import { canAbandon } from "../../game/abandon";
 import { useGameStore } from "../../game/store";
 import type { PlayerId } from "../../game/types";
+import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { AudioSliders } from "../components/audio-controls";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -18,7 +19,11 @@ interface PauseMenuProps {
 
 export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }: PauseMenuProps) {
   const resetGame = useGameStore((state) => state.resetGame);
+  const leaveRoom = useRoomStore((state) => state.leave);
+  const isOnline = useLocalPlayerId() !== null;
   const [confirmQuit, setConfirmQuit] = useState(false);
+  // Online, quitting leaves the room and abandons the game, so the others play on.
+  const quit = () => (isOnline ? void leaveRoom() : resetGame());
   const fullscreenActive = useFullscreenState();
   const toggleFullscreen = () => (fullscreenActive ? exitGameFullscreen() : void enterGameFullscreen());
 
@@ -48,23 +53,31 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }:
       <button
         type="button"
         className={`btn btn--block ${confirmQuit ? "btn--grape" : "btn--ghost"}`}
-        onClick={() => (confirmQuit ? resetGame() : setConfirmQuit(true))}
+        onClick={() => (confirmQuit ? quit() : setConfirmQuit(true))}
       >
-        {confirmQuit ? "Vraiment quitter ? La partie sera perdue" : "Quitter la partie"}
+        {confirmQuit
+          ? isOnline
+            ? "Vraiment quitter ? Tu abandonnes la partie"
+            : "Vraiment quitter ? La partie sera perdue"
+          : "Quitter la partie"}
       </button>
     </ModalShell>
   );
 }
 
 /**
- * One player leaves while the others play on. The host picks who leaves,
- * then confirms; with two players left, the other one wins.
+ * One player leaves while the others play on. At a local table the host
+ * picks who leaves; online you can only abandon for yourself. With two
+ * players left, the other one wins.
  */
 export function AbandonModal({ onClose }: { onClose: () => void }) {
   const players = useGameStore((state) => state.players);
   const allowed = useGameStore(canAbandon);
   const abandonGame = useGameStore((state) => state.abandonGame);
-  const [leaverId, setLeaverId] = useState<PlayerId | null>(null);
+  const localPlayerId = useLocalPlayerId();
+  const leaveRoom = useRoomStore((state) => state.leave);
+  const [pickedId, setLeaverId] = useState<PlayerId | null>(null);
+  const leaverId = localPlayerId ?? pickedId;
   const leaver = players.find((player) => player.id === leaverId);
   const survivor = players.length === 2 ? players.find((player) => player.id !== leaverId) : undefined;
 
@@ -86,14 +99,20 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
             </p>
           </div>
           <div className="modal-actions">
-            <button type="button" className="btn btn--cream" onClick={() => setLeaverId(null)}>
+            <button
+              type="button"
+              className="btn btn--cream"
+              onClick={() => (localPlayerId ? onClose() : setLeaverId(null))}
+            >
               Retour
             </button>
             <button
               type="button"
               className="btn btn--grape"
               onClick={() => {
-                abandonGame(leaver.id);
+                // Online there is no watching from the side: abandoning also leaves the room.
+                if (localPlayerId) void leaveRoom();
+                else abandonGame(leaver.id);
                 onClose();
               }}
               data-autofocus

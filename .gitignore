@@ -3,3 +3,5 @@ dist/
 coverage/
 .playwright-mcp/
 .DS_Store
+.env.local
+.env.*.local

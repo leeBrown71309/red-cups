@@ -1,3 +1,4 @@
+import { createEngineId, drawEngineRandom } from "./engine-random";
 import { NORMAL_NODE_IDS, getPathsOfLength, getShortestPath } from "./board";
 import { advanceBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
@@ -58,10 +59,10 @@ export function startWheel(
   resumeStage: TurnStage,
   options: { sourceItemId?: ItemId; origin?: WheelOrigin } = {},
 ): GameState {
-  const result = chooseWheelResult(wheelId, Math.random());
+  const result = chooseWheelResult(wheelId, drawEngineRandom());
   const nextState: GameState = {
     ...state,
-    pendingWheel: { id: crypto.randomUUID(), wheelId, playerId, result, resumeStage, ...options },
+    pendingWheel: { id: createEngineId(), wheelId, playerId, result, resumeStage, ...options },
     turnStage: "wheel-result",
   };
   return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]} indique : ${result.label}.`, "event");
@@ -130,7 +131,19 @@ export function startDuel(
 
   const nextState: GameState = {
     ...state,
-    pendingDuel: { playerOneId, playerTwoId, mode, coinWinnerId, resumeStage },
+    pendingDuel: {
+      playerOneId,
+      playerTwoId,
+      mode,
+      coinWinnerId,
+      resumeStage,
+      rpsChoices: {},
+      rpsTiedRound: null,
+      rpsTies: 0,
+      votes: {},
+      voteTieBroken: false,
+      winnerId: null,
+    },
     turnStage: "duel",
     duelResumeStage: resumeStage,
   };
@@ -243,7 +256,7 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
 
   let nextState = updatePlayer(state, playerId, (currentPlayer) => ({
     ...currentPlayer,
-    inventory: [...currentPlayer.inventory, { id: crypto.randomUUID(), kind: "red-cup" }],
+    inventory: [...currentPlayer.inventory, { id: createEngineId(), kind: "red-cup" }],
   }));
   const totalCups = countRedCups(findPlayer(nextState, playerId) ?? player);
   nextState = addLog(nextState, `${player.name} récupère une Red Cup (${totalCups}/${RED_CUP_GOAL}).`, "good");

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useGameStore } from "../../game/store";
 import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
+import { useCanActFor } from "../../net/room-store";
 import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
 import { DuelModal } from "../modals/duel-modal";
 import { HelpModal } from "../modals/help-modal";
@@ -34,6 +35,7 @@ export function GameHud() {
 
   // Keyed on the player rather than the seat: seats shift when an earlier player abandons.
   const activePlayerId = game.players[game.activePlayerIndex]?.id;
+  const isOwnTurn = useCanActFor([activePlayerId]);
 
   useEffect(() => {
     setShopClosed(false);
@@ -54,7 +56,8 @@ export function GameHud() {
     else if (game.pendingCalmDown) decision = <CalmDownModal />;
     else if (targetEntryId)
       decision = <ItemTargetModal entryId={targetEntryId} onClose={() => setTargetEntryId(null)} />;
-    else if (game.turnStage === "shop" && !shopClosed) decision = <ShopModal onClose={() => setShopClosed(true)} />;
+    else if (game.turnStage === "shop" && !shopClosed && isOwnTurn)
+      decision = <ShopModal onClose={() => setShopClosed(true)} />;
   }
 
   return (

@@ -1,6 +1,7 @@
 import { countRedCups } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
+import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CupPips } from "../hud/players-bar";
@@ -16,6 +17,8 @@ export function VictoryModal() {
   const winReason = useGameStore((state) => state.winReason);
   const startGame = useGameStore((state) => state.startGame);
   const resetGame = useGameStore((state) => state.resetGame);
+  const leaveRoom = useRoomStore((state) => state.leave);
+  const isOnline = useLocalPlayerId() !== null;
   const winner = players.find((player) => player.id === winnerId);
   if (!winner) return null;
 
@@ -24,7 +27,8 @@ export function VictoryModal() {
   );
   // Players who left are listed last, most recent departure first.
   const leavers = [...abandonedPlayers].reverse();
-  const canRematch = players.length >= 2;
+  // A rematch replays the same local table; online, everybody goes back to the menu.
+  const canRematch = !isOnline && players.length >= 2;
 
   return (
     <div className="modal-layer victory" role="dialog" aria-modal="true" aria-labelledby="victory-title">
@@ -54,8 +58,12 @@ export function VictoryModal() {
           ))}
         </ol>
         <div className="modal-actions">
-          <button type="button" className={`btn ${canRematch ? "btn--cream" : "btn--cup"}`} onClick={resetGame}>
-            Menu principal
+          <button
+            type="button"
+            className={`btn ${canRematch ? "btn--cream" : "btn--cup"}`}
+            onClick={() => (isOnline ? void leaveRoom() : resetGame())}
+          >
+            {isOnline ? "Quitter le salon" : "Menu principal"}
           </button>
           {canRematch && (
             <button
