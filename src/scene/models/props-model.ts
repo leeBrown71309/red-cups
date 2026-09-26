@@ -118,56 +118,6 @@ export function createMudPuddle(kit: SceneKit): AnimatedProp {
   };
 }
 
-/** A cute angry projectile. It faces +Z so the animator can aim it. */
-export function createBulletBill(kit: SceneKit): AnimatedProp {
-  const group = new THREE.Group();
-  const flying = new THREE.Group();
-  group.add(flying);
-
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.34, 10, 8), kit.flat("#2f2a33"));
-  body.scale.set(1, 1, 1.45);
-  body.castShadow = true;
-  addOutline(body, kit, 1.06);
-  flying.add(body);
-
-  for (const side of [-1, 1]) {
-    const eye = new THREE.Mesh(
-      kit.geometry("bullet-eye", () => new THREE.SphereGeometry(0.1, 10, 8)),
-      kit.glossy("#ffffff"),
-    );
-    eye.position.set(side * 0.14, 0.1, 0.36);
-    eye.scale.z = 0.5;
-    const pupil = new THREE.Mesh(
-      kit.geometry("bullet-pupil", () => new THREE.SphereGeometry(0.05, 8, 6)),
-      kit.glossy("#111111"),
-    );
-    pupil.position.set(side * 0.13, 0.08, 0.41);
-    const brow = new THREE.Mesh(
-      kit.geometry("bullet-brow", () => new THREE.BoxGeometry(0.16, 0.035, 0.04)),
-      kit.flat("#ffffff"),
-    );
-    brow.position.set(side * 0.14, 0.22, 0.38);
-    brow.rotation.z = side * -0.4;
-    flying.add(eye, pupil, brow);
-
-    const fin = new THREE.Mesh(
-      kit.geometry("bullet-fin", () => new THREE.ConeGeometry(0.12, 0.3, 3)),
-      kit.flat("#ffffff"),
-    );
-    fin.position.set(side * 0.3, 0, -0.38);
-    fin.rotation.set(-Math.PI / 2, 0, side * 0.6);
-    flying.add(fin);
-  }
-
-  return {
-    group,
-    update: (elapsed) => {
-      flying.position.y = 1.35 + Math.sin(elapsed * 4) * 0.1;
-      flying.rotation.z = Math.sin(elapsed * 6) * 0.12;
-    },
-  };
-}
-
 export function createVerticalFadeTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 4;

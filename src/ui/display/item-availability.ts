@@ -1,7 +1,24 @@
 import { ITEM_CATALOG } from "../../game/catalog";
-import { getInventoryCapacity } from "../../game/rules";
+import { getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
 import type { GameState, ItemId, Player } from "../../game/types";
-import { HELL_NODE_ID } from "../../game/types";
+import { DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
+
+const DELINQUENT_HINTS: Record<Exclude<DelinquentBlocker, "not-delinquent">, { short: string; full: string }> = {
+  "too-poor": {
+    short: `${DELINQUENT_COST} pièces requises`,
+    full: `Il faut ${DELINQUENT_COST} pièces pour ignorer une flèche.`,
+  },
+  "first-round-start": {
+    short: `dès le tour ${FIRST_ROUND + 1}`,
+    full: "Au premier tour, Délinquant ne peut pas quitter le départ à contresens.",
+  },
+};
+
+/** Why the Délinquant toggle is greyed out, or null when the arrows can be ignored. */
+export function getDelinquentHint(player: Player, round: number): { short: string; full: string } | null {
+  const blocker = getDelinquentBlocker(player, round);
+  return blocker === null || blocker === "not-delinquent" ? null : DELINQUENT_HINTS[blocker];
+}
 
 export type ItemUseKind = "prepare-boot" | "target" | "instant" | "passive";
 
@@ -51,6 +68,9 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
   if (itemId === "mud" && inHell) {
     return { usable: false, kind: "instant", actionLabel: "Poser", reason: "La Boue ne tient pas en Enfer." };
   }
+  if (itemId === "mud" && state.mudPlacedThisTurn) {
+    return { usable: false, kind: "instant", actionLabel: "Poser", reason: "Une seule Boue par tour." };
+  }
 
   if (itemId === "water-bottle" && !inHell) {
     return { usable: false, kind: "instant", actionLabel: "Boire", reason: "Ne sert qu’à sortir de l’Enfer." };
@@ -61,7 +81,8 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
   }
 
   const kind: ItemUseKind = ITEM_CATALOG[itemId].target === "player" ? "target" : "instant";
-  return { usable: true, kind, actionLabel: itemId === "water-bottle" ? "Boire" : "Utiliser" };
+  const actionLabel = itemId === "water-bottle" ? "Boire" : itemId === "mud" ? "Poser" : "Utiliser";
+  return { usable: true, kind, actionLabel };
 }
 
 export interface PurchaseStatus {

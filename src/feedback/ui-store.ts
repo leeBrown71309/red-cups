@@ -8,11 +8,21 @@ export interface Toast {
   tone: GameLogEntry["tone"];
 }
 
+/** Table-wide announcement (Bullet Bill, Tour de Bénédiction) that nobody should miss. */
+export interface AlertBanner {
+  key: number;
+  tone: "danger" | "blessing";
+  eyebrow: string;
+  title: string;
+  detail: string;
+}
+
 interface UiState {
   /** Timestamp (performance.now) until which the board is still animating. */
   boardBusyUntil: number;
   toasts: Toast[];
   splash: { playerId: PlayerId; key: number } | null;
+  alert: AlertBanner | null;
   followActivePlayer: boolean;
   /** Délinquant toggle for the current move. */
   ignoreArrows: boolean;
@@ -28,6 +38,8 @@ interface UiState {
   dismissToast: (id: string) => void;
   showSplash: (playerId: PlayerId) => void;
   hideSplash: () => void;
+  showAlert: (alert: Omit<AlertBanner, "key">) => void;
+  hideAlert: (key: number) => void;
   toggleFollowActivePlayer: () => void;
   resetUi: () => void;
 }
@@ -44,6 +56,7 @@ export const useUiStore = create<UiState>((set) => ({
   boardBusyUntil: 0,
   toasts: [],
   splash: null,
+  alert: null,
   followActivePlayer: prefersFollowCamera(),
   ignoreArrows: false,
   previewNodeId: null,
@@ -59,12 +72,16 @@ export const useUiStore = create<UiState>((set) => ({
   dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   showSplash: (playerId) => set((state) => ({ splash: { playerId, key: (state.splash?.key ?? 0) + 1 } })),
   hideSplash: () => set({ splash: null }),
+  // A newer announcement replaces the current one: the impact takes over from the charge.
+  showAlert: (alert) => set((state) => ({ alert: { ...alert, key: (state.alert?.key ?? 0) + 1 } })),
+  hideAlert: (key) => set((state) => (state.alert?.key === key ? { alert: null } : state)),
   toggleFollowActivePlayer: () => set((state) => ({ followActivePlayer: !state.followActivePlayer })),
   resetUi: () =>
     set({
       boardBusyUntil: 0,
       toasts: [],
       splash: null,
+      alert: null,
       ignoreArrows: false,
       previewNodeId: null,
       hoveredChipNodeId: null,
@@ -81,13 +98,11 @@ export function useBoardSettled(): boolean {
 
   useEffect(() => {
     const remaining = busyUntil - performance.now();
-    if (remaining <= 0) {
-      setNow(performance.now());
-      return undefined;
-    }
+    if (remaining <= 0) return undefined;
     const timer = window.setTimeout(() => setNow(performance.now()), remaining + 16);
     return () => window.clearTimeout(timer);
   }, [busyUntil]);
 
-  return now >= busyUntil;
+  // The live clock covers a deadline already behind us, so an open modal never blinks off for a render.
+  return now >= busyUntil || performance.now() >= busyUntil;
 }

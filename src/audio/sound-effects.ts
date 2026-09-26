@@ -210,19 +210,51 @@ export const soundEffects = {
     audioEngine.tone({ type: "sine", frequency: 140, frequencyEnd: 60, duration: 0.25, gain: 0.18 });
   },
 
-  bulletWhistle(): void {
-    audioEngine.tone({ type: "sine", frequency: 1_500, frequencyEnd: 500, duration: 0.6, gain: 0.07 });
+  /** Two-tone siren: Bullet Bill has just landed on the start. */
+  bulletAlarm(): void {
+    for (let index = 0; index < 4; index += 1) {
+      audioEngine.tone({
+        type: "square",
+        frequency: index % 2 === 0 ? 880 : 660,
+        start: at(index * 0.2),
+        duration: 0.18,
+        gain: 0.05,
+        filterFrequency: 2_400,
+      });
+    }
   },
 
-  bulletHit(): void {
-    audioEngine.tone({ type: "sine", frequency: 150, frequencyEnd: 40, duration: 0.45, gain: 0.3 });
-    audioEngine.noise({
-      duration: 0.4,
-      gain: 0.2,
-      filterType: "lowpass",
-      filterFrequency: 1_800,
-      filterFrequencyEnd: 200,
+  /** Engine revving up, then the whistle of the charge. */
+  bulletCharge(): void {
+    audioEngine.noise({ duration: 0.7, gain: 0.1, filterFrequency: 300, filterFrequencyEnd: 2_600, q: 3 });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 90,
+      frequencyEnd: 240,
+      duration: 0.7,
+      gain: 0.05,
+      filterFrequency: 900,
     });
+    audioEngine.tone({ type: "sine", frequency: 1_700, frequencyEnd: 450, start: at(0.7), duration: 0.9, gain: 0.08 });
+  },
+
+  explosion(): void {
+    audioEngine.tone({ type: "sine", frequency: 120, frequencyEnd: 30, duration: 0.9, gain: 0.4 });
+    audioEngine.tone({ type: "triangle", frequency: 70, frequencyEnd: 25, duration: 1.1, gain: 0.25 });
+    audioEngine.noise({
+      duration: 1.2,
+      gain: 0.32,
+      filterType: "lowpass",
+      filterFrequency: 3_200,
+      filterFrequencyEnd: 120,
+    });
+    audioEngine.noise({ start: at(0.05), duration: 0.5, gain: 0.12, filterFrequency: 5_000, q: 0.7 });
+  },
+
+  /** Tour de Bénédiction: a rising, sparkly fanfare. */
+  blessing(): void {
+    arpeggio([NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6, NOTE.E6, NOTE.G6], 0.09, { gain: 0.11, length: 0.35 });
+    audioEngine.tone({ type: "sine", frequency: NOTE.C6, start: at(0.55), duration: 0.8, gain: 0.06 });
   },
 
   snore(): void {

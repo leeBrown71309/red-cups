@@ -51,7 +51,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Boue",
     price: 200,
     symbol: "●",
-    description: "Le prochain joueur qui arrive sur ta case perd 200 pièces.",
+    description: "Pose-la sur ta case puis joue ton tour : qui s’y arrête perd 200 pièces et t’en donne 100.",
     target: "self",
   },
   eraser: {
@@ -67,7 +67,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Bullet Bill",
     price: 500,
     symbol: "➤",
-    description: "Un projectile autonome poursuit le joueur le plus proche.",
+    description: "Attend au départ dès l’achat, puis fonce sur le joueur le plus proche à chaque tour de table.",
     target: "special",
   },
   "middle-finger": {
@@ -146,7 +146,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "new-cup-new-me",
     name: "New Cup, New Me",
     shortName: "New Cup",
-    description: "À chaque nouvelle Cup, choisis ta case avant qu’elle soit révélée.",
+    description: "À chaque nouvelle Cup, choisis ta case avant qu’elle soit révélée (sans roue ni boutique).",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
@@ -158,13 +158,13 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "no-thanks",
     name: "Non merci",
     shortName: "Non merci",
-    description: "Une fois par cycle de Cup, annule l’action d’un joueur.",
+    description: "Une fois tous les 3 tours, annule l’action d’un joueur.",
   },
   delinquent: {
     id: "delinquent",
     name: "Délinquant",
     shortName: "Délinquant",
-    description: "Ignore une flèche en perdant 200 pièces.",
+    description: "Ignore une flèche en perdant 400 pièces (pas pour quitter le départ au 1er tour).",
   },
   penta: {
     id: "penta",
@@ -238,6 +238,7 @@ export const WHEEL_RESULTS: Record<WheelId, WeightedWheelResult[]> = {
     { wheelId: "fortune", id: "gain-400", label: "+400 pièces", amount: 400, weight: 1 },
     { wheelId: "fortune", id: "gain-500", label: "+500 pièces", amount: 500, weight: 1 },
     { wheelId: "fortune", id: "free-item", label: "Un objet gratuit à 300 pièces max", weight: 1 },
+    { wheelId: "fortune", id: "spin-misfortune", label: "Tourne la roue du malheur", weight: 1 },
     { wheelId: "fortune", id: "escape", label: "Libération de l’Enfer ou +500 pièces", amount: 500, weight: 1 },
   ],
   hell: [

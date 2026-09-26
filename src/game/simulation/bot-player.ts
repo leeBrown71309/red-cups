@@ -1,3 +1,4 @@
+import { canAbandon } from "../abandon";
 import { NORMAL_NODE_IDS, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
@@ -72,7 +73,7 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
 
   const regular = getUniqueLegalDestinations(player, store.moveDistance, false);
-  const rebel = canUseDelinquent(player)
+  const rebel = canUseDelinquent(player, store.round)
     ? getUniqueLegalDestinations(player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
     : [];
 
@@ -108,9 +109,21 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
   return { label: "end-turn", perform: (current) => current.endTurn() };
 }
 
+/** Rare enough that most games still end on three Red Cups. */
+const ABANDON_CHANCE = 0.0005;
+
+function chooseAbandon(store: GameStore, random: Random): BotAction | null {
+  if (!canAbandon(store) || random() >= ABANDON_CHANCE) return null;
+  const leaver = pick(store.players, random);
+  if (!leaver) return null;
+  return { label: "abandon", perform: (current) => current.abandonGame(leaver.id) };
+}
+
 /** Returns the bot's next decision, or null when the game offers none (a blocked state). */
 export function chooseBotAction(store: GameStore, random: Random): BotAction | null {
   if (store.phase !== "playing") return null;
+  const abandon = chooseAbandon(store, random);
+  if (abandon) return abandon;
 
   switch (store.turnStage) {
     case "move":
@@ -127,6 +140,9 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
 
     case "tile-wheel":
       return { label: "spin-tile", perform: (current) => current.spinTileWheel() };
+
+    case "blessing":
+      return { label: "spin-blessing", perform: (current) => current.spinBlessingWheel() };
 
     case "turn-end":
       return { label: "end-turn", perform: (current) => current.endTurn() };

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { WHEEL_RESULTS } from "../../game/catalog";
 import { EMPTY_GAME_STATE, type GameState, type Player, type WheelId } from "../../game/types";
 import { HOP_MS, TUNNEL_EXTRA_MS, estimateMovementMs } from "../../theme/timing";
-import { getWheelSegments } from "./game-display";
+import { WHEEL_THEMES, getWheelSegments } from "./game-display";
 import { getItemAvailability, getPurchaseStatus } from "./item-availability";
 
 function makePlayer(overrides: Partial<Player> = {}): Player {
@@ -16,7 +16,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     passiveId: "built-like-a-tank",
     skippedTurns: 0,
     hellTurns: 0,
-    noThanksUsedCycle: -1,
+    noThanksReadyRound: 1,
     ...overrides,
   };
 }
@@ -34,6 +34,11 @@ describe("wheel segments", () => {
     for (const result of WHEEL_RESULTS[wheelId]) {
       expect(segments.filter((segment) => segment.outcomeId === result.id)).toHaveLength(result.weight);
     }
+  });
+
+  it("paints the wedge leading to the wheel of misfortune in its purple", () => {
+    const wedge = getWheelSegments("fortune").find((segment) => segment.outcomeId === "spin-misfortune");
+    expect(WHEEL_THEMES.misfortune.segments).toContain(wedge?.color);
   });
 
   it.each<WheelId>(["misfortune", "fortune", "hell"])("never puts two identical %s wedges side by side", (wheelId) => {

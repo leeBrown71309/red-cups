@@ -1,17 +1,22 @@
 import { useState } from "react";
+import { canAbandon } from "../../game/abandon";
 import { useGameStore } from "../../game/store";
+import type { PlayerId } from "../../game/types";
 import { AudioSliders } from "../components/audio-controls";
 import { ModalShell } from "../components/modal-shell";
+import { PlayerAvatar } from "../components/player-avatar";
 import { enterGameFullscreen, exitGameFullscreen, isFullscreenSupported, useFullscreenState } from "../fullscreen";
 import { UiIcon } from "../icons/ui-icon";
+import { PlayerPickList } from "./decision-modals";
 
 interface PauseMenuProps {
   onClose: () => void;
   onOpenHelp: () => void;
   onOpenJournal: () => void;
+  onOpenAbandon: () => void;
 }
 
-export function PauseMenu({ onClose, onOpenHelp, onOpenJournal }: PauseMenuProps) {
+export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }: PauseMenuProps) {
   const resetGame = useGameStore((state) => state.resetGame);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const fullscreenActive = useFullscreenState();
@@ -35,6 +40,9 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal }: PauseMenuProps
             {fullscreenActive ? "Quitter le plein écran" : "Plein écran"}
           </button>
         )}
+        <button type="button" className="btn btn--cream btn--block" onClick={onOpenAbandon}>
+          <UiIcon name="flag" size={20} /> Abandonner…
+        </button>
       </div>
       <AudioSliders />
       <button
@@ -44,6 +52,62 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal }: PauseMenuProps
       >
         {confirmQuit ? "Vraiment quitter ? La partie sera perdue" : "Quitter la partie"}
       </button>
+    </ModalShell>
+  );
+}
+
+/**
+ * One player leaves while the others play on. The host picks who leaves,
+ * then confirms; with two players left, the other one wins.
+ */
+export function AbandonModal({ onClose }: { onClose: () => void }) {
+  const players = useGameStore((state) => state.players);
+  const allowed = useGameStore(canAbandon);
+  const abandonGame = useGameStore((state) => state.abandonGame);
+  const [leaverId, setLeaverId] = useState<PlayerId | null>(null);
+  const leaver = players.find((player) => player.id === leaverId);
+  const survivor = players.length === 2 ? players.find((player) => player.id !== leaverId) : undefined;
+
+  return (
+    <ModalShell title="Abandonner" eyebrow="Quitter la table" onClose={onClose} className="abandon-modal">
+      {!allowed ? (
+        <p className="modal-lead">
+          Une roue, un duel ou une décision est en cours : termine-le, puis reviens ici pour abandonner.
+        </p>
+      ) : leaver ? (
+        <>
+          <div className="abandon-modal__leaver">
+            <PlayerAvatar color={leaver.color} size={64} expression="worried" />
+            <p className="modal-lead">
+              <strong>{leaver.name}</strong> quitte la partie : ses Red Cups et ses objets quittent le plateau aussi.{" "}
+              {survivor
+                ? `${survivor.name} sera la dernière personne en jeu et gagnera la partie.`
+                : "Les autres joueurs continuent la partie."}
+            </p>
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="btn btn--cream" onClick={() => setLeaverId(null)}>
+              Retour
+            </button>
+            <button
+              type="button"
+              className="btn btn--grape"
+              onClick={() => {
+                abandonGame(leaver.id);
+                onClose();
+              }}
+              data-autofocus
+            >
+              <UiIcon name="flag" size={20} /> Abandonner
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="modal-lead">Qui quitte la partie ? Les autres joueurs continuent.</p>
+          <PlayerPickList players={players} onPick={setLeaverId} />
+        </>
+      )}
     </ModalShell>
   );
 }

@@ -2,7 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isRestorableGame, migrateGameSave, pickGameState } from "./game-save";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
-import { EMPTY_GAME_STATE, HELL_EXIT_TOLL, HELL_NODE_ID, HELL_TURN_LIMIT, START_BONUS } from "./types";
+import {
+  EMPTY_GAME_STATE,
+  HELL_EXIT_TOLL,
+  HELL_NODE_ID,
+  HELL_TURN_LIMIT,
+  NO_THANKS_COOLDOWN_ROUNDS,
+  START_BONUS,
+} from "./types";
 
 /** Hand-written situations for the rules that matter most at the table. */
 
@@ -36,14 +43,14 @@ describe("Non merci reaction window", () => {
     expect(store().players[0].position).toBe(0);
   });
 
-  it("cancels the move and spends the passive for the current Red Cup cycle", () => {
+  it(`cancels the move and recharges the passive for ${NO_THANKS_COOLDOWN_ROUNDS} rounds`, () => {
     startTable(["built-like-a-tank", "no-thanks"]);
     store().movePlayer(2);
     store().resolveReaction(store().players[1].id);
 
     expect(store().players[0].position).toBe(0);
     expect(store().turnStage).toBe("turn-end");
-    expect(store().players[1].noThanksUsedCycle).toBe(store().redCupCycle);
+    expect(store().players[1].noThanksReadyRound).toBe(store().round + NO_THANKS_COOLDOWN_ROUNDS);
   });
 
   it("lets the move happen when nobody reacts", () => {
@@ -61,16 +68,35 @@ describe("Non merci reaction window", () => {
     expect(store().players[0].position).toBe(2);
   });
 
-  it("stays closed once used, until a new Red Cup appears", () => {
+  it("stays closed for three rounds once used, whatever the Red Cups do", () => {
     startTable(["built-like-a-tank", "no-thanks"]);
-    editPlayer(1, { noThanksUsedCycle: 0 });
     store().movePlayer(2);
-    expect(store().turnStage).not.toBe("reaction");
+    store().resolveReaction(store().players[1].id);
 
-    useGameStore.setState({ redCupCycle: 1, turnStage: "move", activePlayerIndex: 0 });
+    for (const round of [2, 3]) {
+      useGameStore.setState({ round, redCupCycle: round, turnStage: "move", activePlayerIndex: 0 });
+      editPlayer(0, { position: 0 });
+      store().movePlayer(4);
+      expect(store().turnStage).not.toBe("reaction");
+    }
+
+    useGameStore.setState({ round: 1 + NO_THANKS_COOLDOWN_ROUNDS, turnStage: "move", activePlayerIndex: 0 });
     editPlayer(0, { position: 0 });
     store().movePlayer(4);
     expect(store().turnStage).toBe("reaction");
+  });
+
+  it("cancelling a mud loses it, but the actor still moves this turn", () => {
+    startTable(["built-like-a-tank", "no-thanks"]);
+    editPlayer(0, { inventory: [{ id: "mud-1", kind: "item", itemId: "mud" }] });
+    store().useItem("mud-1");
+    store().resolveReaction(store().players[1].id);
+
+    expect(store().mudTraps).toEqual([]);
+    expect(store().players[0].inventory).toEqual([]);
+    expect(store().turnStage).toBe("move");
+    store().movePlayer(2);
+    expect(store().players[0].position).toBe(2);
   });
 
   it("refuses a cancel from a player who was not offered the reaction", () => {
@@ -170,36 +196,39 @@ describe("arrow tiles and the start bonus", () => {
 });
 
 describe("tile wheels after being moved by someone else", () => {
-  it("makes a player pulled onto a red tile by the Corde spin the wheel of misfortune", () => {
+  it("spins no wheel for a player pulled onto a red tile by the Corde", () => {
     startTable(["built-like-a-tank", "troll"]);
     editPlayer(0, { position: 4, inventory: [{ id: "rope-1", kind: "item", itemId: "rope" }] });
     editPlayer(1, { position: 2 });
     useGameStore.setState({ turnStage: "move" });
     store().useItem("rope-1", store().players[1].id);
 
-    expect(store().turnStage).toBe("tile-wheel");
-    store().spinTileWheel();
-    expect(store().pendingWheel).toEqual(
-      expect.objectContaining({ wheelId: "misfortune", playerId: store().players[1].id }),
-    );
+    expect(store().players[1].position).toBe(4);
+    expect(store().pendingTileWheels).toEqual([]);
+    expect(store().turnStage).toBe("turn-end");
   });
 
-  it("spins one wheel per player after a Monopoly Man swap between two colored tiles", () => {
+  it("gives neither player a wheel nor the shop after a Monopoly Man swap", () => {
     startTable(["built-like-a-tank", "troll"]);
     editPlayer(0, { position: 5, inventory: [{ id: "swap-1", kind: "item", itemId: "monopoly-man" }] });
-    editPlayer(1, { position: 6 });
+    editPlayer(1, { position: 9 });
     useGameStore.setState({ turnStage: "move" });
     store().useItem("swap-1", store().players[1].id);
 
-    const [user, target] = store().players;
-    expect(
-      store()
-        .pendingTileWheels.map((entry) => entry.playerId)
-        .sort(),
-    ).toEqual([user.id, target.id].sort());
-    store().spinTileWheel();
-    store().resolveWheel();
-    while (store().turnStage !== "tile-wheel" && store().pendingWheel) store().resolveWheel();
+    expect(store().players.map((player) => player.position)).toEqual([9, 5]);
+    expect(store().pendingTileWheels).toEqual([]);
+    expect(store().turnStage).toBe("turn-end");
+  });
+
+  it("still spins the wheel when the Bouteille d’eau lands on a colored tile", () => {
+    startTable(["built-like-a-tank", "troll"]);
+    editPlayer(0, { position: HELL_NODE_ID, inventory: [{ id: "bottle-1", kind: "item", itemId: "water-bottle" }] });
+    useGameStore.setState({ turnStage: "hell" });
+    // Tile 4 (red) is the fifth of the eleven walkable tiles.
+    vi.spyOn(Math, "random").mockReturnValue(4.5 / 11);
+    store().useItem("bottle-1");
+
+    expect(store().players[0].position).toBe(4);
     expect(store().turnStage).toBe("tile-wheel");
   });
 
@@ -369,6 +398,34 @@ describe("game save", () => {
 
     expect(upgraded.phase).toBe("playing");
     expect(upgraded.players.every((player) => player.hellTurns === 0)).toBe(true);
+  });
+
+  it("upgrades a version 4 save with the patch 0.1.1 fields", () => {
+    startTable(["built-like-a-tank", "no-thanks"]);
+    const {
+      mudPlacedThisTurn: _mud,
+      lastBulletFlight: _flight,
+      blessingQueue: _blessing,
+      abandonedPlayers: _abandoned,
+      winReason: _reason,
+      ...legacy
+    } = pickGameState(store());
+    const upgraded = migrateGameSave(
+      {
+        ...legacy,
+        players: legacy.players.map(({ noThanksReadyRound: _ready, ...player }) => ({
+          ...player,
+          noThanksUsedCycle: -1,
+        })),
+      },
+      4,
+    );
+
+    expect(isRestorableGame(upgraded)).toBe(true);
+    expect(upgraded.blessingQueue).toEqual([]);
+    expect(upgraded.abandonedPlayers).toEqual([]);
+    expect(upgraded.players.every((player) => player.noThanksReadyRound === 1)).toBe(true);
+    expect(upgraded.players.some((player) => "noThanksUsedCycle" in player)).toBe(false);
   });
 
   it("only restores a game in progress", () => {

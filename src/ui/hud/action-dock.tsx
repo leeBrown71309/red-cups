@@ -1,12 +1,13 @@
 import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
-import { canUseDelinquent, getTileWheel } from "../../game/rules";
+import { getTileWheel } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { HELL_EXIT_TOLL, HELL_TURN_LIMIT } from "../../game/types";
+import { DELINQUENT_COST, HELL_EXIT_TOLL, HELL_TURN_LIMIT } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
+import { getDelinquentHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -124,6 +125,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
         </DockPrompt>
       );
     }
+    case "blessing":
+      return <BlessingContent />;
     case "reaction":
       return <DockPrompt title="Action annoncée…" hint="Un joueur peut encore répondre « Non merci »." />;
     case "shop":
@@ -173,8 +176,34 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
   }
 }
 
+function BlessingContent() {
+  const queue = useGameStore((state) => state.blessingQueue);
+  const players = useGameStore((state) => state.players);
+  const spinBlessingWheel = useGameStore((state) => state.spinBlessingWheel);
+  const spinner = players.find((player) => player.id === queue[0]);
+  const after = queue.length - 1;
+
+  return (
+    <DockPrompt
+      title="Tour de Bénédiction !"
+      hint={
+        <>
+          Toute la table est fauchée. À <strong>{spinner?.name}</strong> de tourner la roue du bonheur
+          {after > 0 ? `, puis encore ${after} joueur${after > 1 ? "s" : ""}.` : ", le dernier avant de reprendre."}
+        </>
+      }
+    >
+      <button type="button" className="btn btn--mint btn--pulse" onClick={spinBlessingWheel} data-autofocus>
+        <UiIcon name="sparkle" size={20} /> Tourner la roue
+      </button>
+    </DockPrompt>
+  );
+}
+
 function MoveContent({ player }: { player: Player }) {
   const moveDistance = useGameStore((state) => state.moveDistance);
+  const round = useGameStore((state) => state.round);
+  const mudPlaced = useGameStore((state) => state.mudPlacedThisTurn);
   const endTurn = useGameStore((state) => state.endTurn);
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
@@ -184,6 +213,7 @@ function MoveContent({ player }: { player: Player }) {
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
   const isDelinquent = player.passiveId === "delinquent";
+  const delinquentHint = getDelinquentHint(player, round);
 
   if (destinations.length === 0) {
     return (
@@ -204,7 +234,9 @@ function MoveContent({ player }: { player: Player }) {
   const hint =
     previewNodeId !== null
       ? "Touche à nouveau la case ou confirme."
-      : "Touche une case surlignée, ou utilise un objet à la place.";
+      : mudPlaced
+        ? "Boue posée ! Déplace-toi maintenant, ou utilise un autre objet."
+        : "Touche une case surlignée, ou utilise un objet à la place.";
 
   return (
     <DockPrompt title={title} hint={hint}>
@@ -238,11 +270,12 @@ function MoveContent({ player }: { player: Player }) {
           type="button"
           className={`btn btn--small ${ignoreArrows ? "btn--gold" : "btn--cream"}`}
           onClick={() => setIgnoreArrows(!ignoreArrows)}
-          disabled={!canUseDelinquent(player)}
+          disabled={delinquentHint !== null}
           aria-pressed={ignoreArrows}
-          title="Délinquant : 200 pièces par flèche ignorée"
+          title={delinquentHint?.full ?? `Délinquant : ${DELINQUENT_COST} pièces par flèche ignorée`}
         >
-          {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} · −200
+          {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} ·{" "}
+          {delinquentHint ? delinquentHint.short : `−${DELINQUENT_COST}`}
         </button>
       )}
     </DockPrompt>

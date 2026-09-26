@@ -1,4 +1,4 @@
-import type { GameLogEntry, NodeId, PlayerId } from "../game/types";
+import type { BulletFlight, GameLogEntry, NodeId, PlayerId } from "../game/types";
 
 /**
  * Presentation events derived from game state changes. The scene, the HUD
@@ -17,8 +17,11 @@ export type FeedbackEvent =
   | { type: "duel-started" }
   | { type: "mud-placed"; nodeId: NodeId }
   | { type: "mud-triggered"; nodeId: NodeId }
-  | { type: "bullet-spawned" }
-  | { type: "bullet-hit"; playerId: PlayerId }
+  | { type: "bullet-launched" }
+  | { type: "bullet-flight"; flight: BulletFlight }
+  | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
+  | { type: "blessing-started" }
+  | { type: "player-left"; playerId: PlayerId }
   | { type: "turn-skipped" }
   | { type: "item-used" }
   | { type: "reaction-opened" }

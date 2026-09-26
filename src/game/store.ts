@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { abandonPlayer } from "./abandon";
+import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { NORMAL_NODE_IDS } from "./board";
+import { launchBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
 import {
   addCupCycleEffects,
@@ -48,9 +51,10 @@ import {
   planItemUse,
   planMove,
 } from "./turn-actions";
-import type { GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId } from "./types";
+import type { GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOutcomeId } from "./types";
 import {
   EMPTY_GAME_STATE,
+  FIRST_ROUND,
   HELL_NODE_ID,
   INITIAL_RED_CUP_NODE_ID,
   PLAYER_COLORS,
@@ -69,9 +73,13 @@ interface GameActions {
   useItem: (entryId: string, targetPlayerId?: PlayerId) => void;
   /** A Non merci holder cancels the declared action, or null lets it happen. */
   resolveReaction: (reactorId: PlayerId | null) => void;
+  /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
   endTurn: () => void;
   spinHellWheel: () => void;
   spinTileWheel: () => void;
+  spinBlessingWheel: () => void;
+  /** The player leaves the game; the others play on. */
+  abandonGame: (playerId: PlayerId) => void;
   spinWheel: (wheelId: WheelId, playerId: PlayerId, resumeStage: TurnStage, sourceItemId?: ItemId) => void;
   resolveWheel: () => void;
   cancelWheel: () => void;
@@ -97,9 +105,15 @@ function createPlayers(playerNames: string[]): Player[] {
     passiveId: passives[index],
     skippedTurns: 0,
     hellTurns: 0,
-    noThanksUsedCycle: -1,
+    noThanksReadyRound: FIRST_ROUND,
   }));
 }
+
+/** Wheel results that hand over to another wheel instead of applying an effect. */
+const CHAINED_WHEELS: Partial<Record<WheelOutcomeId, WheelId>> = {
+  "spin-fortune": "fortune",
+  "spin-misfortune": "misfortune",
+};
 
 /** Applies one wheel outcome to its player; chained and interactive outcomes are handled by the caller. */
 function applyWheelOutcome(
@@ -204,12 +218,14 @@ export const useGameStore = create<GameStore>()(
 
         if (itemId === "bullet-bill") {
           if (state.bulletBill) return;
-          let nextState = applyCurrencyChange(state, player.id, -price);
-          nextState = {
-            ...nextState,
-            bulletBill: { status: "waiting", position: START_NODE_ID, spawnRound: state.round + 1 },
-          };
-          set(addLog(nextState, `${player.name} achète Bullet Bill pour ${price} pièces.`, "event"));
+          const nextState = launchBulletBill(applyCurrencyChange(state, player.id, -price));
+          set(
+            addLog(
+              nextState,
+              `${player.name} achète Bullet Bill pour ${price} pièces : il attend au départ et fonce au prochain tour.`,
+              "event",
+            ),
+          );
           return;
         }
 
@@ -254,9 +270,11 @@ export const useGameStore = create<GameStore>()(
         const noLegalMove =
           state.turnStage === "move" &&
           activePlayer !== undefined &&
-          getUniqueLegalDestinations(activePlayer, state.moveDistance, canUseDelinquent(activePlayer)).length === 0;
+          getUniqueLegalDestinations(activePlayer, state.moveDistance, canUseDelinquent(activePlayer, state.round))
+            .length === 0;
         if (!["shop", "turn-end"].includes(state.turnStage) && !noLegalMove) return;
-        set(beginNextTurn({ ...state, turnStage: "turn-end" }));
+        const ended: GameState = { ...state, turnStage: "turn-end" };
+        set(isTableBroke(ended) ? startBlessingRound(ended) : beginNextTurn(ended));
       },
 
       spinHellWheel: () => {
@@ -265,6 +283,10 @@ export const useGameStore = create<GameStore>()(
         if (!player || state.turnStage !== "hell" || player.position !== HELL_NODE_ID) return;
         set(startWheel(state, "hell", player.id, "turn-end", { origin: "hell" }));
       },
+
+      spinBlessingWheel: () => set(spinBlessingWheel(get())),
+
+      abandonGame: (playerId) => set(abandonPlayer(get(), playerId)),
 
       spinTileWheel: () => {
         const current = get();
@@ -290,9 +312,10 @@ export const useGameStore = create<GameStore>()(
         const player = findPlayer(state, pending?.playerId);
         if (!pending || !player) return;
 
-        if (pending.result.id === "spin-fortune") {
+        const chainedWheel = CHAINED_WHEELS[pending.result.id];
+        if (chainedWheel) {
           set(
-            startWheel(state, "fortune", pending.playerId, pending.resumeStage, {
+            startWheel(state, chainedWheel, pending.playerId, pending.resumeStage, {
               sourceItemId: pending.sourceItemId,
               origin: "chain",
             }),
@@ -412,8 +435,12 @@ export const useGameStore = create<GameStore>()(
           return;
         }
 
+        // Repositioning is not an arrival: it earns neither the wheel nor the shop of the new tile.
+        // A wheel already owed on the tile left behind is dropped when the board settles.
+        const moved = destination !== player.position;
+        const resumeStage = state.pendingCupRepositionResumeStage ?? "turn-end";
+        const shopLeftBehind = moved && getActivePlayer(state)?.id === playerId && resumeStage === "shop";
         let nextState = updatePlayer(state, playerId, (current) => ({ ...current, position: destination }));
-        nextState = queueTileWheel(nextState, playerId);
         nextState = {
           ...nextState,
           redCupNodeId: state.pendingCupRevealNodeId,
@@ -424,7 +451,7 @@ export const useGameStore = create<GameStore>()(
         };
         nextState = {
           ...nextState,
-          turnStage: normalizeResumeStage(nextState, state.pendingCupRepositionResumeStage ?? "turn-end"),
+          turnStage: normalizeResumeStage(nextState, shopLeftBehind ? "turn-end" : resumeStage),
         };
         nextState = addLog(nextState, `${player.name} se repositionne avant l’apparition de la Cup.`, "event");
         if (state.pendingCupCollectorId) nextState = addCupCycleEffects(nextState, state.pendingCupCollectorId);

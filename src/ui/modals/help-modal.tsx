@@ -16,14 +16,18 @@ const TABS: { id: HelpTab; label: string }[] = [
 
 const TURN_STEPS = [
   "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
-  "La Botte se prépare avant de bouger et te fait avancer de deux cases.",
-  "Tu arrives sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Même si on t’y a envoyé !",
+  "La Botte se prépare et la Boue se pose avant de bouger : elles ne comptent pas comme ton action.",
+  "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté ou reculé, ça compte ; " +
+    "tiré par la Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
   "Sur une case bleue, la boutique s’ouvre : achète autant que ton solde et ton sac le permettent.",
   "Ramasse 3 Red Cups pour gagner. Chaque Cup occupe une des 4 places de ton sac.",
   "Arriver au Départ par la case 8 : +200 pièces. À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
   "En Enfer, tu tournes sa roue à chaque tour. Deux joueurs en Enfer = duel, le gagnant repart du Départ.",
   "Toujours en Enfer après 5 tours ? Tu sors en case 0 avec les 200 du départ, mais tu paies 500 pièces.",
-  "Non merci : quand un joueur annonce son action, le détenteur du passif peut l’annuler une fois par Red Cup.",
+  "Non merci : quand un joueur annonce son action, le détenteur du passif peut l’annuler, puis attend 3 tours.",
+  "Bullet Bill attend au départ dès son achat, puis fonce sur le joueur le plus proche à chaque tour de table.",
+  "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
+  "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
 ];
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
