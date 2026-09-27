@@ -1,8 +1,8 @@
 import { useAudioSettings } from "../../audio/audio-settings";
 import { UiIcon } from "../icons/ui-icon";
-import { VoiceMicButton, VoiceSettingRow } from "./voice-controls";
+import { VoiceSettingRow } from "./voice-controls";
 
-/** Quick mute toggles, used in the lobby corner and the in-game top bar; the mic joins them online. */
+/** Quick mute toggles, used in the lobby corner and the in-game top bar. */
 export function AudioToggles() {
   const musicEnabled = useAudioSettings((state) => state.musicEnabled);
   const sfxEnabled = useAudioSettings((state) => state.sfxEnabled);
@@ -31,7 +31,6 @@ export function AudioToggles() {
       >
         <UiIcon name={sfxEnabled ? "sound" : "soundOff"} />
       </button>
-      <VoiceMicButton />
     </div>
   );
 }

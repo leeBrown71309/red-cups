@@ -2,6 +2,7 @@ import { useGameStore } from "../../game/store";
 import { useRoomStore } from "../../net/room-store";
 import { boardCamera } from "../../scene/board-stage";
 import { AudioToggles } from "../components/audio-controls";
+import { VoiceMicButton } from "../components/voice-controls";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 import { PlayersBar } from "./players-bar";
@@ -30,6 +31,8 @@ export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
       <PlayersBar />
       <div className="top-bar__right">
         <AudioToggles />
+        {/* Outside the audio toggles, which small screens hide: the mic stays at hand on a phone. */}
+        <VoiceMicButton />
         <button type="button" className="icon-button" onClick={onOpenHelp} aria-label="Comment jouer">
           <UiIcon name="help" />
         </button>

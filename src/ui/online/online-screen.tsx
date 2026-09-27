@@ -4,7 +4,7 @@ import { useAccountStore } from "../../net/account-store";
 import { buildInviteLink, normalizeRoomCode, type RoomPlayer } from "../../net/room-api";
 import { useRoomStore } from "../../net/room-store";
 import { AudioToggles } from "../components/audio-controls";
-import { VoiceBadge, VoiceSettingRow } from "../components/voice-controls";
+import { VoiceBadge, VoiceMicButton, VoiceSettingRow } from "../components/voice-controls";
 import { GameLogo } from "../components/game-logo";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
@@ -34,6 +34,7 @@ export function OnlineScreen() {
     <main className="lobby online">
       <div className="lobby__corner">
         <AudioToggles />
+        <VoiceMicButton />
       </div>
 
       <section className="lobby__hero">
