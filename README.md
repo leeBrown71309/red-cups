@@ -110,6 +110,11 @@ limitée à deux projets par compte.
   les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte
   décrit ses cases et routes dans `src/game/maps/`, sa mise en scène dans `src/scene/map-layouts.ts` et ses couleurs
   dans `src/theme/map-themes.ts`.
+- **Banquise** (troisième carte) : neige, lac gelé brillant, sapins enneigés, bonhommes de neige, igloo, pingouins qui
+  se dandinent, flocons et aurore boréale. Les cases de glace ont un reflet et un liseré givré ; les pions y glissent
+  sans sauter. L’Enfer est une crevasse hérissée d’éclats de glace.
+- **Musique par carte** : boucle cosy pour le coffre à jouets, valse de fête foraine pour Luna Park, boîte à musique
+  en 6/8 pour Banquise ; chacune a sa version tendue en Enfer.
 - **Personnages** : petits blobs chibi aux grands yeux, une couleur et un accessoire par siège (chapeau de fête, pousse,
   nœud, antenne, cornes, oreilles de chat, bonnet, auréole) pour rester reconnaissables même sans les couleurs.
 - **Interface** : papier crème, contours encre prune épais, boutons « bonbon » qui s’enfoncent, typographies Fredoka

@@ -16,6 +16,8 @@ export interface Board {
   /** Every tile a player can stand on or be sent to, i.e. all but Hell. */
   normalNodeIds: NodeId[];
   carouselReversed: boolean;
+  /** Banquise: `"from>ice"` → the tile a walk slides on to after reaching `ice` from `from`. */
+  slides: Map<string, NodeId>;
 }
 
 const boardCache = new Map<string, Board>();
@@ -35,9 +37,72 @@ export function resolveBoard(mapId: MapId, carouselReversed = false): Board {
     edges,
     normalNodeIds: map.nodes.filter((node) => node.id !== HELL_NODE_ID).map((node) => node.id),
     carouselReversed,
+    slides: new Map(),
   };
+  board.slides = computeSlides(board);
   boardCache.set(key, board);
   return board;
+}
+
+/** A slide only carries on along a road that goes on (almost) straight ahead. */
+const SLIDE_MAX_ANGLE = (25 * Math.PI) / 180;
+
+function angleBetween(ax: number, az: number, bx: number, bz: number): number {
+  const lengths = Math.hypot(ax, az) * Math.hypot(bx, bz) || 1;
+  return Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / lengths)));
+}
+
+/**
+ * Where each arrival on ice slides on to, read from the map's geometry:
+ * the road leaving the ice tile in the direction the player came in. No such
+ * road (arriving from the side of a lake, for instance) means no slide.
+ */
+function computeSlides(board: Board): Map<string, NodeId> {
+  const slides = new Map<string, NodeId>();
+  for (const ice of board.nodes.filter((node) => node.ice)) {
+    const exits = getNeighbors(board, ice.id, true)
+      .map((nodeId) => getBoardNode(board, nodeId))
+      .filter((node): node is BoardNode => node !== undefined);
+    for (const origin of board.nodes) {
+      if (!getNeighbors(board, origin.id, true).includes(ice.id)) continue;
+      const straight = exits.find(
+        (exit) =>
+          exit.id !== origin.id &&
+          angleBetween(ice.x - origin.x, ice.z - origin.z, exit.x - ice.x, exit.z - ice.z) < SLIDE_MAX_ANGLE,
+      );
+      if (straight) slides.set(`${origin.id}>${ice.id}`, straight.id);
+    }
+  }
+  return slides;
+}
+
+export function hasIce(board: Board): boolean {
+  return board.nodes.some((node) => node.ice);
+}
+
+/**
+ * Banquise: a walk that ends on ice keeps going straight ahead, tile after
+ * tile, until it reaches a tile that is not ice or has nothing straight
+ * ahead. Only the end of a walk slides: the Botte's middle tile does not.
+ */
+export function extendWithSlide(board: Board, fromNodeId: NodeId, path: NodeId[]): NodeId[] {
+  if (path.length === 0 || board.slides.size === 0) return path;
+  const extended = [...path];
+  let previous = path.length >= 2 ? path[path.length - 2] : fromNodeId;
+  let current = path[path.length - 1];
+  for (;;) {
+    const next = board.slides.get(`${previous}>${current}`);
+    if (next === undefined || extended.includes(next)) break;
+    extended.push(next);
+    previous = current;
+    current = next;
+  }
+  return extended;
+}
+
+/** True when `next` was reached by sliding off the ice tile `current`, entered from `previous`. */
+export function isSlideStep(board: Board, previous: NodeId, current: NodeId, next: NodeId): boolean {
+  return board.slides.get(`${previous}>${current}`) === next;
 }
 
 export function getBoard(state: Pick<GameState, "mapId" | "carouselReversed">): Board {

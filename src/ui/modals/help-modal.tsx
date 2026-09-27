@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { getStartBonusNodeIds, hasCarousel, resolveBoard } from "../../game/board";
+import { getStartBonusNodeIds, hasCarousel, hasIce, resolveBoard } from "../../game/board";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
@@ -27,6 +27,7 @@ const ROAD_SWATCH_CLASSES: Record<RoadLegendEntry["style"], string> = {
   road: "legend-road",
   tunnel: "legend-road legend-road--tunnel",
   carousel: "legend-road legend-road--carousel",
+  ice: "legend-road legend-road--ice",
 };
 
 /** The rules of a turn; the start bonus and the carousel depend on the board. */
@@ -55,6 +56,12 @@ function getTurnSteps(mapId: MapId): string[] {
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
     "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
   ];
+  if (hasIce(board)) {
+    steps.push(
+      `${board.map.name} : si ton déplacement s’arrête sur la glace, tu glisses tout droit jusqu’à une case ` +
+        "sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
+    );
+  }
   if (hasCarousel(board)) {
     steps.push(
       `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
@@ -123,7 +130,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               {shownMap.roadLegend.map((entry) => (
                 <li key={entry.title}>
                   <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
-                    {entry.style === "road" ? "" : "›››"}
+                    {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
                   </span>
                   <span>
                     <strong>{entry.title}</strong>

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { earnsStartBonus, getNeighbors, getShortestPath, resolveBoard, type Board } from "../board";
+import { earnsStartBonus, extendWithSlide, getNeighbors, getShortestPath, resolveBoard, type Board } from "../board";
+import { getUniqueLegalDestinations } from "../rules";
 import { migrateGameSave, pickGameState } from "../game-save";
 import { useGameStore } from "../store";
 import type { MapId, PassiveId, Player } from "../types";
@@ -107,6 +108,72 @@ describe("Luna Park board", () => {
   });
 });
 
+describe("Banquise board", () => {
+  const board = resolveBoard("banquise");
+  const EXITS: Record<number, number[]> = {
+    0: [1, 4],
+    1: [0, 3, 5],
+    2: [0],
+    3: [1, 4, 6, 8],
+    4: [0, 3, 7],
+    5: [1, 6],
+    6: [3, 5, 13],
+    7: [2, 4, 8, 10],
+    8: [3, 7, 9, 13],
+    9: [8, 10],
+    10: [7, 9, 12],
+    12: [2, 10],
+    13: [6, 8],
+  };
+
+  it.each(Object.entries(EXITS))("leaves tile %s towards %j", (id, exits) => {
+    expect(sorted(getNeighbors(board, Number(id)))).toEqual(exits);
+  });
+
+  it("slides across the whole lake from one bank to the other", () => {
+    expect(extendWithSlide(board, 6, [3])).toEqual([3, 4, 7, 10]);
+    expect(extendWithSlide(board, 10, [7])).toEqual([7, 4, 3, 6]);
+  });
+
+  it("slides out of the middle of the lake to the bank ahead", () => {
+    expect(extendWithSlide(board, 4, [3])).toEqual([3, 6]);
+    expect(extendWithSlide(board, 4, [7])).toEqual([7, 10]);
+  });
+
+  it("stops on the ice when arriving from the front or from the back shop", () => {
+    expect(extendWithSlide(board, 0, [4])).toEqual([4]);
+    expect(extendWithSlide(board, 1, [3])).toEqual([3]);
+    expect(extendWithSlide(board, 8, [7])).toEqual([7]);
+  });
+
+  it("never slides off the Botte's middle tile, only off its last one", () => {
+    expect(extendWithSlide(board, 5, [6, 3])).toEqual([6, 3, 4, 7, 10]);
+    expect(extendWithSlide(board, 0, [4, 3])).toEqual([4, 3, 6]);
+  });
+
+  it("offers the tile where the slide ends as the destination", () => {
+    const player = {
+      id: "p1",
+      name: "Ada",
+      color: "#f16a53" as const,
+      position: 6,
+      currency: 2_000,
+      inventory: [],
+      passiveId: "penta" as const,
+      skippedTurns: 0,
+      noThanksReadyRound: 1,
+      hellTurns: 0,
+    };
+    expect(sorted(getUniqueLegalDestinations(board, player))).toEqual([5, 10, 13]);
+  });
+
+  it("pays the start bonus only through 2 → 0", () => {
+    expect(earnsStartBonus(board, 2, [0])).toBe(true);
+    expect(earnsStartBonus(board, 1, [0])).toBe(false);
+    expect(earnsStartBonus(board, 4, [0])).toBe(false);
+  });
+});
+
 describe("map choice", () => {
   it("keeps a picked map and draws a random one from the list", () => {
     expect(resolveMapChoice("luna-park")).toBe("luna-park");
@@ -176,6 +243,15 @@ describe("a game at Luna Park", () => {
 
     expect(store().redCupCycle).toBe(1);
     expect(store().carouselReversed).toBe(false);
+  });
+
+  it("slides a walk across the lake at Banquise and records the whole slide", () => {
+    startTable("banquise", ["built-like-a-tank", "troll"]);
+    editPlayer(0, { position: 6 });
+    store().movePlayer(10);
+
+    expect(store().players[0].position).toBe(10);
+    expect(store().lastMovement).toEqual(expect.objectContaining({ from: 6, path: [3, 4, 7, 10] }));
   });
 
   it("restores a save from before the map choice on the classic board", () => {

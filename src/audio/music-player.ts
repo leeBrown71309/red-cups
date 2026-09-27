@@ -120,9 +120,57 @@ const NIGHT_FAIR_MOODS: Record<MusicMood, MoodDefinition> = {
   },
 };
 
+/**
+ * Far north: a slow music box in 6/8, glassy high notes over a soft pad, like
+ * wind chimes on the ice. In Hell or a duel the chimes turn cold and sparse.
+ */
+const POLAR_MOODS: Record<MusicMood, MoodDefinition> = {
+  calm: {
+    tempo: 84,
+    stepsPerBar: 12,
+    chords: [
+      [52, 55, 59, 64],
+      [48, 52, 55, 60],
+      [55, 59, 62, 67],
+      [50, 54, 57, 62],
+    ],
+    bass: [40, 36, 43, 38],
+    bassSteps: [0, 6],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [],
+    hatSteps: [],
+    melodySteps: [0, 2, 3, 6, 8, 9],
+    melodyWave: "sine",
+    melodyLength: 0.45,
+    padFilter: 1_100,
+  },
+  tense: {
+    tempo: 66,
+    stepsPerBar: 12,
+    chords: [
+      [52, 55, 58],
+      [51, 54, 57],
+      [50, 53, 56],
+      [51, 54, 57],
+    ],
+    bass: [40, 39, 38, 39],
+    bassSteps: [0],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [0],
+    hatSteps: [],
+    melodySteps: [0, 9],
+    melodyWave: "sine",
+    melodyLength: 0.8,
+    padFilter: 650,
+  },
+};
+
 const SOUNDTRACKS: Record<MapThemeId, Record<MusicMood, MoodDefinition>> = {
   "toy-box": TOY_BOX_MOODS,
   "night-fair": NIGHT_FAIR_MOODS,
+  polar: POLAR_MOODS,
 };
 
 const LOOKAHEAD_SECONDS = 0.14;

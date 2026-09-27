@@ -185,6 +185,17 @@ export function BoardMap({ mapId, carouselReversed = false, highlightNodeId }: B
             {highlighted && (
               <circle cx={center.x} cy={center.y} r={TILE_RADIUS + 8} fill="none" stroke="#ffffff" strokeWidth="4" />
             )}
+            {node.ice && (
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={TILE_RADIUS + 6}
+                fill="#dff6ff"
+                stroke="#7fc8ee"
+                strokeWidth="2.5"
+                strokeDasharray="4 3"
+              />
+            )}
             {theme.neonTiles && (
               <circle
                 cx={center.x}

@@ -1,4 +1,4 @@
-import { earnsStartBonus, getBoard, getNeighbors, hasCarousel } from "../board";
+import { earnsStartBonus, extendWithSlide, getBoard, getNeighbors, hasCarousel } from "../board";
 import { ITEM_ORDER } from "../catalog";
 import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -203,8 +203,16 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   if (movement.from !== mover.position) {
     found.push(violation("move-from-position", `${mover.name} left ${movement.from} but stood on ${mover.position}`));
   }
-  if (movement.path.length !== previous.moveDistance) {
+  // The walk itself is exactly the move's distance; anything after it must be a slide on ice.
+  const walked = movement.path.slice(0, previous.moveDistance);
+  if (walked.length !== previous.moveDistance) {
     found.push(violation("move-distance", `${mover.name} walked ${movement.path.length} tiles`));
+  }
+  const expectedPath = extendWithSlide(getBoard(previous), movement.from, walked);
+  if (expectedPath.join(",") !== movement.path.join(",")) {
+    found.push(
+      violation("ice-slide", `${mover.name} went ${movement.path.join(" → ")}, not ${expectedPath.join(" → ")}`),
+    );
   }
 
   const rebel = logs.some((text) => text.includes("Délinquant"));
@@ -253,6 +261,8 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   const wheel = previous.pendingWheel;
   if (!wheel || next.pendingWheel?.id === wheel.id || previous.turnStage !== "wheel-result") return;
   if (newLogTexts(previous, next).some((text) => text.includes("Gomme"))) return;
+  // The last wheel of a Tour de Bénédiction can open the next round, where Bullet Bill may strike too.
+  if (next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;
 
   const before = findPlayer(previous, wheel.playerId);
   const after = findPlayer(next, wheel.playerId);

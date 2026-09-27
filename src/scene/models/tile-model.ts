@@ -62,6 +62,28 @@ export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyl
   lift.add(top);
   addOutline(base, kit, 1.035);
 
+  if (node.ice) {
+    // A glassy cap and a frosty rim: this tile makes pawns slide.
+    const cap = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius * 0.94, radius * 0.98, 0.06, SEGMENTS),
+      new THREE.MeshStandardMaterial({
+        color: "#dff6ff",
+        transparent: true,
+        opacity: 0.45,
+        roughness: 0.08,
+        metalness: 0.2,
+        flatShading: true,
+        depthWrite: false,
+      }),
+    );
+    cap.position.y = TILE_HEIGHT + 0.005;
+    lift.add(cap);
+    const frost = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.05, 0.07, 4, SEGMENTS * 3), kit.unlit("#bfe9ff"));
+    frost.rotation.x = Math.PI / 2;
+    frost.position.y = TILE_HEIGHT * 0.72;
+    lift.add(frost);
+  }
+
   if (style.neon) {
     const glowEdge = new THREE.Mesh(
       new THREE.TorusGeometry(radius * 1.04, 0.055, 4, SEGMENTS * 3),

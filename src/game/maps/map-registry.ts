@@ -1,4 +1,5 @@
 import type { MapId } from "../types";
+import { BANQUISE_MAP } from "./banquise-map";
 import { CLASSIC_MAP } from "./classic-map";
 import { LUNA_PARK_MAP } from "./luna-park-map";
 import type { BoardMap } from "./map-types";
@@ -6,11 +7,12 @@ import type { BoardMap } from "./map-types";
 export const DEFAULT_MAP_ID: MapId = "classic";
 
 /** Maps in the order the picker shows them. */
-export const MAP_ORDER: MapId[] = ["classic", "luna-park"];
+export const MAP_ORDER: MapId[] = ["classic", "luna-park", "banquise"];
 
 const MAPS: Record<MapId, BoardMap> = {
   classic: CLASSIC_MAP,
   "luna-park": LUNA_PARK_MAP,
+  banquise: BANQUISE_MAP,
 };
 
 /** What the lobby lets the host pick: one map, or a draw at kickoff. */

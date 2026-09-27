@@ -62,6 +62,12 @@ export const soundEffects = {
     audioEngine.noise({ duration: 0.05, gain: 0.05, filterType: "lowpass", filterFrequency: 900 });
   },
 
+  /** Banquise: a pawn skids on across the ice. */
+  iceSlide(): void {
+    audioEngine.noise({ duration: 0.34, gain: 0.07, filterFrequency: 5_500, filterFrequencyEnd: 2_200, q: 1.5 });
+    audioEngine.tone({ type: "sine", frequency: 1_900, frequencyEnd: 1_300, duration: 0.3, gain: 0.03 });
+  },
+
   tunnel(): void {
     audioEngine.tone({ type: "sine", frequency: 300, frequencyEnd: 1400, duration: 0.3, gain: 0.12 });
     audioEngine.noise({ duration: 0.35, gain: 0.08, filterFrequency: 600, filterFrequencyEnd: 4_000, q: 3 });

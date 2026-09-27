@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { findEdge } from "../game/board";
+import { findEdge, isSlideStep } from "../game/board";
 import type { NodeId, PlayerColor, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { emitFeedback } from "../feedback/event-bus";
@@ -21,6 +21,7 @@ export interface PawnInput {
 type PawnAction =
   | { type: "hop"; to: THREE.Vector3; duration: number }
   | { type: "slide"; to: THREE.Vector3; duration: number }
+  | { type: "glide"; to: THREE.Vector3; duration: number }
   | { type: "vanish"; duration: number }
   | { type: "appear"; at: THREE.Vector3; duration: number }
   | { type: "tumble"; duration: number };
@@ -155,6 +156,14 @@ export class PawnController {
       const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
       const edge = findEdge(this.layout.board, previous, nodeId);
 
+      // Banquise: past the ice the pawn glides on without hopping.
+      const cameFrom = index >= 2 ? path[index - 2] : from;
+      if (index >= 1 && isSlideStep(this.layout.board, cameFrom, previous, nodeId)) {
+        pawn.actions.push({ type: "glide", to: target, duration: HOP_MS });
+        previous = nodeId;
+        return;
+      }
+
       if (edge?.kind === "tunnel") {
         const tunnel = this.layout.getTunnelLayout(edge);
         pawn.actions.push(
@@ -187,6 +196,7 @@ export class PawnController {
       if (action.type === "appear") root.position.copy(action.at);
       pawn.actionStart.copy(root.position);
       if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
+      if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
     }
     pawn.actionElapsed += deltaMs;
     const progress = Math.min(1, pawn.actionElapsed / action.duration);
@@ -204,6 +214,14 @@ export class PawnController {
       case "slide":
         root.position.lerpVectors(pawn.actionStart, action.to, easeInOutCubic(progress));
         break;
+      case "glide": {
+        // Steady speed and a lean backwards, like skidding on ice.
+        root.position.lerpVectors(pawn.actionStart, action.to, progress);
+        const direction = action.to.clone().sub(pawn.actionStart);
+        if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
+        body.rotation.x = -0.25 * Math.sin(progress * Math.PI);
+        break;
+      }
       case "vanish": {
         const scale = 1 - progress;
         body.scale.setScalar(Math.max(0.001, scale));
@@ -227,6 +245,7 @@ export class PawnController {
       pawn.actionElapsed = 0;
       body.rotation.y = 0;
       body.rotation.z = 0;
+      body.rotation.x = 0;
       if (action.type === "tumble") root.position.y = pawn.actionStart.y;
       if (action.type === "hop") {
         root.position.copy(action.to);

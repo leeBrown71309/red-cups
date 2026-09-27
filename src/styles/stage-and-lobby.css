@@ -547,6 +547,15 @@
     radial-gradient(130% 90% at 50% 0%, #2a2f6b 0%, #1b1f3b 55%, #0d1024 100%);
 }
 
+/* Far north behind the 3D board: a twilight sky with an aurora. */
+.board-stage[data-map-theme="polar"] {
+  background:
+    radial-gradient(60% 22% at 30% 12%, rgba(125, 255, 178, 0.45), transparent 70%),
+    radial-gradient(45% 18% at 68% 8%, rgba(120, 220, 255, 0.4), transparent 70%),
+    radial-gradient(35% 14% at 52% 20%, rgba(200, 150, 255, 0.3), transparent 70%),
+    linear-gradient(180deg, #243b6b 0%, #4f78a8 45%, #b8d4ec 100%);
+}
+
 .board-stage[data-map-theme="night-fair"] .board-stage__message {
   color: var(--white);
 }

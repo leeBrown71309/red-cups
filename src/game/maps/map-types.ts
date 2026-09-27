@@ -1,7 +1,7 @@
 import type { BoardEdge, BoardNode, MapId, NodeId } from "../types";
 
 /** Art direction of a map: the scene, the flat plan and the lobby card all follow it. */
-export type MapThemeId = "toy-box" | "night-fair";
+export type MapThemeId = "toy-box" | "night-fair" | "polar";
 
 /**
  * How a tunnel is drawn. The classic tunnel leaves through one side of the
@@ -12,7 +12,7 @@ export type TunnelStyle = "wrap-around" | "portals";
 
 /** One line of the road legend in the How to play screen. */
 export interface RoadLegendEntry {
-  style: "arrow" | "road" | "tunnel" | "carousel";
+  style: "arrow" | "road" | "tunnel" | "carousel" | "ice";
   title: string;
   description: string;
 }

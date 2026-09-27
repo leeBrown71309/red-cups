@@ -799,6 +799,12 @@
   color: #1592c0;
 }
 
+.legend-road--ice {
+  background: #cfefff;
+  color: #2d78c7;
+  letter-spacing: 0;
+}
+
 .legend-road--carousel {
   background: #ff9fcd;
   color: #ffffff;

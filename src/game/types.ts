@@ -36,7 +36,7 @@ export const PLAYER_COLORS = [
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 export type NodeId = number;
 export type PlayerId = string;
-export type MapId = "classic" | "luna-park";
+export type MapId = "classic" | "luna-park" | "banquise";
 
 export type ItemId =
   | "ndoye"
@@ -91,6 +91,8 @@ export interface BoardNode {
   z: number;
   kind: "start" | "shop" | "red" | "green" | "neutral" | "hell";
   label: string;
+  /** Banquise: a walk that ends on ice slides on, straight ahead, to the next tile. */
+  ice?: boolean;
 }
 
 export interface BoardEdge {

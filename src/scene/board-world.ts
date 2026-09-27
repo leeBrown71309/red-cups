@@ -2,6 +2,7 @@ import * as THREE from "three";
 import type { BoardEdge, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
+import type { MapThemeId } from "../game/maps/map-types";
 import { getSceneTheme, type SceneTheme } from "../theme/map-themes";
 import { SCENE_COLORS } from "../theme/palette";
 import { BoardLayout } from "./board-layout";
@@ -11,6 +12,8 @@ import { EffectsLayer } from "./effects-layer";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
+import { createIceCrevasse } from "./models/polar-landmarks-model";
+import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
 import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-model";
@@ -41,6 +44,12 @@ export interface BoardView {
 export interface BoardWorldCallbacks {
   onTileSelect: (nodeId: NodeId, pointerType: string) => void;
 }
+
+/** Awning colour of the shop booths; the toy box keeps the shop blue. */
+const STALL_AWNINGS: Partial<Record<MapThemeId, string>> = {
+  "night-fair": "#ff4fa3",
+  polar: "#35c6f4",
+};
 
 const TAP_DISTANCE_PX = 9;
 const TAP_DURATION_MS = 650;
@@ -226,23 +235,47 @@ export class BoardWorld {
     this.scene.add(ground);
   }
 
+  /** Tray, decorations and Hell follow the map's art direction. */
+  private buildSurroundings(): void {
+    const { layout } = this;
+    switch (layout.map.themeId) {
+      case "night-fair":
+        this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
+        this.addAnimated(createNightFairScenery(this.kit, layout));
+        return;
+      case "polar":
+        this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
+        this.addAnimated(createPolarScenery(this.kit, layout));
+        return;
+      default:
+        this.scene.add(createTray(this.kit, layout, TOY_BOX_TRAY));
+        this.scene.add(createScenery(this.kit, layout));
+        if (layout.config.pond) this.addAnimated(createPond(this.kit, layout.config.pond));
+    }
+  }
+
+  private createHell(): AnimatedProp {
+    switch (this.layout.map.themeId) {
+      case "night-fair": {
+        const carousel = createCarouselHell(this.kit);
+        this.carouselHell = carousel;
+        return carousel;
+      }
+      case "polar":
+        return createIceCrevasse(this.kit);
+      default:
+        return createHellPit(this.kit);
+    }
+  }
+
   private buildBoard(): void {
     const { layout } = this;
-    const nightFair = layout.map.themeId === "night-fair";
-
-    this.scene.add(createTray(this.kit, layout, nightFair ? NIGHT_FAIR_TRAY : TOY_BOX_TRAY));
-    if (nightFair) {
-      this.addAnimated(createNightFairScenery(this.kit, layout));
-    } else {
-      this.scene.add(createScenery(this.kit, layout));
-      if (layout.config.pond) this.addAnimated(createPond(this.kit, layout.config.pond));
-    }
+    this.buildSurroundings();
 
     for (const node of layout.board.nodes) {
       // Hell is never a walkable destination, so it gets a landmark instead of a tile.
       if (node.id === HELL_NODE_ID) {
-        const hell = nightFair ? createCarouselHell(this.kit) : createHellPit(this.kit);
-        if (nightFair) this.carouselHell = hell as CarouselHell;
+        const hell = this.createHell();
         hell.group.position.set(node.x, 0, node.z);
         this.addAnimated(hell);
         continue;
@@ -254,7 +287,7 @@ export class BoardWorld {
 
       const stallPlacement = layout.config.shopStalls[node.id];
       if (node.kind === "shop" && stallPlacement) {
-        const stall = createShopStall(this.kit, nightFair ? "#ff4fa3" : undefined);
+        const stall = createShopStall(this.kit, STALL_AWNINGS[layout.map.themeId]);
         stall.position.set(node.x + stallPlacement.x, 0, node.z + stallPlacement.z);
         stall.rotation.y = stallPlacement.rotation;
         this.scene.add(stall);

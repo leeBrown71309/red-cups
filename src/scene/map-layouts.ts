@@ -25,6 +25,8 @@ export interface MapLayoutConfig {
   hellFloorY: number;
   /** How far beside its tile a ghost-train portal stands, away from the board centre. */
   portalReach: number;
+  /** Areas decorations keep off, e.g. the frozen lake, as centre and half sizes. */
+  clearZones: { x: number; z: number; halfWidth: number; halfDepth: number }[];
 }
 
 const CLASSIC_LAYOUT: MapLayoutConfig = {
@@ -40,6 +42,7 @@ const CLASSIC_LAYOUT: MapLayoutConfig = {
   hellClearance: 2.4,
   hellFloorY: 0.14,
   portalReach: 0,
+  clearZones: [],
 };
 
 const LUNA_PARK_LAYOUT: MapLayoutConfig = {
@@ -56,11 +59,32 @@ const LUNA_PARK_LAYOUT: MapLayoutConfig = {
   hellClearance: 1.9,
   hellFloorY: 0.36,
   portalReach: 2.1,
+  clearZones: [],
+};
+
+/** The frozen lake spans the ice row, bank to bank; the crevasse of Hell bites into its back edge. */
+export const BANQUISE_LAKE = { x: 0, z: 0.6, halfWidth: 7.7, halfDepth: 2.3 };
+
+const BANQUISE_LAYOUT: MapLayoutConfig = {
+  groundWidth: 24.4,
+  groundDepth: 17.4,
+  shopStalls: {
+    5: { x: -1.75, z: 1.35, rotation: -0.55 },
+    8: { x: 0, z: -1.8, rotation: 0 },
+    12: { x: 1.75, z: 1.35, rotation: 0.55 },
+  },
+  startFlagOffset: { x: -1.05, z: 1 },
+  pond: null,
+  hellClearance: 1.9,
+  hellFloorY: 0.12,
+  portalReach: 0,
+  clearZones: [BANQUISE_LAKE],
 };
 
 const LAYOUTS: Record<MapId, MapLayoutConfig> = {
   classic: CLASSIC_LAYOUT,
   "luna-park": LUNA_PARK_LAYOUT,
+  banquise: BANQUISE_LAYOUT,
 };
 
 export function getMapLayoutConfig(mapId: MapId): MapLayoutConfig {

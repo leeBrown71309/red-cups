@@ -94,6 +94,31 @@ export const MAP_THEMES: Record<MapThemeId, SceneTheme> = {
     neonTiles: true,
     plan: { ground: "#23284f", border: "#3a3f73", road: "#8a90c8", ink: "#0d1024", label: "#ffffff" },
   },
+  /** Banquise: low arctic sun on snow, cool shadows. */
+  polar: {
+    lights: {
+      sky: "#e3f3ff",
+      ground: "#8ea9c9",
+      ambient: 1.35,
+      sun: "#ffe9cf",
+      sunIntensity: 2.2,
+      sunPosition: [-14, 15, 11],
+      fill: "#b9d8ff",
+      fillIntensity: 0.6,
+      shadow: "#34507a",
+      shadowOpacity: 0.26,
+    },
+    roads: {
+      stone: "#8ea9c9",
+      tunnelStone: "#b7c4d8",
+      carouselStone: "#8ea9c9",
+      arrow: "#ff8f3f",
+      tunnel: "#7fe3ff",
+      carousel: "#ff4fa3",
+    },
+    neonTiles: false,
+    plan: { ground: "#e8f1fb", border: "#9fb4cf", road: "#8ea9c9", ink: "#1f2d45", label: "#ffffff" },
+  },
 };
 
 export function getSceneTheme(themeId: MapThemeId): SceneTheme {
