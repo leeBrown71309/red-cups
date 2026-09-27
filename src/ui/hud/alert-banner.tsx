@@ -24,7 +24,11 @@ export function AlertBannerView() {
     <div className="alert-banner-layer" aria-live="assertive">
       <div key={alert.key} className={`alert-banner alert-banner--${alert.tone}`}>
         <span className="alert-banner__icon" aria-hidden="true">
-          {alert.tone === "danger" ? <ItemIcon itemId="bullet-bill" size={46} /> : <UiIcon name="sparkle" size={34} />}
+          {alert.tone === "danger" ? (
+            <ItemIcon itemId="bullet-bill" size={46} />
+          ) : (
+            <UiIcon name={alert.tone === "blizzard" ? "flag" : "sparkle"} size={34} />
+          )}
         </span>
         <span className="alert-banner__text">
           <span className="alert-banner__eyebrow">{alert.eyebrow}</span>

@@ -1,8 +1,8 @@
-import { earnsStartBonus, extendWithSlide, getBoard, getNeighbors, hasCarousel } from "../board";
+import { earnsStartBonus, getBoard, getNeighbors, hasCarousel, isIce } from "../board";
 import { ITEM_ORDER } from "../catalog";
 import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
-import type { GameState, ItemId, Player, PlayerId, TurnStage } from "../types";
+import type { GameState, ItemId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
   CURRENCY_RESET_THRESHOLD,
   FIRST_ROUND,
@@ -114,7 +114,9 @@ export function checkState(state: GameState): RuleViolation[] {
     if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > HELL_TURN_LIMIT)) {
       found.push(violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${HELL_TURN_LIMIT}`));
     }
-    if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken) {
+    // A skip drawn while breaking free of Banquise's ice, at the start of the turn, is for the next one.
+    const thawedNow = state.lastMovement?.thawed === true && state.lastMovement.playerId === active.id;
+    if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken && !thawedNow) {
       found.push(violation("skipped-player-plays", `${active.name} plays despite a skipped turn`));
     }
     if (state.turnStage === "blessing" && state.blessingQueue.length === 0) {
@@ -171,6 +173,13 @@ export function checkState(state: GameState): RuleViolation[] {
   if (state.bootPrice < 100 || state.bootPrice > 500 || state.bootPrice % 50 !== 0) {
     found.push(violation("boot-price", `boot costs ${state.bootPrice}`));
   }
+  const board = getBoard(state);
+  if (state.redCupNodeId !== null && isIce(board, state.redCupNodeId)) {
+    found.push(violation("cup-on-ice", `the Red Cup lies on the ice of tile ${state.redCupNodeId}`));
+  }
+  if (state.iceTileNodeId !== null && board.map.nodes.find((node) => node.id === state.iceTileNodeId)?.ice) {
+    found.push(violation("blizzard-tile", `the blizzard froze tile ${state.iceTileNodeId}, already ice`));
+  }
   if (state.mudTraps.some((trap) => !getBoard(state).normalNodeIds.includes(trap.nodeId))) {
     found.push(violation("mud-tile", "mud lies outside the walkable tiles"));
   }
@@ -203,17 +212,16 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   if (movement.from !== mover.position) {
     found.push(violation("move-from-position", `${mover.name} left ${movement.from} but stood on ${mover.position}`));
   }
-  // The walk itself is exactly the move's distance; anything after it must be a slide on ice.
-  const walked = movement.path.slice(0, previous.moveDistance);
-  if (walked.length !== previous.moveDistance) {
-    found.push(violation("move-distance", `${mover.name} walked ${movement.path.length} tiles`));
+  if (movement.thawed) {
+    checkThaw(previous, movement, found);
+    return;
   }
-  const expectedPath = extendWithSlide(getBoard(previous), movement.from, walked);
-  if (expectedPath.join(",") !== movement.path.join(",")) {
-    found.push(
-      violation("ice-slide", `${mover.name} went ${movement.path.join(" → ")}, not ${expectedPath.join(" → ")}`),
-    );
+  // The walk itself is exactly the move's distance; anything after it was slid on ice.
+  const walkedLength = movement.slideStart ?? movement.path.length;
+  if (walkedLength !== previous.moveDistance) {
+    found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
   }
+  checkSlide(previous, next, movement, found);
 
   const rebel = logs.some((text) => text.includes("Délinquant"));
   if (rebel && previous.round <= FIRST_ROUND && movement.from === START_NODE_ID) {
@@ -244,7 +252,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     found.push(violation("start-bonus-undue", `${mover.name} got the start bonus without earning it`));
   }
 
-  const interrupted = ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
+  const interrupted =
+    movement.interruptedTo !== undefined ||
+    ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
     const expected: TurnStage = isShopNode(board, destination)
       ? "shop"
@@ -254,6 +264,41 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     if (next.turnStage !== expected) {
       found.push(violation("arrival-stage", `landing on ${destination} led to ${next.turnStage}, not ${expected}`));
     }
+  }
+}
+
+/** Banquise: every slid step leaves an ice tile by a real road, never back where it came from. */
+function checkSlide(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const board = getBoard(previous);
+  const start = movement.slideStart ?? movement.path.length;
+  const tiles = [movement.from, ...movement.path];
+  for (let index = start; index < movement.path.length; index += 1) {
+    const iceTile = tiles[index];
+    const cameFrom = tiles[index - 1];
+    const step = movement.path[index];
+    if (!isIce(board, iceTile) || step === cameFrom || !getNeighbors(board, iceTile).includes(step)) {
+      found.push(violation("ice-slide", `slid ${iceTile} → ${step} after coming from ${cameFrom}`));
+    }
+  }
+
+  const to = movement.interruptedTo;
+  if (to === undefined) return;
+  const stuckOn = movement.path[movement.path.length - 1];
+  const frozen = next.frozenSlides.find((entry) => entry.playerId === movement.playerId);
+  if (!frozen || frozen.from !== stuckOn || frozen.to !== to) {
+    found.push(violation("ice-fall-frozen", `the slide towards ${to} was not put on hold`));
+  }
+  if (to !== previous.redCupNodeId || !next.lastIceFall?.hit) {
+    found.push(violation("ice-fall-cup", `ice fell on a slide towards ${to}, not the Red Cup`));
+  }
+  if (!isIce(board, stuckOn)) found.push(violation("ice-fall-on-ice", `stuck on tile ${stuckOn}, which is not ice`));
+}
+
+/** Banquise: breaking free finishes exactly the slide that was put on hold. */
+function checkThaw(previous: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const frozen = previous.frozenSlides.find((entry) => entry.playerId === movement.playerId);
+  if (!frozen || frozen.from !== movement.from || movement.path.join(",") !== String(frozen.to)) {
+    found.push(violation("ice-thaw", `thawed ${movement.from} → ${movement.path.join(" → ")} without a matching hold`));
   }
 }
 
@@ -328,6 +373,10 @@ function checkTileWheelSpin(
   // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
   const exempt = playersMovedWithoutArrival(previous, appliedItem);
+  // Caught by falling ice halfway down a road: nothing is reached until the next turn.
+  const movement = next.lastMovement;
+  if (movement?.interruptedTo !== undefined && movement.seq !== previous.lastMovement?.seq)
+    exempt.add(movement.playerId);
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
     if (!before || before.position === player.position || getTileWheel(getBoard(next), player.position) === null) {

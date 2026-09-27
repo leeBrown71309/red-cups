@@ -8,7 +8,7 @@ const TOAST_LIFETIME_MS = 4_200;
 
 /** Turn announcements get the splash, big table events the banner; plain moves are visible on the board. */
 const TOASTLESS_LOG =
-  /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens)|se déplace en case/;
+  /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens|Blizzard|La glace tombe)|se déplace en case/;
 
 function playerName(playerId: string | null): string {
   return useGameStore.getState().players.find((player) => player.id === playerId)?.name ?? "quelqu’un";
@@ -55,6 +55,30 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: "Tour de Bénédiction !",
         detail: "Chacun tourne la roue du bonheur, à tour de rôle.",
       };
+    case "blizzard":
+      return {
+        tone: "blizzard",
+        eyebrow: "Blizzard",
+        title: event.to === null ? "Le blizzard souffle…" : `La case ${event.to} devient glissante !`,
+        detail:
+          event.from === null
+            ? "Le vent glacé la couvre de glace : on y glisse au hasard."
+            : `La glace de la case ${event.from} fond. Prochain blizzard dans deux tours.`,
+      };
+    case "ice-fall":
+      return event.hit
+        ? {
+            tone: "blizzard",
+            eyebrow: "Tombée de glace",
+            title: `${playerName(event.playerId)} est pris dans la glace !`,
+            detail: `Bloqué sur la route de la case ${event.to}, il la rejoint à son prochain tour.`,
+          }
+        : {
+            tone: "blizzard",
+            eyebrow: "Tombée de glace",
+            title: "Raté de peu !",
+            detail: `La glace s’écrase à côté de ${playerName(event.playerId)}, qui file vers la case ${event.to}.`,
+          };
     case "carousel-flipped":
       return {
         tone: "carousel",

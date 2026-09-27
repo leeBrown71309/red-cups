@@ -32,5 +32,7 @@ export interface BoardMap {
   /** Carousel roads are listed in their starting direction. */
   edges: BoardEdge[];
   initialCupNodeId: NodeId;
+  /** Banquise: a blizzard moves the temporary ice tile at the start of every this many rounds. */
+  blizzardEveryRounds?: number;
   roadLegend: RoadLegendEntry[];
 }

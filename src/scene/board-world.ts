@@ -25,6 +25,8 @@ export interface BoardView {
   mode: CameraMode;
   /** Luna Park: which way the carousel turns right now. */
   carouselReversed: boolean;
+  /** Banquise: the blizzard's temporary ice tile. */
+  iceTileNodeId: NodeId | null;
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
@@ -52,6 +54,7 @@ const STALL_AWNINGS: Partial<Record<MapThemeId, string>> = {
 };
 
 const TAP_DISTANCE_PX = 9;
+const BLIZZARD_FOG_SECONDS = 2.6;
 const TAP_DURATION_MS = 650;
 
 /**
@@ -67,6 +70,8 @@ export class BoardWorld {
   private readonly theme: SceneTheme;
   private readonly rig: CameraRig;
   private carouselHell: CarouselHell | null = null;
+  /** Banquise: seconds of blizzard fog left, thickening then clearing. */
+  private blizzardFog = 0;
   private readonly tiles = new Map<NodeId, TileVisual>();
   private readonly roads: RoadNetwork;
   private readonly pawns: PawnController;
@@ -143,6 +148,9 @@ export class BoardWorld {
 
     this.rig.setMode(view.mode);
     this.roads.setCarouselReversed(view.carouselReversed);
+    for (const [nodeId, tile] of this.tiles) {
+      tile.setIce(this.layout.getNode(nodeId)?.ice === true || nodeId === view.iceTileNodeId);
+    }
     this.carouselHell?.setReversed(view.carouselReversed);
     this.pawns.sync(view.pawns, view.lastMovement);
     this.refreshHighlights();
@@ -390,6 +398,7 @@ export class BoardWorld {
     const elapsed = this.timer.getElapsed();
 
     this.rig.update(delta);
+    this.updateBlizzardFog(delta);
     this.roads.update(elapsed);
     this.pawns.update(elapsed, delta);
     this.effects.update(delta);
@@ -407,6 +416,20 @@ export class BoardWorld {
 
     this.renderer.render(this.scene, this.rig.camera);
   };
+
+  /** The blizzard's white-out: fog thickens over the board, then lifts as the gust passes. */
+  private updateBlizzardFog(delta: number): void {
+    if (this.blizzardFog <= 0) return;
+    this.blizzardFog = Math.max(0, this.blizzardFog - delta);
+    const progress = 1 - this.blizzardFog / BLIZZARD_FOG_SECONDS;
+    const density = Math.sin(progress * Math.PI) * 0.045;
+    if (this.blizzardFog === 0) {
+      this.scene.fog = null;
+      return;
+    }
+    if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density = density;
+    else this.scene.fog = new THREE.FogExp2("#eaf4ff", density);
+  }
 
   private resize(): void {
     const width = this.container.clientWidth;
@@ -496,6 +519,24 @@ export class BoardWorld {
         this.effects.spawnExplosion(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         this.rig.shakeFor(0.45, 650);
         this.pawns.knockOut(event.playerId);
+        return;
+      }
+      case "blizzard": {
+        this.effects.spawnBlizzard(this.layout.halfWidth, this.layout.halfDepth);
+        this.blizzardFog = BLIZZARD_FOG_SECONDS;
+        if (event.from !== null)
+          this.effects.spawnIceBurst(this.layout.getNodePosition(event.from).setY(TILE_HEIGHT), 10);
+        if (event.to !== null) this.effects.spawnIceBurst(this.layout.getNodePosition(event.to).setY(TILE_HEIGHT), 18);
+        return;
+      }
+      case "ice-fall": {
+        const halfway = this.layout.getNodePosition(event.from).lerp(this.layout.getNodePosition(event.to), 0.5);
+        this.effects.spawnIceFall(halfway.setY(0.05), event.hit);
+        return;
+      }
+      case "ice-shatter": {
+        const position = this.pawns.getPawnPosition(event.playerId);
+        if (position) this.effects.spawnIceBurst(position, 16);
         return;
       }
       case "carousel-flipped": {

@@ -5,9 +5,9 @@ import { HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /**
  * The graph a game is played on right now: the map's tiles and roads, with
- * the carousel (if any) already turned the way it currently goes. Every
- * movement rule reads this, never the raw map, so a flipped carousel needs no
- * special case anywhere else.
+ * the carousel (if any) already turned the way it currently goes and the
+ * blizzard's temporary ice laid on its tile. Every movement rule reads this,
+ * never the raw map, so neither needs a special case anywhere else.
  */
 export interface Board {
   map: BoardMap;
@@ -16,14 +16,14 @@ export interface Board {
   /** Every tile a player can stand on or be sent to, i.e. all but Hell. */
   normalNodeIds: NodeId[];
   carouselReversed: boolean;
-  /** Banquise: `"from>ice"` → the tile a walk slides on to after reaching `ice` from `from`. */
-  slides: Map<string, NodeId>;
+  /** Banquise: the blizzard's temporary ice tile, on top of the map's own ice. */
+  iceTileNodeId: NodeId | null;
 }
 
 const boardCache = new Map<string, Board>();
 
-export function resolveBoard(mapId: MapId, carouselReversed = false): Board {
-  const key = `${mapId}:${carouselReversed}`;
+export function resolveBoard(mapId: MapId, carouselReversed = false, iceTileNodeId: NodeId | null = null): Board {
+  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}`;
   const cached = boardCache.get(key);
   if (cached) return cached;
 
@@ -31,82 +31,52 @@ export function resolveBoard(mapId: MapId, carouselReversed = false): Board {
   const edges = map.edges.map((edge) =>
     carouselReversed && edge.kind === "carousel" ? { ...edge, from: edge.to, to: edge.from } : edge,
   );
+  const nodes = map.nodes.map((node) => (node.id === iceTileNodeId ? { ...node, ice: true } : node));
   const board: Board = {
     map,
-    nodes: map.nodes,
+    nodes,
     edges,
-    normalNodeIds: map.nodes.filter((node) => node.id !== HELL_NODE_ID).map((node) => node.id),
+    normalNodeIds: nodes.filter((node) => node.id !== HELL_NODE_ID).map((node) => node.id),
     carouselReversed,
-    slides: new Map(),
+    iceTileNodeId,
   };
-  board.slides = computeSlides(board);
   boardCache.set(key, board);
   return board;
 }
 
-/** A slide only carries on along a road that goes on (almost) straight ahead. */
-const SLIDE_MAX_ANGLE = (25 * Math.PI) / 180;
-
-function angleBetween(ax: number, az: number, bx: number, bz: number): number {
-  const lengths = Math.hypot(ax, az) * Math.hypot(bx, bz) || 1;
-  return Math.acos(Math.max(-1, Math.min(1, (ax * bx + az * bz) / lengths)));
-}
-
-/**
- * Where each arrival on ice slides on to, read from the map's geometry:
- * the road leaving the ice tile in the direction the player came in. No such
- * road (arriving from the side of a lake, for instance) means no slide.
- */
-function computeSlides(board: Board): Map<string, NodeId> {
-  const slides = new Map<string, NodeId>();
-  for (const ice of board.nodes.filter((node) => node.ice)) {
-    const exits = getNeighbors(board, ice.id, true)
-      .map((nodeId) => getBoardNode(board, nodeId))
-      .filter((node): node is BoardNode => node !== undefined);
-    for (const origin of board.nodes) {
-      if (!getNeighbors(board, origin.id, true).includes(ice.id)) continue;
-      const straight = exits.find(
-        (exit) =>
-          exit.id !== origin.id &&
-          angleBetween(ice.x - origin.x, ice.z - origin.z, exit.x - ice.x, exit.z - ice.z) < SLIDE_MAX_ANGLE,
-      );
-      if (straight) slides.set(`${origin.id}>${ice.id}`, straight.id);
-    }
-  }
-  return slides;
+export function getBoard(state: Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId">): Board {
+  return resolveBoard(state.mapId, state.carouselReversed, state.iceTileNodeId);
 }
 
 export function hasIce(board: Board): boolean {
   return board.nodes.some((node) => node.ice);
 }
 
+export function isIce(board: Board, nodeId: NodeId): boolean {
+  return getBoardNode(board, nodeId)?.ice === true;
+}
+
 /**
- * Banquise: a walk that ends on ice keeps going straight ahead, tile after
- * tile, until it reaches a tile that is not ice or has nothing straight
- * ahead. Only the end of a walk slides: the Botte's middle tile does not.
+ * Banquise: where a slide may carry on from an ice tile, read from the
+ * board's real roads (arrows and one-way roads included), never back the way
+ * the player came. One road left means a forced slide; several, a random one.
  */
-export function extendWithSlide(board: Board, fromNodeId: NodeId, path: NodeId[]): NodeId[] {
-  if (path.length === 0 || board.slides.size === 0) return path;
-  const extended = [...path];
-  let previous = path.length >= 2 ? path[path.length - 2] : fromNodeId;
-  let current = path[path.length - 1];
-  for (;;) {
-    const next = board.slides.get(`${previous}>${current}`);
-    if (next === undefined || extended.includes(next)) break;
-    extended.push(next);
-    previous = current;
-    current = next;
-  }
-  return extended;
+export function getSlideExits(board: Board, previousNodeId: NodeId, iceNodeId: NodeId): NodeId[] {
+  if (!isIce(board, iceNodeId)) return [];
+  return getNeighbors(board, iceNodeId).filter((nodeId) => nodeId !== previousNodeId);
 }
 
-/** True when `next` was reached by sliding off the ice tile `current`, entered from `previous`. */
-export function isSlideStep(board: Board, previous: NodeId, current: NodeId, next: NodeId): boolean {
-  return board.slides.get(`${previous}>${current}`) === next;
-}
-
-export function getBoard(state: Pick<GameState, "mapId" | "carouselReversed">): Board {
-  return resolveBoard(state.mapId, state.carouselReversed);
+/**
+ * Tiles a blizzard may freeze: any walkable tile that is not ice already,
+ * not excluded (the Red Cup's tile, the ice it replaces) and has at least two
+ * roads, so a player sliding onto it always has somewhere to go on to.
+ */
+export function getBlizzardCandidates(board: Board, excluded: (NodeId | null)[]): NodeId[] {
+  const permanentIce = new Set(board.map.nodes.filter((node) => node.ice).map((node) => node.id));
+  return board.normalNodeIds.filter(
+    (nodeId) =>
+      !permanentIce.has(nodeId) && !excluded.includes(nodeId) && getNeighbors(board, nodeId, true).length >= 2,
+  );
 }
 
 export function hasCarousel(board: Board): boolean {
@@ -157,11 +127,13 @@ export function getStartBonusNodeIds(board: Board): NodeId[] {
 /**
  * The 200 coins of the start reward completing the loop, so they are only paid
  * when a step enters the start along an arrow pointing at it (8 → 0 on the
- * classic board, 5 → 0 at Luna Park). Stepping back into it against its own
+ * classic board, 5 → 0 at Luna Park, 4 → 0 at Banquise). Stepping back into it against its own
  * arrows (4 → 0 on the classic board) would otherwise let a player farm the
  * bonus by bouncing 4 ↔ 0.
  */
 export function earnsStartBonus(board: Board, fromNodeId: NodeId, path: NodeId[]): boolean {
+  // Banquise: a start frozen by the blizzard pays nothing, the player just slides across it.
+  if (isIce(board, START_NODE_ID)) return false;
   let previous = fromNodeId;
   for (const nodeId of path) {
     const edge = findEdge(board, previous, nodeId);

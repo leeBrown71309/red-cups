@@ -31,7 +31,10 @@ export type FeedbackEvent =
   | { type: "log"; entry: GameLogEntry }
   | { type: "pawn-hop" }
   | { type: "pawn-tunnel" }
-  | { type: "pawn-slide" };
+  | { type: "pawn-slide" }
+  | { type: "ice-shatter"; playerId: PlayerId }
+  | { type: "ice-fall"; playerId: PlayerId; from: NodeId; to: NodeId; hit: boolean }
+  | { type: "blizzard"; from: NodeId | null; to: NodeId | null };
 
 type Listener = (event: FeedbackEvent) => void;
 

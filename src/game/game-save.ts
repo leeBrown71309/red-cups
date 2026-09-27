@@ -6,7 +6,7 @@ import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 7;
+export const GAME_SAVE_VERSION = 8;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -67,6 +67,7 @@ type SaveRecord = Record<string, unknown>;
  * merci cooldown, which replaces the once-per-Cup rule. Version 6 moved duels
  * into the engine (hands, votes, decided winner) and added the online seed.
  * Version 7 (patch 0.1.3) added the board choice: older games were classic.
+ * Version 8 added the Banquise ice: temporary tile, frozen players, blizzards.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -75,6 +76,10 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     ...save,
     mapId: isMapId(save.mapId) ? save.mapId : EMPTY_GAME_STATE.mapId,
     carouselReversed: save.carouselReversed === true,
+    iceTileNodeId: save.iceTileNodeId ?? null,
+    frozenSlides: save.frozenSlides ?? [],
+    lastBlizzard: save.lastBlizzard ?? null,
+    lastIceFall: save.lastIceFall ?? null,
     seededRandom: save.seededRandom ?? null,
     pendingDuel: duel
       ? {

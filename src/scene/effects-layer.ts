@@ -18,11 +18,15 @@ const SMOKE_COLOR = "#4a3d45";
 export class EffectsLayer {
   readonly group = new THREE.Group();
   private readonly effects: TransientEffect[] = [];
+  private disposed = false;
   private readonly confettiGeometry = new THREE.PlaneGeometry(0.14, 0.09);
   private readonly poofGeometry = new THREE.IcosahedronGeometry(0.16, 0);
   private readonly flashGeometry = new THREE.SphereGeometry(1, 16, 12);
   private readonly shockwaveGeometry = new THREE.RingGeometry(0.82, 1, 40);
   private readonly debrisGeometry = new THREE.BoxGeometry(0.12, 0.12, 0.12);
+  private readonly iceShardGeometry = new THREE.ConeGeometry(0.08, 0.3, 4);
+  private readonly iceChunkGeometry = new THREE.IcosahedronGeometry(0.28, 0);
+  private readonly streakGeometry = new THREE.PlaneGeometry(0.9, 0.05);
 
   spawnFloatingText(position: THREE.Vector3, text: string, color: string): void {
     const sprite = createLabelSprite(text, { color, stroke: SCENE_COLORS.ink, fontSize: 72, worldHeight: 0.62 });
@@ -183,6 +187,83 @@ export class EffectsLayer {
     });
   }
 
+  /** Banquise: shards of ice bursting out, when a block breaks or a tile freezes or melts. */
+  spawnIceBurst(position: THREE.Vector3, amount = 14): void {
+    for (let index = 0; index < amount; index += 1) {
+      const material = new THREE.MeshStandardMaterial({
+        color: index % 2 === 0 ? "#dff6ff" : "#a9dcf5",
+        roughness: 0.1,
+        metalness: 0.2,
+        flatShading: true,
+        transparent: true,
+      });
+      const shard = new THREE.Mesh(this.iceShardGeometry, material);
+      const velocity = randomHemisphereDirection(0.35).multiplyScalar(2.5 + Math.random() * 2.5);
+      const spin = new THREE.Vector3(Math.random() * 9, Math.random() * 9, Math.random() * 9);
+      shard.position.copy(position).add(new THREE.Vector3(0, 0.5, 0));
+      this.push(shard, 0.9 + Math.random() * 0.3, (progress, deltaSeconds) => {
+        velocity.y -= 11 * deltaSeconds;
+        shard.position.addScaledVector(velocity, deltaSeconds);
+        shard.position.y = Math.max(position.y + 0.05, shard.position.y);
+        shard.rotation.x += spin.x * deltaSeconds;
+        shard.rotation.z += spin.z * deltaSeconds;
+        material.opacity = progress > 0.6 ? 1 - (progress - 0.6) / 0.4 : 1;
+      });
+    }
+  }
+
+  /**
+   * Banquise: chunks of ice dropping from the sky onto a sliding player. A hit
+   * lands right on the pawn; a miss crashes beside it.
+   */
+  spawnIceFall(position: THREE.Vector3, hit: boolean): void {
+    const target = hit ? position.clone() : position.clone().add(new THREE.Vector3(1.1, 0, -0.6));
+    for (let index = 0; index < 6; index += 1) {
+      const material = new THREE.MeshStandardMaterial({ color: "#cfefff", roughness: 0.1, flatShading: true });
+      const chunk = new THREE.Mesh(this.iceChunkGeometry, material);
+      const offset = new THREE.Vector3((Math.random() - 0.5) * 0.7, 0, (Math.random() - 0.5) * 0.7);
+      const delay = index * 0.07;
+      chunk.scale.setScalar(0.001);
+      this.push(chunk, 0.75 + delay, (progress) => {
+        const time = progress * (0.75 + delay) - delay;
+        if (time < 0) return;
+        const fall = Math.min(1, time / 0.45);
+        chunk.scale.setScalar(0.7);
+        chunk.position
+          .copy(target)
+          .add(offset)
+          .setY(target.y + 7 * (1 - fall * fall) + 0.3);
+        chunk.rotation.set(fall * 4, fall * 2, 0);
+      });
+    }
+    // The chunks shatter as they reach the ground.
+    window.setTimeout(() => {
+      if (!this.disposed) this.spawnIceBurst(target, hit ? 18 : 10);
+    }, 520);
+  }
+
+  /** Banquise: a gust of snow blown across the whole tray, from left to right. */
+  spawnBlizzard(halfWidth: number, halfDepth: number): void {
+    for (let index = 0; index < 170; index += 1) {
+      const material = additive("#ffffff", 0.85);
+      const streak = new THREE.Mesh(this.streakGeometry, material);
+      const z = (Math.random() * 2 - 1) * (halfDepth + 1);
+      const y = 0.4 + Math.random() * 4;
+      const speed = 0.6 + Math.random() * 0.7;
+      const start = -halfWidth - 4 - Math.random() * 10;
+      const wave = Math.random() * Math.PI * 2;
+      streak.rotation.y = -0.12;
+      this.push(streak, 2.6, (progress) => {
+        streak.position.set(
+          start + progress * (halfWidth * 2 + 18) * speed,
+          y + Math.sin(progress * 9 + wave) * 0.25,
+          z,
+        );
+        material.opacity = 0.85 * Math.sin(progress * Math.PI);
+      });
+    }
+  }
+
   update(deltaSeconds: number): void {
     for (let index = this.effects.length - 1; index >= 0; index -= 1) {
       const effect = this.effects[index];
@@ -198,6 +279,7 @@ export class EffectsLayer {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const effect of this.effects) disposeTransient(effect.object);
     this.effects.length = 0;
     this.confettiGeometry.dispose();
@@ -205,6 +287,9 @@ export class EffectsLayer {
     this.flashGeometry.dispose();
     this.shockwaveGeometry.dispose();
     this.debrisGeometry.dispose();
+    this.iceShardGeometry.dispose();
+    this.iceChunkGeometry.dispose();
+    this.streakGeometry.dispose();
   }
 
   private push(

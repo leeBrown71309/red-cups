@@ -1,6 +1,7 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { getBoard } from "./board";
+import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
@@ -136,17 +137,24 @@ function startGame(
 ): GameState {
   if (playerNames.length < 2) return state;
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
-  const build = (): GameState => ({
-    ...EMPTY_GAME_STATE,
-    phase: "playing",
-    turnStage: "move",
-    mapId: map.id,
-    players: createPlayers(playerNames, avatarColors),
-    redCupNodeId: map.initialCupNodeId,
-    log: [
-      makeLog(`La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`, "event"),
-    ],
-  });
+  const build = (): GameState => {
+    const opening: GameState = {
+      ...EMPTY_GAME_STATE,
+      phase: "playing",
+      turnStage: "move",
+      mapId: map.id,
+      players: createPlayers(playerNames, avatarColors),
+      redCupNodeId: map.initialCupNodeId,
+      log: [
+        makeLog(
+          `La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`,
+          "event",
+        ),
+      ],
+    };
+    // Banquise opens with its third ice tile already laid; blizzards move it later on.
+    return map.blizzardEveryRounds === undefined ? opening : { ...opening, iceTileNodeId: pickBlizzardTile(opening) };
+  };
   if (seed === undefined) return build();
   const { result, seed: seededRandom } = runWithSeededSource({ rngState: seed >>> 0, nextId: 0 }, build);
   return { ...result, seededRandom };

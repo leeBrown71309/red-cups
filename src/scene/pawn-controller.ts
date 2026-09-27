@@ -1,10 +1,10 @@
 import * as THREE from "three";
-import { findEdge, isSlideStep } from "../game/board";
+import { findEdge } from "../game/board";
 import type { NodeId, PlayerColor, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { emitFeedback } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
-import { HOP_MS, TUNNEL_EXTRA_MS } from "../theme/timing";
+import { FREEZE_MS, GLIDE_MS, HOP_MS, SHATTER_MS, TUNNEL_EXTRA_MS, WOBBLE_MS } from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
 import { createPawnVisual, type PawnVisual } from "./models/pawn-model";
 import { TILE_HEIGHT } from "./models/tile-model";
@@ -16,12 +16,17 @@ export interface PawnInput {
   position: NodeId;
   isActive: boolean;
   isSleeping: boolean;
+  /** Banquise: stuck in fallen ice halfway from `position` to this tile. */
+  frozenTo?: NodeId;
 }
 
 type PawnAction =
   | { type: "hop"; to: THREE.Vector3; duration: number }
   | { type: "slide"; to: THREE.Vector3; duration: number }
   | { type: "glide"; to: THREE.Vector3; duration: number }
+  | { type: "wobble"; duration: number }
+  | { type: "freeze"; duration: number }
+  | { type: "shatter"; duration: number }
   | { type: "vanish"; duration: number }
   | { type: "appear"; at: THREE.Vector3; duration: number }
   | { type: "tumble"; duration: number };
@@ -43,6 +48,8 @@ interface Pawn {
   active: boolean;
   sleeping: boolean;
   baseScale: number;
+  /** Banquise: the ice block around a frozen pawn, grown by "freeze", burst by "shatter". */
+  iceBlock: THREE.Mesh;
 }
 
 const LANDING_MS = 150;
@@ -79,14 +86,20 @@ export class PawnController {
 
       if (!pawn) {
         pawn = this.createPawn(input, slot.position);
+        // A restored game shows a frozen pawn in its ice straight away.
+        if (input.frozenTo !== undefined) pawn.iceBlock.scale.setScalar(1);
         this.pawns.set(input.id, pawn);
       } else if (isNewMovement && movement?.playerId === input.id && pawn.logicalNode === movement.from) {
-        this.queueWalk(pawn, movement.from, movement.path, slot.position);
+        this.queueWalk(pawn, movement, slot.position);
       } else if (pawn.logicalNode !== input.position) {
         pawn.actions.push({ type: "vanish", duration: 240 }, { type: "appear", at: slot.position, duration: 320 });
       } else if (pawn.actions.length === 0 && pawn.visual.root.position.distanceTo(slot.position) > 0.02) {
         pawn.actions.push({ type: "slide", to: slot.position, duration: 260 });
       }
+
+      // Moved out of the ice by something else (Corde, swap…): the block is gone.
+      const iceQueued = pawn.actions.some((action) => action.type === "freeze" || action.type === "shatter");
+      if (input.frozenTo === undefined && !iceQueued) pawn.iceBlock.scale.setScalar(0.001);
 
       pawn.logicalNode = input.position;
       pawn.active = input.isActive;
@@ -131,6 +144,23 @@ export class PawnController {
     this.seedCounter += 1;
     visual.root.position.copy(position);
     this.group.add(visual.root);
+
+    const iceBlock = new THREE.Mesh(
+      this.kit.geometry("pawn-ice-block", () => new THREE.BoxGeometry(1.15, 1.5, 1.15, 1, 1, 1)),
+      new THREE.MeshStandardMaterial({
+        color: "#cfefff",
+        transparent: true,
+        opacity: 0.55,
+        roughness: 0.1,
+        metalness: 0.2,
+        flatShading: true,
+        depthWrite: false,
+      }),
+    );
+    iceBlock.position.y = 0.72;
+    iceBlock.rotation.y = 0.35;
+    iceBlock.scale.setScalar(0.001);
+    visual.root.add(iceBlock);
     return {
       id: input.id,
       visual,
@@ -146,20 +176,37 @@ export class PawnController {
       active: input.isActive,
       sleeping: input.isSleeping,
       baseScale: 1,
+      iceBlock,
     };
   }
 
-  private queueWalk(pawn: Pawn, from: NodeId, path: NodeId[], finalSlot: THREE.Vector3): void {
+  /**
+   * Replays a walk as hops. At Banquise the steps slid on ice come after the
+   * walk: the pawn wobbles on the ice, as if hesitating, then glides off the
+   * way the slide was drawn. A slide stopped by falling ice ends halfway down
+   * the road, in a block of ice; breaking free bursts the block first.
+   */
+  private queueWalk(pawn: Pawn, movement: PlayerMovement, finalSlot: THREE.Vector3): void {
+    const { from, path } = movement;
+    const slideStart = movement.slideStart ?? path.length;
+    const interrupted = movement.interruptedTo !== undefined;
+
+    if (movement.thawed) {
+      pawn.actions.push(
+        { type: "shatter", duration: SHATTER_MS },
+        { type: "glide", to: finalSlot, duration: GLIDE_MS },
+      );
+      return;
+    }
+
     let previous = from;
     path.forEach((nodeId, index) => {
-      const isLast = index === path.length - 1;
+      const isLast = index === path.length - 1 && !interrupted;
       const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
       const edge = findEdge(this.layout.board, previous, nodeId);
 
-      // Banquise: past the ice the pawn glides on without hopping.
-      const cameFrom = index >= 2 ? path[index - 2] : from;
-      if (index >= 1 && isSlideStep(this.layout.board, cameFrom, previous, nodeId)) {
-        pawn.actions.push({ type: "glide", to: target, duration: HOP_MS });
+      if (index >= slideStart) {
+        pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
         previous = nodeId;
         return;
       }
@@ -176,6 +223,14 @@ export class PawnController {
       pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
       previous = nodeId;
     });
+
+    if (interrupted) {
+      pawn.actions.push(
+        { type: "wobble", duration: WOBBLE_MS },
+        { type: "glide", to: finalSlot, duration: GLIDE_MS / 2 },
+        { type: "freeze", duration: FREEZE_MS },
+      );
+    }
   }
 
   private advance(pawn: Pawn, deltaMs: number): void {
@@ -197,6 +252,7 @@ export class PawnController {
       pawn.actionStart.copy(root.position);
       if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
       if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
+      if (action.type === "shatter") emitFeedback({ type: "ice-shatter", playerId: pawn.id });
     }
     pawn.actionElapsed += deltaMs;
     const progress = Math.min(1, pawn.actionElapsed / action.duration);
@@ -222,6 +278,19 @@ export class PawnController {
         body.rotation.x = -0.25 * Math.sin(progress * Math.PI);
         break;
       }
+      case "wobble":
+        // A quick spin on the spot: the ice decides where the pawn goes next.
+        body.rotation.y = pawn.yaw + Math.sin(progress * Math.PI * 3) * 0.9;
+        body.rotation.z = Math.sin(progress * Math.PI * 4) * 0.12;
+        break;
+      case "freeze":
+        // The falling ice lands, then closes around the pawn.
+        pawn.iceBlock.scale.setScalar(Math.max(0.001, easeOutBack(Math.max(0, (progress - 0.45) / 0.55))));
+        break;
+      case "shatter":
+        pawn.iceBlock.scale.setScalar(Math.max(0.001, 1 - progress));
+        body.rotation.z = Math.sin(progress * Math.PI * 6) * 0.15;
+        break;
       case "vanish": {
         const scale = 1 - progress;
         body.scale.setScalar(Math.max(0.001, scale));
@@ -253,6 +322,8 @@ export class PawnController {
         emitFeedback({ type: "pawn-hop" });
       }
       if (action.type === "appear") body.scale.setScalar(1);
+      if (action.type === "freeze") pawn.iceBlock.scale.setScalar(1);
+      if (action.type === "shatter") pawn.iceBlock.scale.setScalar(0.001);
       if (pawn.actions.length === 0) pawn.targetYaw = 0;
     }
   }
@@ -263,7 +334,7 @@ export class PawnController {
 
     const yawDelta = Math.atan2(Math.sin(pawn.targetYaw - pawn.yaw), Math.cos(pawn.targetYaw - pawn.yaw));
     pawn.yaw += yawDelta * Math.min(1, deltaSeconds * 10);
-    const spinning = moving && (pawn.actions[0].type === "vanish" || pawn.actions[0].type === "appear");
+    const spinning = moving && ["vanish", "appear", "wobble"].includes(pawn.actions[0].type);
     if (!spinning) body.rotation.y = pawn.yaw;
 
     const scaleTarget = pawn.baseScale * (pawn.active ? 1.12 : 1);
@@ -281,6 +352,8 @@ export class PawnController {
       if (blinkProgress >= 1) pawn.nextBlink = elapsed + 2.5 + ((pawn.phase * 7) % 3);
     }
 
+    // Frozen in place: no breathing, just a faint shiver.
+    if (pawn.iceBlock.scale.x > 0.5 && !moving) body.scale.set(1, 1, 1);
     activeRing.visible = pawn.active && !moving;
     activeRing.scale.setScalar(1 + Math.sin(elapsed * 4) * 0.08);
     activeArrow.visible = pawn.active && !moving;
@@ -299,13 +372,19 @@ export class PawnController {
   /** Spreads players sharing a tile on a ring so nobody hides behind anyone. */
   private computeSlots(inputs: PawnInput[]): Map<string, { position: THREE.Vector3; scale: number }> {
     const byNode = new Map<NodeId, PawnInput[]>();
+    const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
     for (const input of inputs) {
+      // Stuck in the ice halfway down the road, away from everybody on the tiles.
+      if (input.frozenTo !== undefined) {
+        const halfway = this.getStandingPoint(input.position).lerp(this.getStandingPoint(input.frozenTo), 0.5);
+        slots.set(input.id, { position: halfway.setY(0.05), scale: 1 });
+        continue;
+      }
       const list = byNode.get(input.position) ?? [];
       list.push(input);
       byNode.set(input.position, list);
     }
 
-    const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
     for (const [nodeId, group] of byNode) {
       const center = this.getStandingPoint(nodeId);
       const crowded = group.length > 4;

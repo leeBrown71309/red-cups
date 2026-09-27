@@ -34,6 +34,15 @@ export function startAudioFeedback(): () => void {
       case "pawn-slide":
         soundEffects.iceSlide();
         break;
+      case "blizzard":
+        soundEffects.blizzardWind();
+        break;
+      case "ice-fall":
+        soundEffects.iceFall();
+        break;
+      case "ice-shatter":
+        soundEffects.iceShatter();
+        break;
       case "pawn-tunnel":
       case "teleport":
         soundEffects.tunnel();

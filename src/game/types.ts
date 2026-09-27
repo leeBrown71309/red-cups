@@ -16,6 +16,8 @@ export const FIRST_ROUND = 1;
 /** Rounds Non merci needs to recharge after cancelling an action. */
 export const NO_THANKS_COOLDOWN_ROUNDS = 3;
 export const BULLET_BILL_DAMAGE = 200;
+/** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
+export const ICE_FALL_CHANCE = 0.8;
 /** After this many of their own turns in Hell, a player is released at the start, for a toll. */
 export const HELL_TURN_LIMIT = 5;
 export const HELL_EXIT_TOLL = 500;
@@ -91,7 +93,7 @@ export interface BoardNode {
   z: number;
   kind: "start" | "shop" | "red" | "green" | "neutral" | "hell";
   label: string;
-  /** Banquise: a walk that ends on ice slides on, straight ahead, to the next tile. */
+  /** Banquise: a walk that ends on ice slides on, at random, along one of the tile's other roads. */
   ice?: boolean;
 }
 
@@ -258,6 +260,36 @@ export interface PlayerMovement {
   playerId: PlayerId;
   from: NodeId;
   path: NodeId[];
+  /** Banquise: steps from this index on were slid on ice, not walked. */
+  slideStart?: number;
+  /** Banquise: falling ice stopped the slide on its way to this tile. */
+  interruptedTo?: NodeId;
+  /** Banquise: the player broke free of the ice and finished last turn's slide. */
+  thawed?: boolean;
+}
+
+/** Banquise: a player stuck in fallen ice, halfway between two tiles. */
+export interface FrozenSlide {
+  playerId: PlayerId;
+  from: NodeId;
+  to: NodeId;
+}
+
+/** Banquise: the last blizzard, kept so the scene can replay it. */
+export interface BlizzardEvent {
+  seq: number;
+  /** Temporary ice tile the blizzard melted, if any. */
+  from: NodeId | null;
+  to: NodeId | null;
+}
+
+/** Banquise: the last fall of ice on a sliding player, hit or missed. */
+export interface IceFallEvent {
+  seq: number;
+  playerId: PlayerId;
+  from: NodeId;
+  to: NodeId;
+  hit: boolean;
 }
 
 export interface GameLogEntry {
@@ -306,6 +338,12 @@ export interface GameState {
   mudPlacedThisTurn: boolean;
   bulletBill: BulletBillState | null;
   lastBulletFlight: BulletFlight | null;
+  /** Banquise: the temporary ice tile brought by the last blizzard. */
+  iceTileNodeId: NodeId | null;
+  /** Banquise: players stuck in fallen ice; they finish their slide when their turn comes. */
+  frozenSlides: FrozenSlide[];
+  lastBlizzard: BlizzardEvent | null;
+  lastIceFall: IceFallEvent | null;
   /** Tour de Bénédiction: players who still have to spin the wheel of fortune, in turn order. */
   blessingQueue: PlayerId[];
   /** Players who left before the end, kept for the final standings. */
@@ -350,6 +388,10 @@ export const EMPTY_GAME_STATE: GameState = {
   mudPlacedThisTurn: false,
   bulletBill: null,
   lastBulletFlight: null,
+  iceTileNodeId: null,
+  frozenSlides: [],
+  lastBlizzard: null,
+  lastIceFall: null,
   blessingQueue: [],
   abandonedPlayers: [],
   bootPrice: 100,

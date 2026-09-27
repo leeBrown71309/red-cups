@@ -58,8 +58,12 @@ function getTurnSteps(mapId: MapId): string[] {
   ];
   if (hasIce(board)) {
     steps.push(
-      `${board.map.name} : si ton déplacement s’arrête sur la glace, tu glisses tout droit jusqu’à une case ` +
-        "sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
+      `${board.map.name} : arrivé sur la glace, tu glisses au hasard vers l’une de ses autres routes, jusqu’à une ` +
+        "case sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
+      "Tombée de glace : si ta glissade file vers la Red Cup, la glace a 80 % de chances de te tomber dessus. Tu " +
+        "restes pris sur la route et tu arrives sur la Red Cup au début de ton tour suivant, avant de jouer.",
+      "Blizzard : une troisième case glissante apparaît au hasard, le Départ compris, et se déplace tous les deux " +
+        "tours de table. Un Départ gelé ne paie pas les 200 pièces.",
     );
   }
   if (hasCarousel(board)) {
@@ -87,6 +91,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const shownMapId = useHelpMapId();
   const phase = useGameStore((state) => state.phase);
   const carouselReversed = useGameStore((state) => state.carouselReversed);
+  const iceTileNodeId = useGameStore((state) => state.iceTileNodeId);
   const inGame = phase !== "setup";
   const shownMap = getBoardMap(shownMapId);
 
@@ -111,7 +116,11 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         <div className="help-board">
           <div className="help-board__plan">
             <h3 className="help-board__title">{shownMap.name}</h3>
-            <BoardMap mapId={shownMapId} carouselReversed={inGame && carouselReversed} />
+            <BoardMap
+              mapId={shownMapId}
+              carouselReversed={inGame && carouselReversed}
+              iceTileNodeId={inGame ? iceTileNodeId : null}
+            />
             <p className="help-board__tagline">{shownMap.tagline}</p>
           </div>
           <div className="help-board__legend">

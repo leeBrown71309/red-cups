@@ -121,13 +121,14 @@ Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origin
 
 ### 3.2 ter Troisième carte : Banquise (patch 0.1.3)
 
-Un lac gelé du Grand Nord, autour d’une seule règle : **la glace fait glisser**.
+Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun côté n’est « le côté sûr », le choix se fait entre une longue route certaine et un pari court sur la glace.
 
-- **Cases** : 0 départ ; rangée avant 5 boutique, 1 verte, 0, 2 rouge, 12 boutique ; rangée du lac 6 verte, **3 verte glacée**, **4 neutre glacée**, **7 rouge glacée**, 10 rouge ; rangée du fond 13 verte, 8 boutique (première Red Cup), 9 rouge ; l’Enfer (11) est une crevasse juste derrière le lac.
-- **Routes** : 0 → 1 ou 4 (flèches), 2 → 0 (flèche, seule entrée qui paie les 200), 5–1, 2–12 ; lac 6–3–4–7–10 ; colonnes 5–6, 1–3, 2–7, 12–10, 6–13, 10–9 ; fond 13–8, 8–9, 3–8, 7–8.
-- **Glissade** : si un déplacement (normal, Botte ou Délinquant) s’arrête sur une case de glace, le pion continue tout droit, case après case, jusqu’à une case sans glace ou sans route droit devant. Arrivé de côté (depuis 1, 2, 0 ou 8), il s’arrête sur la glace. Seule la dernière case de la Botte glisse.
-- Les cases glissées comptent comme traversées (Red light, Green light, bonus du départ) ; seule la case d’arrivée compte pour la roue, la boutique, la Boue et la Red Cup. Corde, échanges, téléportations et reculs ne glissent pas.
-- Intérêt de jeu : 6 → 10 traverse tout le lac d’un seul coup ; une Red Cup sur 3 ou 7 ne se ramasse qu’en arrivant de face ; le départ lance sur le milieu du lac (4) ; le bonus du départ passe par une case rouge (2).
+- **Cases** : rangée avant 5 boutique, 1 verte, 0 départ, 2 verte, 12 boutique ; rangée du lac 6 rouge, **3 glace**, 4 verte, **7 glace**, 10 rouge ; rangée du fond 13 neutre, 8 boutique (première Red Cup), 9 neutre ; l’Enfer (11) est une crevasse juste derrière le lac.
+- **Routes** : 0 → 1 ou 2 (flèches) ; 4 → 0 (flèche, seule entrée qui paie les 200) ; tour extérieur 1–5–6–13–8–9–10–12–2 ; lac 6–3–4–7–10 ; 1–3, 2–7, 3–8, 7–8.
+- **Tour extérieur** : la Red Cup en 8 est à 5 déplacements, d’un côté comme de l’autre, avec une case rouge en chemin. **Par la glace** : 2 déplacements, puis le hasard.
+- **Glissade** : un déplacement (normal, Botte ou Délinquant) qui s’arrête sur une case de glace continue vers l’une des autres routes réelles de cette case (flèches et sens uniques respectés, jamais en arrière). S’il n’y a qu’une route, elle est imposée ; sinon elle est tirée au hasard, et la glissade continue tant qu’elle arrive sur de la glace. Seule la dernière case de la Botte glisse. Les cases glissées comptent comme traversées (Red light, Green light, bonus du départ) ; seule la case d’arrivée compte pour la roue, la boutique, la Boue et la Red Cup. Corde, échanges, téléportations et reculs ne glissent pas.
+- **Tombée de glace** : si la glissade tirée file vers la case de la Red Cup, la glace a 80 % de chances de tomber sur le joueur. Il reste alors pris au milieu de la route, sans rien atteindre, et son tour se termine. Au début de son tour suivant, il brise la glace et arrive sur la case visée (Red Cup, Boue, roue ; pas de boutique), puis joue normalement. Déplacé entre-temps (Corde, échange, Enfer…), sa glissade est perdue.
+- **Blizzard** : une troisième case glissante est tirée au lancement, puis déplacée au début de chaque tour de table impair (3, 5, 7…). Elle peut tomber sur n’importe quelle case qui a au moins deux routes, départ compris, sauf l’Enfer, les glaces 3 et 7, la case de la Red Cup et la glace qu’elle remplace. Un départ gelé ne paie pas les 200 pièces. Une Red Cup n’apparaît jamais sur la glace.
 
 **Choix de la carte** : après la liste des joueurs, une seconde étape du salon propose « Aléatoire » (toujours en tête, la carte est tirée au lancement) puis chaque carte avec son plan. En ligne, seul l’hôte choisit ; les autres découvrent la carte au lancement. L’aide « Comment jouer » montre uniquement la carte jouée et sa légende. Chaque carte a sa propre musique.
 
@@ -349,7 +350,7 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 ### 0.1.3 — septembre 2026
 
 - **Nouvelle carte Luna Park** : fête foraine de nuit avec un carrousel à sens unique autour de l’Enfer, qui s’inverse à chaque nouvelle Red Cup, et un train fantôme 7 → 12 (voir 3.2 bis). Une bannière annonce le changement de sens ; boutique et roues attendent sa fin.
-- **Nouvelle carte Banquise** : lac gelé où l’on glisse tout droit sur la glace, crevasse de l’Enfer, neige et aurore boréale (voir 3.2 ter).
+- **Nouvelle carte Banquise** : lac gelé en miroir où l’on glisse au hasard sur la glace, tombée de glace sur la route de la Red Cup, blizzard qui déplace une troisième glace tous les deux tours, crevasse de l’Enfer, neige et aurore boréale (voir 3.2 ter).
 - **Musique** : une ambiance par carte (valse de fête foraine pour Luna Park, boîte à musique polaire pour Banquise).
 - **Choix de la carte** : une étape du salon après la liste des joueurs, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit.
 - **Comment jouer** : l’onglet Plateau montre la carte jouée, seule la légende défile ; les objets et les passifs détaillent toutes leurs conditions, une par une, avec des flèches.

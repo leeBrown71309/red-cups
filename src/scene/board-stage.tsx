@@ -137,14 +137,22 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
     return {
       mode,
       carouselReversed: playing && game.carouselReversed,
+      iceTileNodeId: playing ? game.iceTileNodeId : null,
       pawns: playing
-        ? game.players.map((player) => ({
-            id: player.id,
-            color: player.color,
-            position: player.position,
-            isActive: game.phase === "playing" && player.id === activePlayer?.id,
-            isSleeping: player.skippedTurns > 0,
-          }))
+        ? game.players.map((player) => {
+            // Stuck in fallen ice only while still on the tile the slide left from.
+            const frozen = game.frozenSlides.find(
+              (entry) => entry.playerId === player.id && entry.from === player.position,
+            );
+            return {
+              id: player.id,
+              color: player.color,
+              position: player.position,
+              isActive: game.phase === "playing" && player.id === activePlayer?.id,
+              isSleeping: player.skippedTurns > 0,
+              ...(frozen ? { frozenTo: frozen.to } : {}),
+            };
+          })
         : [],
       redCupNodeId: playing ? lagged.redCupNodeId : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],

@@ -62,6 +62,40 @@ export const soundEffects = {
     audioEngine.noise({ duration: 0.05, gain: 0.05, filterType: "lowpass", filterFrequency: 900 });
   },
 
+  /** Banquise: the blizzard howls across the board. */
+  blizzardWind(): void {
+    audioEngine.noise({ duration: 2.4, gain: 0.09, filterFrequency: 600, filterFrequencyEnd: 1_800, q: 2.5 });
+    audioEngine.noise({
+      start: at(0.4),
+      duration: 1.8,
+      gain: 0.06,
+      filterFrequency: 2_400,
+      filterFrequencyEnd: 900,
+      q: 4,
+    });
+    audioEngine.tone({ type: "sine", frequency: 320, frequencyEnd: 520, duration: 1.6, gain: 0.03 });
+  },
+
+  /** Banquise: chunks of ice crash down. */
+  iceFall(): void {
+    audioEngine.tone({ type: "sine", frequency: 1_600, frequencyEnd: 400, duration: 0.4, gain: 0.05 });
+    audioEngine.noise({ start: at(0.45), duration: 0.35, gain: 0.14, filterType: "highpass", filterFrequency: 2_000 });
+    audioEngine.tone({
+      type: "triangle",
+      frequency: 140,
+      frequencyEnd: 60,
+      start: at(0.45),
+      duration: 0.3,
+      gain: 0.12,
+    });
+  },
+
+  /** Banquise: a block of ice bursts open. */
+  iceShatter(): void {
+    audioEngine.noise({ duration: 0.3, gain: 0.12, filterType: "highpass", filterFrequency: 3_500 });
+    arpeggio([2_093, 2_637, 3_136], 0.04, { type: "sine", gain: 0.04, length: 0.12 });
+  },
+
   /** Banquise: a pawn skids on across the ice. */
   iceSlide(): void {
     audioEngine.noise({ duration: 0.34, gain: 0.07, filterFrequency: 5_500, filterFrequencyEnd: 2_200, q: 1.5 });

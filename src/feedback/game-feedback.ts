@@ -50,7 +50,7 @@ export function startGameFeedback(): () => void {
     const movement = state.lastMovement;
     const walked = movement !== null && movement.seq !== previous.lastMovement?.seq;
     // Timed on the board the walk was played on: a Cup picked up on arrival may flip the carousel.
-    const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement.from, movement.path) : 0;
+    const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
     const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
     const flight = getNewBulletFlight(state, previous);
@@ -63,8 +63,8 @@ export function startGameFeedback(): () => void {
     const nextTurnAt = impactAt + impactPauseMs;
     const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
     const celebrates = events.some((event) => event.type === "cup-collected");
-    // The shop, the wheels and the other dialogs wait until the whole table has read the carousel banner.
-    const carouselFlips = events.some((event) => event.type === "carousel-flipped");
+    // The shop, the wheels and the other dialogs wait until the whole table has read the map's banner.
+    const announcesMapEvent = events.some((event) => ["carousel-flipped", "blizzard", "ice-fall"].includes(event.type));
 
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
     schedule(
@@ -80,7 +80,7 @@ export function startGameFeedback(): () => void {
     // modal for a frame (the shop used to blink after every purchase).
     const settlesAt = Math.max(
       nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0),
-      carouselFlips ? impactAt + ALERT_BANNER_MS : 0,
+      announcesMapEvent ? impactAt + ALERT_BANNER_MS : 0,
     );
     if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
   });
@@ -186,6 +186,13 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+  if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
+    events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });
+  }
+  if (state.lastIceFall && state.lastIceFall.seq !== previous.lastIceFall?.seq) {
+    const { playerId, from, to, hit } = state.lastIceFall;
+    events.push({ type: "ice-fall", playerId, from, to, hit });
+  }
   if (state.carouselReversed !== previous.carouselReversed && previous.phase === "playing") {
     events.push({ type: "carousel-flipped", reversed: state.carouselReversed });
   }

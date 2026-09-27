@@ -1,4 +1,4 @@
-import { extendWithSlide, getBoardNode, getPathsOfLength, type Board } from "./board";
+import { getBoardNode, getPathsOfLength, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
@@ -33,10 +33,10 @@ export function canAddItem(player: Player, itemId: ItemId): boolean {
 export function getLegalMoveOptions(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
   if (player.position === HELL_NODE_ID || distance < 1) return [];
 
-  // On ice the walk slides on: the destination is where the player finally stops.
-  return getPathsOfLength(board, player.position, distance, ignoreArrows)
-    .filter((path) => path.length === distance && !path.includes(HELL_NODE_ID))
-    .map((path) => extendWithSlide(board, player.position, path));
+  // A walk onto ice ends there; where it slides on is drawn when the move is played.
+  return getPathsOfLength(board, player.position, distance, ignoreArrows).filter(
+    (path) => path.length === distance && !path.includes(HELL_NODE_ID),
+  );
 }
 
 export function getUniqueLegalDestinations(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[] {

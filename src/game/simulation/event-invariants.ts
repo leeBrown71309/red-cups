@@ -57,7 +57,17 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (after.position !== landing) found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
   const releasedFromHell = logs.some((text) => text.startsWith(`${before.name} a purgé`));
-  if (!releasedFromHell && after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)) {
+  // Banquise: a thaw as the next turn begins may land the victim on a coloured tile, or pick up a
+  // Red Cup whose Troll then steals from the table.
+  const thawed = next.lastMovement?.thawed === true && next.lastMovement.seq !== previous.lastMovement?.seq;
+  // The last wheel of a Tour de Bénédiction pays out in the same action that opens the charging round.
+  const wheelPaidToo = previous.pendingWheel !== null;
+  if (
+    !releasedFromHell &&
+    !thawed &&
+    !wheelPaidToo &&
+    after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)
+  ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
   }
   // The victim may be next to play, in which case the stun is spent at once.
@@ -130,7 +140,8 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
     if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
-  } else if (!["move", "hell"].includes(next.turnStage)) {
+  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed) {
+    // The next player's turn opens with their thaw at Banquise, which may owe a wheel first.
     found.push(violation("abandon-passes-turn", `after ${leaver.name} left the stage is ${next.turnStage}`));
   }
 }
