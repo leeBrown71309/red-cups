@@ -67,6 +67,8 @@ interface BoardMapProps {
   mapId: MapId;
   /** Luna Park: draw the carousel the way it currently turns. */
   carouselReversed?: boolean;
+  /** Banquise: the blizzard's temporary ice tile, drawn like the permanent ice. */
+  iceTileNodeId?: NodeId | null;
   highlightNodeId?: NodeId;
 }
 
@@ -75,8 +77,8 @@ interface BoardMapProps {
  * tunnel (wrapping around the classic board, the ghost train at Luna Park)
  * and the pink ring is the carousel with its current direction.
  */
-export function BoardMap({ mapId, carouselReversed = false, highlightNodeId }: BoardMapProps) {
-  const board = resolveBoard(mapId, carouselReversed);
+export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null, highlightNodeId }: BoardMapProps) {
+  const board = resolveBoard(mapId, carouselReversed, iceTileNodeId);
   const theme = getSceneTheme(board.map.themeId);
   const { plan, roads } = theme;
   const { height, project } = useMemo(() => createProjection(board.nodes), [board.nodes]);
@@ -184,6 +186,17 @@ export function BoardMap({ mapId, carouselReversed = false, highlightNodeId }: B
           <g key={node.id}>
             {highlighted && (
               <circle cx={center.x} cy={center.y} r={TILE_RADIUS + 8} fill="none" stroke="#ffffff" strokeWidth="4" />
+            )}
+            {node.ice && (
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={TILE_RADIUS + 6}
+                fill="#dff6ff"
+                stroke="#7fc8ee"
+                strokeWidth="2.5"
+                strokeDasharray="4 3"
+              />
             )}
             {theme.neonTiles && (
               <circle

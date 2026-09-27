@@ -110,6 +110,18 @@ limitée à deux projets par compte.
   les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte
   décrit ses cases et routes dans `src/game/maps/`, sa mise en scène dans `src/scene/map-layouts.ts` et ses couleurs
   dans `src/theme/map-themes.ts`.
+- **Banquise** (troisième carte) : neige, lac gelé brillant, sapins enneigés, bonhommes de neige, igloo, pingouins qui
+  se dandinent, flocons et aurore boréale. Les cases de glace ont un reflet, un liseré givré et des pics de glace ; le
+  pion y tourne sur lui-même puis glisse dans la direction tirée. La tombée de glace l’enferme dans un bloc au milieu de
+  la route, qu’il brise au tour suivant. Le blizzard souffle des rafales de neige et un brouillard blanc, fait fondre
+  l’ancienne glace et en fait pousser une nouvelle. L’Enfer est une crevasse hérissée d’éclats de glace.
+- **Fantôme de Luna Park** : un drap déchiré aux orbites creuses qui flotte sur le carrousel, surgit dans une
+  brume violette, glisse d’une case à l’autre, gifle ses victimes et les emporte en Enfer, se dissout quand on le
+  bat. Un clic ouvre son butin.
+- **Basket** : mini-jeu de duel de 15 secondes (jauge, zone verte, balles en vol), vu en direct par toute la table
+  en ligne.
+- **Musique par carte** : boucle cosy pour le coffre à jouets, valse de fête foraine pour Luna Park, boîte à musique
+  en 6/8 pour Banquise ; chacune a sa version sombre quand le joueur actif est en Enfer.
 - **Personnages** : petits blobs chibi aux grands yeux, une couleur et un accessoire par siège (chapeau de fête, pousse,
   nœud, antenne, cornes, oreilles de chat, bonnet, auréole) pour rester reconnaissables même sans les couleurs.
 - **Interface** : papier crème, contours encre prune épais, boutons « bonbon » qui s’enfoncent, typographies Fredoka

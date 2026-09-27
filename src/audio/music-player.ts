@@ -1,8 +1,7 @@
 import type { MapThemeId } from "../game/maps/map-types";
 import { audioEngine } from "./audio-engine";
 import { useAudioSettings } from "./audio-settings";
-
-export type MusicMood = "calm" | "tense";
+import type { MusicMood } from "./music-mood";
 
 interface MoodDefinition {
   tempo: number;
@@ -46,25 +45,27 @@ const TOY_BOX_MOODS: Record<MusicMood, MoodDefinition> = {
     melodyLength: 0.22,
     padFilter: 1_500,
   },
+  // In Hell or a duel the toys go quiet: a slow minor lament over a heartbeat
+  // kick, the bass sinking a semitone at a time, as dark as the other maps.
   tense: {
-    tempo: 84,
+    tempo: 72,
     stepsPerBar: 16,
     chords: [
       [57, 60, 64],
-      [53, 57, 60],
-      [50, 53, 57],
-      [52, 56, 59],
+      [58, 62, 65],
+      [57, 60, 64],
+      [56, 59, 62, 65],
     ],
-    bass: [45, 41, 38, 40],
-    bassSteps: [0, 3, 6, 8, 11, 14],
+    bass: [45, 46, 45, 44],
+    bassSteps: [0, 8],
     stabSteps: [],
     pad: true,
-    kickSteps: [0, 6, 8],
+    kickSteps: [0, 3],
     hatSteps: [],
-    melodySteps: [0, 4, 8, 12],
+    melodySteps: [0, 10],
     melodyWave: "sine",
-    melodyLength: 0.4,
-    padFilter: 800,
+    melodyLength: 0.6,
+    padFilter: 650,
   },
 };
 
@@ -120,12 +121,62 @@ const NIGHT_FAIR_MOODS: Record<MusicMood, MoodDefinition> = {
   },
 };
 
+/**
+ * Far north: a slow music box in 6/8, glassy high notes over a soft pad, like
+ * wind chimes on the ice. In Hell or a duel the chimes turn cold and sparse.
+ */
+const POLAR_MOODS: Record<MusicMood, MoodDefinition> = {
+  calm: {
+    tempo: 84,
+    stepsPerBar: 12,
+    chords: [
+      [52, 55, 59, 64],
+      [48, 52, 55, 60],
+      [55, 59, 62, 67],
+      [50, 54, 57, 62],
+    ],
+    bass: [40, 36, 43, 38],
+    bassSteps: [0, 6],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [],
+    hatSteps: [],
+    melodySteps: [0, 2, 3, 6, 8, 9],
+    melodyWave: "sine",
+    melodyLength: 0.45,
+    padFilter: 1_100,
+  },
+  tense: {
+    tempo: 66,
+    stepsPerBar: 12,
+    chords: [
+      [52, 55, 58],
+      [51, 54, 57],
+      [50, 53, 56],
+      [51, 54, 57],
+    ],
+    bass: [40, 39, 38, 39],
+    bassSteps: [0],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [0],
+    hatSteps: [],
+    melodySteps: [0, 9],
+    melodyWave: "sine",
+    melodyLength: 0.8,
+    padFilter: 650,
+  },
+};
+
 const SOUNDTRACKS: Record<MapThemeId, Record<MusicMood, MoodDefinition>> = {
   "toy-box": TOY_BOX_MOODS,
   "night-fair": NIGHT_FAIR_MOODS,
+  polar: POLAR_MOODS,
 };
 
 const LOOKAHEAD_SECONDS = 0.14;
+/** How long the old soundtrack takes to fade away when another one takes over. */
+const THEME_FADE_SECONDS = 0.35;
 
 function midiToFrequency(note: number): number {
   return 440 * 2 ** ((note - 69) / 12);
@@ -134,8 +185,9 @@ function midiToFrequency(note: number): number {
 /**
  * Background loop built from a chord progression, with a soundtrack per map
  * theme and a calm or tense mood. A lookahead scheduler keeps timing tight
- * even when the main thread is busy rendering; theme and mood only change on
- * a bar line so the music never stumbles.
+ * even when the main thread is busy rendering. The mood only changes on a bar
+ * line so the music never stumbles; a new theme starts right away, while the
+ * old one fades out, so browsing the maps plays each one at once.
  */
 class MusicPlayer {
   private timer: number | null = null;
@@ -146,17 +198,31 @@ class MusicPlayer {
   private pendingMood: MusicMood = "calm";
   private theme: MapThemeId = "toy-box";
   private pendingTheme: MapThemeId = "toy-box";
+  /** Every note of the current soundtrack goes through this gain, so it can be faded out as a whole. */
+  private voice: GainNode | null = null;
+
+  private readonly unsubscribers: (() => void)[];
 
   constructor() {
-    audioEngine.onUnlock(() => this.syncWithSettings());
-    useAudioSettings.subscribe(() => this.syncWithSettings());
+    this.unsubscribers = [
+      audioEngine.onUnlock(() => this.syncWithSettings()),
+      useAudioSettings.subscribe(() => this.syncWithSettings()),
+    ];
+  }
+
+  /** Silences this player for good, so a replacement never plays on top of it. */
+  dispose(): void {
+    this.stop();
+    this.unsubscribers.forEach((unsubscribe) => unsubscribe());
+    this.voice?.disconnect();
+    this.voice = null;
   }
 
   setMood(mood: MusicMood): void {
     this.pendingMood = mood;
   }
 
-  /** The soundtrack follows the board on screen. */
+  /** The soundtrack of the map being played or browsed. */
   setTheme(theme: MapThemeId): void {
     this.pendingTheme = theme;
   }
@@ -190,10 +256,8 @@ class MusicPlayer {
     if (this.nextStepTime < audioEngine.now - 0.5) this.nextStepTime = audioEngine.now + 0.05;
 
     while (this.nextStepTime < audioEngine.now + LOOKAHEAD_SECONDS) {
-      if (this.step === 0) {
-        this.mood = this.pendingMood;
-        this.theme = this.pendingTheme;
-      }
+      if (this.theme !== this.pendingTheme) this.switchTheme(this.nextStepTime);
+      else if (this.step === 0) this.mood = this.pendingMood;
       this.playStep(this.step, this.nextStepTime);
       const definition = this.definition;
       this.nextStepTime += 60 / definition.tempo / 4;
@@ -202,8 +266,33 @@ class MusicPlayer {
     }
   }
 
-  private playStep(step: number, time: number): void {
+  /** Fades the old soundtrack out, notes already scheduled included, and restarts the loop on the new one. */
+  private switchTheme(time: number): void {
+    const oldVoice = this.voice;
+    if (oldVoice) {
+      oldVoice.gain.setTargetAtTime(0, time, THEME_FADE_SECONDS / 3);
+      // The longest note (a held pad) is over well before this.
+      window.setTimeout(() => oldVoice.disconnect(), 4_000);
+    }
+    this.voice = null;
+    this.theme = this.pendingTheme;
+    this.mood = this.pendingMood;
+    this.step = 0;
+    this.bar = 0;
+  }
+
+  private getVoice(): GainNode | null {
     const output = audioEngine.musicOutput;
+    if (!output) return null;
+    if (!this.voice) {
+      this.voice = output.context.createGain();
+      this.voice.connect(output);
+    }
+    return this.voice;
+  }
+
+  private playStep(step: number, time: number): void {
+    const output = this.getVoice();
     if (!output) return;
     const definition = this.definition;
     const chordIndex = this.bar % definition.chords.length;
@@ -299,3 +388,12 @@ class MusicPlayer {
 }
 
 export const musicPlayer = new MusicPlayer();
+
+// A hot reload in development runs this file again and builds a fresh player,
+// without telling the old one: it would keep playing its soundtrack under the
+// new one. The hot-reload data outlives the reload, so the new player stops it.
+if (import.meta.hot) {
+  const hotData = import.meta.hot.data as { musicPlayer?: MusicPlayer };
+  hotData.musicPlayer?.dispose();
+  hotData.musicPlayer = musicPlayer;
+}

@@ -31,6 +31,8 @@ export function expectedBalance(player: Player, delta: number): number {
   return balance;
 }
 
+/** Compares players, not seats: a seat emptied before the active one shifts its index without a turn change. */
 export function turnChanged(previous: GameState, next: GameState): boolean {
-  return previous.activePlayerIndex !== next.activePlayerIndex || previous.round !== next.round;
+  const activeId = (state: GameState) => state.players[state.activePlayerIndex]?.id;
+  return activeId(previous) !== activeId(next) || previous.round !== next.round;
 }

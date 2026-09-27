@@ -4,7 +4,17 @@ import type { NodeId, PlayerColor, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { emitFeedback } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
-import { HOP_MS, TUNNEL_EXTRA_MS } from "../theme/timing";
+import {
+  FREEZE_MS,
+  GHOST_CARRY_MS,
+  GHOST_SLAP_IMPACT_MS,
+  GHOST_SLAP_MS,
+  GLIDE_MS,
+  HOP_MS,
+  SHATTER_MS,
+  TUNNEL_EXTRA_MS,
+  WOBBLE_MS,
+} from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
 import { createPawnVisual, type PawnVisual } from "./models/pawn-model";
 import { TILE_HEIGHT } from "./models/tile-model";
@@ -16,16 +26,36 @@ export interface PawnInput {
   position: NodeId;
   isActive: boolean;
   isSleeping: boolean;
+  /** Banquise: stuck in fallen ice halfway from `position` to this tile. */
+  frozenTo?: NodeId;
 }
 
 type PawnAction =
   | { type: "hop"; to: THREE.Vector3; duration: number }
   | { type: "slide"; to: THREE.Vector3; duration: number }
+  | { type: "glide"; to: THREE.Vector3; duration: number }
+  | { type: "wobble"; duration: number }
+  | { type: "freeze"; duration: number }
+  | { type: "shatter"; duration: number }
   | { type: "vanish"; duration: number }
   | { type: "appear"; at: THREE.Vector3; duration: number }
-  | { type: "tumble"; duration: number };
+  | { type: "tumble"; duration: number }
+  /** Luna Park: cowers, then reels from the ghost's slap; `source` is where the hand comes from. */
+  | { type: "slapped"; duration: number; source?: THREE.Vector3 }
+  /** Luna Park: dangling from the ghost's claws, flown high over the carousel down into Hell. */
+  | { type: "carried"; to: THREE.Vector3; duration: number };
+
+/** Lets the scene's other actors join in a pawn's animation. */
+export interface PawnHooks {
+  /** A pawn is about to be slapped and carried off by the ghost; returns where the ghost slaps from. */
+  onGhostSlap?: (pawnId: string) => THREE.Vector3 | null;
+}
 
 const TUMBLE_MS = 820;
+/** How high the ghost flies its victim over the carousel. */
+const CARRY_ARC_HEIGHT = 2.4;
+/** How far the slap knocks the pawn back. */
+const SLAP_KNOCKBACK = 0.3;
 
 interface Pawn {
   id: string;
@@ -42,6 +72,8 @@ interface Pawn {
   active: boolean;
   sleeping: boolean;
   baseScale: number;
+  /** Banquise: the ice block around a frozen pawn, grown by "freeze", burst by "shatter". */
+  iceBlock: THREE.Mesh;
 }
 
 const LANDING_MS = 150;
@@ -59,6 +91,7 @@ export class PawnController {
   constructor(
     private readonly kit: SceneKit,
     private readonly layout: BoardLayout,
+    private readonly hooks: PawnHooks = {},
   ) {}
 
   sync(inputs: PawnInput[], movement: PlayerMovement | null): void {
@@ -78,14 +111,20 @@ export class PawnController {
 
       if (!pawn) {
         pawn = this.createPawn(input, slot.position);
+        // A restored game shows a frozen pawn in its ice straight away.
+        if (input.frozenTo !== undefined) pawn.iceBlock.scale.setScalar(1);
         this.pawns.set(input.id, pawn);
       } else if (isNewMovement && movement?.playerId === input.id && pawn.logicalNode === movement.from) {
-        this.queueWalk(pawn, movement.from, movement.path, slot.position);
+        this.queueWalk(pawn, movement, slot.position);
       } else if (pawn.logicalNode !== input.position) {
         pawn.actions.push({ type: "vanish", duration: 240 }, { type: "appear", at: slot.position, duration: 320 });
       } else if (pawn.actions.length === 0 && pawn.visual.root.position.distanceTo(slot.position) > 0.02) {
         pawn.actions.push({ type: "slide", to: slot.position, duration: 260 });
       }
+
+      // Moved out of the ice by something else (Corde, swap…): the block is gone.
+      const iceQueued = pawn.actions.some((action) => action.type === "freeze" || action.type === "shatter");
+      if (input.frozenTo === undefined && !iceQueued) pawn.iceBlock.scale.setScalar(0.001);
 
       pawn.logicalNode = input.position;
       pawn.active = input.isActive;
@@ -104,6 +143,19 @@ export class PawnController {
   getPawnPosition(id: string): THREE.Vector3 | null {
     const pawn = this.pawns.get(id);
     return pawn ? pawn.visual.root.position.clone() : null;
+  }
+
+  /** The pawn standing closest to `point`, if one is within `maxDistance`. */
+  getNearestPawnPosition(point: THREE.Vector3, maxDistance: number): THREE.Vector3 | null {
+    let nearest: THREE.Vector3 | null = null;
+    let nearestDistance = maxDistance;
+    for (const pawn of this.pawns.values()) {
+      const distance = pawn.visual.root.position.distanceTo(point);
+      if (distance > nearestDistance) continue;
+      nearestDistance = distance;
+      nearest = pawn.visual.root.position;
+    }
+    return nearest ? nearest.clone() : null;
   }
 
   /** Blown into the air by Bullet Bill: a cartwheel on the spot. */
@@ -130,6 +182,23 @@ export class PawnController {
     this.seedCounter += 1;
     visual.root.position.copy(position);
     this.group.add(visual.root);
+
+    const iceBlock = new THREE.Mesh(
+      this.kit.geometry("pawn-ice-block", () => new THREE.BoxGeometry(1.15, 1.5, 1.15, 1, 1, 1)),
+      new THREE.MeshStandardMaterial({
+        color: "#cfefff",
+        transparent: true,
+        opacity: 0.55,
+        roughness: 0.1,
+        metalness: 0.2,
+        flatShading: true,
+        depthWrite: false,
+      }),
+    );
+    iceBlock.position.y = 0.72;
+    iceBlock.rotation.y = 0.35;
+    iceBlock.scale.setScalar(0.001);
+    visual.root.add(iceBlock);
     return {
       id: input.id,
       visual,
@@ -145,15 +214,49 @@ export class PawnController {
       active: input.isActive,
       sleeping: input.isSleeping,
       baseScale: 1,
+      iceBlock,
     };
   }
 
-  private queueWalk(pawn: Pawn, from: NodeId, path: NodeId[], finalSlot: THREE.Vector3): void {
+  /**
+   * Replays a walk as hops. At Banquise the steps slid on ice come after the
+   * walk: the pawn wobbles on the ice, as if hesitating, then glides off the
+   * way the slide was drawn. A slide stopped by falling ice ends halfway down
+   * the road, in a block of ice; breaking free bursts the block first.
+   */
+  private queueWalk(pawn: Pawn, movement: PlayerMovement, finalSlot: THREE.Vector3): void {
+    const { from, path } = movement;
+    const slideStart = movement.slideStart ?? path.length;
+    const interrupted = movement.interruptedTo !== undefined;
+
+    // Slapped by the ghost, then carried through the air: no hops, the ghost does the travelling.
+    if (movement.flungByGhost) {
+      pawn.actions.push(
+        { type: "slapped", duration: GHOST_SLAP_MS },
+        { type: "carried", to: finalSlot, duration: GHOST_CARRY_MS },
+      );
+      return;
+    }
+
+    if (movement.thawed) {
+      pawn.actions.push(
+        { type: "shatter", duration: SHATTER_MS },
+        { type: "glide", to: finalSlot, duration: GLIDE_MS },
+      );
+      return;
+    }
+
     let previous = from;
     path.forEach((nodeId, index) => {
-      const isLast = index === path.length - 1;
+      const isLast = index === path.length - 1 && !interrupted;
       const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
       const edge = findEdge(this.layout.board, previous, nodeId);
+
+      if (index >= slideStart) {
+        pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
+        previous = nodeId;
+        return;
+      }
 
       if (edge?.kind === "tunnel") {
         const tunnel = this.layout.getTunnelLayout(edge);
@@ -167,6 +270,14 @@ export class PawnController {
       pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
       previous = nodeId;
     });
+
+    if (interrupted) {
+      pawn.actions.push(
+        { type: "wobble", duration: WOBBLE_MS },
+        { type: "glide", to: finalSlot, duration: GLIDE_MS / 2 },
+        { type: "freeze", duration: FREEZE_MS },
+      );
+    }
   }
 
   private advance(pawn: Pawn, deltaMs: number): void {
@@ -187,6 +298,12 @@ export class PawnController {
       if (action.type === "appear") root.position.copy(action.at);
       pawn.actionStart.copy(root.position);
       if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
+      if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
+      if (action.type === "shatter") emitFeedback({ type: "ice-shatter", playerId: pawn.id });
+      if (action.type === "slapped") {
+        action.source = this.hooks.onGhostSlap?.(pawn.id) ?? undefined;
+        if (action.source) pawn.targetYaw = yawTowards(root.position, action.source) ?? pawn.targetYaw;
+      }
     }
     pawn.actionElapsed += deltaMs;
     const progress = Math.min(1, pawn.actionElapsed / action.duration);
@@ -204,6 +321,27 @@ export class PawnController {
       case "slide":
         root.position.lerpVectors(pawn.actionStart, action.to, easeInOutCubic(progress));
         break;
+      case "glide": {
+        // Steady speed and a lean backwards, like skidding on ice.
+        root.position.lerpVectors(pawn.actionStart, action.to, progress);
+        const direction = action.to.clone().sub(pawn.actionStart);
+        if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
+        body.rotation.x = -0.25 * Math.sin(progress * Math.PI);
+        break;
+      }
+      case "wobble":
+        // A quick spin on the spot: the ice decides where the pawn goes next.
+        body.rotation.y = pawn.yaw + Math.sin(progress * Math.PI * 3) * 0.9;
+        body.rotation.z = Math.sin(progress * Math.PI * 4) * 0.12;
+        break;
+      case "freeze":
+        // The falling ice lands, then closes around the pawn.
+        pawn.iceBlock.scale.setScalar(Math.max(0.001, easeOutBack(Math.max(0, (progress - 0.45) / 0.55))));
+        break;
+      case "shatter":
+        pawn.iceBlock.scale.setScalar(Math.max(0.001, 1 - progress));
+        body.rotation.z = Math.sin(progress * Math.PI * 6) * 0.15;
+        break;
       case "vanish": {
         const scale = 1 - progress;
         body.scale.setScalar(Math.max(0.001, scale));
@@ -220,6 +358,19 @@ export class PawnController {
         body.rotation.z = easeInOutCubic(progress) * Math.PI * 2;
         break;
       }
+      case "slapped":
+        this.animateSlap(pawn, action);
+        break;
+      case "carried": {
+        // Lifted off, flown high over the carousel, then dropped into Hell, kicking all the way.
+        root.position.lerpVectors(pawn.actionStart, action.to, easeInOutCubic(progress));
+        root.position.y += Math.sin(progress * Math.PI) * CARRY_ARC_HEIGHT;
+        body.rotation.x = Math.sin(progress * Math.PI) * 0.45;
+        body.rotation.y = pawn.yaw + easeInOutCubic(progress) * Math.PI * 2;
+        body.rotation.z = Math.sin(progress * Math.PI * 7) * 0.3 * (1 - progress);
+        pawn.visual.eyes.scale.y = 0.35;
+        break;
+      }
     }
 
     if (progress >= 1) {
@@ -227,15 +378,40 @@ export class PawnController {
       pawn.actionElapsed = 0;
       body.rotation.y = 0;
       body.rotation.z = 0;
+      body.rotation.x = 0;
       if (action.type === "tumble") root.position.y = pawn.actionStart.y;
-      if (action.type === "hop") {
+      if (action.type === "slapped" || action.type === "carried") pawn.visual.eyes.scale.y = 1;
+      if (action.type === "hop" || action.type === "carried") {
         root.position.copy(action.to);
         pawn.landingTimer = LANDING_MS;
         emitFeedback({ type: "pawn-hop" });
       }
       if (action.type === "appear") body.scale.setScalar(1);
+      if (action.type === "freeze") pawn.iceBlock.scale.setScalar(1);
+      if (action.type === "shatter") pawn.iceBlock.scale.setScalar(0.001);
       if (pawn.actions.length === 0) pawn.targetYaw = 0;
     }
+  }
+
+  /** Shivers in front of the ghost, then the hand lands: the pawn reels away, dazed, and wobbles. */
+  private animateSlap(pawn: Pawn, action: Extract<PawnAction, { type: "slapped" }>): void {
+    const { root, body, eyes } = pawn.visual;
+    if (pawn.actionElapsed < GHOST_SLAP_IMPACT_MS) {
+      const dread = pawn.actionElapsed / GHOST_SLAP_IMPACT_MS;
+      body.rotation.z = Math.sin(pawn.actionElapsed * 0.09) * 0.06 * dread;
+      body.scale.set(1 + dread * 0.06, 1 - dread * 0.1, 1 + dread * 0.06);
+      return;
+    }
+
+    const since = (pawn.actionElapsed - GHOST_SLAP_IMPACT_MS) / (action.duration - GHOST_SLAP_IMPACT_MS);
+    const hit = Math.min(1, since);
+    const away = action.source ? pawn.actionStart.clone().sub(action.source).setY(0) : new THREE.Vector3();
+    if (away.lengthSq() > 0.0001) away.normalize();
+    root.position.copy(pawn.actionStart).addScaledVector(away, SLAP_KNOCKBACK * (1 - Math.exp(-hit * 7)));
+    body.rotation.z = 0.9 * Math.exp(-hit * 4) * Math.cos(hit * 16);
+    const squash = Math.exp(-hit * 6) * 0.25;
+    body.scale.set(1 + squash, 1 - squash, 1 + squash);
+    eyes.scale.y = 0.2;
   }
 
   private animateIdle(pawn: Pawn, elapsed: number, deltaSeconds: number): void {
@@ -244,7 +420,7 @@ export class PawnController {
 
     const yawDelta = Math.atan2(Math.sin(pawn.targetYaw - pawn.yaw), Math.cos(pawn.targetYaw - pawn.yaw));
     pawn.yaw += yawDelta * Math.min(1, deltaSeconds * 10);
-    const spinning = moving && (pawn.actions[0].type === "vanish" || pawn.actions[0].type === "appear");
+    const spinning = moving && ["vanish", "appear", "wobble", "carried"].includes(pawn.actions[0].type);
     if (!spinning) body.rotation.y = pawn.yaw;
 
     const scaleTarget = pawn.baseScale * (pawn.active ? 1.12 : 1);
@@ -262,6 +438,8 @@ export class PawnController {
       if (blinkProgress >= 1) pawn.nextBlink = elapsed + 2.5 + ((pawn.phase * 7) % 3);
     }
 
+    // Frozen in place: no breathing, just a faint shiver.
+    if (pawn.iceBlock.scale.x > 0.5 && !moving) body.scale.set(1, 1, 1);
     activeRing.visible = pawn.active && !moving;
     activeRing.scale.setScalar(1 + Math.sin(elapsed * 4) * 0.08);
     activeArrow.visible = pawn.active && !moving;
@@ -280,13 +458,19 @@ export class PawnController {
   /** Spreads players sharing a tile on a ring so nobody hides behind anyone. */
   private computeSlots(inputs: PawnInput[]): Map<string, { position: THREE.Vector3; scale: number }> {
     const byNode = new Map<NodeId, PawnInput[]>();
+    const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
     for (const input of inputs) {
+      // Stuck in the ice halfway down the road, away from everybody on the tiles.
+      if (input.frozenTo !== undefined) {
+        const halfway = this.getStandingPoint(input.position).lerp(this.getStandingPoint(input.frozenTo), 0.5);
+        slots.set(input.id, { position: halfway.setY(0.05), scale: 1 });
+        continue;
+      }
       const list = byNode.get(input.position) ?? [];
       list.push(input);
       byNode.set(input.position, list);
     }
 
-    const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
     for (const [nodeId, group] of byNode) {
       const center = this.getStandingPoint(nodeId);
       const crowded = group.length > 4;
@@ -302,4 +486,10 @@ export class PawnController {
     }
     return slots;
   }
+}
+
+/** Yaw that turns a pawn at `from` to face `to`, or null when they stand on the same spot. */
+function yawTowards(from: THREE.Vector3, to: THREE.Vector3): number | null {
+  const direction = to.clone().sub(from);
+  return direction.x * direction.x + direction.z * direction.z > 0.0004 ? Math.atan2(direction.x, direction.z) : null;
 }

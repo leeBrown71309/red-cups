@@ -1,11 +1,19 @@
 import { useState } from "react";
-import { getStartBonusNodeIds, hasCarousel, resolveBoard } from "../../game/board";
+import { getStartBonusNodeIds, hasCarousel, hasIce, resolveBoard } from "../../game/board";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
 import type { MapId } from "../../game/types";
-import { HELL_TURN_LIMIT, HELL_EXIT_TOLL, START_BONUS } from "../../game/types";
+import {
+  GHOST_COOLDOWN_ROUNDS,
+  GHOST_EMPTY_LOOT_REWARD,
+  GHOST_LOOT_COINS,
+  GHOST_STEAL_COINS,
+  HELL_EXIT_TOLL,
+  HELL_TURN_LIMIT,
+  START_BONUS,
+} from "../../game/types";
 import { BoardMap } from "../components/board-map";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
@@ -27,6 +35,7 @@ const ROAD_SWATCH_CLASSES: Record<RoadLegendEntry["style"], string> = {
   road: "legend-road",
   tunnel: "legend-road legend-road--tunnel",
   carousel: "legend-road legend-road--carousel",
+  ice: "legend-road legend-road--ice",
 };
 
 /** The rules of a turn; the start bonus and the carousel depend on the board. */
@@ -46,6 +55,8 @@ function getTurnSteps(mapId: MapId): string[] {
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
     "En Enfer, à chaque tour, tu tournes sa roue ou tu utilises un objet. Deux joueurs en Enfer = duel : " +
       `le gagnant repart du Départ avec ${START_BONUS} pièces.`,
+    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table ou Basket. " +
+      "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
     `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
     "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
@@ -55,10 +66,30 @@ function getTurnSteps(mapId: MapId): string[] {
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
     "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
   ];
+  if (hasIce(board)) {
+    steps.push(
+      `${board.map.name} : arrivé sur la glace, tu glisses au hasard vers l’une de ses autres routes, jusqu’à une ` +
+        "case sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
+      "Tombée de glace : si ta glissade file vers la Red Cup, la glace a 80 % de chances de te tomber dessus. Tu " +
+        "restes pris sur la route et tu arrives sur la Red Cup au début de ton tour suivant, avant de jouer.",
+      "Blizzard : une troisième case glissante apparaît au hasard, le Départ compris, et se déplace tous les deux " +
+        "tours de table. Un Départ gelé ne paie pas les 200 pièces.",
+    );
+  }
   if (hasCarousel(board)) {
     steps.push(
       `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
         "Délinquant peut le prendre à contresens.",
+    );
+  }
+  if (board.map.ghostTiles) {
+    steps.push(
+      `Le fantôme : il hante les cases ${board.map.ghostTiles.join(", ")} du carrousel et avance d’une case dans le ` +
+        "sens du manège à chaque fin de tour. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel.",
+      `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
+        `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
+        `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,
+      "Clique sur le fantôme pour voir son butin.",
     );
   }
   return steps;
@@ -80,6 +111,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const shownMapId = useHelpMapId();
   const phase = useGameStore((state) => state.phase);
   const carouselReversed = useGameStore((state) => state.carouselReversed);
+  const iceTileNodeId = useGameStore((state) => state.iceTileNodeId);
   const inGame = phase !== "setup";
   const shownMap = getBoardMap(shownMapId);
 
@@ -104,7 +136,11 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         <div className="help-board">
           <div className="help-board__plan">
             <h3 className="help-board__title">{shownMap.name}</h3>
-            <BoardMap mapId={shownMapId} carouselReversed={inGame && carouselReversed} />
+            <BoardMap
+              mapId={shownMapId}
+              carouselReversed={inGame && carouselReversed}
+              iceTileNodeId={inGame ? iceTileNodeId : null}
+            />
             <p className="help-board__tagline">{shownMap.tagline}</p>
           </div>
           <div className="help-board__legend">
@@ -123,7 +159,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               {shownMap.roadLegend.map((entry) => (
                 <li key={entry.title}>
                   <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
-                    {entry.style === "road" ? "" : "›››"}
+                    {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
                   </span>
                   <span>
                     <strong>{entry.title}</strong>
@@ -157,13 +193,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 <div>
                   <strong>{item.name}</strong>
                   <p>{item.description}</p>
-                  <DetailCarousel details={item.details} label={item.name} />
                 </div>
                 <span className="price-chip">
                   <CoinIcon size={16} />
                   {itemId === "boot" ? "dès " : ""}
                   {formatCurrency(item.price)}
                 </span>
+                {/* Full card width: squeezed beside the icon and the price, the rules wrapped every other word. */}
+                <DetailCarousel details={item.details} label={item.name} />
               </li>
             );
           })}

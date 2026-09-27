@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { earnsStartBonus, getNeighbors, getShortestPath, resolveBoard, type Board } from "../board";
+import {
+  earnsStartBonus,
+  getBlizzardCandidates,
+  getNeighbors,
+  getShortestPath,
+  getSlideExits,
+  resolveBoard,
+  type Board,
+} from "../board";
 import { migrateGameSave, pickGameState } from "../game-save";
 import { useGameStore } from "../store";
 import type { MapId, PassiveId, Player } from "../types";
@@ -107,6 +115,62 @@ describe("Luna Park board", () => {
   });
 });
 
+describe("Banquise board", () => {
+  const board = resolveBoard("banquise");
+  // Written down from the reworked layout: both halves mirror each other.
+  const EXITS: Record<number, number[]> = {
+    0: [1, 2],
+    1: [0, 3, 5],
+    2: [0, 7, 12],
+    3: [1, 4, 6, 8],
+    4: [0],
+    5: [1, 6],
+    6: [3, 5, 13],
+    7: [2, 4, 8, 10],
+    8: [3, 7, 9, 13],
+    9: [8, 10],
+    10: [7, 9, 12],
+    12: [2, 10],
+    13: [6, 8],
+  };
+
+  it.each(Object.entries(EXITS))("leaves tile %s towards %j", (id, exits) => {
+    expect(sorted(getNeighbors(board, Number(id)))).toEqual(exits);
+  });
+
+  it("gives both sides of the board the same tiles", () => {
+    const kinds = (ids: number[]) => ids.map((id) => board.nodes.find((node) => node.id === id)?.kind);
+    expect(kinds([1, 5, 6, 13, 3])).toEqual(kinds([2, 12, 10, 9, 7]));
+  });
+
+  it("slides off the ice along any other real road", () => {
+    expect(sorted(getSlideExits(board, 1, 3))).toEqual([4, 6, 8]);
+    expect(sorted(getSlideExits(board, 6, 3))).toEqual([1, 4, 8]);
+    expect(sorted(getSlideExits(board, 2, 7))).toEqual([4, 8, 10]);
+    expect(getSlideExits(board, 1, 5)).toEqual([]);
+  });
+
+  it("follows the arrows of an ice tile: one road left means a forced slide", () => {
+    const frozenMiddle = resolveBoard("banquise", false, 4);
+    expect(getSlideExits(frozenMiddle, 3, 4)).toEqual([0]);
+  });
+
+  it("pays the start bonus only through 4 → 0, and never while the start is frozen", () => {
+    expect(earnsStartBonus(board, 4, [0])).toBe(true);
+    expect(earnsStartBonus(board, 1, [0])).toBe(false);
+    expect(earnsStartBonus(resolveBoard("banquise", false, 0), 4, [0])).toBe(false);
+  });
+
+  it("lets the blizzard freeze any tile but ice, Hell and the Red Cup's, the start included", () => {
+    const candidates = getBlizzardCandidates(board, [8]);
+    expect(candidates).toContain(0);
+    expect(candidates).not.toContain(3);
+    expect(candidates).not.toContain(7);
+    expect(candidates).not.toContain(8);
+    expect(candidates).not.toContain(11);
+  });
+});
+
 describe("map choice", () => {
   it("keeps a picked map and draws a random one from the list", () => {
     expect(resolveMapChoice("luna-park")).toBe("luna-park");
@@ -176,6 +240,75 @@ describe("a game at Luna Park", () => {
 
     expect(store().redCupCycle).toBe(1);
     expect(store().carouselReversed).toBe(false);
+  });
+
+  it("opens Banquise with a third ice tile laid by the blizzard", () => {
+    startTable("banquise", ["built-like-a-tank", "penta"]);
+    expect(store().iceTileNodeId).not.toBeNull();
+    expect([3, 7, 8, 11]).not.toContain(store().iceTileNodeId);
+  });
+
+  it("slides at random off the ice and stops on the tile it reaches", () => {
+    startTable("banquise", ["built-like-a-tank", "penta"]);
+    useGameStore.setState({ iceTileNodeId: null });
+    editPlayer(0, { position: 1 });
+    vi.spyOn(Math, "random").mockReturnValue(0.5);
+    store().movePlayer(3);
+
+    const movement = store().lastMovement;
+    expect(movement?.path[0]).toBe(3);
+    expect(movement?.slideStart).toBe(1);
+    expect([4, 6]).toContain(store().players[0].position);
+  });
+
+  it("freezes a player sliding towards the Red Cup, then finishes the slide on their next turn", () => {
+    startTable("banquise", ["built-like-a-tank", "penta"]);
+    const exits = getSlideExits(resolveBoard("banquise"), 1, 3);
+    useGameStore.setState({ iceTileNodeId: null, redCupNodeId: exits[0] });
+    editPlayer(0, { position: 1 });
+    // 0 picks the first exit, where the Cup waits, and is under the 80 % chance of the ice hitting.
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    store().movePlayer(3);
+
+    expect(store().players[0].position).toBe(3);
+    expect(store().frozenSlides).toEqual([{ playerId: store().players[0].id, from: 3, to: exits[0] }]);
+    expect(store().lastIceFall).toEqual(expect.objectContaining({ hit: true, to: exits[0] }));
+    expect(store().turnStage).toBe("turn-end");
+
+    store().endTurn();
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn();
+
+    const player = store().players[0];
+    expect(player.position).toBe(exits[0]);
+    expect(player.inventory.some((entry) => entry.kind === "red-cup")).toBe(true);
+    expect(store().frozenSlides).toEqual([]);
+    expect(store().lastMovement).toEqual(expect.objectContaining({ thawed: true, from: 3, path: [exits[0]] }));
+  });
+
+  it("lets a sliding player through when the falling ice misses", () => {
+    startTable("banquise", ["built-like-a-tank", "penta"]);
+    const exits = getSlideExits(resolveBoard("banquise"), 1, 3);
+    useGameStore.setState({ iceTileNodeId: null, redCupNodeId: exits[0] });
+    editPlayer(0, { position: 1 });
+    vi.spyOn(Math, "random").mockReturnValueOnce(0).mockReturnValueOnce(0.95).mockReturnValue(0.5);
+    store().movePlayer(3);
+
+    expect(store().lastIceFall).toEqual(expect.objectContaining({ hit: false }));
+    expect(store().frozenSlides).toEqual([]);
+    expect(store().players[0].inventory.some((entry) => entry.kind === "red-cup")).toBe(true);
+  });
+
+  it("moves the temporary ice with a blizzard every two rounds", () => {
+    startTable("banquise", ["built-like-a-tank", "penta"]);
+    const opening = store().iceTileNodeId;
+    for (let turn = 0; store().round < 3 && turn < 10; turn += 1) {
+      useGameStore.setState({ turnStage: "turn-end" });
+      store().endTurn();
+    }
+    expect(store().round).toBe(3);
+    expect(store().lastBlizzard).toEqual(expect.objectContaining({ from: opening }));
+    expect(store().iceTileNodeId).not.toBe(opening);
   });
 
   it("restores a save from before the map choice on the classic board", () => {

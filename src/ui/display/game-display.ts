@@ -103,6 +103,7 @@ export const DUEL_MODE_LABELS: Record<DuelMode, string> = {
   "coin-flip": "Pile ou face",
   "rock-paper-scissors": "Pierre · Feuille · Ciseaux",
   "player-vote": "Vote de la table",
+  basket: "Basket",
 };
 
 export interface TileLegendEntry {

@@ -1,7 +1,7 @@
 import type { BoardEdge, BoardNode, MapId, NodeId } from "../types";
 
 /** Art direction of a map: the scene, the flat plan and the lobby card all follow it. */
-export type MapThemeId = "toy-box" | "night-fair";
+export type MapThemeId = "toy-box" | "night-fair" | "polar";
 
 /**
  * How a tunnel is drawn. The classic tunnel leaves through one side of the
@@ -12,7 +12,7 @@ export type TunnelStyle = "wrap-around" | "portals";
 
 /** One line of the road legend in the How to play screen. */
 export interface RoadLegendEntry {
-  style: "arrow" | "road" | "tunnel" | "carousel";
+  style: "arrow" | "road" | "tunnel" | "carousel" | "ice";
   title: string;
   description: string;
 }
@@ -32,5 +32,9 @@ export interface BoardMap {
   /** Carousel roads are listed in their starting direction. */
   edges: BoardEdge[];
   initialCupNodeId: NodeId;
+  /** Banquise: a blizzard moves the temporary ice tile at the start of every this many rounds. */
+  blizzardEveryRounds?: number;
+  /** Luna Park: the carousel tiles a ghost haunts, following the ride from one to the next. */
+  ghostTiles?: NodeId[];
   roadLegend: RoadLegendEntry[];
 }

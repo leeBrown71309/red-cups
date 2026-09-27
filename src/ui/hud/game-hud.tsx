@@ -4,6 +4,7 @@ import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
 import { DuelModal } from "../modals/duel-modal";
+import { GhostLootModal } from "../modals/ghost-loot-modal";
 import { HelpModal } from "../modals/help-modal";
 import { AbandonModal, JournalModal, PauseMenu } from "../modals/menu-modals";
 import { ShopModal } from "../modals/shop-modal";
@@ -32,6 +33,8 @@ export function GameHud() {
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [targetEntryId, setTargetEntryId] = useState<string | null>(null);
   const [shopClosed, setShopClosed] = useState(false);
+  const ghostLootOpen = useUiStore((state) => state.ghostLootOpen);
+  const setGhostLootOpen = useUiStore((state) => state.setGhostLootOpen);
 
   // Keyed on the player rather than the seat: seats shift when an earlier player abandons.
   const activePlayerId = game.players[game.activePlayerIndex]?.id;
@@ -83,6 +86,7 @@ export function GameHud() {
       {overlay === "help" && <HelpModal onClose={() => setOverlay(null)} />}
       {overlay === "journal" && <JournalModal onClose={() => setOverlay(null)} />}
       {overlay === "abandon" && <AbandonModal onClose={() => setOverlay(null)} />}
+      {ghostLootOpen && game.ghost && <GhostLootModal onClose={() => setGhostLootOpen(false)} />}
     </div>
   );
 }

@@ -1,8 +1,8 @@
-import { earnsStartBonus, getBoard, getNeighbors, hasCarousel } from "../board";
+import { earnsStartBonus, getBoard, getNeighbors, hasCarousel, isIce } from "../board";
 import { ITEM_ORDER } from "../catalog";
 import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
-import type { GameState, ItemId, Player, PlayerId, TurnStage } from "../types";
+import type { GameState, ItemId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
   CURRENCY_RESET_THRESHOLD,
   FIRST_ROUND,
@@ -10,8 +10,10 @@ import {
   HELL_TURN_LIMIT,
   NO_THANKS_COOLDOWN_ROUNDS,
   RED_CUP_GOAL,
+  GHOST_ID,
   START_NODE_ID,
 } from "../types";
+import { getBoardMap } from "../maps/map-registry";
 import { checkAbandon, checkBlessing, checkBulletBill, checkMudReward } from "./event-invariants";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
@@ -114,7 +116,9 @@ export function checkState(state: GameState): RuleViolation[] {
     if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > HELL_TURN_LIMIT)) {
       found.push(violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${HELL_TURN_LIMIT}`));
     }
-    if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken) {
+    // A skip drawn while breaking free of Banquise's ice, at the start of the turn, is for the next one.
+    const thawedNow = state.lastMovement?.thawed === true && state.lastMovement.playerId === active.id;
+    if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken && !thawedNow) {
       found.push(violation("skipped-player-plays", `${active.name} plays despite a skipped turn`));
     }
     if (state.turnStage === "blessing" && state.blessingQueue.length === 0) {
@@ -171,6 +175,13 @@ export function checkState(state: GameState): RuleViolation[] {
   if (state.bootPrice < 100 || state.bootPrice > 500 || state.bootPrice % 50 !== 0) {
     found.push(violation("boot-price", `boot costs ${state.bootPrice}`));
   }
+  const board = getBoard(state);
+  if (state.redCupNodeId !== null && isIce(board, state.redCupNodeId)) {
+    found.push(violation("cup-on-ice", `the Red Cup lies on the ice of tile ${state.redCupNodeId}`));
+  }
+  if (state.iceTileNodeId !== null && board.map.nodes.find((node) => node.id === state.iceTileNodeId)?.ice) {
+    found.push(violation("blizzard-tile", `the blizzard froze tile ${state.iceTileNodeId}, already ice`));
+  }
   if (state.mudTraps.some((trap) => !getBoard(state).normalNodeIds.includes(trap.nodeId))) {
     found.push(violation("mud-tile", "mud lies outside the walkable tiles"));
   }
@@ -188,6 +199,7 @@ export function checkState(state: GameState): RuleViolation[] {
     }
   }
 
+  checkGhost(state, found);
   return found;
 }
 
@@ -203,9 +215,20 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   if (movement.from !== mover.position) {
     found.push(violation("move-from-position", `${mover.name} left ${movement.from} but stood on ${mover.position}`));
   }
-  if (movement.path.length !== previous.moveDistance) {
-    found.push(violation("move-distance", `${mover.name} walked ${movement.path.length} tiles`));
+  if (movement.thawed) {
+    checkThaw(previous, movement, found);
+    return;
   }
+  if (movement.flungByGhost) {
+    checkGhostFling(previous, next, movement, found);
+    return;
+  }
+  // The walk itself is exactly the move's distance; anything after it was slid on ice.
+  const walkedLength = movement.slideStart ?? movement.path.length;
+  if (walkedLength !== previous.moveDistance) {
+    found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
+  }
+  checkSlide(previous, next, movement, found);
 
   const rebel = logs.some((text) => text.includes("Délinquant"));
   if (rebel && previous.round <= FIRST_ROUND && movement.from === START_NODE_ID) {
@@ -236,7 +259,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     found.push(violation("start-bonus-undue", `${mover.name} got the start bonus without earning it`));
   }
 
-  const interrupted = ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
+  const interrupted =
+    movement.interruptedTo !== undefined ||
+    ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
     const expected: TurnStage = isShopNode(board, destination)
       ? "shop"
@@ -249,10 +274,112 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
 }
 
+/** Banquise: every slid step leaves an ice tile by a real road, never back where it came from. */
+function checkSlide(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const board = getBoard(previous);
+  const start = movement.slideStart ?? movement.path.length;
+  const tiles = [movement.from, ...movement.path];
+  for (let index = start; index < movement.path.length; index += 1) {
+    const iceTile = tiles[index];
+    const cameFrom = tiles[index - 1];
+    const step = movement.path[index];
+    if (!isIce(board, iceTile) || step === cameFrom || !getNeighbors(board, iceTile).includes(step)) {
+      found.push(violation("ice-slide", `slid ${iceTile} → ${step} after coming from ${cameFrom}`));
+    }
+  }
+
+  const to = movement.interruptedTo;
+  if (to === undefined) return;
+  const stuckOn = movement.path[movement.path.length - 1];
+  const frozen = next.frozenSlides.find((entry) => entry.playerId === movement.playerId);
+  if (!frozen || frozen.from !== stuckOn || frozen.to !== to) {
+    found.push(violation("ice-fall-frozen", `the slide towards ${to} was not put on hold`));
+  }
+  if (to !== previous.redCupNodeId || !next.lastIceFall?.hit) {
+    found.push(violation("ice-fall-cup", `ice fell on a slide towards ${to}, not the Red Cup`));
+  }
+  if (!isIce(board, stuckOn)) found.push(violation("ice-fall-on-ice", `stuck on tile ${stuckOn}, which is not ice`));
+}
+
+/** Luna Park: only a ghost that won a duel carries its opponent off to Hell, from the ghost's own tile. */
+function checkGhostFling(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const duel = previous.pendingDuel;
+  const wonByGhost = duel?.ghost?.penalty.kind === "hell" && duel.winnerId === GHOST_ID;
+  if (!wonByGhost || duel.playerOneId !== movement.playerId || previous.ghost?.nodeId !== movement.from) {
+    found.push(violation("ghost-fling", `the ghost carried ${movement.playerId} to Hell without winning a duel`));
+  }
+  if (findPlayer(next, movement.playerId)?.position !== HELL_NODE_ID) {
+    found.push(violation("ghost-fling-hell", `${movement.playerId} was flung but is not in Hell`));
+  }
+}
+
+/** Luna Park: the ghost stays on the carousel tiles, keeps real loot and never duels a player twice in a row. */
+function checkGhost(state: GameState, found: RuleViolation[]): void {
+  const ghost = state.ghost;
+  const tiles = getBoardMap(state.mapId).ghostTiles;
+  if (!tiles) {
+    if (ghost) found.push(violation("ghost-map", `a ghost haunts ${state.mapId}`));
+    return;
+  }
+  if (state.phase === "playing" && !ghost) found.push(violation("ghost-exists", "Luna Park lost its ghost"));
+  if (!ghost) return;
+  if (ghost.nodeId !== null && !tiles.includes(ghost.nodeId)) {
+    found.push(violation("ghost-tile", `the ghost stands on tile ${ghost.nodeId}, off the carousel`));
+  }
+  if (ghost.loot.coins < 0) found.push(violation("ghost-loot", `the ghost holds ${ghost.loot.coins} coins`));
+  const duel = state.pendingDuel;
+  if (duel?.ghost && (duel.playerTwoId !== GHOST_ID || ghost.nodeId === null)) {
+    found.push(violation("ghost-duel", "a duel against the ghost without the ghost on the board"));
+  }
+  if (duel && duel.playerTwoId === GHOST_ID && !duel.ghost) {
+    found.push(violation("ghost-stakes", "the ghost duels with nothing at stake"));
+  }
+}
+
+/** Luna Park: beaten, the ghost leaves; the loot only grows by what it stole and shrinks by what it gave back. */
+function checkGhostDuelResult(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const duel = previous.pendingDuel;
+  if (!duel?.ghost || next.pendingDuel === duel || !previous.ghost || !next.ghost) return;
+  if (next.pendingDuel?.playerOneId === duel.playerOneId && next.pendingDuel.ghost) return;
+  const lootItems = (state: GameState) => state.ghost?.loot.items.length ?? 0;
+  if (duel.winnerId === duel.playerOneId) {
+    if (next.ghost.nodeId !== null && next.lastGhostEvent?.kind !== "appear") {
+      found.push(violation("ghost-vanish", "the ghost stayed on the board after losing"));
+    }
+    const { reward } = duel.ghost;
+    const coinsBack = reward.kind === "coins" && reward.fromLoot ? reward.amount : 0;
+    const itemsBack = reward.kind === "item" ? 1 : 0;
+    if (
+      next.ghost.loot.coins !== previous.ghost.loot.coins - coinsBack ||
+      lootItems(next) !== lootItems(previous) - itemsBack
+    ) {
+      found.push(violation("ghost-reward", "the loot changed by something else than the reward"));
+    }
+  } else if (duel.winnerId === GHOST_ID) {
+    const grown = next.ghost.loot.coins - previous.ghost.loot.coins + (lootItems(next) - lootItems(previous));
+    if (duel.ghost.penalty.kind === "hell" && grown !== 0) {
+      found.push(violation("ghost-penalty", "the ghost took loot along with the trip to Hell"));
+    }
+    if (duel.ghost.penalty.kind !== "hell" && grown < 0) {
+      found.push(violation("ghost-penalty", "the ghost's loot shrank after it won"));
+    }
+  }
+}
+
+/** Banquise: breaking free finishes exactly the slide that was put on hold. */
+function checkThaw(previous: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const frozen = previous.frozenSlides.find((entry) => entry.playerId === movement.playerId);
+  if (!frozen || frozen.from !== movement.from || movement.path.join(",") !== String(frozen.to)) {
+    found.push(violation("ice-thaw", `thawed ${movement.from} → ${movement.path.join(" → ")} without a matching hold`));
+  }
+}
+
 function checkWheelResolution(previous: GameState, next: GameState, found: RuleViolation[]): void {
   const wheel = previous.pendingWheel;
   if (!wheel || next.pendingWheel?.id === wheel.id || previous.turnStage !== "wheel-result") return;
   if (newLogTexts(previous, next).some((text) => text.includes("Gomme"))) return;
+  // The last wheel of a Tour de Bénédiction can open the next round, where Bullet Bill may strike too.
+  if (next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;
 
   const before = findPlayer(previous, wheel.playerId);
   const after = findPlayer(next, wheel.playerId);
@@ -318,6 +445,10 @@ function checkTileWheelSpin(
   // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
   const exempt = playersMovedWithoutArrival(previous, appliedItem);
+  // Caught by falling ice halfway down a road: nothing is reached until the next turn.
+  const movement = next.lastMovement;
+  if (movement?.interruptedTo !== undefined && movement.seq !== previous.lastMovement?.seq)
+    exempt.add(movement.playerId);
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
     if (!before || before.position === player.position || getTileWheel(getBoard(next), player.position) === null) {
@@ -554,5 +685,6 @@ export function checkTransition(previous: GameState, next: GameState, appliedIte
   checkBlessing(previous, next, found);
   checkAbandon(previous, next, found);
   checkMudReward(previous, next, found);
+  checkGhostDuelResult(previous, next, found);
   return found;
 }

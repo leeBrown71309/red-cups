@@ -33,6 +33,7 @@ export function canAddItem(player: Player, itemId: ItemId): boolean {
 export function getLegalMoveOptions(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
   if (player.position === HELL_NODE_ID || distance < 1) return [];
 
+  // A walk onto ice ends there; where it slides on is drawn when the move is played.
   return getPathsOfLength(board, player.position, distance, ignoreArrows).filter(
     (path) => path.length === distance && !path.includes(HELL_NODE_ID),
   );

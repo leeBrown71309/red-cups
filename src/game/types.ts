@@ -16,11 +16,27 @@ export const FIRST_ROUND = 1;
 /** Rounds Non merci needs to recharge after cancelling an action. */
 export const NO_THANKS_COOLDOWN_ROUNDS = 3;
 export const BULLET_BILL_DAMAGE = 200;
+/** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
+export const ICE_FALL_CHANCE = 0.8;
 /** After this many of their own turns in Hell, a player is released at the start, for a toll. */
 export const HELL_TURN_LIMIT = 5;
 export const HELL_EXIT_TOLL = 500;
 /** When Non merci cancels an item, the item is still spent (confirmed by the game's author). */
 export const CANCELLED_ITEM_IS_CONSUMED = true;
+/** Luna Park: the ghost duels in place of a second player, under this id. */
+export const GHOST_ID = "ghost";
+/** Luna Park: most the ghost steals from a player's purse when it wins. */
+export const GHOST_STEAL_COINS = 300;
+/** Luna Park: most a winner takes back from the coins in the ghost's loot. */
+export const GHOST_LOOT_COINS = 200;
+/** Luna Park: what beating a ghost with an empty loot pays. */
+export const GHOST_EMPTY_LOOT_REWARD = 300;
+/** Luna Park: rounds the ghost stays away after being beaten. */
+export const GHOST_COOLDOWN_ROUNDS = 3;
+/** Basket: length of each duellist's shooting time. */
+export const BASKET_DURATION_MS = 15_000;
+/** Basket: no score above this is believed (a shot takes well over half a second). */
+export const BASKET_MAX_SCORE = 30;
 
 export const PLAYER_COLORS = [
   "#f16a53",
@@ -36,7 +52,7 @@ export const PLAYER_COLORS = [
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 export type NodeId = number;
 export type PlayerId = string;
-export type MapId = "classic" | "luna-park";
+export type MapId = "classic" | "luna-park" | "banquise";
 
 export type ItemId =
   | "ndoye"
@@ -65,7 +81,7 @@ export type PassiveId =
   | "calm-down";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
-export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote";
+export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
 export type RpsChoice = "rock" | "paper" | "scissors";
 
 export type InventoryEntry = { id: string; kind: "red-cup" } | { id: string; kind: "item"; itemId: ItemId };
@@ -91,6 +107,8 @@ export interface BoardNode {
   z: number;
   kind: "start" | "shop" | "red" | "green" | "neutral" | "hell";
   label: string;
+  /** Banquise: a walk that ends on ice slides on, at random, along one of the tile's other roads. */
+  ice?: boolean;
 }
 
 export interface BoardEdge {
@@ -179,8 +197,42 @@ export interface PendingReaction {
   resumeStage: TurnStage;
 }
 
+/** Basket: one shot of the ghost, drawn when the duel starts so every device sees the same game. */
+export interface BasketShot {
+  /** Time from the start of the round. */
+  atMs: number;
+  made: boolean;
+}
+
+/** Basket: 15 seconds each, one duellist after the other; the ghost shoots alongside its opponent. */
+export interface BasketDuel {
+  /** Tells this duel's live shots apart from an earlier one's on the online channel. */
+  id: string;
+  /** The duellist whose 15 seconds are running, once they pressed start. */
+  shooterId: PlayerId | null;
+  scores: Partial<Record<PlayerId, number>>;
+  /** Against the ghost: its whole round, its misses and streaks included. */
+  ghostShots: BasketShot[];
+  /** Equal scores are settled by a coin the engine flips. */
+  tieBroken: boolean;
+}
+
+/** Luna Park: what the ghost takes if it wins, drawn when the duel starts. */
+export type GhostPenalty =
+  { kind: "hell" } | { kind: "coins"; amount: number } | { kind: "item"; entryId: string; itemId: ItemId };
+
+/** Luna Park: what beating the ghost gives, drawn when the duel starts. */
+export type GhostReward =
+  { kind: "coins"; amount: number; fromLoot: boolean } | { kind: "item"; entryId: string; itemId: ItemId };
+
+export interface GhostStakes {
+  penalty: GhostPenalty;
+  reward: GhostReward;
+}
+
 export interface PendingDuel {
   playerOneId: PlayerId;
+  /** `GHOST_ID` when a player meets the Luna Park ghost. */
   playerTwoId: PlayerId;
   mode: DuelMode;
   coinWinnerId?: PlayerId;
@@ -196,11 +248,15 @@ export interface PendingDuel {
   voteTieBroken: boolean;
   /** Set once the duel is decided; resolving it then has to name this player. */
   winnerId: PlayerId | null;
+  basket: BasketDuel | null;
+  /** Luna Park: set when the duel is against the ghost. */
+  ghost: GhostStakes | null;
 }
 
 export interface PendingDiscard {
   playerId: PlayerId;
-  reason: "red-cup" | "forced-item";
+  /** "loot": an item won back from the ghost does not fit in the bag. */
+  reason: "red-cup" | "forced-item" | "loot";
   resumeStage: TurnStage;
   cupNodeId?: NodeId;
   itemId?: ItemId;
@@ -256,6 +312,65 @@ export interface PlayerMovement {
   playerId: PlayerId;
   from: NodeId;
   path: NodeId[];
+  /** Banquise: steps from this index on were slid on ice, not walked. */
+  slideStart?: number;
+  /** Banquise: falling ice stopped the slide on its way to this tile. */
+  interruptedTo?: NodeId;
+  /** Banquise: the player broke free of the ice and finished last turn's slide. */
+  thawed?: boolean;
+  /** Luna Park: the ghost slapped the player and carried them to Hell. */
+  flungByGhost?: boolean;
+}
+
+/** Banquise: a player stuck in fallen ice, halfway between two tiles. */
+export interface FrozenSlide {
+  playerId: PlayerId;
+  from: NodeId;
+  to: NodeId;
+}
+
+/** Banquise: the last blizzard, kept so the scene can replay it. */
+export interface BlizzardEvent {
+  seq: number;
+  /** Temporary ice tile the blizzard melted, if any. */
+  from: NodeId | null;
+  to: NodeId | null;
+}
+
+/** Banquise: the last fall of ice on a sliding player, hit or missed. */
+export interface IceFallEvent {
+  seq: number;
+  playerId: PlayerId;
+  from: NodeId;
+  to: NodeId;
+  hit: boolean;
+}
+
+/** Luna Park: whatever the ghost stole, waiting for whoever beats it. */
+export interface GhostLoot {
+  coins: number;
+  items: { id: string; itemId: ItemId }[];
+}
+
+/** Luna Park: the ghost haunting the carousel tiles, following the ride. */
+export interface GhostState {
+  /** Null while it is away, beaten or not appeared yet. */
+  nodeId: NodeId | null;
+  /** While away: the round it comes back in. */
+  returnsAtRound: number;
+  loot: GhostLoot;
+  /** Players it already duelled on this tile; it meets them again once it moved on. */
+  metPlayerIds: PlayerId[];
+}
+
+/** Luna Park: the ghost's last deed, kept so the scene can replay it. */
+export interface GhostEvent {
+  seq: number;
+  kind: "appear" | "move" | "vanish" | "fling";
+  from: NodeId | null;
+  to: NodeId | null;
+  /** "fling": the player the ghost carried to Hell. */
+  playerId?: PlayerId;
 }
 
 export interface GameLogEntry {
@@ -304,6 +419,15 @@ export interface GameState {
   mudPlacedThisTurn: boolean;
   bulletBill: BulletBillState | null;
   lastBulletFlight: BulletFlight | null;
+  /** Banquise: the temporary ice tile brought by the last blizzard. */
+  iceTileNodeId: NodeId | null;
+  /** Banquise: players stuck in fallen ice; they finish their slide when their turn comes. */
+  frozenSlides: FrozenSlide[];
+  lastBlizzard: BlizzardEvent | null;
+  lastIceFall: IceFallEvent | null;
+  /** Luna Park: the ghost of the carousel; null on the other maps. */
+  ghost: GhostState | null;
+  lastGhostEvent: GhostEvent | null;
   /** Tour de Bénédiction: players who still have to spin the wheel of fortune, in turn order. */
   blessingQueue: PlayerId[];
   /** Players who left before the end, kept for the final standings. */
@@ -348,6 +472,12 @@ export const EMPTY_GAME_STATE: GameState = {
   mudPlacedThisTurn: false,
   bulletBill: null,
   lastBulletFlight: null,
+  iceTileNodeId: null,
+  frozenSlides: [],
+  lastBlizzard: null,
+  lastIceFall: null,
+  ghost: null,
+  lastGhostEvent: null,
   blessingQueue: [],
   abandonedPlayers: [],
   bootPrice: 100,

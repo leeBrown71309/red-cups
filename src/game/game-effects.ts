@@ -1,6 +1,9 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, type Board } from "./board";
+import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, isIce, type Board } from "./board";
+import { blowBlizzard, isBlizzardRound } from "./ice";
 import { advanceBulletBill } from "./bullet-bill";
+import { createDuel, getDuelModes } from "./duel-setup";
+import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
@@ -49,6 +52,7 @@ const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
   "coin-flip": "pile ou face",
   "rock-paper-scissors": "pierre-feuille-ciseaux",
   "player-vote": "vote",
+  basket: "Basket",
 };
 
 /** Draws the wheel result now; the UI only animates towards it. */
@@ -77,6 +81,9 @@ export function normalizeResumeStage(state: GameState, stage: TurnStage): TurnSt
   if (!active || state.phase !== "playing") return stage;
   if (stage === "shop" && !isShopNode(getBoard(state), active.position)) return "turn-end";
   if (stage === "tile-wheel") return state.tileWheelResumeStage;
+  // A turn that opens with side effects (Banquise's thaw) must still start where the player now is.
+  if (stage === "move" && active.position === HELL_NODE_ID) return "hell";
+  if (stage === "hell" && active.position !== HELL_NODE_ID) return "move";
   return stage;
 }
 
@@ -126,26 +133,11 @@ export function startDuel(
   if (!playerOne || !playerTwo || playerOneId === playerTwoId) return state;
 
   const otherPlayers = state.players.filter((player) => player.id !== playerOneId && player.id !== playerTwoId);
-  const availableModes: DuelMode[] = ["coin-flip", "rock-paper-scissors"];
-  if (otherPlayers.length > 0) availableModes.push("player-vote");
-  const mode = randomChoice(availableModes) ?? "coin-flip";
-  const coinWinnerId = mode === "coin-flip" ? randomChoice([playerOneId, playerTwoId]) : undefined;
+  const mode = randomChoice(getDuelModes(otherPlayers.length > 0)) ?? "coin-flip";
 
   const nextState: GameState = {
     ...state,
-    pendingDuel: {
-      playerOneId,
-      playerTwoId,
-      mode,
-      coinWinnerId,
-      resumeStage,
-      rpsChoices: {},
-      rpsTiedRound: null,
-      rpsTies: 0,
-      votes: {},
-      voteTieBroken: false,
-      winnerId: null,
-    },
+    pendingDuel: createDuel(playerOneId, playerTwoId, mode, resumeStage),
     turnStage: "duel",
     duelResumeStage: resumeStage,
   };
@@ -157,10 +149,23 @@ export function startDuel(
 }
 
 /**
- * Resolves what the table still owes before play goes on: first a duel if two
- * players are in Hell (only one may suffer there), then the queued tile wheels.
+ * Banquise: breaking free of the ice at the start of a turn can end in Hell
+ * (a wheel, Calme-toi). The turn then played in Hell is the first one of the
+ * sentence, as if the player had started it there.
  */
-export function settleBoard(state: GameState, resumeStage: TurnStage): GameState {
+function countHellTurnStartedThere(state: GameState, resumeStage: TurnStage): GameState {
+  const active = getActivePlayer(state);
+  if (resumeStage !== "move" || !active || active.position !== HELL_NODE_ID || active.hellTurns > 0) return state;
+  return updatePlayer(state, active.id, (player) => ({ ...player, hellTurns: 1 }));
+}
+
+/**
+ * Resolves what the table still owes before play goes on: first a duel if two
+ * players are in Hell (only one may suffer there), then the Luna Park ghost
+ * meeting a player on its tile, then the queued tile wheels.
+ */
+export function settleBoard(current: GameState, resumeStage: TurnStage): GameState {
+  const state = countHellTurnStartedThere(current, resumeStage);
   if (
     state.phase !== "playing" ||
     state.pendingDuel ||
@@ -174,6 +179,8 @@ export function settleBoard(state: GameState, resumeStage: TurnStage): GameState
   const stage = normalizeResumeStage(state, resumeStage);
   const hellPlayers = state.players.filter((player) => player.position === HELL_NODE_ID);
   if (hellPlayers.length >= 2) return startDuel(state, hellPlayers[0].id, hellPlayers[1].id, stage);
+  const ghostOpponent = findGhostOpponent(state);
+  if (ghostOpponent) return startGhostDuel(state, ghostOpponent.id, stage);
 
   const withWheels = validTileWheels(state);
   if (withWheels.pendingTileWheels.length > 0) {
@@ -205,8 +212,11 @@ export function randomNormalNode(board: Board, excludeNodeId?: NodeId): NodeId {
   return randomChoice(nodes) ?? START_NODE_ID;
 }
 
+/** Never on the start, the previous Cup's tile or ice: a Cup there could not be stood on. */
 function createCupNode(board: Board, previousNodeId: NodeId): NodeId {
-  const candidates = board.normalNodeIds.filter((nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId);
+  const candidates = board.normalNodeIds.filter(
+    (nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId && !isIce(board, nodeId),
+  );
   return randomChoice(candidates) ?? START_NODE_ID;
 }
 
@@ -492,6 +502,7 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
       nextIndex = 0;
       nextRound += 1;
       nextState = advanceBulletBill(nextState, nextRound);
+      if (isBlizzardRound(nextState, nextRound)) nextState = blowBlizzard(nextState);
       if (nextState.bootFirstPurchased && nextRound > state.bootLastPriceRound) {
         nextState = {
           ...nextState,
@@ -538,5 +549,52 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
     pendingCupCollectorId: null,
     pendingCalmDown: null,
   };
-  return addLog(nextState, `Tour de ${activePlayer.name}.`, "event");
+  nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
+  return rideGhost(nextState);
+}
+
+/** Luna Park: the ghost rides on at every turn change, and may land on somebody right away. */
+function rideGhost(state: GameState): GameState {
+  if (!state.ghost || state.phase !== "playing" || !["move", "hell"].includes(state.turnStage)) return state;
+  return settleBoard(advanceGhost(state), state.turnStage);
+}
+
+/**
+ * Banquise: a player caught by falling ice breaks free when their turn comes,
+ * finishes the slide to the tile it was heading for, then plays as usual.
+ * Arriving there counts like the end of a walk (mud, Red Cup, wheel) but for
+ * the shop, which only opens at the end of the turn's own move.
+ */
+function thawFrozenSlide(state: GameState): GameState {
+  const active = getActivePlayer(state);
+  const frozen = active ? state.frozenSlides.find((entry) => entry.playerId === active.id) : undefined;
+  if (!active || !frozen) return state;
+
+  let nextState: GameState = {
+    ...state,
+    frozenSlides: state.frozenSlides.filter((entry) => entry.playerId !== active.id),
+  };
+  // Pulled, swapped or sent to Hell meanwhile: the slide it was finishing no longer exists.
+  if (active.position !== frozen.from) return nextState;
+
+  nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, position: frozen.to }));
+  nextState = {
+    ...nextState,
+    lastMovement: {
+      seq: (state.lastMovement?.seq ?? 0) + 1,
+      playerId: active.id,
+      from: frozen.from,
+      path: [frozen.to],
+      thawed: true,
+    },
+  };
+  nextState = addLog(nextState, `${active.name} brise la glace et arrive en case ${frozen.to}.`, "event");
+  nextState = addRedGreenBonuses(nextState, active.id, [frozen.to]);
+  nextState = queueTileWheel(nextState, active.id);
+  nextState = triggerMud(nextState, active.id, frozen.to);
+  if (nextState.redCupNodeId === frozen.to) nextState = collectCupOrRequestDiscard(nextState, active.id, frozen.to);
+
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
 }

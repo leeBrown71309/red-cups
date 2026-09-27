@@ -11,7 +11,7 @@ export interface Toast {
 /** Table-wide announcement (Bullet Bill, Tour de Bénédiction) that nobody should miss. */
 export interface AlertBanner {
   key: number;
-  tone: "danger" | "blessing" | "carousel";
+  tone: "danger" | "blessing" | "carousel" | "blizzard" | "ghost";
   eyebrow: string;
   title: string;
   detail: string;
@@ -24,6 +24,8 @@ interface UiState {
   splash: { playerId: PlayerId; key: number } | null;
   alert: AlertBanner | null;
   followActivePlayer: boolean;
+  /** Luna Park: the ghost's loot window, opened by clicking the ghost on the board. */
+  ghostLootOpen: boolean;
   /** Délinquant toggle for the current move. */
   ignoreArrows: boolean;
   /** Destination selected by a first tap on touch screens, waiting for confirmation. */
@@ -41,6 +43,7 @@ interface UiState {
   showAlert: (alert: Omit<AlertBanner, "key">) => void;
   hideAlert: (key: number) => void;
   toggleFollowActivePlayer: () => void;
+  setGhostLootOpen: (open: boolean) => void;
   resetUi: () => void;
 }
 
@@ -58,6 +61,7 @@ export const useUiStore = create<UiState>((set) => ({
   splash: null,
   alert: null,
   followActivePlayer: prefersFollowCamera(),
+  ghostLootOpen: false,
   ignoreArrows: false,
   previewNodeId: null,
   hoveredChipNodeId: null,
@@ -76,12 +80,14 @@ export const useUiStore = create<UiState>((set) => ({
   showAlert: (alert) => set((state) => ({ alert: { ...alert, key: (state.alert?.key ?? 0) + 1 } })),
   hideAlert: (key) => set((state) => (state.alert?.key === key ? { alert: null } : state)),
   toggleFollowActivePlayer: () => set((state) => ({ followActivePlayer: !state.followActivePlayer })),
+  setGhostLootOpen: (ghostLootOpen) => set({ ghostLootOpen }),
   resetUi: () =>
     set({
       boardBusyUntil: 0,
       toasts: [],
       splash: null,
       alert: null,
+      ghostLootOpen: false,
       ignoreArrows: false,
       previewNodeId: null,
       hoveredChipNodeId: null,

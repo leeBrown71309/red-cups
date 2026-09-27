@@ -1,11 +1,26 @@
 import { findEdge, type Board } from "../game/board";
-import type { NodeId } from "../game/types";
+import type { NodeId, PlayerMovement } from "../game/types";
 
 /** Duration of one pawn hop between two neighbouring tiles. */
 export const HOP_MS = 360;
 
 /** Extra time spent disappearing in and popping out of the tunnel. */
 export const TUNNEL_EXTRA_MS = 560;
+
+/** Banquise: the spin on the ice before a slide sets off, then one tile of gliding. */
+export const WOBBLE_MS = 280;
+export const GLIDE_MS = 440;
+
+/** Banquise: falling ice lands and closes around a pawn; later, the pawn bursts out of it. */
+export const FREEZE_MS = 1_100;
+export const SHATTER_MS = 450;
+
+/** Luna Park: the ghost winds up and slaps its victim. */
+export const GHOST_SLAP_MS = 650;
+/** Luna Park: when, within the slap, the ghost's hand lands; the scene and the sound meet there. */
+export const GHOST_SLAP_IMPACT_MS = 430;
+/** Luna Park: the ghost carries its victim through the air down into Hell. */
+export const GHOST_CARRY_MS = 1_300;
 
 /** Pause after a Red Cup pickup before modals open, so the celebration reads. */
 export const CUP_CELEBRATION_MS = 900;
@@ -34,15 +49,26 @@ export function estimateBulletFlightMs(path: NodeId[]): number {
  * Game rules resolve instantly, while the board animates. The HUD uses this
  * estimate to delay modals and feedback until the pawn has landed.
  */
-export function estimateMovementMs(board: Board, from: NodeId, path: NodeId[]): number {
+export function estimateMovementMs(
+  board: Board,
+  movement: Pick<PlayerMovement, "from" | "path"> & Partial<PlayerMovement>,
+): number {
+  if (movement.thawed) return SHATTER_MS + GLIDE_MS;
+  if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
+  const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
-  let previous = from;
+  let previous = movement.from;
 
-  for (const nodeId of path) {
-    total += HOP_MS;
-    if (findEdge(board, previous, nodeId)?.kind === "tunnel") total += HOP_MS + TUNNEL_EXTRA_MS;
+  movement.path.forEach((nodeId: NodeId, index) => {
+    if (index >= slideStart) {
+      total += WOBBLE_MS + GLIDE_MS;
+    } else {
+      total += HOP_MS;
+      if (findEdge(board, previous, nodeId)?.kind === "tunnel") total += HOP_MS + TUNNEL_EXTRA_MS;
+    }
     previous = nodeId;
-  }
+  });
 
+  if (movement.interruptedTo !== undefined) total += WOBBLE_MS + GLIDE_MS / 2;
   return total;
 }

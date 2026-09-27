@@ -1,5 +1,5 @@
 import { canAbandon } from "../abandon";
-import { getDuelVoterIds } from "../duel";
+import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
@@ -131,8 +131,18 @@ function chooseDuelAction(store: GameStore, random: Random): BotAction | null {
   if (winnerId) return { label: `duel:${duel.mode}`, perform: (current) => current.resolveDuel(winnerId) };
 
   if (duel.mode === "coin-flip") return { label: "duel:flip", perform: (current) => current.flipDuelCoin() };
+  if (duel.mode === "basket") {
+    const shooterId = duel.basket?.shooterId ?? getNextBasketShooterId(duel);
+    if (!shooterId) return null;
+    if (duel.basket?.shooterId !== shooterId) {
+      return { label: "duel:basket-start", perform: (current) => current.startBasketRound(shooterId) };
+    }
+    // A table of humans scores anywhere from a couple of baskets to a dozen.
+    const score = Math.floor(random() * 13);
+    return { label: "duel:basket-score", perform: (current) => current.submitBasketScore(shooterId, score) };
+  }
   if (duel.mode === "rock-paper-scissors") {
-    const chooserId = [duel.playerOneId, duel.playerTwoId].find((id) => !duel.rpsChoices[id]);
+    const chooserId = getHumanDuellistIds(duel).find((id) => !duel.rpsChoices[id]);
     const choice = pick(RPS_CHOICES, random);
     if (!chooserId || !choice) return null;
     return { label: "duel:hand", perform: (current) => current.pickDuelHand(chooserId, choice) };

@@ -2,7 +2,7 @@ import { getBoard } from "../game/board";
 import { countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState } from "../game/types";
-import { HELL_NODE_ID } from "../game/types";
+import { GHOST_ID, HELL_NODE_ID } from "../game/types";
 import {
   ALERT_BANNER_MS,
   BULLET_IMPACT_PAUSE_MS,
@@ -50,7 +50,7 @@ export function startGameFeedback(): () => void {
     const movement = state.lastMovement;
     const walked = movement !== null && movement.seq !== previous.lastMovement?.seq;
     // Timed on the board the walk was played on: a Cup picked up on arrival may flip the carousel.
-    const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement.from, movement.path) : 0;
+    const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
     const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
     const flight = getNewBulletFlight(state, previous);
@@ -63,8 +63,10 @@ export function startGameFeedback(): () => void {
     const nextTurnAt = impactAt + impactPauseMs;
     const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
     const celebrates = events.some((event) => event.type === "cup-collected");
-    // The shop, the wheels and the other dialogs wait until the whole table has read the carousel banner.
-    const carouselFlips = events.some((event) => event.type === "carousel-flipped");
+    // The shop, the wheels and the other dialogs wait until the whole table has read the map's banner.
+    const announcesMapEvent = events.some((event) =>
+      ["carousel-flipped", "blizzard", "ice-fall", "ghost-appeared", "ghost-attack"].includes(event.type),
+    );
 
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
     schedule(
@@ -80,7 +82,7 @@ export function startGameFeedback(): () => void {
     // modal for a frame (the shop used to blink after every purchase).
     const settlesAt = Math.max(
       nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0),
-      carouselFlips ? impactAt + ALERT_BANNER_MS : 0,
+      announcesMapEvent ? impactAt + ALERT_BANNER_MS : 0,
     );
     if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
   });
@@ -94,6 +96,36 @@ export function startGameFeedback(): () => void {
 function getNewBulletFlight(state: GameState, previous: GameState): BulletFlight | null {
   const flight = state.lastBulletFlight;
   return flight && flight.seq !== previous.lastBulletFlight?.seq ? flight : null;
+}
+
+/** Luna Park: what the ghost did, from its last recorded deed and the duel it starts. */
+function collectGhostEvents(state: GameState, previous: GameState): FeedbackEvent[] {
+  const events: FeedbackEvent[] = [];
+  const deed = state.lastGhostEvent;
+  if (deed && deed.seq !== previous.lastGhostEvent?.seq && previous.phase === "playing") {
+    if (deed.kind === "appear" && deed.to !== null) events.push({ type: "ghost-appeared", nodeId: deed.to });
+    if (deed.kind === "move" && deed.from !== null && deed.to !== null) {
+      events.push({ type: "ghost-moved", from: deed.from, to: deed.to });
+    }
+    if (deed.kind === "vanish") events.push({ type: "ghost-vanished", nodeId: deed.from });
+    if (deed.kind === "fling" && deed.playerId && deed.from !== null) {
+      events.push({ type: "ghost-flung", playerId: deed.playerId, from: deed.from });
+    }
+  }
+
+  const duel = state.pendingDuel;
+  const newDuel =
+    duel !== null && (previous.pendingDuel === null || previous.pendingDuel.playerOneId !== duel.playerOneId);
+  if (duel?.ghost && newDuel && state.ghost?.nodeId != null) {
+    events.push({ type: "ghost-attack", playerId: duel.playerOneId, nodeId: state.ghost.nodeId });
+  }
+
+  const settled = previous.pendingDuel?.ghost;
+  const ghostWon = settled && previous.pendingDuel?.winnerId === GHOST_ID && state.pendingDuel !== previous.pendingDuel;
+  if (settled && ghostWon && settled.penalty.kind !== "hell" && previous.pendingDuel) {
+    events.push({ type: "ghost-stole", playerId: previous.pendingDuel.playerOneId });
+  }
+  return events;
 }
 
 function collectEvents(
@@ -186,6 +218,14 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+  if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
+    events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });
+  }
+  if (state.lastIceFall && state.lastIceFall.seq !== previous.lastIceFall?.seq) {
+    const { playerId, from, to, hit } = state.lastIceFall;
+    events.push({ type: "ice-fall", playerId, from, to, hit });
+  }
+  events.push(...collectGhostEvents(state, previous));
   if (state.carouselReversed !== previous.carouselReversed && previous.phase === "playing") {
     events.push({ type: "carousel-flipped", reversed: state.carouselReversed });
   }

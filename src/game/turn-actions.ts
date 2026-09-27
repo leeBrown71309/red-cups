@@ -1,5 +1,6 @@
 import { createEngineId } from "./engine-random";
-import { earnsStartBonus, getBoard, getShortestPath } from "./board";
+import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
+import { drawSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
 import {
   addRedGreenBonuses,
@@ -58,7 +59,13 @@ function getArrivalStage(state: GameState, nodeId: NodeId): TurnStage {
   return isShopNode(getBoard(state), nodeId) ? "shop" : "turn-end";
 }
 
-export function applyMove(state: GameState, destination: NodeId, plan: MovePlan): GameState {
+/**
+ * Plays a walk. At Banquise a walk that ends on ice slides on at random
+ * (`drawSlide`): the player's final tile is where the slide stops, or, when
+ * falling ice caught them, the ice tile they were leaving; they then wait
+ * there, halfway down the road, until their next turn.
+ */
+export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): GameState {
   const player = getActivePlayer(state);
   if (!player) return state;
 
@@ -68,23 +75,58 @@ export function applyMove(state: GameState, destination: NodeId, plan: MovePlan)
     nextState = applyCurrencyChange(nextState, player.id, -DELINQUENT_COST);
   }
 
+  const board = getBoard(state);
+  const slide = isIce(board, walkEnd) ? drawSlide(state, player.position, plan.path) : null;
+  const path = slide ? [...plan.path, ...slide.slide] : plan.path;
+  const destination = path[path.length - 1];
+  const interruptedTo = slide?.interruptedTo ?? null;
+
   nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
-  nextState = addLog(nextState, `${player.name} se déplace en case ${destination}.`);
-  nextState = addRedGreenBonuses(nextState, player.id, plan.path);
-  if (earnsStartBonus(getBoard(state), player.position, plan.path)) nextState = addStartBonus(nextState, player.id);
+  nextState = addLog(nextState, `${player.name} se déplace en case ${walkEnd}.`);
+  if (slide && slide.slide.length > 0) {
+    nextState = addLog(nextState, `${player.name} glisse sur la glace jusqu’en case ${destination}.`, "event");
+  }
+  if (slide?.iceFall) {
+    nextState = {
+      ...nextState,
+      lastIceFall: { seq: (state.lastIceFall?.seq ?? 0) + 1, playerId: player.id, ...slide.iceFall },
+    };
+    nextState = addLog(
+      nextState,
+      slide.iceFall.hit
+        ? `La glace tombe sur ${player.name}, pris au piège sur la route de la case ${slide.iceFall.to}.`
+        : `La glace tombe à côté de ${player.name}, qui file vers la case ${slide.iceFall.to}.`,
+      slide.iceFall.hit ? "bad" : "event",
+    );
+  }
+  nextState = addRedGreenBonuses(nextState, player.id, path);
+  if (earnsStartBonus(board, player.position, path)) nextState = addStartBonus(nextState, player.id);
 
   nextState = {
     ...nextState,
     moveDistance: 1,
     turnActionTaken: true,
-    turnStage: getArrivalStage(state, destination),
+    turnStage: interruptedTo === null ? getArrivalStage(state, destination) : "turn-end",
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
       playerId: player.id,
       from: player.position,
-      path: plan.path,
+      path,
+      ...(slide && slide.slide.length + (interruptedTo === null ? 0 : 1) > 0 ? { slideStart: plan.path.length } : {}),
+      ...(interruptedTo === null ? {} : { interruptedTo }),
     },
   };
+
+  // Stuck in the ice: nothing is reached yet; the slide ends when the player's next turn comes.
+  if (interruptedTo !== null) {
+    return {
+      ...nextState,
+      frozenSlides: [
+        ...nextState.frozenSlides.filter((entry) => entry.playerId !== player.id),
+        { playerId: player.id, from: destination, to: interruptedTo },
+      ],
+    };
+  }
 
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   nextState = queueTileWheel(nextState, player.id);

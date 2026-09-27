@@ -142,6 +142,11 @@ export class BoardLayout {
     const pond = this.config.pond;
     if (pond && Math.hypot(pond.x - x, pond.z - z) < pond.radius + 0.3 + margin) return false;
 
+    for (const zone of this.config.clearZones) {
+      if (Math.abs(x - zone.x) < zone.halfWidth + margin && Math.abs(z - zone.z) < zone.halfDepth + margin)
+        return false;
+    }
+
     for (const edge of this.map.edges) {
       if (edge.kind !== "tunnel" || this.map.tunnelStyle !== "portals") continue;
       const { entrance, exit } = this.getTunnelLayout(edge);
