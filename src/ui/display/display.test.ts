@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { resolveBoard } from "../../game/board";
 import { WHEEL_RESULTS } from "../../game/catalog";
 import { EMPTY_GAME_STATE, type GameState, type Player, type WheelId } from "../../game/types";
 import { HOP_MS, TUNNEL_EXTRA_MS, estimateMovementMs } from "../../theme/timing";
@@ -52,8 +53,10 @@ describe("wheel segments", () => {
 
 describe("movement timing", () => {
   it("adds the tunnel detour to the hop animation", () => {
-    expect(estimateMovementMs(4, [7])).toBe(HOP_MS);
-    expect(estimateMovementMs(7, [1])).toBe(HOP_MS * 2 + TUNNEL_EXTRA_MS);
+    const classic = resolveBoard("classic");
+    expect(estimateMovementMs(classic, 4, [7])).toBe(HOP_MS);
+    expect(estimateMovementMs(classic, 7, [1])).toBe(HOP_MS * 2 + TUNNEL_EXTRA_MS);
+    expect(estimateMovementMs(resolveBoard("luna-park"), 7, [12])).toBe(HOP_MS * 2 + TUNNEL_EXTRA_MS);
   });
 });
 

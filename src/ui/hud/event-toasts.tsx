@@ -7,7 +7,8 @@ import { BULLET_BILL_DAMAGE } from "../../game/types";
 const TOAST_LIFETIME_MS = 4_200;
 
 /** Turn announcements get the splash, big table events the banner; plain moves are visible on the board. */
-const TOASTLESS_LOG = /^(Tour de |Bullet Bill |Toute la table est fauchée)|se déplace en case/;
+const TOASTLESS_LOG =
+  /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens)|se déplace en case/;
 
 function playerName(playerId: string | null): string {
   return useGameStore.getState().players.find((player) => player.id === playerId)?.name ?? "quelqu’un";
@@ -53,6 +54,15 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         eyebrow: "Toute la table est fauchée",
         title: "Tour de Bénédiction !",
         detail: "Chacun tourne la roue du bonheur, à tour de rôle.",
+      };
+    case "carousel-flipped":
+      return {
+        tone: "carousel",
+        eyebrow: "Nouvelle Red Cup",
+        title: "Le carrousel change de sens !",
+        detail: event.reversed
+          ? "Il tourne maintenant dans le sens 1 → 4 → 3 → 2."
+          : "Il tourne maintenant dans le sens 1 → 2 → 3 → 4.",
       };
     default:
       return null;

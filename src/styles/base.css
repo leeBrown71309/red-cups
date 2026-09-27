@@ -213,6 +213,11 @@ ul {
   box-shadow: 0 2px 0 var(--ink);
 }
 
+.segmented--compact .segmented__option {
+  min-height: 32px;
+  font-size: 0.88rem;
+}
+
 .pill-toggle {
   min-width: 52px;
   min-height: 32px;

@@ -235,11 +235,6 @@
   font-size: 0.92rem;
 }
 
-.shop-detail__note {
-  color: var(--sky-deep);
-  font-size: 0.8rem;
-}
-
 /* ---------- Wheel ---------- */
 .wheel-layout {
   display: grid;
@@ -804,6 +799,60 @@
   color: #1592c0;
 }
 
+.legend-road--carousel {
+  background: #ff9fcd;
+  color: #ffffff;
+}
+
+.help-board__plan {
+  display: grid;
+  gap: 8px;
+}
+
+.help-board__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+/*
+ * Board tab: the plan stays put and only the legend on the right scrolls,
+ * so the map never slides out of view while reading its rules.
+ */
+.help-modal .modal-card__body:has(> .help-board) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.help-modal .modal-card__body:has(> .help-board) > .segmented {
+  flex: none;
+}
+
+.help-modal .help-board {
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.help-board__plan {
+  align-self: start;
+}
+
+.help-board__legend {
+  align-self: stretch;
+  min-height: 0;
+  max-height: 100%;
+  padding-right: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.help-board__tagline {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
 .help-steps {
   display: grid;
   gap: 10px;
@@ -841,7 +890,7 @@
 .help-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 10px;
   padding: 8px 12px;
   border-radius: 16px;
@@ -861,11 +910,92 @@
   line-height: 1.25;
 }
 
-.help-passives li {
+.help-passives > li {
   padding: 10px 14px;
   border-left: 5px solid var(--grape);
   border-radius: 12px;
   background: var(--white);
+}
+
+/* Every condition of an item or a passive, one at a time, under its one-line summary. */
+.detail-carousel {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 26px;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--cream-2);
+  text-align: left;
+}
+
+.detail-carousel__arrow {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.detail-carousel__arrow:disabled {
+  visibility: hidden;
+}
+
+.detail-carousel__slide {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  min-height: 3.4em;
+  align-content: center;
+}
+
+.detail-carousel__slide p {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.25;
+  animation: detail-slide-in 220ms var(--ease-out) both;
+}
+
+.detail-carousel__dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+}
+
+.detail-carousel__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--paper-edge);
+}
+
+.detail-carousel__dots span.is-active {
+  background: var(--grape);
+}
+
+@keyframes detail-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-carousel__slide p {
+    animation: none;
+  }
+}
+
+.shop-detail .detail-carousel {
+  justify-self: stretch;
 }
 
 /* ---------- Pause & journal ---------- */
@@ -1182,6 +1312,11 @@
   .help-board,
   .wheel-layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Stacked: the plan on top, the legend scrolls underneath. */
+  .help-modal .help-board {
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }
 

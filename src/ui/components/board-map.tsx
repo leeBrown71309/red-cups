@@ -1,30 +1,23 @@
-import { BOARD_EDGES, BOARD_NODES, getBoardNode } from "../../game/board";
-import type { NodeId } from "../../game/types";
+import { useMemo } from "react";
+import { getBoardNode, resolveBoard } from "../../game/board";
+import type { MapId, NodeId } from "../../game/types";
+import { getSceneTheme } from "../../theme/map-themes";
 import { TILE_COLORS } from "../../theme/palette";
 
 const WIDTH = 640;
-const HEIGHT = 360;
 const MARGIN_X = 58;
 const MARGIN_Y = 46;
+/** The flat plan is slightly squashed vertically, like the 3D board seen from the camera. */
+const VERTICAL_SQUASH = 0.91;
 const TILE_RADIUS = 21;
-const INK = "#3a2530";
-
-function project(x: number, z: number): { x: number; y: number } {
-  return {
-    x: MARGIN_X + ((x + 8) / 16) * (WIDTH - MARGIN_X * 2),
-    y: MARGIN_Y + ((z + 4.5) / 9) * (HEIGHT - MARGIN_Y * 2),
-  };
-}
 
 interface Point {
   x: number;
   y: number;
 }
 
-const TUNNEL_STROKE = { stroke: "#35c6f4", strokeWidth: 5, strokeDasharray: "8 7", strokeLinecap: "round" } as const;
-
 /** Chevron drawn from explicit geometry, so its direction never depends on marker quirks. */
-function ArrowHead({ from, to, at, color }: { from: Point; to: Point; at: number; color: string }) {
+function ArrowHead({ from, to, at, color, ink }: { from: Point; to: Point; at: number; color: string; ink: string }) {
   const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
   const direction = { x: (to.x - from.x) / length, y: (to.y - from.y) / length };
   const normal = { x: -direction.y, y: direction.x };
@@ -38,72 +31,152 @@ function ArrowHead({ from, to, at, color }: { from: Point; to: Point; at: number
   ].join(" ");
   return (
     <g strokeLinecap="round" strokeLinejoin="round" fill="none">
-      <polyline points={points} stroke={INK} strokeWidth="9" />
+      <polyline points={points} stroke={ink} strokeWidth="9" />
       <polyline points={points} stroke={color} strokeWidth="4.5" />
     </g>
   );
 }
 
+/** Scales the map's coordinates into the SVG, keeping every map at the same width. */
+function createProjection(nodes: { x: number; z: number }[]) {
+  const xs = nodes.map((node) => node.x);
+  const zs = nodes.map((node) => node.z);
+  const minX = Math.min(...xs);
+  const minZ = Math.min(...zs);
+  const spanX = Math.max(1, Math.max(...xs) - minX);
+  const spanZ = Math.max(1, Math.max(...zs) - minZ);
+  const scale = (WIDTH - MARGIN_X * 2) / spanX;
+  const height = Math.round(MARGIN_Y * 2 + spanZ * scale * VERTICAL_SQUASH);
+  const project = (x: number, z: number): Point => ({
+    x: MARGIN_X + (x - minX) * scale,
+    y: MARGIN_Y + ((z - minZ) / spanZ) * (height - MARGIN_Y * 2),
+  });
+  return { height, project };
+}
+
+/** A quadratic curve bowed to one side, so the ghost train does not cross the middle of the plan. */
+function bowedPath(start: Point, end: Point, bend: number): { d: string; control: Point } {
+  const control = {
+    x: (start.x + end.x) / 2 + (end.y - start.y) * bend,
+    y: (start.y + end.y) / 2 - (end.x - start.x) * bend,
+  };
+  return { d: `M ${start.x} ${start.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`, control };
+}
+
+interface BoardMapProps {
+  mapId: MapId;
+  /** Luna Park: draw the carousel the way it currently turns. */
+  carouselReversed?: boolean;
+  highlightNodeId?: NodeId;
+}
+
 /**
- * Flat map of the board, faithful to the original slide: arrows show forced
- * directions, the dashed road is the tunnel that wraps from 7 to 1.
+ * Flat plan of a board. Arrows show forced directions, the dashed road is the
+ * tunnel (wrapping around the classic board, the ghost train at Luna Park)
+ * and the pink ring is the carousel with its current direction.
  */
-export function BoardMap({ highlightNodeId }: { highlightNodeId?: NodeId }) {
+export function BoardMap({ mapId, carouselReversed = false, highlightNodeId }: BoardMapProps) {
+  const board = resolveBoard(mapId, carouselReversed);
+  const theme = getSceneTheme(board.map.themeId);
+  const { plan, roads } = theme;
+  const { height, project } = useMemo(() => createProjection(board.nodes), [board.nodes]);
+  const tunnelStroke = {
+    stroke: roads.tunnel,
+    strokeWidth: 5,
+    strokeDasharray: "8 7",
+    strokeLinecap: "round",
+    fill: "none",
+  } as const;
+
   return (
-    <svg className="board-map" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="Plan du plateau">
+    <svg
+      className="board-map"
+      viewBox={`0 0 ${WIDTH} ${height}`}
+      role="img"
+      aria-label={`Plan du plateau ${board.map.name}`}
+    >
       <rect
         x="6"
         y="6"
         width={WIDTH - 12}
-        height={HEIGHT - 12}
+        height={height - 12}
         rx="26"
-        fill="#9ad77e"
-        stroke="#e6cba9"
+        fill={plan.ground}
+        stroke={plan.border}
         strokeWidth="8"
       />
 
-      {BOARD_EDGES.map((edge) => {
-        const from = getBoardNode(edge.from);
-        const to = getBoardNode(edge.to);
+      {board.edges.map((edge) => {
+        const from = getBoardNode(board, edge.from);
+        const to = getBoardNode(board, edge.to);
         if (!from || !to) return null;
         const start = project(from.x, from.z);
         const end = project(to.x, to.z);
+        const key = `${edge.from}-${edge.to}`;
 
-        if (edge.kind === "tunnel") {
+        if (edge.kind === "tunnel" && board.map.tunnelStyle === "wrap-around") {
           const leftExit = { x: 14, y: start.y };
           const rightEntry = { x: WIDTH - 14, y: end.y };
           return (
-            <g key={`${edge.from}-${edge.to}`}>
-              <line x1={start.x} y1={start.y} x2={leftExit.x} y2={leftExit.y} {...TUNNEL_STROKE} />
-              <line x1={rightEntry.x} y1={rightEntry.y} x2={end.x} y2={end.y} {...TUNNEL_STROKE} />
-              <ArrowHead from={start} to={leftExit} at={0.55} color="#35c6f4" />
-              <ArrowHead from={rightEntry} to={end} at={0.45} color="#35c6f4" />
+            <g key={key}>
+              <line x1={start.x} y1={start.y} x2={leftExit.x} y2={leftExit.y} {...tunnelStroke} />
+              <line x1={rightEntry.x} y1={rightEntry.y} x2={end.x} y2={end.y} {...tunnelStroke} />
+              <ArrowHead from={start} to={leftExit} at={0.55} color={roads.tunnel} ink={plan.ink} />
+              <ArrowHead from={rightEntry} to={end} at={0.45} color={roads.tunnel} ink={plan.ink} />
+            </g>
+          );
+        }
+
+        if (edge.kind === "tunnel") {
+          const { d, control } = bowedPath(start, end, 0.32);
+          // The chevron sits on the curve's last stretch, pointing towards the exit tile.
+          return (
+            <g key={key}>
+              <path d={d} {...tunnelStroke} />
+              <ArrowHead from={control} to={end} at={0.72} color={roads.tunnel} ink={plan.ink} />
+            </g>
+          );
+        }
+
+        if (edge.kind === "carousel") {
+          return (
+            <g key={key}>
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                stroke={roads.carousel}
+                strokeWidth="8"
+                strokeLinecap="round"
+              />
+              <ArrowHead from={start} to={end} at={0.5} color="#ffffff" ink={plan.ink} />
             </g>
           );
         }
 
         return (
-          <g key={`${edge.from}-${edge.to}`}>
+          <g key={key}>
             <line
               x1={start.x}
               y1={start.y}
               x2={end.x}
               y2={end.y}
-              stroke="#f3e2bf"
+              stroke={plan.road}
               strokeWidth="9"
               strokeLinecap="round"
             />
             {edge.arrow && (
               <>
-                <ArrowHead from={start} to={end} at={0.2} color="#ff8f3f" />
-                <ArrowHead from={start} to={end} at={0.38} color="#ff8f3f" />
+                <ArrowHead from={start} to={end} at={0.2} color={roads.arrow} ink={plan.ink} />
+                <ArrowHead from={start} to={end} at={0.38} color={roads.arrow} ink={plan.ink} />
               </>
             )}
           </g>
         );
       })}
 
-      {BOARD_NODES.map((node) => {
+      {board.nodes.map((node) => {
         const center = project(node.x, node.z);
         const colors = TILE_COLORS[node.kind];
         const highlighted = node.id === highlightNodeId;
@@ -112,15 +185,32 @@ export function BoardMap({ highlightNodeId }: { highlightNodeId?: NodeId }) {
             {highlighted && (
               <circle cx={center.x} cy={center.y} r={TILE_RADIUS + 8} fill="none" stroke="#ffffff" strokeWidth="4" />
             )}
+            {theme.neonTiles && (
+              <circle
+                cx={center.x}
+                cy={center.y}
+                r={TILE_RADIUS + 5}
+                fill="none"
+                stroke={colors.top}
+                strokeWidth="3"
+                opacity="0.55"
+              />
+            )}
             <circle
               cx={center.x}
               cy={center.y}
-              r={node.kind === "start" ? TILE_RADIUS + 4 : TILE_RADIUS}
+              r={
+                node.kind === "start"
+                  ? TILE_RADIUS + 4
+                  : node.kind === "hell" && theme.neonTiles
+                    ? TILE_RADIUS + 8
+                    : TILE_RADIUS
+              }
               fill={colors.top}
-              stroke={INK}
+              stroke={plan.ink}
               strokeWidth="3"
             />
-            <text className="board-map__label" x={center.x} y={center.y + 7} textAnchor="middle">
+            <text className="board-map__label" x={center.x} y={center.y + 7} textAnchor="middle" fill={plan.label}>
               {node.kind === "hell" ? "☻" : node.id}
             </text>
           </g>

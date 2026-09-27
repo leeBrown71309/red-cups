@@ -1,5 +1,7 @@
+import { getStartBonusNodeIds, resolveBoard } from "../../game/board";
 import { WHEEL_RESULTS } from "../../game/catalog";
-import type { BoardNode, DuelMode, WheelId, WheelOutcomeId } from "../../game/types";
+import type { BoardNode, DuelMode, MapId, NodeId, WheelId, WheelOutcomeId } from "../../game/types";
+import { HELL_NODE_ID, START_BONUS, START_NODE_ID } from "../../game/types";
 import { TILE_COLORS } from "../../theme/palette";
 
 const currencyFormatter = new Intl.NumberFormat("fr-FR");
@@ -110,31 +112,50 @@ export interface TileLegendEntry {
   color: string;
 }
 
-export const TILE_LEGEND: TileLegendEntry[] = [
-  {
-    kind: "start",
-    title: "Départ · case 0",
-    description: "Y passer rapporte 200 pièces.",
-    color: TILE_COLORS.start.top,
-  },
-  { kind: "shop", title: "Boutique", description: "S’arrêter dessus ouvre le shop.", color: TILE_COLORS.shop.top },
-  {
-    kind: "green",
-    title: "Case verte",
-    description: "S’y arrêter lance la roue du bonheur (et +100 avec Red light, Green light).",
-    color: TILE_COLORS.green.top,
-  },
-  {
-    kind: "red",
-    title: "Case rouge",
-    description: "S’y arrêter lance la roue du malheur (et −100 avec Red light, Green light).",
-    color: TILE_COLORS.red.top,
-  },
-  { kind: "neutral", title: "Case neutre", description: "Aucun effet particulier.", color: TILE_COLORS.neutral.top },
-  {
-    kind: "hell",
-    title: "Enfer · case 11",
-    description: "On y est envoyé, on n’y marche pas.",
-    color: TILE_COLORS.hell.top,
-  },
-];
+function joinTileNumbers(nodeIds: NodeId[]): string {
+  return nodeIds.length <= 1 ? String(nodeIds[0] ?? "") : `${nodeIds.slice(0, -1).join(", ")} ou ${nodeIds.at(-1)}`;
+}
+
+/** Legend of the tile colours, with the tile numbers of the given map. */
+export function getTileLegend(mapId: MapId): TileLegendEntry[] {
+  const board = resolveBoard(mapId);
+  const bonusTiles = joinTileNumbers(getStartBonusNodeIds(board));
+  const entries: TileLegendEntry[] = [
+    {
+      kind: "start",
+      title: `Départ · case ${START_NODE_ID}`,
+      description:
+        `Y entrer depuis la case ${bonusTiles}, dans le sens de la flèche, rapporte ${START_BONUS} pièces ` +
+        `(sauf Je suis Cups). Sortir de l’Enfer vers le Départ aussi.`,
+      color: TILE_COLORS.start.top,
+    },
+    {
+      kind: "shop",
+      title: "Boutique",
+      description: "S’y arrêter en marchant ouvre la boutique. Téléporté ou replacé, non.",
+      color: TILE_COLORS.shop.top,
+    },
+    {
+      kind: "green",
+      title: "Case verte",
+      description:
+        "S’y arrêter lance la roue du bonheur. Red light, Green light : +100 pour chaque case verte traversée en marchant.",
+      color: TILE_COLORS.green.top,
+    },
+    {
+      kind: "red",
+      title: "Case rouge",
+      description:
+        "S’y arrêter lance la roue du malheur. Red light, Green light : −100 pour chaque case rouge traversée en marchant.",
+      color: TILE_COLORS.red.top,
+    },
+    { kind: "neutral", title: "Case neutre", description: "Aucun effet particulier.", color: TILE_COLORS.neutral.top },
+    {
+      kind: "hell",
+      title: `Enfer · case ${HELL_NODE_ID}`,
+      description: "On y est envoyé, on n’y marche jamais. Deux joueurs en Enfer : duel.",
+      color: TILE_COLORS.hell.top,
+    },
+  ];
+  return entries.filter((entry) => board.nodes.some((node) => node.kind === entry.kind));
+}

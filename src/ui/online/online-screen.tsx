@@ -9,6 +9,8 @@ import { GameLogo } from "../components/game-logo";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
 import { AccountPanel } from "./account-panel";
+import { drawChosenMap } from "../lobby/map-choice-store";
+import { MapPicker } from "../lobby/map-picker";
 import { AvatarPicker, firstFreeAvatar } from "./avatar-picker";
 import { loadOnlineIdentity, ONLINE_NAME_MAX_LENGTH, saveOnlineIdentity } from "./online-name";
 
@@ -206,6 +208,8 @@ function RoomLobby() {
   const updateSeat = useRoomStore((state) => state.updateSeat);
   const shuffleOrder = useRoomStore((state) => state.shuffleOrder);
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  // Like the local lobby, the host picks the board in a step of its own, once the table is set.
+  const [pickingMap, setPickingMap] = useState(false);
   const me = players.find((player) => player.userId === myUserId);
   const isHost = myUserId !== null && myUserId === hostId;
   const takenByOthers = players.filter((player) => player.userId !== myUserId).map((player) => player.avatar);
@@ -222,11 +226,46 @@ function RoomLobby() {
     }
   };
 
+  if (isHost && pickingMap) {
+    return (
+      <>
+        <header className="lobby__panel-header">
+          <div>
+            <span className="eyebrow">Salon {formatCode(code)} · étape 2/2</span>
+            <h1>Sur quelle carte ?</h1>
+          </div>
+          <span className="count-badge">{players.length} joueurs</span>
+        </header>
+
+        <MapPicker />
+
+        <div className="lobby__step-actions">
+          <button type="button" className="btn btn--cream" onClick={() => setPickingMap(false)}>
+            ← Retour
+          </button>
+          <button
+            type="button"
+            className="btn btn--cup btn--large lobby__start"
+            onClick={() => void startGame(drawChosenMap())}
+            disabled={busy || players.length < MIN_PLAYERS}
+          >
+            <UiIcon name="play" size={22} /> Lancer la partie
+          </button>
+        </div>
+        <p className="lobby__note">
+          {players.length < MIN_PLAYERS
+            ? "Il faut au moins deux joueurs : reviens partager le code ou le lien."
+            : "Les autres joueurs découvriront la carte au lancement."}
+        </p>
+      </>
+    );
+  }
+
   return (
     <>
       <header className="lobby__panel-header">
         <div>
-          <span className="eyebrow">Salon</span>
+          <span className="eyebrow">Salon{isHost ? " · étape 1/2" : ""}</span>
           <h1 className="online__code">{formatCode(code)}</h1>
         </div>
         <span className="count-badge">
@@ -282,13 +321,13 @@ function RoomLobby() {
         <button
           type="button"
           className="btn btn--cup btn--large lobby__start"
-          onClick={() => void startGame()}
+          onClick={() => setPickingMap(true)}
           disabled={busy || players.length < MIN_PLAYERS}
         >
-          <UiIcon name="play" size={22} /> Lancer la partie
+          Suivant : la carte →
         </button>
       ) : (
-        <p className="online__waiting">En attente de l’hôte pour lancer la partie…</p>
+        <p className="online__waiting">En attente de l’hôte : il choisit la carte puis lance la partie…</p>
       )}
       <p className="lobby__note">
         {players.length < MIN_PLAYERS

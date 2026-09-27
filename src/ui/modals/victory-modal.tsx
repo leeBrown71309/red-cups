@@ -3,6 +3,7 @@ import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { StandingsList } from "../components/standings-list";
 import { UiIcon } from "../icons/ui-icon";
+import { drawChosenMap } from "../lobby/map-choice-store";
 
 const CONFETTI_PIECES = 36;
 
@@ -53,7 +54,13 @@ export function VictoryModal() {
             <button
               type="button"
               className="btn btn--cup"
-              onClick={() => startGame(players.map((player) => player.name))}
+              onClick={() =>
+                startGame(
+                  players.map((player) => player.name),
+                  undefined,
+                  drawChosenMap(),
+                )
+              }
               data-autofocus
             >
               <UiIcon name="refresh" size={20} /> Revanche !
