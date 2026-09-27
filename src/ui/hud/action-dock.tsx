@@ -5,6 +5,7 @@ import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import { DELINQUENT_COST, HELL_EXIT_TOLL, HELL_TURN_LIMIT } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
+import { useCanActFor } from "../../net/room-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { getDelinquentHint } from "../display/item-availability";
@@ -23,6 +24,7 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
   const turnStage = useGameStore((state) => state.turnStage);
   const phase = useGameStore((state) => state.phase);
   const decider = useDecidingPlayer();
+  const canAct = useCanActFor([decider?.id]);
   if (!activePlayer || !decider || phase !== "playing") return null;
 
   const passive = PASSIVE_CATALOG[decider.passiveId];
@@ -47,7 +49,11 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
         </div>
       </div>
       <div className="action-dock__content">
-        <StageContent player={activePlayer} stage={turnStage} onOpenShop={onOpenShop} />
+        {canAct ? (
+          <StageContent player={activePlayer} stage={turnStage} onOpenShop={onOpenShop} />
+        ) : (
+          <DockPrompt title={`Au tour de ${decider.name}`} hint="Regarde bien : ton tour arrive." />
+        )}
       </div>
     </section>
   );

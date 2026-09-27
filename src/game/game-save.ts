@@ -5,7 +5,7 @@ import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 5;
+export const GAME_SAVE_VERSION = 6;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -43,6 +43,8 @@ const gameSaveStorage: PersistStorage<GameState> = {
     }
   },
   setItem: (name, value) => {
+    // An online game lives in its room; saving it here would clobber a local game.
+    if (value.state.seededRandom) return;
     if (value.state.phase !== "playing") {
       removeStorage(name);
       return;
@@ -61,12 +63,26 @@ type SaveRecord = Record<string, unknown>;
  * Fills in what later versions added, as it stands at the start of a game.
  * Version 4 added the Hell countdown; version 5 (patch 0.1.1) the mud turn
  * flag, Bullet Bill's flight, the Tour de Bénédiction, abandons and the Non
- * merci cooldown, which replaces the once-per-Cup rule.
+ * merci cooldown, which replaces the once-per-Cup rule. Version 6 moved duels
+ * into the engine (hands, votes, decided winner) and added the online seed.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
+  const duel = save.pendingDuel as SaveRecord | null | undefined;
   return {
     ...save,
+    seededRandom: save.seededRandom ?? null,
+    pendingDuel: duel
+      ? {
+          rpsChoices: {},
+          rpsTiedRound: null,
+          rpsTies: 0,
+          votes: {},
+          voteTieBroken: false,
+          winnerId: null,
+          ...duel,
+        }
+      : null,
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],

@@ -6,10 +6,13 @@ export interface AudioSettings {
   sfxEnabled: boolean;
   musicVolume: number;
   sfxVolume: number;
+  /** Online only: join the voice chat of every room this device sits at. */
+  voiceEnabled: boolean;
   setMusicEnabled: (enabled: boolean) => void;
   setSfxEnabled: (enabled: boolean) => void;
   setMusicVolume: (volume: number) => void;
   setSfxVolume: (volume: number) => void;
+  setVoiceEnabled: (enabled: boolean) => void;
 }
 
 /** Private windows can block storage: preferences then simply last for the session. */
@@ -46,19 +49,22 @@ export const useAudioSettings = create<AudioSettings>()(
       sfxEnabled: true,
       musicVolume: 0.45,
       sfxVolume: 0.8,
+      voiceEnabled: false,
       setMusicEnabled: (musicEnabled) => set({ musicEnabled }),
       setSfxEnabled: (sfxEnabled) => set({ sfxEnabled }),
       setMusicVolume: (volume) => set({ musicVolume: clampVolume(volume) }),
       setSfxVolume: (volume) => set({ sfxVolume: clampVolume(volume) }),
+      setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
     }),
     {
       name: "red-cups-audio",
       storage: createJSONStorage(() => safeStorage),
-      partialize: ({ musicEnabled, sfxEnabled, musicVolume, sfxVolume }) => ({
+      partialize: ({ musicEnabled, sfxEnabled, musicVolume, sfxVolume, voiceEnabled }) => ({
         musicEnabled,
         sfxEnabled,
         musicVolume,
         sfxVolume,
+        voiceEnabled,
       }),
     },
   ),

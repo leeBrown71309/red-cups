@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
+import { isDuellist } from "../../game/duel";
 import { useGameStore } from "../../game/store";
 import type { PendingDuel, Player, PlayerId, RpsChoice } from "../../game/types";
+import { useCanActFor, useLocalPlayerId } from "../../net/room-store";
 import { soundEffects } from "../../audio/sound-effects";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
+import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
 import { UiIcon } from "../icons/ui-icon";
 
@@ -13,8 +16,15 @@ const RPS_OPTIONS: { id: RpsChoice; label: string; emoji: string }[] = [
   { id: "scissors", label: "Ciseaux", emoji: "✌️" },
 ];
 
-const BEATS: Record<RpsChoice, RpsChoice> = { rock: "scissors", paper: "rock", scissors: "paper" };
+const COIN_FLIP_MS = 1_700;
+const REVEAL_MS = 1_400;
+const TIE_BREAK_REVEAL_MS = 2_000;
 
+/**
+ * The engine decides every duel (coin, hands, votes); this screen collects
+ * the choices and plays the reveal. At a local table one screen is passed
+ * around; online each player chooses on their own device.
+ */
 export function DuelModal() {
   const duel = useGameStore((state) => state.pendingDuel);
   const players = useGameStore((state) => state.players);
@@ -33,16 +43,27 @@ interface DuelArenaProps {
   second: Player;
 }
 
+/** Once the engine names the winner, the reveal plays before the result shows. */
+function useRevealedWinner(duel: PendingDuel): Player["id"] | null {
+  const [revealedId, setRevealedId] = useState<PlayerId | null>(null);
+  useEffect(() => {
+    if (!duel.winnerId) return undefined;
+    const delay = duel.mode === "coin-flip" ? COIN_FLIP_MS : duel.voteTieBroken ? TIE_BREAK_REVEAL_MS : REVEAL_MS;
+    const timer = window.setTimeout(() => setRevealedId(duel.winnerId), delay);
+    return () => window.clearTimeout(timer);
+  }, [duel.winnerId, duel.mode, duel.voteTieBroken]);
+  return revealedId;
+}
+
 function DuelArena({ duel, first, second }: DuelArenaProps) {
-  const players = useGameStore((state) => state.players);
   const resolveDuel = useGameStore((state) => state.resolveDuel);
-  const [winnerId, setWinnerId] = useState<PlayerId | null>(null);
-  const winner = winnerId === first.id ? first : winnerId === second.id ? second : null;
-  const voters = players.filter((player) => player.id !== first.id && player.id !== second.id);
+  const canSettle = useCanActFor([first.id, second.id]);
+  const revealedId = useRevealedWinner(duel);
+  const winner = revealedId === first.id ? first : revealedId === second.id ? second : null;
 
   useEffect(() => {
-    if (winnerId) soundEffects.duelWin();
-  }, [winnerId]);
+    if (winner) soundEffects.duelWin();
+  }, [winner]);
 
   return (
     <ModalShell
@@ -62,16 +83,20 @@ function DuelArena({ duel, first, second }: DuelArenaProps) {
         <div className="duel-outcome">
           <strong>{winner.name} remporte le duel !</strong>
           <p>Retour à la case Départ. L’autre reste en Enfer.</p>
-          <button type="button" className="btn btn--cup" onClick={() => resolveDuel(winner.id)} data-autofocus>
-            Continuer <UiIcon name="arrowRight" size={20} />
-          </button>
+          {canSettle ? (
+            <button type="button" className="btn btn--cup" onClick={() => resolveDuel(winner.id)} data-autofocus>
+              Continuer <UiIcon name="arrowRight" size={20} />
+            </button>
+          ) : (
+            <WaitingNote player={winner} />
+          )}
         </div>
       ) : duel.mode === "coin-flip" ? (
-        <CoinFlip duel={duel} first={first} second={second} onDecided={setWinnerId} />
+        <CoinFlip duel={duel} first={first} second={second} />
       ) : duel.mode === "rock-paper-scissors" ? (
-        <RockPaperScissors first={first} second={second} onDecided={setWinnerId} />
+        <RockPaperScissors duel={duel} first={first} second={second} />
       ) : (
-        <TableVote first={first} second={second} voters={voters} onDecided={setWinnerId} />
+        <TableVote duel={duel} first={first} second={second} />
       )}
     </ModalShell>
   );
@@ -86,15 +111,15 @@ function Contestant({ player, state }: { player: Player; state: "idle" | "won" |
   );
 }
 
-function CoinFlip({ duel, first, second, onDecided }: DuelArenaProps & { onDecided: (id: PlayerId) => void }) {
-  const [flipping, setFlipping] = useState(false);
+function CoinFlip({ duel, first, second }: DuelArenaProps) {
+  const flipDuelCoin = useGameStore((state) => state.flipDuelCoin);
+  const canFlip = useCanActFor([first.id, second.id]);
+  const flipping = duel.winnerId !== null;
   const landsOnFirst = duel.coinWinnerId === first.id;
 
-  const flip = () => {
-    setFlipping(true);
-    soundEffects.coinFlip();
-    window.setTimeout(() => duel.coinWinnerId && onDecided(duel.coinWinnerId), 1_700);
-  };
+  useEffect(() => {
+    if (flipping) soundEffects.coinFlip();
+  }, [flipping]);
 
   return (
     <div className="duel-panel">
@@ -109,64 +134,110 @@ function CoinFlip({ duel, first, second, onDecided }: DuelArenaProps & { onDecid
       <p>
         Face : <strong>{first.name}</strong> · Pile : <strong>{second.name}</strong>
       </p>
-      <button type="button" className="btn btn--gold" onClick={flip} disabled={flipping} data-autofocus>
-        Lancer la pièce
-      </button>
+      {canFlip ? (
+        <button type="button" className="btn btn--gold" onClick={flipDuelCoin} disabled={flipping} data-autofocus>
+          Lancer la pièce
+        </button>
+      ) : (
+        !flipping && <WaitingNote player={first} text={`${first.name} ou ${second.name} lance la pièce…`} />
+      )}
     </div>
   );
 }
 
-function RockPaperScissors({
-  first,
-  second,
-  onDecided,
-}: {
-  first: Player;
-  second: Player;
-  onDecided: (id: PlayerId) => void;
-}) {
-  const [firstChoice, setFirstChoice] = useState<RpsChoice | null>(null);
-  const [secondChoice, setSecondChoice] = useState<RpsChoice | null>(null);
-  const [handedOver, setHandedOver] = useState(false);
-  const [ties, setTies] = useState(0);
+function HandsReveal({ duel, first, second }: DuelArenaProps) {
+  const hands = duel.winnerId ? duel.rpsChoices : (duel.rpsTiedRound ?? {});
+  const emojiOf = (playerId: PlayerId) => RPS_OPTIONS.find((option) => option.id === hands[playerId])?.emoji;
+  return (
+    <div className="rps-reveal">
+      <span className="rps-hand rps-hand--left">{emojiOf(first.id)}</span>
+      <span className="rps-hand rps-hand--right">{emojiOf(second.id)}</span>
+    </div>
+  );
+}
 
-  const revealed = firstChoice !== null && secondChoice !== null;
-  const tie = revealed && firstChoice === secondChoice;
+function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
+  const pickDuelHand = useGameStore((state) => state.pickDuelHand);
+  const localPlayerId = useLocalPlayerId();
+  const [seenTies, setSeenTies] = useState(0);
+  const [handedOver, setHandedOver] = useState(false);
+  const decided = duel.winnerId !== null;
+  const showingTie = duel.rpsTiedRound !== null && seenTies < duel.rpsTies;
 
   useEffect(() => {
-    if (!revealed) return undefined;
-    soundEffects.reveal();
-    if (tie) return undefined;
-    const winner = BEATS[firstChoice] === secondChoice ? first.id : second.id;
-    const timer = window.setTimeout(() => onDecided(winner), 1_400);
-    return () => window.clearTimeout(timer);
-  }, [revealed, tie, firstChoice, secondChoice, first.id, second.id, onDecided]);
+    if (decided || showingTie) soundEffects.reveal();
+  }, [decided, showingTie]);
 
-  const replay = () => {
-    setFirstChoice(null);
-    setSecondChoice(null);
-    setHandedOver(false);
-    setTies((count) => count + 1);
-  };
+  useEffect(() => {
+    // A new round starts with nobody's hand picked: the local hand-over starts over too.
+    if (Object.keys(duel.rpsChoices).length === 0) setHandedOver(false);
+  }, [duel.rpsChoices]);
 
-  if (revealed) {
-    const optionFor = (choice: RpsChoice) => RPS_OPTIONS.find((option) => option.id === choice);
+  if (decided) {
     return (
       <div className="duel-panel">
-        <div className="rps-reveal">
-          <span className="rps-hand rps-hand--left">{optionFor(firstChoice)?.emoji}</span>
-          <span className="rps-hand rps-hand--right">{optionFor(secondChoice)?.emoji}</span>
-        </div>
-        {tie && (
-          <button type="button" className="btn btn--gold" onClick={replay} data-autofocus>
-            Égalité ! On rejoue
-          </button>
-        )}
+        <HandsReveal duel={duel} first={first} second={second} />
       </div>
     );
   }
 
-  if (firstChoice && !handedOver) {
+  if (showingTie) {
+    return (
+      <div className="duel-panel">
+        <HandsReveal duel={duel} first={first} second={second} />
+        <button type="button" className="btn btn--gold" onClick={() => setSeenTies(duel.rpsTies)} data-autofocus>
+          Égalité ! On rejoue
+        </button>
+      </div>
+    );
+  }
+
+  const roundBadge = duel.rpsTies > 0 && <span className="tie-badge">Manche {duel.rpsTies + 1}</span>;
+  const picker = (chooser: Player) => (
+    <div className="duel-panel">
+      <p className="duel-secret">
+        {roundBadge}
+        <strong>{chooser.name}</strong>, choisis en secret :
+      </p>
+      <div className="rps-options">
+        {RPS_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className="rps-option"
+            onClick={() => pickDuelHand(chooser.id, option.id)}
+          >
+            <span aria-hidden="true">{option.emoji}</span>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  // Online: each duellist picks on their own screen, everyone else waits.
+  if (localPlayerId !== null) {
+    const me = [first, second].find((player) => player.id === localPlayerId);
+    if (me && !duel.rpsChoices[me.id]) return picker(me);
+    const pending = [first, second].filter((player) => !duel.rpsChoices[player.id]);
+    return (
+      <div className="duel-panel">
+        {roundBadge}
+        <WaitingNote
+          player={pending[0]}
+          text={
+            pending.length === 2
+              ? `${first.name} et ${second.name} choisissent en secret…`
+              : `En attente du choix de ${pending[0]?.name ?? "l’adversaire"}…`
+          }
+        />
+      </div>
+    );
+  }
+
+  // Local table: one screen, handed from the first duellist to the second.
+  if (!duel.rpsChoices[first.id]) return picker(first);
+  if (!handedOver) {
     return (
       <div className="duel-panel">
         <p className="duel-secret">
@@ -178,66 +249,24 @@ function RockPaperScissors({
       </div>
     );
   }
-
-  const chooser = firstChoice ? second : first;
-  return (
-    <div className="duel-panel">
-      <p className="duel-secret">
-        {ties > 0 && <span className="tie-badge">Manche {ties + 1}</span>}
-        <strong>{chooser.name}</strong>, choisis en secret :
-      </p>
-      <div className="rps-options">
-        {RPS_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className="rps-option"
-            onClick={() => (firstChoice ? setSecondChoice(option.id) : setFirstChoice(option.id))}
-          >
-            <span aria-hidden="true">{option.emoji}</span>
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+  return picker(second);
 }
 
-function TableVote({
-  first,
-  second,
-  voters,
-  onDecided,
-}: {
-  first: Player;
-  second: Player;
-  voters: Player[];
-  onDecided: (id: PlayerId) => void;
-}) {
-  const [votes, setVotes] = useState<PlayerId[]>([]);
-  const [tieBreak, setTieBreak] = useState<PlayerId | null>(null);
-  const voter = voters[votes.length];
-  const finished = votes.length >= voters.length;
-  const firstVotes = votes.filter((vote) => vote === first.id).length;
-  const secondVotes = votes.length - firstVotes;
+function TableVote({ duel, first, second }: DuelArenaProps) {
+  const castDuelVote = useGameStore((state) => state.castDuelVote);
+  const players = useGameStore((state) => state.players);
+  const localPlayerId = useLocalPlayerId();
+  const voters = players.filter((player) => !isDuellist(duel, player.id));
+  const voterIds = voters.map((player) => player.id);
+  const castCount = voterIds.filter((id) => duel.votes[id]).length;
+  const decided = duel.winnerId !== null;
 
   useEffect(() => {
-    if (!finished) return undefined;
-    soundEffects.reveal();
-    const winner =
-      firstVotes === secondVotes
-        ? Math.random() < 0.5
-          ? first.id
-          : second.id
-        : firstVotes > secondVotes
-          ? first.id
-          : second.id;
-    if (firstVotes === secondVotes) setTieBreak(winner);
-    const timer = window.setTimeout(() => onDecided(winner), firstVotes === secondVotes ? 2_000 : 1_400);
-    return () => window.clearTimeout(timer);
-  }, [finished, firstVotes, secondVotes, first.id, second.id, onDecided]);
+    if (decided) soundEffects.reveal();
+  }, [decided]);
 
-  if (finished) {
+  if (decided) {
+    const firstVotes = voterIds.filter((id) => duel.votes[id] === first.id).length;
     return (
       <div className="duel-panel">
         <div className="vote-tally">
@@ -245,10 +274,27 @@ function TableVote({
             {first.name} <strong>{firstVotes}</strong>
           </span>
           <span>
-            <strong>{secondVotes}</strong> {second.name}
+            <strong>{voterIds.length - firstVotes}</strong> {second.name}
           </span>
         </div>
-        {tieBreak && <p>Égalité : la pièce départage…</p>}
+        {duel.voteTieBroken && <p>Égalité : la pièce départage…</p>}
+      </div>
+    );
+  }
+
+  // Online each voter votes on their own device; locally the screen goes round the table.
+  const voter =
+    localPlayerId !== null
+      ? voters.find((candidate) => candidate.id === localPlayerId && !duel.votes[candidate.id])
+      : voters.find((candidate) => !duel.votes[candidate.id]);
+
+  if (!voter) {
+    return (
+      <div className="duel-panel">
+        <WaitingNote
+          player={voters.find((candidate) => !duel.votes[candidate.id])}
+          text={`La table vote en secret… (${castCount}/${voterIds.length})`}
+        />
       </div>
     );
   }
@@ -256,7 +302,7 @@ function TableVote({
   return (
     <div className="duel-panel">
       <p className="duel-secret">
-        Vote secret de <strong>{voter?.name}</strong> ({votes.length + 1}/{voters.length})
+        Vote secret de <strong>{voter.name}</strong> ({castCount + 1}/{voterIds.length})
       </p>
       <div className="vote-options">
         {[first, second].map((candidate) => (
@@ -264,7 +310,7 @@ function TableVote({
             key={candidate.id}
             type="button"
             className="vote-option"
-            onClick={() => setVotes((current) => [...current, candidate.id])}
+            onClick={() => castDuelVote(voter.id, candidate.id)}
           >
             <PlayerAvatar color={candidate.color} size={44} />
             {candidate.name}

@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useGameStore } from "../../game/store";
 import type { PendingWheel, WheelOutcomeId } from "../../game/types";
 import { soundEffects } from "../../audio/sound-effects";
+import { useCanActFor } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
+import { WaitingNote } from "../components/waiting-note";
 import { PlayerAvatar } from "../components/player-avatar";
 import { WheelDial } from "../components/wheel-dial";
 import { WHEEL_TITLES, getWheelSegments, isPositiveOutcome } from "../display/game-display";
@@ -39,6 +41,8 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
   const player = useGameStore((state) => state.players.find((candidate) => candidate.id === pending.playerId));
   const resolveWheel = useGameStore((state) => state.resolveWheel);
   const cancelWheel = useGameStore((state) => state.cancelWheel);
+  // Everybody watches the wheel; only its player applies the result or rubs it out.
+  const canAct = useCanActFor([pending.playerId]);
   const segments = useMemo(() => getWheelSegments(pending.wheelId), [pending.wheelId]);
   const [rotation, setRotation] = useState(0);
   const [done, setDone] = useState(false);
@@ -120,16 +124,20 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
             <div className={`wheel-result ${positive ? "is-positive" : "is-negative"}`}>
               <span className="wheel-result__eyebrow">Résultat</span>
               <strong className="wheel-result__label">{pending.result.label}</strong>
-              <div className="wheel-result__actions">
-                <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
-                  <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
-                </button>
-                {hasEraser && (
-                  <button type="button" className="btn btn--cream btn--block" onClick={cancelWheel}>
-                    <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
+              {canAct ? (
+                <div className="wheel-result__actions">
+                  <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
+                    <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
                   </button>
-                )}
-              </div>
+                  {hasEraser && (
+                    <button type="button" className="btn btn--cream btn--block" onClick={cancelWheel}>
+                      <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <WaitingNote player={player} />
+              )}
             </div>
           ) : (
             <div className="wheel-waiting">

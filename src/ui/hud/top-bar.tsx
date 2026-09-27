@@ -1,6 +1,8 @@
 import { useGameStore } from "../../game/store";
+import { useRoomStore } from "../../net/room-store";
 import { boardCamera } from "../../scene/board-stage";
 import { AudioToggles } from "../components/audio-controls";
+import { VoiceMicButton } from "../components/voice-controls";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 import { PlayersBar } from "./players-bar";
@@ -24,15 +26,35 @@ export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
           <strong>{round}</strong>
         </span>
         <BulletChip />
+        <OnlineChip />
       </div>
       <PlayersBar />
       <div className="top-bar__right">
         <AudioToggles />
+        {/* Outside the audio toggles, which small screens hide: the mic stays at hand on a phone. */}
+        <VoiceMicButton />
         <button type="button" className="icon-button" onClick={onOpenHelp} aria-label="Comment jouer">
           <UiIcon name="help" />
         </button>
       </div>
     </header>
+  );
+}
+
+/** Online only: the room code, and a warning while the connection is down. */
+function OnlineChip() {
+  const code = useRoomStore((state) => (state.view === "playing" ? state.code : null));
+  const connection = useRoomStore((state) => state.connection);
+  if (!code) return null;
+  const online = connection === "online";
+  return (
+    <span
+      className={`online-chip ${online ? "is-online" : "is-offline"}`}
+      title={online ? `Salon ${code} : connecté` : "Connexion perdue, reconnexion…"}
+    >
+      <span className={`online-dot ${online ? "is-online" : ""}`} />
+      <strong>{online ? code : "Reconnexion…"}</strong>
+    </span>
   );
 }
 

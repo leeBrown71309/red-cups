@@ -1,6 +1,6 @@
 import { getBoardNode, getPathsOfLength } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import type { BoardNode, ItemId, NodeId, Player, WheelId } from "./types";
+import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
@@ -89,4 +89,19 @@ export function getTileWheel(nodeId: NodeId): WheelId | null {
 
 export function getItemPrice(itemId: ItemId, bootPrice: number): number {
   return itemId === "boot" ? bootPrice : ITEM_CATALOG[itemId].price;
+}
+
+/**
+ * Player who must act right now: usually the active one, except for New Cup,
+ * New Me, a tile wheel owed by someone who was teleported or pushed there,
+ * and the next spinner of a Tour de Bénédiction.
+ */
+export function getDecidingPlayer(state: GameState): Player | undefined {
+  const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
+    reposition: state.pendingCupRepositionPlayerId,
+    "tile-wheel": state.pendingTileWheels[0]?.playerId,
+    blessing: state.blessingQueue[0],
+  };
+  const deciderId = deciderIds[state.turnStage];
+  return state.players.find((player) => player.id === deciderId) ?? state.players[state.activePlayerIndex];
 }

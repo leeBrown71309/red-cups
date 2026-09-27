@@ -36,9 +36,11 @@ function rememberNames(names: string[]): void {
 
 interface LobbyScreenProps {
   onStart: (names: string[]) => void;
+  /** Offered only when the build has an online backend. */
+  onPlayOnline?: () => void;
 }
 
-export function LobbyScreen({ onStart }: LobbyScreenProps) {
+export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
   const [names, setNames] = useState<string[]>(loadRememberedNames);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -83,9 +85,16 @@ export function LobbyScreen({ onStart }: LobbyScreenProps) {
             <CoinIcon size={20} /> 2 000 pièces au départ
           </li>
         </ul>
-        <button type="button" className="btn btn--cream btn--small lobby__rules" onClick={() => setHelpOpen(true)}>
-          <UiIcon name="help" size={18} /> Comment jouer ?
-        </button>
+        <div className="lobby__hero-actions">
+          <button type="button" className="btn btn--cream btn--small lobby__rules" onClick={() => setHelpOpen(true)}>
+            <UiIcon name="help" size={18} /> Comment jouer ?
+          </button>
+          {onPlayOnline && (
+            <button type="button" className="btn btn--sky btn--small" onClick={onPlayOnline}>
+              <UiIcon name="globe" size={18} /> Jouer en ligne
+            </button>
+          )}
+        </div>
       </section>
 
       <section className="lobby__panel panel" aria-labelledby="lobby-title">

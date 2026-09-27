@@ -1,10 +1,13 @@
 import { useMemo } from "react";
 import { NORMAL_NODE_IDS } from "../game/board";
-import { getLegalMoveOptions } from "../game/rules";
+import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
 import { canUseDelinquent, useGameStore } from "../game/store";
-import type { GameState, NodeId, Player, PlayerId } from "../game/types";
+import type { GameState, NodeId, Player } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
+import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
 import { soundEffects } from "../audio/sound-effects";
+
+export { getDecidingPlayer };
 
 export interface LegalMoves {
   /** Tile the previewed paths start from; null when paths are not walks. */
@@ -14,21 +17,6 @@ export interface LegalMoves {
 
 export function useActivePlayer(): Player | undefined {
   return useGameStore((state) => state.players[state.activePlayerIndex]);
-}
-
-/**
- * Player who must act right now: usually the active one, except for New Cup,
- * New Me, a tile wheel owed by someone who was teleported or pushed there,
- * and the next spinner of a Tour de Bénédiction.
- */
-export function getDecidingPlayer(state: GameState): Player | undefined {
-  const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
-    reposition: state.pendingCupRepositionPlayerId,
-    "tile-wheel": state.pendingTileWheels[0]?.playerId,
-    blessing: state.blessingQueue[0],
-  };
-  const deciderId = deciderIds[state.turnStage];
-  return state.players.find((player) => player.id === deciderId) ?? state.players[state.activePlayerIndex];
 }
 
 export function useDecidingPlayer(): Player | undefined {
@@ -54,10 +42,22 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   return { origin: activePlayer.position, paths };
 }
 
+/** In an online game, only the device of the deciding player sees and walks the paths. */
+function isLocalDecider(state: GameState, localPlayerId: string | null): boolean {
+  return localPlayerId === null || getDecidingPlayer(state)?.id === localPlayerId;
+}
+
 export function useLegalMoves(): LegalMoves {
   const game = useGameStore();
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
-  return useMemo(() => computeLegalMoves(game, ignoreArrows), [game, ignoreArrows]);
+  const localPlayerId = useLocalPlayerId();
+  return useMemo(
+    () =>
+      isLocalDecider(game, localPlayerId)
+        ? computeLegalMoves(game, ignoreArrows)
+        : { origin: null, paths: new Map<NodeId, NodeId[]>() },
+    [game, ignoreArrows, localPlayerId],
+  );
 }
 
 /** Commits a move (or a New Cup, New Me repositioning) to the chosen tile. */
@@ -65,7 +65,7 @@ export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
   const legal = computeLegalMoves(game, ui.ignoreArrows);
-  if (!legal.paths.has(nodeId)) {
+  if (!isLocalDecider(game, getLocalPlayerId()) || !legal.paths.has(nodeId)) {
     soundEffects.error();
     return;
   }

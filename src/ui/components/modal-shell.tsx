@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { UiIcon } from "../icons/ui-icon";
 
 interface ModalShellProps {
@@ -15,6 +16,8 @@ interface ModalShellProps {
 /**
  * Shared dialog frame: sticker-like card, soft backdrop and pop-in motion.
  * Dialogs without `onClose` are mandatory decisions and cannot be dismissed.
+ * Rendered at the end of the page: opened from inside a panel, the dialog
+ * still covers the whole screen instead of being clipped by that panel.
  */
 export function ModalShell({
   title,
@@ -44,7 +47,7 @@ export function ModalShell({
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div className="modal-layer" role="presentation">
       <div className="modal-backdrop" onClick={onClose} aria-hidden="true" />
       <section
@@ -70,6 +73,7 @@ export function ModalShell({
         <div className="modal-card__body">{children}</div>
         {footer && <footer className="modal-card__footer">{footer}</footer>}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

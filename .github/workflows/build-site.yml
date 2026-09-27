@@ -1,0 +1,40 @@
+name: Build the site
+
+# Shared by both deployments, so pre-prod is tested with exactly what main will ship.
+on:
+  workflow_call:
+    inputs:
+      base-path:
+        description: Path the site is served under ("/" on the VPS, "/red-cups/" on GitHub Pages).
+        type: string
+        required: true
+    secrets:
+      VITE_SUPABASE_URL:
+        required: false
+      VITE_SUPABASE_KEY:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      # Includes the bot campaign and the schema tests: a broken rule blocks the deployment.
+      - run: bun run test
+      # The publishable Supabase key ships with the site on purpose; without both, the build is local-only.
+      - run: bun run build
+        env:
+          BASE_PATH: ${{ inputs.base-path }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: dist
+          retention-days: 7

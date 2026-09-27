@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
-import type { InventoryEntry } from "../../game/types";
+import type { InventoryEntry, Player } from "../../game/types";
 import { getItemAvailability } from "../display/item-availability";
+import { useLocalPlayerId } from "../../net/room-store";
 import { useActivePlayer } from "../game-hooks";
 import { ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -12,10 +13,16 @@ interface InventoryTrayProps {
   onRequestTarget: (entryId: string) => void;
 }
 
-/** The active player's bag. Tapping an item explains it before using it. */
+/**
+ * The bag on screen: the active player's at a local table, your own online.
+ * Tapping an item explains it before using it; it can only be used on your turn.
+ */
 export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
-  const activePlayer = useActivePlayer();
+  const turnPlayer = useActivePlayer();
   const game = useGameStore();
+  const localPlayerId = useLocalPlayerId();
+  const activePlayer = localPlayerId ? game.players.find((player) => player.id === localPlayerId) : turnPlayer;
+  const isOwnTurn = activePlayer !== undefined && activePlayer.id === turnPlayer?.id;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const trayRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +46,7 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
   const useEntry = (entry: InventoryEntry) => {
     if (entry.kind !== "item") return;
     const availability = getItemAvailability(entry.itemId, game, activePlayer);
-    if (!availability.usable) return;
+    if (!isOwnTurn || !availability.usable) return;
     setSelectedId(null);
     if (availability.kind === "prepare-boot") game.prepareBoot(entry.id);
     else if (availability.kind === "target") onRequestTarget(entry.id);
@@ -54,7 +61,8 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
       <div className="inventory-tray__slots">
         {activePlayer.inventory.map((entry) => {
           const isCup = entry.kind === "red-cup";
-          const usable = entry.kind === "item" && getItemAvailability(entry.itemId, game, activePlayer).usable;
+          const usable =
+            isOwnTurn && entry.kind === "item" && getItemAvailability(entry.itemId, game, activePlayer).usable;
           return (
             <button
               key={entry.id}
@@ -91,7 +99,7 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
               </p>
             </>
           ) : (
-            <ItemCardBody entry={selected} onUse={() => useEntry(selected)} />
+            <ItemCardBody entry={selected} player={activePlayer} ownTurn={isOwnTurn} onUse={() => useEntry(selected)} />
           )}
         </div>
       )}
@@ -99,12 +107,19 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
   );
 }
 
-function ItemCardBody({ entry, onUse }: { entry: InventoryEntry & { kind: "item" }; onUse: () => void }) {
+interface ItemCardBodyProps {
+  entry: InventoryEntry & { kind: "item" };
+  player: Player;
+  ownTurn: boolean;
+  onUse: () => void;
+}
+
+function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
   const game = useGameStore();
-  const activePlayer = useActivePlayer();
-  if (!activePlayer) return null;
   const item = ITEM_CATALOG[entry.itemId];
-  const availability = getItemAvailability(entry.itemId, game, activePlayer);
+  const availability = getItemAvailability(entry.itemId, game, player);
+  const usable = ownTurn && availability.usable;
+  const reason = ownTurn ? availability.reason : "Attends ton tour pour l’utiliser.";
 
   return (
     <>
@@ -116,15 +131,10 @@ function ItemCardBody({ entry, onUse }: { entry: InventoryEntry & { kind: "item"
         </div>
       </div>
       <p>{item.description}</p>
-      <button
-        type="button"
-        className="btn btn--cup btn--small btn--block"
-        disabled={!availability.usable}
-        onClick={onUse}
-      >
+      <button type="button" className="btn btn--cup btn--small btn--block" disabled={!usable} onClick={onUse}>
         {availability.actionLabel}
       </button>
-      {availability.reason && <small className="item-card__reason">{availability.reason}</small>}
+      {reason && <small className="item-card__reason">{reason}</small>}
     </>
   );
 }

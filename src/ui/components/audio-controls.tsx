@@ -1,5 +1,6 @@
 import { useAudioSettings } from "../../audio/audio-settings";
 import { UiIcon } from "../icons/ui-icon";
+import { VoiceSettingRow } from "./voice-controls";
 
 /** Quick mute toggles, used in the lobby corner and the in-game top bar. */
 export function AudioToggles() {
@@ -84,6 +85,7 @@ export function AudioSliders() {
           {settings.sfxEnabled ? "On" : "Off"}
         </button>
       </div>
+      <VoiceSettingRow />
     </div>
   );
 }

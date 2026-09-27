@@ -1,0 +1,51 @@
+name: Deploy main to the VPS
+
+# Production: pre-prod is merged into main once it has been tried on GitHub Pages,
+# and main is published at https://redcups.leeeight.site.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-site.yml
+    with:
+      base-path: /
+    secrets: inherit
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://redcups.leeeight.site
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: dist
+
+      # Nginx serves /var/www/red-cups as static files: no process runs on the server for the game.
+      # The server's public host key is pinned here, so the upload never trusts an unknown host.
+      - name: Upload to redcups.leeeight.site
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          HOST_PUBLIC_KEY: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL4W4I9eOV2cVoPAd0NRCR2MIMMqPOtfLaQQLuoeteol
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s %s\n' "$SSH_HOST" "$HOST_PUBLIC_KEY" > ~/.ssh/known_hosts
+          # --delay-updates swaps the new files in at the end, so a visitor never gets half a release.
+          rsync -az --delete --delay-updates -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes" \
+            dist/ "$SSH_USER@$SSH_HOST:/var/www/red-cups/"
