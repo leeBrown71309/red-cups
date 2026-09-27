@@ -1114,6 +1114,17 @@
   line-height: 1.05;
 }
 
+/* Rematch: the map carousel takes the card's width, the note sits right under it. */
+.victory__card .map-carousel {
+  width: 100%;
+}
+
+.victory__map-note {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
 .standings {
   display: grid;
   gap: 6px;

@@ -18,6 +18,9 @@ const MAPS: Record<MapId, BoardMap> = {
 /** What the lobby lets the host pick: one map, or a draw at kickoff. */
 export type MapChoice = MapId | "random";
 
+/** Every choice in the order the picker offers them: the draw always comes first. */
+export const MAP_CHOICES: MapChoice[] = ["random", ...MAP_ORDER];
+
 export function isMapId(value: unknown): value is MapId {
   return typeof value === "string" && MAP_ORDER.includes(value as MapId);
 }
