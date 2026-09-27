@@ -137,6 +137,11 @@ export function openRoom(code: string, state: GameState, seatOrder: string[]): P
   return callRoomFunction("open_room", { p_code: code, p_state: state, p_seat_order: seatOrder });
 }
 
+/** Host only, once the game is over: the players still at the table start a new game. */
+export function rematchRoom(code: string, state: GameState, seatOrder: string[]): Promise<void> {
+  return callRoomFunction("rematch_room", { p_code: code, p_state: state, p_seat_order: seatOrder });
+}
+
 /** Compare-and-set: false means another device moved first and this one must resync. */
 export function advanceRoom(code: string, state: GameState, fromVersion: number): Promise<boolean> {
   return callRoomFunction<boolean>("advance_room", { p_code: code, p_state: state, p_from: fromVersion });
