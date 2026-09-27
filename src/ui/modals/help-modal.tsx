@@ -164,13 +164,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 <div>
                   <strong>{item.name}</strong>
                   <p>{item.description}</p>
-                  <DetailCarousel details={item.details} label={item.name} />
                 </div>
                 <span className="price-chip">
                   <CoinIcon size={16} />
                   {itemId === "boot" ? "dès " : ""}
                   {formatCurrency(item.price)}
                 </span>
+                {/* Full card width: squeezed beside the icon and the price, the rules wrapped every other word. */}
+                <DetailCarousel details={item.details} label={item.name} />
               </li>
             );
           })}
