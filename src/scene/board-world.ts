@@ -1,16 +1,18 @@
 import * as THREE from "three";
-import { BOARD_EDGES, BOARD_NODES, getBoardNode } from "../game/board";
-import type { NodeId, PlayerMovement } from "../game/types";
+import type { BoardEdge, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
+import { getSceneTheme, type SceneTheme } from "../theme/map-themes";
 import { SCENE_COLORS } from "../theme/palette";
-import { SHOP_STALL_PLACEMENTS, START_FLAG_OFFSET, getNodePosition, getTunnelLayout } from "./board-layout";
+import { BoardLayout } from "./board-layout";
 import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
+import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
+import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
 import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
-import { createPond, createScenery, createTray } from "./models/scenery-model";
+import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-model";
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
@@ -18,6 +20,8 @@ import { SceneKit, easeOutBack } from "./scene-kit";
 
 export interface BoardView {
   mode: CameraMode;
+  /** Luna Park: which way the carousel turns right now. */
+  carouselReversed: boolean;
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
@@ -42,14 +46,18 @@ const TAP_DISTANCE_PX = 9;
 const TAP_DURATION_MS = 650;
 
 /**
- * Owns the Three.js scene. React feeds it a serialisable `BoardView`; the
- * world never reads or writes the game store directly.
+ * Owns the Three.js scene of one map. React feeds it a serialisable
+ * `BoardView`; the world never reads or writes the game store directly.
+ * Showing another map means building another world.
  */
 export class BoardWorld {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly kit = new SceneKit();
+  private readonly layout: BoardLayout;
+  private readonly theme: SceneTheme;
   private readonly rig: CameraRig;
+  private carouselHell: CarouselHell | null = null;
   private readonly tiles = new Map<NodeId, TileVisual>();
   private readonly roads: RoadNetwork;
   private readonly pawns: PawnController;
@@ -72,7 +80,10 @@ export class BoardWorld {
   constructor(
     private readonly container: HTMLElement,
     private readonly callbacks: BoardWorldCallbacks,
+    mapId: MapId,
   ) {
+    this.layout = new BoardLayout(mapId);
+    this.theme = getSceneTheme(this.layout.map.themeId);
     const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarsePointer ? 1.75 : 2));
@@ -82,21 +93,21 @@ export class BoardWorld {
     this.renderer.domElement.classList.add("board-canvas");
     container.appendChild(this.renderer.domElement);
 
-    this.rig = new CameraRig(this.renderer.domElement);
+    this.rig = new CameraRig(this.renderer.domElement, this.layout.cameraBounds);
     this.addLights(coarsePointer ? 1_024 : 2_048);
     this.buildBoard();
 
-    this.roads = new RoadNetwork(this.kit);
+    this.roads = new RoadNetwork(this.kit, this.layout, this.theme.roads);
     this.scene.add(this.roads.group);
 
-    this.pawns = new PawnController(this.kit);
+    this.pawns = new PawnController(this.kit, this.layout);
     this.scene.add(this.pawns.group);
 
     this.redCup = createRedCup(this.kit);
     this.redCup.group.visible = false;
     this.scene.add(this.redCup.group);
 
-    this.bullet = new BulletBillActor(this.kit, this.effects);
+    this.bullet = new BulletBillActor(this.kit, this.effects, this.layout);
     this.scene.add(this.bullet.group);
 
     this.scene.add(this.effects.group);
@@ -122,6 +133,8 @@ export class BoardWorld {
     if (firstView) this.pawns.acknowledgeMovement(view.lastMovement);
 
     this.rig.setMode(view.mode);
+    this.roads.setCarouselReversed(view.carouselReversed);
+    this.carouselHell?.setReversed(view.carouselReversed);
     this.pawns.sync(view.pawns, view.lastMovement);
     this.refreshHighlights();
 
@@ -129,7 +142,7 @@ export class BoardWorld {
       this.cupNodeId = view.redCupNodeId;
       this.redCup.group.visible = view.redCupNodeId !== null;
       if (view.redCupNodeId !== null) {
-        this.redCup.group.position.copy(getNodePosition(view.redCupNodeId)).setY(TILE_HEIGHT);
+        this.redCup.group.position.copy(this.layout.getNodePosition(view.redCupNodeId)).setY(TILE_HEIGHT);
         this.cupPopProgress = firstView ? 1 : 0;
       }
     }
@@ -148,7 +161,7 @@ export class BoardWorld {
   }
 
   focusOnNode(nodeId: NodeId): void {
-    this.rig.focusOn(getNodePosition(nodeId));
+    this.rig.focusOn(this.layout.getNodePosition(nodeId));
   }
 
   dispose(): void {
@@ -178,17 +191,20 @@ export class BoardWorld {
     canvas.remove();
   }
 
+  /** Sunlight over the toy box, moonlight over the night fair; both keep soft shadows. */
   private addLights(shadowMapSize: number): void {
-    this.scene.add(new THREE.HemisphereLight("#fff6e8", "#b98d6a", 1.45));
+    const lights = this.theme.lights;
+    this.scene.add(new THREE.HemisphereLight(lights.sky, lights.ground, lights.ambient));
 
-    const sun = new THREE.DirectionalLight("#fff0d8", 2.5);
-    sun.position.set(-10, 22, 14);
+    const sun = new THREE.DirectionalLight(lights.sun, lights.sunIntensity);
+    sun.position.set(...lights.sunPosition);
     sun.castShadow = true;
     sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
-    sun.shadow.camera.left = -17;
-    sun.shadow.camera.right = 17;
-    sun.shadow.camera.top = 14;
-    sun.shadow.camera.bottom = -14;
+    const { halfWidth, halfDepth } = this.layout.cameraBounds;
+    sun.shadow.camera.left = -halfWidth - 3.6;
+    sun.shadow.camera.right = halfWidth + 3.6;
+    sun.shadow.camera.top = halfDepth + 4.4;
+    sun.shadow.camera.bottom = -halfDepth - 4.4;
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 60;
     sun.shadow.radius = 4;
@@ -196,13 +212,13 @@ export class BoardWorld {
     sun.shadow.normalBias = 0.03;
     this.scene.add(sun);
 
-    const fill = new THREE.DirectionalLight("#dbe8ff", 0.55);
+    const fill = new THREE.DirectionalLight(lights.fill, lights.fillIntensity);
     fill.position.set(12, 8, -8);
     this.scene.add(fill);
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(140, 140),
-      new THREE.ShadowMaterial({ color: "#7a4a3a", opacity: 0.2 }),
+      new THREE.ShadowMaterial({ color: lights.shadow, opacity: lights.shadowOpacity }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1.66;
@@ -211,50 +227,79 @@ export class BoardWorld {
   }
 
   private buildBoard(): void {
-    this.scene.add(createTray(this.kit));
-    this.scene.add(createScenery(this.kit));
-    this.addAnimated(createPond(this.kit));
+    const { layout } = this;
+    const nightFair = layout.map.themeId === "night-fair";
 
-    for (const node of BOARD_NODES) {
-      // Hell is never a walkable destination, so it gets a crater instead of a tile.
+    this.scene.add(createTray(this.kit, layout, nightFair ? NIGHT_FAIR_TRAY : TOY_BOX_TRAY));
+    if (nightFair) {
+      this.addAnimated(createNightFairScenery(this.kit, layout));
+    } else {
+      this.scene.add(createScenery(this.kit, layout));
+      if (layout.config.pond) this.addAnimated(createPond(this.kit, layout.config.pond));
+    }
+
+    for (const node of layout.board.nodes) {
+      // Hell is never a walkable destination, so it gets a landmark instead of a tile.
       if (node.id === HELL_NODE_ID) {
-        const hell = createHellPit(this.kit);
+        const hell = nightFair ? createCarouselHell(this.kit) : createHellPit(this.kit);
+        if (nightFair) this.carouselHell = hell as CarouselHell;
         hell.group.position.set(node.x, 0, node.z);
         this.addAnimated(hell);
         continue;
       }
 
-      const tile = createTileVisual(node, this.kit);
+      const tile = createTileVisual(node, this.kit, { neon: this.theme.neonTiles });
       this.tiles.set(node.id, tile);
       this.scene.add(tile.group);
 
-      const stallPlacement = SHOP_STALL_PLACEMENTS[node.id];
+      const stallPlacement = layout.config.shopStalls[node.id];
       if (node.kind === "shop" && stallPlacement) {
-        const stall = createShopStall(this.kit);
+        const stall = createShopStall(this.kit, nightFair ? "#ff4fa3" : undefined);
         stall.position.set(node.x + stallPlacement.x, 0, node.z + stallPlacement.z);
         stall.rotation.y = stallPlacement.rotation;
         this.scene.add(stall);
       }
     }
 
-    const start = getBoardNode(START_NODE_ID);
+    const start = layout.getNode(START_NODE_ID);
     if (start) {
       const flag = createStartFlag(this.kit);
-      flag.group.position.set(start.x + START_FLAG_OFFSET.x, TILE_HEIGHT, start.z + START_FLAG_OFFSET.z);
+      const offset = layout.config.startFlagOffset;
+      flag.group.position.set(start.x + offset.x, TILE_HEIGHT, start.z + offset.z);
       this.addAnimated(flag);
     }
 
-    for (const edge of BOARD_EDGES) {
-      if (edge.kind !== "tunnel") continue;
-      const tunnel = getTunnelLayout(edge);
-      const entranceFacing = tunnel.entrance.x < 0 ? 1 : -1;
-      const entrance = createTunnelPortal(this.kit, entranceFacing, `Tunnel → ${edge.to}`);
-      entrance.group.position.copy(tunnel.entrance);
-      this.addAnimated(entrance);
-      const exit = createTunnelPortal(this.kit, entranceFacing === 1 ? -1 : 1, `Depuis ${edge.from}`);
-      exit.group.position.copy(tunnel.exit);
-      this.addAnimated(exit);
+    for (const edge of layout.board.edges) {
+      if (edge.kind === "tunnel") this.addTunnelEnds(edge);
     }
+  }
+
+  private addTunnelEnds(edge: BoardEdge): void {
+    const tunnel = this.layout.getTunnelLayout(edge);
+    const { from: fromNodeId, to: toNodeId } = edge;
+
+    if (this.layout.map.tunnelStyle === "portals") {
+      const ends: [THREE.Vector3, NodeId, string][] = [
+        [tunnel.entrance, fromNodeId, `Train fantôme → ${toNodeId}`],
+        [tunnel.exit, toNodeId, `Depuis ${fromNodeId}`],
+      ];
+      for (const [position, nodeId, sign] of ends) {
+        const portal = createGhostTrainPortal(this.kit, sign);
+        const toTile = this.layout.getNodePosition(nodeId).sub(position);
+        portal.group.position.copy(position);
+        portal.group.rotation.y = Math.atan2(toTile.x, toTile.z);
+        this.addAnimated(portal);
+      }
+      return;
+    }
+
+    const entranceFacing = tunnel.entrance.x < 0 ? 1 : -1;
+    const entrance = createTunnelPortal(this.kit, entranceFacing, `Tunnel → ${toNodeId}`);
+    entrance.group.position.copy(tunnel.entrance);
+    this.addAnimated(entrance);
+    const exit = createTunnelPortal(this.kit, entranceFacing === 1 ? -1 : 1, `Depuis ${fromNodeId}`);
+    exit.group.position.copy(tunnel.exit);
+    this.addAnimated(exit);
   }
 
   private addAnimated(prop: AnimatedProp): void {
@@ -272,7 +317,7 @@ export class BoardWorld {
     for (const nodeId of wanted) {
       if (this.mudPuddles.has(nodeId)) continue;
       const puddle = createMudPuddle(this.kit);
-      puddle.group.position.copy(getNodePosition(nodeId)).add(new THREE.Vector3(-0.45, -0.02, 0.4));
+      puddle.group.position.copy(this.layout.getNodePosition(nodeId)).add(new THREE.Vector3(-0.45, -0.02, 0.4));
       this.scene.add(puddle.group);
       this.mudPuddles.set(nodeId, puddle);
     }
@@ -394,7 +439,7 @@ export class BoardWorld {
         return;
       }
       case "cup-collected":
-        this.effects.spawnConfetti(getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+        this.effects.spawnConfetti(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         return;
       case "hell-entered":
       case "hell-escaped":
@@ -404,20 +449,25 @@ export class BoardWorld {
         return;
       }
       case "mud-triggered":
-        this.effects.spawnPoof(getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
+        this.effects.spawnPoof(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
         return;
       case "bullet-flight": {
         this.bullet.launch(event.flight);
         const landing = event.flight.path[event.flight.path.length - 1] ?? event.flight.from;
         if (this.view?.mode === "play" && this.view.followActivePlayer) {
-          this.rig.focusOn(getNodePosition(landing), 0.78);
+          this.rig.focusOn(this.layout.getNodePosition(landing), 0.78);
         }
         return;
       }
       case "bullet-hit": {
-        this.effects.spawnExplosion(getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+        this.effects.spawnExplosion(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         this.rig.shakeFor(0.45, 650);
         this.pawns.knockOut(event.playerId);
+        return;
+      }
+      case "carousel-flipped": {
+        const hell = this.layout.getNodePosition(HELL_NODE_ID).setY(TILE_HEIGHT + 2.4);
+        this.effects.spawnConfetti(hell);
         return;
       }
       case "player-left": {
@@ -429,7 +479,7 @@ export class BoardWorld {
         const view = this.view;
         if (!view || view.mode !== "play" || !view.followActivePlayer) return;
         const pawn = view.pawns.find((candidate) => candidate.id === event.playerId);
-        if (pawn) this.rig.focusOn(getNodePosition(pawn.position), 0.78);
+        if (pawn) this.rig.focusOn(this.layout.getNodePosition(pawn.position), 0.78);
         return;
       }
       default:

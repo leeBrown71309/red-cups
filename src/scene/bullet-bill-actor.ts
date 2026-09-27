@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { BulletFlight, NodeId } from "../game/types";
 import { START_NODE_ID } from "../game/types";
 import { BULLET_HOP_MS, BULLET_WINDUP_MS } from "../theme/timing";
-import { getNodePosition } from "./board-layout";
+import type { BoardLayout } from "./board-layout";
 import type { EffectsLayer } from "./effects-layer";
 import { createBulletBillModel, type BulletBillVisual } from "./models/bullet-bill-model";
 import { TILE_HEIGHT } from "./models/tile-model";
@@ -30,11 +30,6 @@ interface Charge {
   explodes: boolean;
 }
 
-function restingPoint(nodeId: NodeId): THREE.Vector3 {
-  const offset = HOVER_OFFSET.clone().multiplyScalar(nodeId === START_NODE_ID ? START_HOVER_REACH : 1);
-  return getNodePosition(nodeId).add(offset).setY(0);
-}
-
 /**
  * Drives Bullet Bill on the board. Its resting place comes from the board
  * view; a charge is replayed from the feedback event, so the flight, the HUD
@@ -55,6 +50,7 @@ export class BulletBillActor {
   constructor(
     kit: SceneKit,
     private readonly effects: EffectsLayer,
+    private readonly layout: BoardLayout,
   ) {
     this.visual = createBulletBillModel(kit);
     this.visual.group.visible = false;
@@ -73,7 +69,7 @@ export class BulletBillActor {
 
     if (appeared && !this.firstSync && !this.isChargePending()) {
       this.arrival = 0;
-      this.effects.spawnPoof(restingPoint(view.nodeId).setY(TILE_HEIGHT), "#ff9f43");
+      this.effects.spawnPoof(this.restingPoint(view.nodeId).setY(TILE_HEIGHT), "#ff9f43");
     }
     this.firstSync = false;
     if (!this.charge && !this.isChargePending()) this.settle();
@@ -81,9 +77,9 @@ export class BulletBillActor {
 
   launch(flight: BulletFlight): void {
     const nodes = [flight.from, ...flight.path];
-    const points = nodes.map(restingPoint);
+    const points = nodes.map((nodeId) => this.restingPoint(nodeId));
     // The last hop dives into the victim, in the middle of the tile.
-    if (flight.victimId) points[points.length - 1] = getNodePosition(nodes[nodes.length - 1]).setY(0);
+    if (flight.victimId) points[points.length - 1] = this.layout.getNodePosition(nodes[nodes.length - 1]).setY(0);
 
     this.playedFlightSeq = flight.seq;
     this.charge = { points, elapsedMs: 0, explodes: flight.victimId !== null };
@@ -106,6 +102,11 @@ export class BulletBillActor {
     this.visual.body.rotation.y = this.yaw;
   }
 
+  private restingPoint(nodeId: NodeId): THREE.Vector3 {
+    const offset = HOVER_OFFSET.clone().multiplyScalar(nodeId === START_NODE_ID ? START_HOVER_REACH : 1);
+    return this.layout.getNodePosition(nodeId).add(offset).setY(0);
+  }
+
   private isChargePending(): boolean {
     return this.announcedFlightSeq !== null && this.announcedFlightSeq !== this.playedFlightSeq;
   }
@@ -115,7 +116,7 @@ export class BulletBillActor {
     const group = this.visual.group;
     group.visible = view !== null;
     if (!view) return;
-    group.position.copy(restingPoint(view.nodeId));
+    group.position.copy(this.restingPoint(view.nodeId));
     this.visual.setMood(view.status === "waiting" ? "waiting" : "hunting");
   }
 

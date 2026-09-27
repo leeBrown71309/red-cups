@@ -11,7 +11,7 @@ export interface Toast {
 /** Table-wide announcement (Bullet Bill, Tour de Bénédiction) that nobody should miss. */
 export interface AlertBanner {
   key: number;
-  tone: "danger" | "blessing";
+  tone: "danger" | "blessing" | "carousel";
   eyebrow: string;
   title: string;
   detail: string;

@@ -21,6 +21,7 @@ export type FeedbackEvent =
   | { type: "bullet-flight"; flight: BulletFlight }
   | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
   | { type: "blessing-started" }
+  | { type: "carousel-flipped"; reversed: boolean }
   | { type: "player-left"; playerId: PlayerId }
   | { type: "turn-skipped" }
   | { type: "item-used" }

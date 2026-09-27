@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { SCENE_COLORS } from "../../theme/palette";
-import { GRASS_DEPTH, GRASS_WIDTH, POND_CENTER, RIM_HEIGHT, RIM_THICKNESS, isAreaFree } from "../board-layout";
+import { RIM_HEIGHT, RIM_THICKNESS, type BoardLayout } from "../board-layout";
+import type { MapLayoutConfig } from "../map-layouts";
 import {
   addOutline,
   appendRoundedRect,
@@ -11,27 +12,41 @@ import {
 } from "../scene-kit";
 import type { AnimatedProp } from "./props-model";
 
-/**
- * The board sits in a cream toy-box tray, echoing a physical board game.
- * Grass is at y = 0; the rim rises above it and the base sinks below.
- */
-export function createTray(kit: SceneKit): THREE.Group {
-  const tray = new THREE.Group();
+export interface TrayColors {
+  ground: string;
+  rim: string;
+  base: string;
+}
 
-  const grassShape = createRoundedRectShape(GRASS_WIDTH + 0.4, GRASS_DEPTH + 0.4, 2.2);
+export const TOY_BOX_TRAY: TrayColors = {
+  ground: SCENE_COLORS.grass,
+  rim: SCENE_COLORS.trayRim,
+  base: SCENE_COLORS.trayBase,
+};
+
+/**
+ * The board sits in a tray, echoing a physical board game: cream around
+ * grass for the toy box, painted wood around cobbles for the night fair.
+ * The ground is at y = 0; the rim rises above it and the base sinks below.
+ */
+export function createTray(kit: SceneKit, layout: BoardLayout, colors: TrayColors): THREE.Group {
+  const tray = new THREE.Group();
+  const { groundWidth, groundDepth } = layout.config;
+
+  const groundShape = createRoundedRectShape(groundWidth + 0.4, groundDepth + 0.4, 2.2);
   const grass = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(grassShape, { depth: 0.6, bevelEnabled: false, curveSegments: 5 }),
-    kit.flat(SCENE_COLORS.grass),
+    new THREE.ExtrudeGeometry(groundShape, { depth: 0.6, bevelEnabled: false, curveSegments: 5 }),
+    kit.flat(colors.ground),
   );
   grass.rotation.x = Math.PI / 2;
   grass.receiveShadow = true;
   tray.add(grass);
 
-  const outerWidth = GRASS_WIDTH + RIM_THICKNESS * 2;
-  const outerDepth = GRASS_DEPTH + RIM_THICKNESS * 2;
+  const outerWidth = groundWidth + RIM_THICKNESS * 2;
+  const outerDepth = groundDepth + RIM_THICKNESS * 2;
   const rimShape = createRoundedRectShape(outerWidth, outerDepth, 2.9);
   const rimHole = new THREE.Path();
-  appendRoundedRect(rimHole, GRASS_WIDTH, GRASS_DEPTH, 2.1);
+  appendRoundedRect(rimHole, groundWidth, groundDepth, 2.1);
   rimShape.holes.push(rimHole);
   const rim = new THREE.Mesh(
     new THREE.ExtrudeGeometry(rimShape, {
@@ -42,7 +57,7 @@ export function createTray(kit: SceneKit): THREE.Group {
       bevelSegments: 2,
       curveSegments: 6,
     }),
-    kit.flat(SCENE_COLORS.trayRim),
+    kit.flat(colors.rim),
   );
   rim.rotation.x = -Math.PI / 2;
   rim.position.y = -0.7;
@@ -59,7 +74,7 @@ export function createTray(kit: SceneKit): THREE.Group {
       bevelSegments: 2,
       curveSegments: 6,
     }),
-    kit.flat(SCENE_COLORS.trayBase),
+    kit.flat(colors.base),
   );
   base.rotation.x = -Math.PI / 2;
   base.position.y = -1.45;
@@ -70,12 +85,12 @@ export function createTray(kit: SceneKit): THREE.Group {
   return tray;
 }
 
-export function createPond(kit: SceneKit): AnimatedProp {
+export function createPond(kit: SceneKit, pond: NonNullable<MapLayoutConfig["pond"]>): AnimatedProp {
   const group = new THREE.Group();
-  group.position.set(POND_CENTER.x, 0, POND_CENTER.z);
+  group.position.set(pond.x, 0, pond.z);
 
   const bank = new THREE.Mesh(
-    jitterGeometry(new THREE.CylinderGeometry(POND_CENTER.radius + 0.25, POND_CENTER.radius + 0.35, 0.12, 11), 0.08, 5),
+    jitterGeometry(new THREE.CylinderGeometry(pond.radius + 0.25, pond.radius + 0.35, 0.12, 11), 0.08, 5),
     kit.flat("#e8dcc4"),
   );
   bank.position.y = 0.04;
@@ -83,7 +98,7 @@ export function createPond(kit: SceneKit): AnimatedProp {
   group.add(bank);
 
   const water = new THREE.Mesh(
-    new THREE.CylinderGeometry(POND_CENTER.radius, POND_CENTER.radius, 0.1, 11),
+    new THREE.CylinderGeometry(pond.radius, pond.radius, 0.1, 11),
     new THREE.MeshStandardMaterial({ color: "#7fd0f0", roughness: 0.25, flatShading: true }),
   );
   water.position.y = 0.08;
@@ -225,11 +240,12 @@ function createRock(kit: SceneKit, seed: number): THREE.Mesh {
  * Scatters trees, rocks, grass tufts and flowers in free areas. Grass and
  * flowers are instanced because there are hundreds of them.
  */
-export function createScenery(kit: SceneKit): THREE.Group {
+export function createScenery(kit: SceneKit, layout: BoardLayout): THREE.Group {
   const scenery = new THREE.Group();
   const random = createRandom(2024);
-  const halfWidth = GRASS_WIDTH / 2 - 0.8;
-  const halfDepth = GRASS_DEPTH / 2 - 0.8;
+  const halfWidth = layout.halfWidth - 0.8;
+  const halfDepth = layout.halfDepth - 0.8;
+  const isAreaFree = (x: number, z: number, margin: number) => layout.isAreaFree(x, z, margin);
   const pick = () => ({ x: (random() * 2 - 1) * halfWidth, z: (random() * 2 - 1) * halfDepth });
 
   // Hand-placed so tall trees frame the board from the back and sides, and only

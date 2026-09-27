@@ -77,6 +77,9 @@ export function startAudioFeedback(): () => void {
       case "blessing-started":
         soundEffects.blessing();
         break;
+      case "carousel-flipped":
+        soundEffects.carouselFlip();
+        break;
       case "player-left":
         soundEffects.tunnel();
         break;

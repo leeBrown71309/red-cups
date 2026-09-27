@@ -1,8 +1,10 @@
+import { getBoard } from "../game/board";
 import { countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState } from "../game/types";
 import { HELL_NODE_ID } from "../game/types";
 import {
+  ALERT_BANNER_MS,
   BULLET_IMPACT_PAUSE_MS,
   BULLET_LANDING_PAUSE_MS,
   CUP_CELEBRATION_MS,
@@ -47,7 +49,8 @@ export function startGameFeedback(): () => void {
     const now = performance.now();
     const movement = state.lastMovement;
     const walked = movement !== null && movement.seq !== previous.lastMovement?.seq;
-    const walkDuration = walked && movement ? estimateMovementMs(movement.from, movement.path) : 0;
+    // Timed on the board the walk was played on: a Cup picked up on arrival may flip the carousel.
+    const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement.from, movement.path) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
     const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
     const flight = getNewBulletFlight(state, previous);
@@ -60,6 +63,8 @@ export function startGameFeedback(): () => void {
     const nextTurnAt = impactAt + impactPauseMs;
     const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
     const celebrates = events.some((event) => event.type === "cup-collected");
+    // The shop, the wheels and the other dialogs wait until the whole table has read the carousel banner.
+    const carouselFlips = events.some((event) => event.type === "carousel-flipped");
 
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
     schedule(
@@ -73,7 +78,10 @@ export function startGameFeedback(): () => void {
 
     // Only real animations hold modals back: moving the deadline to "now" would unmount an open
     // modal for a frame (the shop used to blink after every purchase).
-    const settlesAt = nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0);
+    const settlesAt = Math.max(
+      nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0),
+      carouselFlips ? impactAt + ALERT_BANNER_MS : 0,
+    );
     if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
   });
 
@@ -178,6 +186,9 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+  if (state.carouselReversed !== previous.carouselReversed && previous.phase === "playing") {
+    events.push({ type: "carousel-flipped", reversed: state.carouselReversed });
+  }
 
   // Compared by player, not by seat: seats shift when someone before the active player leaves.
   const previousActiveId = previous.players[previous.activePlayerIndex]?.id;
