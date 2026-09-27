@@ -128,6 +128,19 @@ describe("room store lobby", () => {
     expect(useRoomStore.getState().players.map((player) => player.userId)).toEqual([GUEST_ID, HOST_ID]);
   });
 
+  it("refuses to bring anybody back to a finished game, and gives up the seat", async () => {
+    session.ensureSession.mockResolvedValue(GUEST_ID);
+    api.fetchRoom.mockResolvedValue({ ...lobbySnapshot([HOST_ID, GUEST_ID]), status: "over" });
+    api.leaveRoom.mockResolvedValue(undefined);
+
+    await useRoomStore.getState().lookUpRoom(ROOM_CODE);
+
+    const room = useRoomStore.getState();
+    expect(room.error).toBe("Cette partie est terminée.");
+    expect(room.view).not.toBe("playing");
+    expect(api.leaveRoom).toHaveBeenCalledWith(ROOM_CODE);
+  });
+
   it("does not let a guest draw the turn order", async () => {
     session.ensureSession.mockResolvedValue(GUEST_ID);
     api.fetchRoom.mockResolvedValue(lobbySnapshot([HOST_ID, GUEST_ID]));

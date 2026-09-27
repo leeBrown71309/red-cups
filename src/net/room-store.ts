@@ -120,6 +120,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
       seatOrder: room.seatOrder,
       version: room.version,
     });
+    // A finished game is never come back to: a reload must not bring its room back.
+    if (room.status === "over") rememberRoom(null);
     if (room.status !== "lobby" && room.state) {
       useGameStore.getState().adoptGame(room.state);
       set({ view: "playing" });
@@ -158,6 +160,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
       if (await advanceRoom(code, nextState, version)) {
         useGameStore.getState().adoptGame(nextState);
         set({ version: version + 1, status: nextState.phase === "finished" ? "over" : "playing" });
+        if (nextState.phase === "finished") rememberRoom(null);
         broadcast({ kind: "action", action, fromVersion: version, senderId: myUserId });
         return;
       }
@@ -180,6 +183,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
         if (outcome.kind === "applied") {
           useGameStore.getState().adoptGame(outcome.state);
           set({ version: outcome.version, status: outcome.state.phase === "finished" ? "over" : "playing" });
+          if (outcome.state.phase === "finished") rememberRoom(null);
         } else if (outcome.kind === "resync") {
           await resync();
         }
@@ -327,6 +331,11 @@ export const useRoomStore = create<RoomState>((set, get) => {
         await ensureSession();
         const room = await fetchRoom(code);
         if (!room) throw new Error("Aucun salon avec ce code.");
+        // The players still at the table keep their standings; nobody else comes back to it.
+        if (room.status === "over") {
+          if (room.isPlayer) await leaveRoom(code).catch(() => undefined);
+          throw new Error("Cette partie est terminée.");
+        }
         if (room.isPlayer) {
           set({ myUserId: await ensureSession() });
           rememberRoom(code);

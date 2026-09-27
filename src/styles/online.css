@@ -262,3 +262,124 @@
     display: none;
   }
 }
+
+/* ----------------------------------------------------------- game history */
+
+.history-list {
+  display: grid;
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 2px solid var(--paper-edge);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-row:not(:disabled):hover {
+  border-color: var(--ink);
+}
+
+.history-row:disabled {
+  cursor: default;
+}
+
+.history-row__main {
+  display: grid;
+  min-width: 0;
+}
+
+.history-row__main span,
+.history-detail__facts {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-row__main svg,
+.history-detail__facts svg {
+  vertical-align: -2px;
+}
+
+.history-row__players {
+  display: flex;
+}
+
+.history-row__players > * + * {
+  margin-left: -8px;
+}
+
+.history-badge {
+  min-width: 78px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.history-badge--won {
+  background: var(--gold-light);
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.history-badge--placed {
+  background: var(--sky-light);
+}
+
+.history-badge--left {
+  background: var(--grape-light);
+}
+
+.history-badge--quiet {
+  background: var(--cream-2);
+  color: var(--ink-soft);
+}
+
+.history-detail {
+  display: grid;
+  gap: 10px;
+}
+
+.history-detail__back {
+  justify-self: start;
+}
+
+.history-detail__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  white-space: normal;
+}
+
+.history-modal__error {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
+
+@media (max-width: 520px) {
+  .history-row__players {
+    display: none;
+  }
+
+  .history-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
