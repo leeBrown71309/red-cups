@@ -13,6 +13,7 @@ import {
   GHOST_STEAL_COINS,
   HELL_EXIT_TOLL,
   HELL_TURN_LIMIT,
+  SNOWBALL_HITS_TO_FREEZE,
   START_BONUS,
 } from "../../game/types";
 import { BoardMap } from "../components/board-map";
@@ -75,6 +76,13 @@ function getTurnSteps(mapId: MapId): string[] {
         "restes pris sur la route et tu arrives sur la Red Cup au début de ton tour suivant, avant de jouer.",
       "Blizzard : une troisième case glissante apparaît au hasard, le Départ compris, et se déplace tous les deux " +
         "tours de table. Un Départ gelé ne paie pas les 200 pièces.",
+    );
+  }
+  if (board.map.snowballs) {
+    steps.push(
+      "Pingouins : dès qu’une Red Cup a été ramassée, ils lancent une boule de neige sur un joueur au hasard à " +
+        `chaque fin de tour (jamais en Enfer), et un tiers ratent. À la ${SNOWBALL_HITS_TO_FREEZE}ᵉ boule reçue, tu ` +
+        "gèles sur place et tu passes ton prochain tour.",
     );
   }
   if (hasCarousel(board)) {

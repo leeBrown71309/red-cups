@@ -20,6 +20,10 @@ export const BULLET_BILL_DAMAGE = 200;
 export const TOMATO_STUN_CHANCE = 0.02;
 /** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
 export const ICE_FALL_CHANCE = 0.8;
+/** Banquise: chance that a penguin's snowball hits the player it aims at. */
+export const SNOWBALL_HIT_CHANCE = 2 / 3;
+/** Banquise: snowballs a player takes before freezing solid and losing a turn. */
+export const SNOWBALL_HITS_TO_FREEZE = 3;
 /** After this many of their own turns in Hell, a player is released at the start, for a toll. */
 export const HELL_TURN_LIMIT = 5;
 export const HELL_EXIT_TOLL = 500;
@@ -334,6 +338,15 @@ export interface PlayerMovement {
   flungByGhost?: boolean;
 }
 
+/** Banquise: the last snowball thrown by the penguins, kept so the scene can replay it. */
+export interface SnowballThrow {
+  seq: number;
+  targetId: PlayerId;
+  hit: boolean;
+  /** The third hit: the target froze solid. */
+  frozen: boolean;
+}
+
 /** Last volley of Tomates, kept so the scene can replay every throw and splat. */
 export interface TomatoThrow {
   seq: number;
@@ -455,6 +468,11 @@ export interface GameState {
   ghost: GhostState | null;
   lastGhostEvent: GhostEvent | null;
   lastTomatoThrow: TomatoThrow | null;
+  /** Banquise: snowballs each player took since they last froze. */
+  snowballHits: Partial<Record<PlayerId, number>>;
+  /** Banquise: players frozen solid by snowballs, until the turn they lose is over. */
+  snowFrozenPlayerIds: PlayerId[];
+  lastSnowball: SnowballThrow | null;
   /** Tour de Bénédiction: players who still have to spin the wheel of fortune, in turn order. */
   blessingQueue: PlayerId[];
   /** Players who left before the end, kept for the final standings. */
@@ -506,6 +524,9 @@ export const EMPTY_GAME_STATE: GameState = {
   ghost: null,
   lastGhostEvent: null,
   lastTomatoThrow: null,
+  snowballHits: {},
+  snowFrozenPlayerIds: [],
+  lastSnowball: null,
   blessingQueue: [],
   abandonedPlayers: [],
   bootPrice: 100,

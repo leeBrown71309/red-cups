@@ -15,6 +15,9 @@ export const GLIDE_MS = 440;
 export const FREEZE_MS = 1_100;
 export const SHATTER_MS = 450;
 
+/** Banquise: a penguin's snowball in the air. */
+export const SNOWBALL_FLIGHT_MS = 700;
+
 /** A Tomate's flight from the thrower to the target. */
 export const TOMATO_FLIGHT_MS = 560;
 /** Between two Tomates of a volley: a quick rapid fire. */

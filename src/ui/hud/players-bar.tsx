@@ -3,7 +3,7 @@ import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL } from "../../game/types";
+import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useRoomStore } from "../../net/room-store";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
@@ -58,6 +58,8 @@ export function PlayersBar() {
   const players = useGameStore((state) => state.players);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
   const phase = useGameStore((state) => state.phase);
+  const snowballHits = useGameStore((state) => state.snowballHits);
+  const snowFrozenPlayerIds = useGameStore((state) => state.snowFrozenPlayerIds);
   const seatOrder = useRoomStore((state) => state.seatOrder);
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -114,9 +116,22 @@ export function PlayersBar() {
                 </span>
               </span>
               <VoiceBadge userId={getUserIdOfPlayer(seatOrder, player.id)} />
-              {player.skippedTurns > 0 && (
+              {player.skippedTurns > 0 && !snowFrozenPlayerIds.includes(player.id) && (
                 <span className="player-chip__badge" title="Passe son prochain tour">
                   <UiIcon name="sleep" size={12} strokeWidth={2.8} />
+                </span>
+              )}
+              {snowFrozenPlayerIds.includes(player.id) && (
+                <span className="player-chip__badge player-chip__badge--frozen" title="Gelé : passe son prochain tour">
+                  ❄
+                </span>
+              )}
+              {(snowballHits[player.id] ?? 0) > 0 && (
+                <span
+                  className="player-chip__snow"
+                  title={`Boules de neige reçues : ${snowballHits[player.id]}/${SNOWBALL_HITS_TO_FREEZE}, gelé à la ${SNOWBALL_HITS_TO_FREEZE}ᵉ`}
+                >
+                  ❄ {snowballHits[player.id]}/{SNOWBALL_HITS_TO_FREEZE}
                 </span>
               )}
             </button>

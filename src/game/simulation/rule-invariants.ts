@@ -19,6 +19,7 @@ import {
   RED_CUP_GOAL,
   GHOST_ID,
   GHOST_MAX_DRIFT_STEPS,
+  SNOWBALL_HITS_TO_FREEZE,
   START_NODE_ID,
 } from "../types";
 import { getBoardMap } from "../maps/map-registry";
@@ -349,6 +350,34 @@ function checkGhost(state: GameState, found: RuleViolation[]): void {
   }
 }
 
+/** Banquise: snowballs only fly there once a Cup was taken, never into Hell, and three hits freeze a player. */
+function checkSnowballs(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const snowball = next.lastSnowball;
+  const counts = Object.values(next.snowballHits);
+  if (counts.some((hits) => hits === undefined || hits < 0 || hits >= SNOWBALL_HITS_TO_FREEZE)) {
+    found.push(violation("snowball-count", `snowball hits ${JSON.stringify(next.snowballHits)}`));
+  }
+  if (!snowball || snowball.seq === previous.lastSnowball?.seq) return;
+  const target = findPlayer(previous, snowball.targetId);
+  if (!getBoardMap(previous.mapId).snowballs || previous.redCupCycle === 0) {
+    found.push(violation("snowball-map", `a snowball flew on ${previous.mapId} before any Red Cup`));
+  }
+  // Judged after the turn change: a sentence served in Hell ends just before the penguins throw.
+  const targetAfter = findPlayer(next, snowball.targetId);
+  if (!target || targetAfter?.position === HELL_NODE_ID || previous.snowFrozenPlayerIds.includes(target.id)) {
+    found.push(violation("snowball-target", `a snowball was aimed at ${snowball.targetId}, out of reach`));
+  }
+  const hitsBefore = previous.snowballHits[snowball.targetId] ?? 0;
+  if (snowball.frozen !== (snowball.hit && hitsBefore === SNOWBALL_HITS_TO_FREEZE - 1)) {
+    found.push(violation("snowball-freeze", `${snowball.targetId} froze after ${hitsBefore} hits`));
+  }
+  const after = findPlayer(next, snowball.targetId);
+  const skipsGained = (after?.skippedTurns ?? 0) - (target?.skippedTurns ?? 0);
+  if (snowball.frozen && skipsGained < 0) {
+    found.push(violation("snowball-frozen-skip", `${snowball.targetId} froze but kept their turn`));
+  }
+}
+
 /** Luna Park: a drift follows real roads (either way, 1 to 3 of them); a teleport really goes somewhere else. */
 function checkGhostMove(previous: GameState, next: GameState, found: RuleViolation[]): void {
   const deed = next.lastGhostEvent;
@@ -526,7 +555,10 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
   while (index !== next.activePlayerIndex && guard < count) {
     const before = previous.players[index];
     // Bullet Bill moves at the end of the round and may stun a player right before their turn.
-    const stunnedNow = logs.some((text) => text.includes(`Bullet Bill percute ${before.name}`));
+    // Banquise's penguins throw as the turn ends, and a third snowball freezes a player on the spot.
+    const stunnedNow = logs.some(
+      (text) => text.includes(`Bullet Bill percute ${before.name}`) || text.includes(`: ${before.name} est gelé`),
+    );
     const announced = logs.includes(`${before.name} passe son tour.`);
     if (!announced || (before.skippedTurns < 1 && !stunnedNow)) {
       found.push(violation("turn-order", `${before.name} was skipped without a skipped turn to consume`));
@@ -742,5 +774,6 @@ export function checkTransition(previous: GameState, next: GameState, appliedIte
   checkMudReward(previous, next, found);
   checkGhostDuelResult(previous, next, found);
   checkGhostMove(previous, next, found);
+  checkSnowballs(previous, next, found);
   return found;
 }

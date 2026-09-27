@@ -21,7 +21,7 @@ import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-mo
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
 import { SceneKit, easeOutBack } from "./scene-kit";
-import { TOMATO_FLIGHT_MS, TOMATO_VOLLEY_GAP_MS } from "../theme/timing";
+import { SNOWBALL_FLIGHT_MS, TOMATO_FLIGHT_MS, TOMATO_VOLLEY_GAP_MS } from "../theme/timing";
 
 export interface BoardView {
   mode: CameraMode;
@@ -90,6 +90,8 @@ export class BoardWorld {
   /** Only on maps a ghost haunts. */
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
+  /** Banquise: the penguins of the scenery, who throw the snowballs. */
+  private penguins: THREE.Object3D[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly resizeObserver: ResizeObserver;
@@ -273,7 +275,11 @@ export class BoardWorld {
         return;
       case "polar":
         this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
-        this.addAnimated(createPolarScenery(this.kit, layout));
+        {
+          const scenery = createPolarScenery(this.kit, layout);
+          this.addAnimated(scenery);
+          this.penguins = scenery.penguins;
+        }
         return;
       default:
         this.scene.add(createTray(this.kit, layout, TOY_BOX_TRAY));
@@ -522,6 +528,16 @@ export class BoardWorld {
     this.refreshHighlights();
   };
 
+  /** Banquise: the penguin standing closest to `target`, or the far edge of the tray without one. */
+  private findNearestPenguin(target: THREE.Vector3): THREE.Vector3 {
+    let nearest: THREE.Vector3 | null = null;
+    for (const penguin of this.penguins) {
+      const position = penguin.getWorldPosition(new THREE.Vector3());
+      if (!nearest || position.distanceTo(target) < nearest.distanceTo(target)) nearest = position;
+    }
+    return nearest ?? new THREE.Vector3(target.x, 0, -this.layout.halfDepth - 1);
+  }
+
   private readonly handleFeedback = (event: FeedbackEvent) => {
     switch (event.type) {
       case "currency": {
@@ -602,6 +618,18 @@ export class BoardWorld {
       case "ghost-stole":
         this.ghost?.stole(event.playerId);
         return;
+      case "snowball-thrown": {
+        const target = this.pawns.getPawnPosition(event.targetId);
+        if (!target) return;
+        const penguin = this.findNearestPenguin(target);
+        // A miss lands a step beside the target, on the side facing the penguin.
+        const aim = event.hit ? target : target.clone().add(new THREE.Vector3(0.9, 0, 0.5));
+        this.effects.spawnSnowballThrow(penguin, aim, SNOWBALL_FLIGHT_MS / 1000, () => {
+          if (event.frozen) this.pawns.freezeSolid(event.targetId);
+          if (event.hit) this.effects.spawnFloatingText(target, event.frozen ? "Gelé !" : "❄", "#bfeaff");
+        });
+        return;
+      }
       case "tomato-thrown": {
         const from = this.pawns.getPawnPosition(event.throwerId);
         const to = this.pawns.getPawnPosition(event.targetId);

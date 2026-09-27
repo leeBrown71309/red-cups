@@ -5,6 +5,7 @@ import {
   GHOST_SLAP_IMPACT_MS,
   GHOST_SLAP_MS,
   GHOST_TELEPORT_MS,
+  SNOWBALL_FLIGHT_MS,
   TOMATO_FLIGHT_MS,
   TOMATO_VOLLEY_GAP_MS,
 } from "../theme/timing";
@@ -52,6 +53,10 @@ export function startAudioFeedback(): () => void {
         break;
       case "ice-shatter":
         soundEffects.iceShatter();
+        break;
+      case "snowball-thrown":
+        soundEffects.snowballThrow(SNOWBALL_FLIGHT_MS / 1000);
+        if (event.frozen) window.setTimeout(() => soundEffects.iceFall(), SNOWBALL_FLIGHT_MS - 400);
         break;
       case "tomato-thrown": {
         for (let index = 0; index < event.count; index += 1) {
