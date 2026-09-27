@@ -36,7 +36,9 @@ export function createDuel(
     voteTieBroken: false,
     winnerId: null,
     basket:
-      mode === "basket" ? { id: createEngineId(), shooterId: null, scores: {}, ghostShots: [], tieBroken: false } : null,
+      mode === "basket"
+        ? { id: createEngineId(), shooterId: null, scores: {}, ghostShots: [], tieBroken: false }
+        : null,
     ghost: null,
   };
 }
