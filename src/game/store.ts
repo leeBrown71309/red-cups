@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reduceGame, type GameAction } from "./game-actions";
 import { createGameSaveOptions, pickGameState } from "./game-save";
-import type { GameState, ItemId, NodeId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
+import type { GameState, ItemId, MapId, NodeId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
 import { EMPTY_GAME_STATE } from "./types";
 
 interface GameActions {
@@ -13,15 +13,19 @@ interface GameActions {
   /** Replaces the game with a snapshot, e.g. the one stored by the online room. */
   adoptGame: (state: GameState) => void;
 
-  /** Starts a local game; an online game passes the room's seed so every device draws the same. */
-  startGame: (playerNames: string[], seed?: number) => void;
+  /**
+   * Starts a local game on the given board (classic by default); an online
+   * game passes the room's seed so every device draws the same.
+   */
+  startGame: (playerNames: string[], seed?: number, mapId?: MapId) => void;
   resetGame: () => void;
   /** Declares a move; it may wait in a Non merci reaction window before applying. */
   movePlayer: (destination: NodeId, ignoreArrows?: boolean) => void;
   prepareBoot: (entryId: string) => void;
   buyItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
-  useItem: (entryId: string, targetPlayerId?: PlayerId) => void;
+  /** `count`: Tomates thrown at once from their stack. */
+  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number) => void;
   /** A Non merci holder cancels the declared action, or null lets it happen. */
   resolveReaction: (reactorId: PlayerId | null) => void;
   /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
@@ -39,6 +43,10 @@ interface GameActions {
   pickDuelHand: (playerId: PlayerId, choice: RpsChoice) => void;
   castDuelVote: (voterId: PlayerId, candidateId: PlayerId) => void;
   resolveDuel: (winnerId: PlayerId) => void;
+  /** Basket: the duellist's 15 seconds start. */
+  startBasketRound: (playerId: PlayerId) => void;
+  /** Basket: the duellist's baskets once the time is up. */
+  submitBasketScore: (playerId: PlayerId, score: number) => void;
   discardInventoryEntry: (entryId: string) => void;
   repositionBeforeCup: (destination: NodeId) => void;
   resolveCalmDown: (useEffect: boolean) => void;
@@ -80,13 +88,13 @@ export const useGameStore = create<GameStore>()(
       adoptGame: (state) => set({ ...EMPTY_GAME_STATE, ...pickGameState(state) }),
 
       // Setting up and leaving a game stay on this device: an online room builds its own start.
-      startGame: (playerNames, seed) => get().applyLocally({ type: "startGame", playerNames, seed }),
+      startGame: (playerNames, seed, mapId) => get().applyLocally({ type: "startGame", playerNames, seed, mapId }),
       resetGame: () => set({ ...EMPTY_GAME_STATE }),
 
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
-      useItem: (entryId, targetPlayerId) => dispatch({ type: "useItem", entryId, targetPlayerId }),
+      useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
       spinHellWheel: () => dispatch({ type: "spinHellWheel" }),
@@ -102,6 +110,8 @@ export const useGameStore = create<GameStore>()(
       pickDuelHand: (playerId, choice) => dispatch({ type: "pickDuelHand", playerId, choice }),
       castDuelVote: (voterId, candidateId) => dispatch({ type: "castDuelVote", voterId, candidateId }),
       resolveDuel: (winnerId) => dispatch({ type: "resolveDuel", winnerId }),
+      startBasketRound: (playerId) => dispatch({ type: "startBasketRound", playerId }),
+      submitBasketScore: (playerId, score) => dispatch({ type: "submitBasketScore", playerId, score }),
       discardInventoryEntry: (entryId) => dispatch({ type: "discardInventoryEntry", entryId }),
       repositionBeforeCup: (destination) => dispatch({ type: "repositionBeforeCup", destination }),
       resolveCalmDown: (useEffect) => dispatch({ type: "resolveCalmDown", useEffect }),

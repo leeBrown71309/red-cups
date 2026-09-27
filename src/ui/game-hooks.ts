@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { NORMAL_NODE_IDS } from "../game/board";
+import { getBoard } from "../game/board";
 import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
 import { canUseDelinquent, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
@@ -29,13 +29,13 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   if (state.phase !== "playing" || !activePlayer) return { origin: null, paths };
 
   if (state.turnStage === "reposition") {
-    for (const nodeId of NORMAL_NODE_IDS) paths.set(nodeId, [nodeId]);
+    for (const nodeId of getBoard(state).normalNodeIds) paths.set(nodeId, [nodeId]);
     return { origin: null, paths };
   }
 
   if (state.turnStage !== "move") return { origin: null, paths };
   const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer, state.round);
-  for (const path of getLegalMoveOptions(activePlayer, state.moveDistance, canIgnoreArrows)) {
+  for (const path of getLegalMoveOptions(getBoard(state), activePlayer, state.moveDistance, canIgnoreArrows)) {
     const destination = path[path.length - 1];
     if (!paths.has(destination)) paths.set(destination, path);
   }

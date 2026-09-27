@@ -1,7 +1,9 @@
-import { settleBoard } from "./game-effects";
+import { countBaskets } from "./duel-setup";
+import { addStartBonus, settleBoard } from "./game-effects";
+import { resolveGhostDuel } from "./ghost";
 import { addLog, findPlayer, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, PendingDuel, PlayerId, RpsChoice } from "./types";
-import { START_NODE_ID } from "./types";
+import { BASKET_MAX_SCORE, GHOST_ID, START_NODE_ID } from "./types";
 
 /**
  * Duels are decided inside the engine: the coin, each secret hand and each
@@ -13,6 +15,13 @@ const BEATS: Record<RpsChoice, RpsChoice> = { rock: "scissors", paper: "rock", s
 
 export function isDuellist(duel: PendingDuel, playerId: PlayerId): boolean {
   return duel.playerOneId === playerId || duel.playerTwoId === playerId;
+}
+
+const RPS_CHOICES: RpsChoice[] = ["rock", "paper", "scissors"];
+
+/** The duellists who play for themselves: the ghost's hand and shots are drawn by the engine. */
+export function getHumanDuellistIds(duel: PendingDuel): PlayerId[] {
+  return [duel.playerOneId, duel.playerTwoId].filter((id) => id !== GHOST_ID);
 }
 
 /** Everybody seated but the two duellists votes in a player-vote duel. */
@@ -37,6 +46,10 @@ export function pickDuelHand(state: GameState, playerId: PlayerId, choice: RpsCh
   if (!isDuellist(duel, playerId) || duel.rpsChoices[playerId]) return state;
 
   const rpsChoices = { ...duel.rpsChoices, [playerId]: choice };
+  // The ghost plays blind, like anybody would: its hand is drawn once the player's is in.
+  if (duel.playerTwoId === GHOST_ID && !rpsChoices[GHOST_ID]) {
+    rpsChoices[GHOST_ID] = randomChoice(RPS_CHOICES) ?? "rock";
+  }
   const firstChoice = rpsChoices[duel.playerOneId];
   const secondChoice = rpsChoices[duel.playerTwoId];
   if (!firstChoice || !secondChoice) return withDuel(state, { ...duel, rpsChoices, rpsTiedRound: null });
@@ -69,8 +82,49 @@ export function castDuelVote(state: GameState, voterId: PlayerId, candidateId: P
   return withDuel(state, { ...duel, votes, winnerId, voteTieBroken: true });
 }
 
+/** Basket: the next duellist to shoot, in seat order of the duel; the ghost never waits for a turn. */
+export function getNextBasketShooterId(duel: PendingDuel): PlayerId | null {
+  if (!duel.basket) return null;
+  return getHumanDuellistIds(duel).find((id) => duel.basket?.scores[id] === undefined) ?? null;
+}
+
+/** Basket: the duellist presses start; their 15 seconds run from there (the ghost's alongside). */
+export function startBasketRound(state: GameState, playerId: PlayerId): GameState {
+  const duel = state.pendingDuel;
+  if (!duel?.basket || duel.winnerId || duel.basket.shooterId !== null) return state;
+  if (getNextBasketShooterId(duel) !== playerId) return state;
+  return withDuel(state, { ...duel, basket: { ...duel.basket, shooterId: playerId } });
+}
+
 /**
- * Applies the duel: the winner goes back to the start, the loser stays in Hell.
+ * Basket: the shooter's device reports their baskets once the time is up.
+ * Against the ghost the duel is decided at once; between two players, once
+ * both have shot. Equal scores are settled by a coin.
+ */
+export function submitBasketScore(state: GameState, playerId: PlayerId, score: number): GameState {
+  const duel = state.pendingDuel;
+  const basket = duel?.basket;
+  if (!duel || !basket || duel.winnerId || basket.shooterId !== playerId || !Number.isFinite(score)) return state;
+
+  const scores = { ...basket.scores, [playerId]: Math.max(0, Math.min(BASKET_MAX_SCORE, Math.floor(score))) };
+  if (duel.playerTwoId === GHOST_ID) scores[GHOST_ID] = countBaskets(basket.ghostShots);
+  const nextBasket = { ...basket, shooterId: null, scores };
+  const first = scores[duel.playerOneId];
+  const second = scores[duel.playerTwoId];
+  if (first === undefined || second === undefined) return withDuel(state, { ...duel, basket: nextBasket });
+
+  if (first !== second) {
+    const winnerId = first > second ? duel.playerOneId : duel.playerTwoId;
+    return withDuel(state, { ...duel, basket: nextBasket, winnerId });
+  }
+  const winnerId = randomChoice([duel.playerOneId, duel.playerTwoId]) ?? duel.playerOneId;
+  const tied = withDuel(state, { ...duel, basket: { ...nextBasket, tieBroken: true }, winnerId });
+  return addLog(tied, `Égalité au Basket (${first} partout) : la pièce départage.`, "event");
+}
+
+/**
+ * Applies the duel: the winner goes back to the start with the start bonus,
+ * like every other way out of Hell, and the loser stays there.
  * Once the engine has decided the duel, only that winner is accepted.
  */
 export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
@@ -78,6 +132,7 @@ export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
   if (!duel || !isDuellist(duel, winnerId)) return state;
   if (duel.winnerId && duel.winnerId !== winnerId) return state;
   if (duel.mode === "coin-flip" && duel.coinWinnerId !== winnerId) return state;
+  if (duel.ghost) return resolveGhostDuel(state, winnerId);
   const loserId = winnerId === duel.playerOneId ? duel.playerTwoId : duel.playerOneId;
   const winner = findPlayer(state, winnerId);
   const loser = findPlayer(state, loserId);
@@ -90,5 +145,6 @@ export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
     `${winner.name} gagne le duel et retourne en case 0. ${loser.name} reste en Enfer.`,
     "good",
   );
+  nextState = addStartBonus(nextState, winnerId);
   return settleBoard(nextState, duel.resumeStage);
 }

@@ -1,5 +1,5 @@
 import { isTableBroke } from "../blessing";
-import { getNeighbors } from "../board";
+import { getBoard, getNeighbors } from "../board";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
@@ -33,9 +33,10 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
     found.push(violation("bullet-flight-start", `Bullet Bill took off from ${flight.from}`));
   }
   if (flight.path.length > 2) found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  const board = getBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
-    if (!getNeighbors(landing, true).includes(step)) {
+    if (!getNeighbors(board, landing, true).includes(step)) {
       found.push(violation("bullet-follows-roads", `Bullet Bill flew ${landing} → ${step} off the roads`));
     }
     landing = step;
@@ -56,7 +57,17 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (after.position !== landing) found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
   const releasedFromHell = logs.some((text) => text.startsWith(`${before.name} a purgé`));
-  if (!releasedFromHell && after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)) {
+  // Banquise: a thaw as the next turn begins may land the victim on a coloured tile, or pick up a
+  // Red Cup whose Troll then steals from the table.
+  const thawed = next.lastMovement?.thawed === true && next.lastMovement.seq !== previous.lastMovement?.seq;
+  // The last wheel of a Tour de Bénédiction pays out in the same action that opens the charging round.
+  const wheelPaidToo = previous.pendingWheel !== null;
+  if (
+    !releasedFromHell &&
+    !thawed &&
+    !wheelPaidToo &&
+    after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)
+  ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
   }
   // The victim may be next to play, in which case the stun is spent at once.
@@ -129,7 +140,9 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
     if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
-  } else if (!["move", "hell"].includes(next.turnStage)) {
+  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed && !next.pendingDuel?.ghost) {
+    // The next player's turn opens with their thaw at Banquise, which may owe a wheel first,
+    // or with the Luna Park ghost riding onto somebody.
     found.push(violation("abandon-passes-turn", `after ${leaver.name} left the stage is ${next.turnStage}`));
   }
 }

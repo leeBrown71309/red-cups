@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { isDuellist } from "../../game/duel";
+import { getHumanDuellistIds, isDuellist } from "../../game/duel";
+import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
-import type { PendingDuel, Player, PlayerId, RpsChoice } from "../../game/types";
+import type { GhostStakes, PendingDuel, PlayerId, RpsChoice } from "../../game/types";
 import { useCanActFor, useLocalPlayerId } from "../../net/room-store";
 import { soundEffects } from "../../audio/sound-effects";
 import { ModalShell } from "../components/modal-shell";
-import { PlayerAvatar } from "../components/player-avatar";
 import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
 import { UiIcon } from "../icons/ui-icon";
+import { BasketGame } from "./basket-game";
+import { DuellistAvatar, findDuellist, isGhost, type Duellist } from "./duellists";
 
 const RPS_OPTIONS: { id: RpsChoice; label: string; emoji: string }[] = [
   { id: "rock", label: "Pierre", emoji: "✊" },
@@ -21,99 +23,152 @@ const REVEAL_MS = 1_400;
 const TIE_BREAK_REVEAL_MS = 2_000;
 
 /**
- * The engine decides every duel (coin, hands, votes); this screen collects
- * the choices and plays the reveal. At a local table one screen is passed
- * around; online each player chooses on their own device.
+ * The engine decides every duel (coin, hands, votes, baskets); this screen
+ * collects the choices and plays the reveal. At a local table one screen is
+ * passed around; online each player chooses on their own device. At Luna
+ * Park the second duellist may be the ghost, whose moves the engine draws.
  */
 export function DuelModal() {
   const duel = useGameStore((state) => state.pendingDuel);
   const players = useGameStore((state) => state.players);
   if (!duel) return null;
-  const first = players.find((player) => player.id === duel.playerOneId);
-  const second = players.find((player) => player.id === duel.playerTwoId);
+  const first = findDuellist(players, duel.playerOneId);
+  const second = findDuellist(players, duel.playerTwoId);
   if (!first || !second) return null;
   return (
-    <DuelArena key={`${duel.playerOneId}-${duel.playerTwoId}-${duel.mode}`} duel={duel} first={first} second={second} />
+    <DuelArena
+      key={`${duel.playerOneId}-${duel.playerTwoId}-${duel.mode}-${duel.basket?.id ?? ""}`}
+      duel={duel}
+      first={first}
+      second={second}
+    />
   );
 }
 
 interface DuelArenaProps {
   duel: PendingDuel;
-  first: Player;
-  second: Player;
+  first: Duellist;
+  second: Duellist;
 }
 
 /** Once the engine names the winner, the reveal plays before the result shows. */
-function useRevealedWinner(duel: PendingDuel): Player["id"] | null {
+function useRevealedWinner(duel: PendingDuel): PlayerId | null {
   const [revealedId, setRevealedId] = useState<PlayerId | null>(null);
+  const tieBroken = duel.voteTieBroken || duel.basket?.tieBroken === true;
   useEffect(() => {
     if (!duel.winnerId) return undefined;
-    const delay = duel.mode === "coin-flip" ? COIN_FLIP_MS : duel.voteTieBroken ? TIE_BREAK_REVEAL_MS : REVEAL_MS;
+    const delay = duel.mode === "coin-flip" ? COIN_FLIP_MS : tieBroken ? TIE_BREAK_REVEAL_MS : REVEAL_MS;
     const timer = window.setTimeout(() => setRevealedId(duel.winnerId), delay);
     return () => window.clearTimeout(timer);
-  }, [duel.winnerId, duel.mode, duel.voteTieBroken]);
+  }, [duel.winnerId, duel.mode, tieBroken]);
   return revealedId;
 }
 
 function DuelArena({ duel, first, second }: DuelArenaProps) {
   const resolveDuel = useGameStore((state) => state.resolveDuel);
-  const canSettle = useCanActFor([first.id, second.id]);
+  const canSettle = useCanActFor(getHumanDuellistIds(duel));
+  const players = useGameStore((state) => state.players);
   const revealedId = useRevealedWinner(duel);
   const winner = revealedId === first.id ? first : revealedId === second.id ? second : null;
+  const againstGhost = duel.ghost !== null;
+  // While a Basket round runs, the court needs the room: the big face-off and the stakes step aside.
+  const basketLive = duel.basket?.shooterId != null && !winner;
 
   useEffect(() => {
-    if (winner) soundEffects.duelWin();
+    if (!winner) return;
+    if (isGhost(winner)) soundEffects.ghostLaugh();
+    else soundEffects.duelWin();
   }, [winner]);
 
+  const stateOf = (duellist: Duellist) => (winner ? (winner.id === duellist.id ? "won" : "lost") : "idle");
   return (
     <ModalShell
-      title="Duel en Enfer"
+      title={againstGhost ? "Le fantôme attaque !" : "Duel en Enfer"}
       eyebrow={DUEL_MODE_LABELS[duel.mode]}
-      tone="grape"
+      tone={againstGhost ? "night" : "grape"}
       size="medium"
-      className="duel-modal"
+      className={`duel-modal ${againstGhost ? "duel-modal--ghost" : ""} ${basketLive ? "duel-modal--basket-live" : ""}`}
     >
       <div className="duel-versus">
-        <Contestant player={first} state={winner ? (winner.id === first.id ? "won" : "lost") : "idle"} />
+        <Contestant duellist={first} state={stateOf(first)} />
         <span className="duel-versus__vs">VS</span>
-        <Contestant player={second} state={winner ? (winner.id === second.id ? "won" : "lost") : "idle"} />
+        <Contestant duellist={second} state={stateOf(second)} />
       </div>
 
       {winner ? (
         <div className="duel-outcome">
-          <strong>{winner.name} remporte le duel !</strong>
-          <p>Retour à la case Départ. L’autre reste en Enfer.</p>
+          <strong>{isGhost(winner) ? "Le fantôme l’emporte !" : `${winner.name} remporte le duel !`}</strong>
+          {duel.ghost ? (
+            <GhostOutcome stakes={duel.ghost} player={first} playerWon={!isGhost(winner)} />
+          ) : (
+            <p>Retour à la case Départ. L’autre reste en Enfer.</p>
+          )}
           {canSettle ? (
             <button type="button" className="btn btn--cup" onClick={() => resolveDuel(winner.id)} data-autofocus>
               Continuer <UiIcon name="arrowRight" size={20} />
             </button>
           ) : (
-            <WaitingNote player={winner} />
+            <WaitingNote player={players.find((player) => player.id === (isGhost(winner) ? first.id : winner.id))} />
           )}
         </div>
       ) : duel.mode === "coin-flip" ? (
         <CoinFlip duel={duel} first={first} second={second} />
       ) : duel.mode === "rock-paper-scissors" ? (
         <RockPaperScissors duel={duel} first={first} second={second} />
+      ) : duel.mode === "basket" ? (
+        <BasketGame duel={duel} first={first} second={second} />
       ) : (
         <TableVote duel={duel} first={first} second={second} />
       )}
+
+      {againstGhost && !winner && <GhostStakesNote />}
     </ModalShell>
   );
 }
 
-function Contestant({ player, state }: { player: Player; state: "idle" | "won" | "lost" }) {
+function Contestant({ duellist, state }: { duellist: Duellist; state: "idle" | "won" | "lost" }) {
   return (
-    <div className={`contestant contestant--${state}`}>
-      <PlayerAvatar color={player.color} size={78} expression={state === "lost" ? "worried" : "happy"} />
-      <strong>{player.name}</strong>
+    <div className={`contestant contestant--${state} ${isGhost(duellist) ? "contestant--ghost" : ""}`}>
+      <DuellistAvatar duellist={duellist} size={78} state={state} />
+      <strong>{duellist.name}</strong>
     </div>
   );
 }
 
+/** What is at stake, without telling which penalty or reward was drawn: that stays a surprise. */
+function GhostStakesNote() {
+  return (
+    <p className="ghost-stakes">
+      Perdu : l’Enfer, 300 pièces ou un objet volés. Gagné : un morceau de son butin, ou 300 pièces s’il est vide.
+    </p>
+  );
+}
+
+function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; player: Duellist; playerWon: boolean }) {
+  if (playerWon) {
+    const { reward } = stakes;
+    const text =
+      reward.kind === "item"
+        ? `${player.name} reprend ${ITEM_CATALOG[reward.itemId].name} dans le butin du fantôme.`
+        : reward.fromLoot
+          ? `${player.name} reprend ${reward.amount} pièces dans le butin du fantôme.`
+          : `Son butin est vide : ${player.name} gagne ${reward.amount} pièces.`;
+    return <p>{text} Le fantôme s’évapore pour quelques tours.</p>;
+  }
+  const { penalty } = stakes;
+  const text =
+    penalty.kind === "hell"
+      ? `Il gifle ${player.name} et l’emporte en Enfer !`
+      : penalty.kind === "coins"
+        ? `Il vole ${penalty.amount} pièces à ${player.name}, qu’il garde dans son butin.`
+        : `Il vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}, qu’il garde dans son butin.`;
+  return <p>{text}</p>;
+}
+
 function CoinFlip({ duel, first, second }: DuelArenaProps) {
   const flipDuelCoin = useGameStore((state) => state.flipDuelCoin);
-  const canFlip = useCanActFor([first.id, second.id]);
+  const players = useGameStore((state) => state.players);
+  const canFlip = useCanActFor(getHumanDuellistIds(duel));
   const flipping = duel.winnerId !== null;
   const landsOnFirst = duel.coinWinnerId === first.id;
 
@@ -121,14 +176,17 @@ function CoinFlip({ duel, first, second }: DuelArenaProps) {
     if (flipping) soundEffects.coinFlip();
   }, [flipping]);
 
+  const waitingText = isGhost(second)
+    ? `${first.name} lance la pièce…`
+    : `${first.name} ou ${second.name} lance la pièce…`;
   return (
     <div className="duel-panel">
       <div className={`duel-coin ${flipping ? (landsOnFirst ? "is-flipping-first" : "is-flipping-second") : ""}`}>
         <span className="duel-coin__face duel-coin__face--front">
-          <PlayerAvatar color={first.color} size={70} />
+          <DuellistAvatar duellist={first} size={70} />
         </span>
         <span className="duel-coin__face duel-coin__face--back">
-          <PlayerAvatar color={second.color} size={70} />
+          <DuellistAvatar duellist={second} size={70} />
         </span>
       </div>
       <p>
@@ -139,7 +197,7 @@ function CoinFlip({ duel, first, second }: DuelArenaProps) {
           Lancer la pièce
         </button>
       ) : (
-        !flipping && <WaitingNote player={first} text={`${first.name} ou ${second.name} lance la pièce…`} />
+        !flipping && <WaitingNote player={players.find((player) => player.id === first.id)} text={waitingText} />
       )}
     </div>
   );
@@ -158,11 +216,14 @@ function HandsReveal({ duel, first, second }: DuelArenaProps) {
 
 function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
   const pickDuelHand = useGameStore((state) => state.pickDuelHand);
+  const players = useGameStore((state) => state.players);
   const localPlayerId = useLocalPlayerId();
   const [seenTies, setSeenTies] = useState(0);
   const [handedOver, setHandedOver] = useState(false);
   const decided = duel.winnerId !== null;
   const showingTie = duel.rpsTiedRound !== null && seenTies < duel.rpsTies;
+  // The ghost's hand is drawn by the engine: only the seated duellists choose.
+  const choosers = [first, second].filter((duellist) => !isGhost(duellist));
 
   useEffect(() => {
     if (decided || showingTie) soundEffects.reveal();
@@ -193,11 +254,12 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
   }
 
   const roundBadge = duel.rpsTies > 0 && <span className="tie-badge">Manche {duel.rpsTies + 1}</span>;
-  const picker = (chooser: Player) => (
+  const picker = (chooser: Duellist) => (
     <div className="duel-panel">
       <p className="duel-secret">
         {roundBadge}
-        <strong>{chooser.name}</strong>, choisis en secret :
+        <strong>{chooser.name}</strong>, choisis en secret
+        {choosers.length === 1 ? " : le fantôme joue en même temps" : ""} :
       </p>
       <div className="rps-options">
         {RPS_OPTIONS.map((option) => (
@@ -217,14 +279,14 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
 
   // Online: each duellist picks on their own screen, everyone else waits.
   if (localPlayerId !== null) {
-    const me = [first, second].find((player) => player.id === localPlayerId);
+    const me = choosers.find((duellist) => duellist.id === localPlayerId);
     if (me && !duel.rpsChoices[me.id]) return picker(me);
-    const pending = [first, second].filter((player) => !duel.rpsChoices[player.id]);
+    const pending = choosers.filter((duellist) => !duel.rpsChoices[duellist.id]);
     return (
       <div className="duel-panel">
         {roundBadge}
         <WaitingNote
-          player={pending[0]}
+          player={players.find((player) => player.id === pending[0]?.id)}
           text={
             pending.length === 2
               ? `${first.name} et ${second.name} choisissent en secret…`
@@ -236,20 +298,22 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
   }
 
   // Local table: one screen, handed from the first duellist to the second.
-  if (!duel.rpsChoices[first.id]) return picker(first);
+  const [chooserOne, chooserTwo] = choosers;
+  if (!duel.rpsChoices[chooserOne.id]) return picker(chooserOne);
+  if (!chooserTwo) return null;
   if (!handedOver) {
     return (
       <div className="duel-panel">
         <p className="duel-secret">
-          Choix de {first.name} enregistré. Passe l’écran à <strong>{second.name}</strong>.
+          Choix de {chooserOne.name} enregistré. Passe l’écran à <strong>{chooserTwo.name}</strong>.
         </p>
         <button type="button" className="btn btn--gold" onClick={() => setHandedOver(true)} data-autofocus>
-          <UiIcon name="eye" size={20} /> Je suis {second.name}
+          <UiIcon name="eye" size={20} /> Je suis {chooserTwo.name}
         </button>
       </div>
     );
   }
-  return picker(second);
+  return picker(chooserTwo);
 }
 
 function TableVote({ duel, first, second }: DuelArenaProps) {
@@ -312,7 +376,7 @@ function TableVote({ duel, first, second }: DuelArenaProps) {
             className="vote-option"
             onClick={() => castDuelVote(voter.id, candidate.id)}
           >
-            <PlayerAvatar color={candidate.color} size={44} />
+            <DuellistAvatar duellist={candidate} size={44} />
             {candidate.name}
           </button>
         ))}

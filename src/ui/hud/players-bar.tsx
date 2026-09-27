@@ -3,7 +3,7 @@ import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL } from "../../game/types";
+import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useRoomStore } from "../../net/room-store";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
@@ -11,6 +11,7 @@ import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
+import { DetailCarousel } from "../components/detail-carousel";
 
 export function getAvatarExpression(player: Player): AvatarExpression {
   if (player.skippedTurns > 0) return "sleepy";
@@ -57,6 +58,8 @@ export function PlayersBar() {
   const players = useGameStore((state) => state.players);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
   const phase = useGameStore((state) => state.phase);
+  const snowballHits = useGameStore((state) => state.snowballHits);
+  const snowFrozenPlayerIds = useGameStore((state) => state.snowFrozenPlayerIds);
   const seatOrder = useRoomStore((state) => state.seatOrder);
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -113,9 +116,22 @@ export function PlayersBar() {
                 </span>
               </span>
               <VoiceBadge userId={getUserIdOfPlayer(seatOrder, player.id)} />
-              {player.skippedTurns > 0 && (
+              {player.skippedTurns > 0 && !snowFrozenPlayerIds.includes(player.id) && (
                 <span className="player-chip__badge" title="Passe son prochain tour">
                   <UiIcon name="sleep" size={12} strokeWidth={2.8} />
+                </span>
+              )}
+              {snowFrozenPlayerIds.includes(player.id) && (
+                <span className="player-chip__badge player-chip__badge--frozen" title="Gelé : passe son prochain tour">
+                  ❄
+                </span>
+              )}
+              {(snowballHits[player.id] ?? 0) > 0 && (
+                <span
+                  className="player-chip__snow"
+                  title={`Boules de neige reçues : ${snowballHits[player.id]}/${SNOWBALL_HITS_TO_FREEZE}, gelé à la ${SNOWBALL_HITS_TO_FREEZE}ᵉ`}
+                >
+                  ❄ {snowballHits[player.id]}/{SNOWBALL_HITS_TO_FREEZE}
                 </span>
               )}
             </button>
@@ -177,6 +193,7 @@ function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnch
         <span className="eyebrow">Passif</span>
         <strong>{passive.name}</strong>
         <p>{passive.description}</p>
+        <DetailCarousel key={passive.id} details={passive.details} label={passive.name} />
         {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
       </div>
       <div className="player-details__bag">

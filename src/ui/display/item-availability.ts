@@ -1,5 +1,5 @@
 import { ITEM_CATALOG } from "../../game/catalog";
-import { getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
+import { countItemUnits, getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
 import type { GameState, ItemId, Player } from "../../game/types";
 import { DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
 
@@ -81,7 +81,8 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
   }
 
   const kind: ItemUseKind = ITEM_CATALOG[itemId].target === "player" ? "target" : "instant";
-  const actionLabel = itemId === "water-bottle" ? "Boire" : itemId === "mud" ? "Poser" : "Utiliser";
+  const actionLabel =
+    itemId === "water-bottle" ? "Boire" : itemId === "mud" ? "Poser" : itemId === "tomato" ? "Lancer" : "Utiliser";
   return { usable: true, kind, actionLabel };
 }
 
@@ -96,8 +97,16 @@ export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Play
   const price = itemId === "boot" ? state.bootPrice : ITEM_CATALOG[itemId].price;
   const copies = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
 
+  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
   if (itemId === "bullet-bill") {
     if (state.bulletBill) return { price, canBuy: false, reason: "Déjà lancé" };
+  } else if (stackLimit) {
+    // A stack fills one slot: only the first one needs room in the bag.
+    const units = countItemUnits(player, itemId);
+    if (units >= stackLimit) return { price, canBuy: false, reason: `${stackLimit} au maximum` };
+    if (units === 0 && player.inventory.length >= getInventoryCapacity(player)) {
+      return { price, canBuy: false, reason: "Sac plein" };
+    }
   } else {
     if (player.inventory.length >= getInventoryCapacity(player)) return { price, canBuy: false, reason: "Sac plein" };
     if (itemId === "eraser" && copies >= 1) return { price, canBuy: false, reason: "Une seule Gomme" };

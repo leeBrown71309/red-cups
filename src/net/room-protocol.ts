@@ -1,6 +1,6 @@
 import { canPlayerSendAction } from "../game/action-permissions";
 import { getSeatPlayerId, reduceGame, type GameAction } from "../game/game-actions";
-import type { GameState, PlayerColor, PlayerId } from "../game/types";
+import type { GameState, MapId, PlayerColor, PlayerId } from "../game/types";
 import { EMPTY_GAME_STATE, PLAYER_COLORS } from "../game/types";
 import type { RoomPlayer } from "./room-api";
 
@@ -21,6 +21,16 @@ export type RoomWire =
   | { kind: "roster" }
   /** The host kicked off: everybody loads the first snapshot. */
   | { kind: "start" };
+
+/**
+ * Whether a presence "leave" means the device really left the room. Any change
+ * of a device's presence (the mic turned on, off or muted) is sent as its old
+ * entry leaving and its new one joining: the device still has an entry then,
+ * and must not be announced as disconnected.
+ */
+export function hasLeftRoom(currentPresences: readonly unknown[] | undefined): boolean {
+  return !currentPresences || currentPresences.length === 0;
+}
 
 /** The engine player a user plays, from their position in the frozen seat order. */
 export function getPlayerIdOfUser(seatOrder: string[], userId: string): PlayerId | null {
@@ -66,16 +76,22 @@ export function applyRemoteAction(
 
 /**
  * The first board of an online game: turn order is the order players sat
- * down, each with the avatar they picked, and the host's seed so every device
- * draws the same luck from there on.
+ * down, each with the avatar they picked, the map the host picked (already
+ * drawn if random) and the host's seed so every device draws the same luck
+ * from there on.
  */
-export function buildOnlineGame(players: RoomPlayer[], seed: number): { state: GameState; seatOrder: string[] } {
+export function buildOnlineGame(
+  players: RoomPlayer[],
+  seed: number,
+  mapId: MapId,
+): { state: GameState; seatOrder: string[] } {
   const avatarColors: PlayerColor[] = players.map((player) => PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0]);
   const state = reduceGame(EMPTY_GAME_STATE, {
     type: "startGame",
     playerNames: players.map((player) => player.name),
     seed,
     avatarColors,
+    mapId,
   });
   return { state, seatOrder: players.map((player) => player.userId) };
 }

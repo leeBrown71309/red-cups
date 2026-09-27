@@ -72,7 +72,7 @@ async function lobby(hostName: string, guestNames: string[]): Promise<{ code: st
 
 async function kickoff(code: string, hostId: string, seed = 11): Promise<GameState> {
   const snapshot = await room(code, hostId);
-  const { state, seatOrder } = buildOnlineGame(snapshot!.players, seed);
+  const { state, seatOrder } = buildOnlineGame(snapshot!.players, seed, "luna-park");
   await as(hostId, `select open_room($1, $2::jsonb, $3::jsonb)`, [
     code,
     JSON.stringify(state),
@@ -179,7 +179,7 @@ describe("kickoff", () => {
   it("is for the host only", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);
     const snapshot = await room(code, ids[1]);
-    const { state, seatOrder } = buildOnlineGame(snapshot!.players, 3);
+    const { state, seatOrder } = buildOnlineGame(snapshot!.players, 3, "classic");
     expect(
       await refusal(ids[1], `select open_room($1, $2::jsonb, $3::jsonb)`, [
         code,
@@ -192,7 +192,7 @@ describe("kickoff", () => {
   it("refuses a seat order that does not match the lobby", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);
     const snapshot = await room(code, ids[0]);
-    const { state } = buildOnlineGame(snapshot!.players, 3);
+    const { state } = buildOnlineGame(snapshot!.players, 3, "classic");
     expect(
       await refusal(ids[0], `select open_room($1, $2::jsonb, $3::jsonb)`, [
         code,

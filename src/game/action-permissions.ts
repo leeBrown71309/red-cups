@@ -1,4 +1,4 @@
-import { getDuelVoterIds } from "./duel";
+import { getDuelVoterIds, getHumanDuellistIds } from "./duel";
 import type { GameAction } from "./game-actions";
 import { getDecidingPlayer } from "./rules";
 import { getActivePlayer } from "./state-utils";
@@ -53,10 +53,15 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "flipDuelCoin":
     case "resolveDuel":
-      return duel ? [duel.playerOneId, duel.playerTwoId] : [];
+      return duel ? getHumanDuellistIds(duel) : [];
+
+    // Only the shooter's device knows their baskets.
+    case "startBasketRound":
+    case "submitBasketScore":
+      return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 
     case "pickDuelHand":
-      return duel ? only(action.playerId) : [];
+      return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 
     case "castDuelVote":
       return duel && getDuelVoterIds(state, duel).includes(action.voterId) ? [action.voterId] : [];

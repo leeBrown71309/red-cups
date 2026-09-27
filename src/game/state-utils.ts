@@ -1,3 +1,4 @@
+import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
@@ -49,13 +50,43 @@ export function placeInHell(player: Player): Player {
   return player.position === HELL_NODE_ID ? player : { ...player, position: HELL_NODE_ID, hellTurns: 0 };
 }
 
+/** How many items an entry stands for: a stack of Tomates counts several, anything else one. */
+export function getEntryUnits(entry: InventoryEntry): number {
+  return entry.kind === "item" ? (entry.count ?? 1) : 1;
+}
+
+/** Adds one item; a stackable one joins its stack when there is one (callers check the stack's limit). */
 export function appendItem(player: Player, itemId: ItemId): Player {
+  const stack = ITEM_CATALOG[itemId].stackLimit
+    ? player.inventory.find((entry) => entry.kind === "item" && entry.itemId === itemId)
+    : undefined;
+  if (stack) {
+    return {
+      ...player,
+      inventory: player.inventory.map((entry) =>
+        entry.id === stack.id ? { ...entry, count: getEntryUnits(entry) + 1 } : entry,
+      ),
+    };
+  }
   const entry: InventoryEntry = { id: createEngineId(), kind: "item", itemId };
   return { ...player, inventory: [...player.inventory, entry] };
 }
 
+/** Empties a whole bag slot, a full stack included (a discard, a lost Red Cup slot). */
 export function removeInventoryEntry(player: Player, entryId: string): Player {
   return { ...player, inventory: player.inventory.filter((entry) => entry.id !== entryId) };
+}
+
+/** Takes one item out of a slot: a stack loses one unit, anything else leaves the bag. */
+export function spendItemEntry(player: Player, entryId: string): Player {
+  const entry = player.inventory.find((candidate) => candidate.id === entryId);
+  if (!entry || getEntryUnits(entry) <= 1) return removeInventoryEntry(player, entryId);
+  return {
+    ...player,
+    inventory: player.inventory.map((candidate) =>
+      candidate.id === entryId ? { ...candidate, count: getEntryUnits(candidate) - 1 } : candidate,
+    ),
+  };
 }
 
 export function getItemEntry(player: Player, entryId: string): ItemId | undefined {

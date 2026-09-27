@@ -1,11 +1,12 @@
 import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middleware";
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
-import type { GameState } from "./types";
+import type { GameState, GhostState } from "./types";
+import { isMapId } from "./maps/map-registry";
 import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 6;
+export const GAME_SAVE_VERSION = 11;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -65,12 +66,29 @@ type SaveRecord = Record<string, unknown>;
  * flag, Bullet Bill's flight, the Tour de Bénédiction, abandons and the Non
  * merci cooldown, which replaces the once-per-Cup rule. Version 6 moved duels
  * into the engine (hands, votes, decided winner) and added the online seed.
+ * Version 7 (patch 0.1.3) added the board choice: older games were classic.
+ * Version 8 added the Banquise ice: temporary tile, frozen players, blizzards.
+ * Version 9 added the Basket duel and the Luna Park ghost, which a game saved
+ * before shows a round later. Version 10 added the Tomate's last throw,
+ * version 11 the Banquise snowballs.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
   const duel = save.pendingDuel as SaveRecord | null | undefined;
   return {
     ...save,
+    mapId: isMapId(save.mapId) ? save.mapId : EMPTY_GAME_STATE.mapId,
+    carouselReversed: save.carouselReversed === true,
+    iceTileNodeId: save.iceTileNodeId ?? null,
+    frozenSlides: save.frozenSlides ?? [],
+    lastBlizzard: save.lastBlizzard ?? null,
+    lastIceFall: save.lastIceFall ?? null,
+    ghost: save.ghost ?? (save.mapId === "luna-park" ? createAbsentGhost(Number(save.round) || FIRST_ROUND) : null),
+    lastGhostEvent: save.lastGhostEvent ?? null,
+    lastTomatoThrow: save.lastTomatoThrow ?? null,
+    snowballHits: save.snowballHits ?? {},
+    snowFrozenPlayerIds: save.snowFrozenPlayerIds ?? [],
+    lastSnowball: save.lastSnowball ?? null,
     seededRandom: save.seededRandom ?? null,
     pendingDuel: duel
       ? {
@@ -80,6 +98,8 @@ function upgradeSave(save: SaveRecord): SaveRecord {
           votes: {},
           voteTieBroken: false,
           winnerId: null,
+          basket: null,
+          ghost: null,
           ...duel,
         }
       : null,
@@ -94,6 +114,10 @@ function upgradeSave(save: SaveRecord): SaveRecord {
       noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
     })),
   };
+}
+
+function createAbsentGhost(round: number): GhostState {
+  return { nodeId: null, returnsAtRound: round + 1, loot: { coins: 0, items: [] }, metPlayerIds: [] };
 }
 
 /**

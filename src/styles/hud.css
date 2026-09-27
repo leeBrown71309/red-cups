@@ -174,6 +174,30 @@
   background: var(--sky-light);
 }
 
+/* Banquise: frozen solid by the penguins' snowballs, and how close the next freeze is. */
+.player-chip__badge--frozen {
+  background: #dff6ff;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.player-chip__snow {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  padding: 0 6px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #dff6ff;
+  color: #1f4c73;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
 .cup-pips {
   display: inline-flex;
   gap: 1px;
@@ -431,6 +455,27 @@
   transition:
     transform 160ms var(--ease-bounce),
     background-color 160ms ease;
+}
+
+/* A stack of Tomates in one slot: how many are left. */
+.bag-slot {
+  position: relative;
+}
+
+.bag-slot__count {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: 24px;
+  padding: 1px 5px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cup);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .bag-slot:hover {
@@ -779,6 +824,31 @@
   background:
     radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.45), transparent 55%),
     linear-gradient(135deg, var(--gold), var(--mint));
+}
+
+/* Banquise: blizzard and falling ice. */
+.alert-banner--blizzard {
+  background:
+    radial-gradient(circle at 15% 25%, rgba(255, 255, 255, 0.55), transparent 55%),
+    linear-gradient(135deg, #7fc8ee, #34507a);
+}
+
+/* Luna Park: the ghost shows up, or pounces on a player. */
+.alert-banner--ghost {
+  background:
+    radial-gradient(circle at 12% 50%, rgba(199, 125, 255, 0.55), transparent 45%),
+    linear-gradient(135deg, #1b1f3b, #3b1d5f);
+}
+
+.alert-banner--ghost .alert-banner__icon {
+  background: #27305f;
+}
+
+/* Luna Park: the carousel changes direction. */
+.alert-banner--carousel {
+  background:
+    repeating-conic-gradient(from 0deg at 12% 50%, rgba(255, 255, 255, 0.12) 0 18deg, transparent 18deg 36deg),
+    linear-gradient(135deg, #ff4fa3, #5b1d8f);
 }
 
 .alert-banner__icon {

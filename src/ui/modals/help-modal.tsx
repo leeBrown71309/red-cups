@@ -1,9 +1,27 @@
 import { useState } from "react";
+import { getStartBonusNodeIds, hasCarousel, hasIce, resolveBoard } from "../../game/board";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
+import { getBoardMap } from "../../game/maps/map-registry";
+import type { RoadLegendEntry } from "../../game/maps/map-types";
+import { useGameStore } from "../../game/store";
+import type { MapId } from "../../game/types";
+import {
+  GHOST_COOLDOWN_ROUNDS,
+  GHOST_EMPTY_LOOT_REWARD,
+  GHOST_LOOT_COINS,
+  GHOST_MAX_DRIFT_STEPS,
+  GHOST_STEAL_COINS,
+  HELL_EXIT_TOLL,
+  HELL_TURN_LIMIT,
+  SNOWBALL_HITS_TO_FREEZE,
+  START_BONUS,
+} from "../../game/types";
 import { BoardMap } from "../components/board-map";
 import { ModalShell } from "../components/modal-shell";
-import { TILE_LEGEND, formatCurrency } from "../display/game-display";
+import { formatCurrency, getTileLegend } from "../display/game-display";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
+import { useMapChoiceStore } from "../lobby/map-choice-store";
+import { DetailCarousel } from "../components/detail-carousel";
 
 type HelpTab = "board" | "turn" | "items" | "passives";
 
@@ -14,24 +32,98 @@ const TABS: { id: HelpTab; label: string }[] = [
   { id: "passives", label: "Passifs" },
 ];
 
-const TURN_STEPS = [
-  "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
-  "La Botte se prépare et la Boue se pose avant de bouger : elles ne comptent pas comme ton action.",
-  "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté ou reculé, ça compte ; " +
-    "tiré par la Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
-  "Sur une case bleue, la boutique s’ouvre : achète autant que ton solde et ton sac le permettent.",
-  "Ramasse 3 Red Cups pour gagner. Chaque Cup occupe une des 4 places de ton sac.",
-  "Arriver au Départ par la case 8 : +200 pièces. À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
-  "En Enfer, tu tournes sa roue à chaque tour. Deux joueurs en Enfer = duel, le gagnant repart du Départ.",
-  "Toujours en Enfer après 5 tours ? Tu sors en case 0 avec les 200 du départ, mais tu paies 500 pièces.",
-  "Non merci : quand un joueur annonce son action, le détenteur du passif peut l’annuler, puis attend 3 tours.",
-  "Bullet Bill attend au départ dès son achat, puis fonce sur le joueur le plus proche à chaque tour de table.",
-  "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
-  "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
-];
+const ROAD_SWATCH_CLASSES: Record<RoadLegendEntry["style"], string> = {
+  arrow: "legend-road legend-road--oneway",
+  road: "legend-road",
+  tunnel: "legend-road legend-road--tunnel",
+  carousel: "legend-road legend-road--carousel",
+  ice: "legend-road legend-road--ice",
+};
+
+/** The rules of a turn; the start bonus and the carousel depend on the board. */
+function getTurnSteps(mapId: MapId): string[] {
+  const board = resolveBoard(mapId);
+  const bonusTiles = getStartBonusNodeIds(board).join(" ou ");
+  const steps = [
+    "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
+    "La Botte se prépare et la Boue se pose avant de bouger : elles ne comptent pas comme ton action.",
+    "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté ou reculé, ça compte ; " +
+      "tiré par la Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
+    "Sur une case bleue, la boutique s’ouvre : achète tant que ton solde et ton sac le permettent. " +
+      "Deux exemplaires au plus d’un même objet, une seule Gomme.",
+    "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places, 5 avec Penta) ; " +
+      "sac plein, tu jettes un objet, jamais une Cup.",
+    `Entrer au Départ depuis la case ${bonusTiles}, dans le sens de la flèche : +${START_BONUS} pièces. ` +
+      "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
+    "En Enfer, à chaque tour, tu tournes sa roue ou tu utilises un objet. Deux joueurs en Enfer = duel : " +
+      `le gagnant repart du Départ avec ${START_BONUS} pièces.`,
+    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table ou Basket. " +
+      "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
+    `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
+      `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
+    "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
+      "puis attend 3 tours de table.",
+    "Bullet Bill attend au départ dès son achat, puis fonce de 2 cases vers le joueur le plus proche à chaque " +
+      "tour de table : −200 pièces et un tour passé pour sa victime.",
+    "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
+    "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
+  ];
+  if (hasIce(board)) {
+    steps.push(
+      `${board.map.name} : arrivé sur la glace, tu glisses au hasard vers l’une de ses autres routes, jusqu’à une ` +
+        "case sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
+      "Tombée de glace : si ta glissade file vers la Red Cup, la glace a 80 % de chances de te tomber dessus. Tu " +
+        "restes pris sur la route et tu arrives sur la Red Cup au début de ton tour suivant, avant de jouer.",
+      "Blizzard : une troisième case glissante apparaît au hasard, le Départ compris, et se déplace tous les deux " +
+        "tours de table. Un Départ gelé ne paie pas les 200 pièces.",
+    );
+  }
+  if (board.map.snowballs) {
+    steps.push(
+      "Pingouins : dès qu’une Red Cup a été ramassée, ils lancent une boule de neige sur un joueur au hasard à " +
+        `chaque fin de tour (jamais en Enfer), et un tiers ratent. À la ${SNOWBALL_HITS_TO_FREEZE}ᵉ boule reçue, tu ` +
+        "gèles sur place et tu passes ton prochain tour.",
+    );
+  }
+  if (hasCarousel(board)) {
+    steps.push(
+      `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
+        "Délinquant peut le prendre à contresens.",
+    );
+  }
+  if (board.map.haunted) {
+    steps.push(
+      "Le fantôme rôde sur tout le plateau, sans respecter les routes : à chaque fin de tour, il glisse de 1 à " +
+        `${GHOST_MAX_DRIFT_STEPS} cases, ou disparaît pour réapparaître au loin. S’il tombe sur toi, ou si tu ` +
+        "t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
+      `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
+        `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
+        `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,
+      "Clique sur le fantôme pour voir son butin.",
+    );
+  }
+  return steps;
+}
+
+/**
+ * The one board the help explains: the game's board during a game, the one
+ * shown behind the lobby before. Only that map is drawn, however many exist.
+ */
+function useHelpMapId(): MapId {
+  const phase = useGameStore((state) => state.phase);
+  const gameMapId = useGameStore((state) => state.mapId);
+  const previewMapId = useMapChoiceStore((state) => state.previewMapId);
+  return phase === "setup" ? previewMapId : gameMapId;
+}
 
 export function HelpModal({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<HelpTab>("board");
+  const shownMapId = useHelpMapId();
+  const phase = useGameStore((state) => state.phase);
+  const carouselReversed = useGameStore((state) => state.carouselReversed);
+  const iceTileNodeId = useGameStore((state) => state.iceTileNodeId);
+  const inGame = phase !== "setup";
+  const shownMap = getBoardMap(shownMapId);
 
   return (
     <ModalShell title="Comment jouer" eyebrow="Red Cups" size="large" onClose={onClose} className="help-modal">
@@ -52,10 +144,18 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
 
       {tab === "board" && (
         <div className="help-board">
-          <BoardMap />
+          <div className="help-board__plan">
+            <h3 className="help-board__title">{shownMap.name}</h3>
+            <BoardMap
+              mapId={shownMapId}
+              carouselReversed={inGame && carouselReversed}
+              iceTileNodeId={inGame ? iceTileNodeId : null}
+            />
+            <p className="help-board__tagline">{shownMap.tagline}</p>
+          </div>
           <div className="help-board__legend">
             <ul className="legend-list">
-              {TILE_LEGEND.map((entry) => (
+              {getTileLegend(shownMapId).map((entry) => (
                 <li key={entry.kind}>
                   <span className="legend-swatch" style={{ background: entry.color }} />
                   <span>
@@ -66,33 +166,17 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               ))}
             </ul>
             <ul className="legend-list legend-list--roads">
-              <li>
-                <span className="legend-road legend-road--oneway" aria-hidden="true">
-                  ›››
-                </span>
-                <span>
-                  <strong>Sortie fléchée</strong>
-                  <small>
-                    Sur une case fléchée, tu dois sortir par sa flèche. On peut y entrer par n’importe quelle route.
-                  </small>
-                </span>
-              </li>
-              <li>
-                <span className="legend-road" aria-hidden="true" />
-                <span>
-                  <strong>Chemin libre</strong>
-                  <small>Praticable dans les deux sens.</small>
-                </span>
-              </li>
-              <li>
-                <span className="legend-road legend-road--tunnel" aria-hidden="true">
-                  ›››
-                </span>
-                <span>
-                  <strong>Tunnel 7 → 1</strong>
-                  <small>Sors par la gauche, réapparais à droite.</small>
-                </span>
-              </li>
+              {shownMap.roadLegend.map((entry) => (
+                <li key={entry.title}>
+                  <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
+                    {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
+                  </span>
+                  <span>
+                    <strong>{entry.title}</strong>
+                    <small>{entry.description}</small>
+                  </span>
+                </li>
+              ))}
             </ul>
           </div>
         </div>
@@ -100,7 +184,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
 
       {tab === "turn" && (
         <ol className="help-steps">
-          {TURN_STEPS.map((step, index) => (
+          {getTurnSteps(shownMapId).map((step, index) => (
             <li key={step}>
               <span className="help-steps__number">{index + 1}</span>
               <p>{step}</p>
@@ -125,6 +209,8 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                   {itemId === "boot" ? "dès " : ""}
                   {formatCurrency(item.price)}
                 </span>
+                {/* Full card width: squeezed beside the icon and the price, the rules wrapped every other word. */}
+                <DetailCarousel details={item.details} label={item.name} />
               </li>
             );
           })}
@@ -139,6 +225,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               <li key={passiveId}>
                 <strong>{passive.name}</strong>
                 <p>{passive.description}</p>
+                <DetailCarousel details={passive.details} label={passive.name} />
               </li>
             );
           })}

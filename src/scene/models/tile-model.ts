@@ -24,13 +24,20 @@ export interface TileVisual {
   setHighlight: (highlight: TileHighlight) => void;
   /** Pawns or props hide the painted number: a badge on the tile's edge keeps it readable. */
   setCovered: (covered: boolean) => void;
+  /** Banquise: shows or melts the ice (glassy cap, frosty rim and spikes) on this tile. */
+  setIce: (active: boolean) => void;
   update: (elapsed: number, delta: number) => void;
   repaintDecal: () => void;
 }
 
 const SEGMENTS = 10;
 
-export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
+export interface TileStyle {
+  /** Night maps: a glowing edge and a lit top so the tile colour reads in the dark. */
+  neon?: boolean;
+}
+
+export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyle = {}): TileVisual {
   const radius = node.kind === "start" ? START_TILE_RADIUS : TILE_RADIUS;
   const colors = TILE_COLORS[node.kind];
   const group = new THREE.Group();
@@ -50,12 +57,29 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
 
   const top = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.9, radius * 0.97, TILE_HEIGHT * 0.28, SEGMENTS),
-    kit.flat(colors.top),
+    style.neon ? kit.flat(colors.top, { emissive: colors.top, emissiveIntensity: 0.35 }) : kit.flat(colors.top),
   );
   top.position.y = TILE_HEIGHT * 0.86;
   top.receiveShadow = true;
   lift.add(top);
   addOutline(base, kit, 1.035);
+
+  // Banquise: ice laid on the tile, permanently or by the blizzard; it grows and melts away.
+  const ice = createIceCover(kit, radius);
+  ice.scale.setScalar(node.ice ? 1 : 0.001);
+  ice.visible = node.ice === true;
+  lift.add(ice);
+  let iceTarget = node.ice ? 1 : 0;
+
+  if (style.neon) {
+    const glowEdge = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 1.04, 0.055, 4, SEGMENTS * 3),
+      kit.unlit(colors.top),
+    );
+    glowEdge.rotation.x = Math.PI / 2;
+    glowEdge.position.y = TILE_HEIGHT * 0.72;
+    lift.add(glowEdge);
+  }
 
   const decalCanvas = document.createElement("canvas");
   decalCanvas.width = 256;
@@ -132,7 +156,16 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
     setCovered: (next) => {
       covered = next;
     },
+    setIce: (active) => {
+      iceTarget = active ? 1 : 0;
+      if (active) ice.visible = true;
+    },
     update: (elapsed, delta) => {
+      if (ice.visible) {
+        const scale = ice.scale.x + (iceTarget - ice.scale.x) * Math.min(1, delta * 4);
+        ice.scale.setScalar(Math.max(0.001, scale));
+        if (iceTarget === 0 && scale < 0.02) ice.visible = false;
+      }
       const badgeOpacity = covered ? 1 : 0;
       badgeMaterial.opacity += (badgeOpacity - badgeMaterial.opacity) * Math.min(1, delta * 8);
       badge.visible = badgeMaterial.opacity > 0.02;
@@ -158,6 +191,54 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
       }
     },
   };
+}
+
+/** A glassy cap, a frosty rim and a ring of ice spikes, like the lips of the crevasse. */
+function createIceCover(kit: SceneKit, radius: number): THREE.Group {
+  const cover = new THREE.Group();
+  const cap = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 0.94, radius * 0.98, 0.06, SEGMENTS),
+    new THREE.MeshStandardMaterial({
+      color: "#dff6ff",
+      transparent: true,
+      opacity: 0.45,
+      roughness: 0.08,
+      metalness: 0.2,
+      flatShading: true,
+      depthWrite: false,
+    }),
+  );
+  cap.position.y = TILE_HEIGHT + 0.005;
+  cover.add(cap);
+
+  const frost = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.05, 0.07, 4, SEGMENTS * 3), kit.unlit("#bfe9ff"));
+  frost.rotation.x = Math.PI / 2;
+  frost.position.y = TILE_HEIGHT * 0.72;
+  cover.add(frost);
+
+  const spikeMaterial = new THREE.MeshStandardMaterial({
+    color: "#cfefff",
+    roughness: 0.12,
+    metalness: 0.15,
+    flatShading: true,
+  });
+  const spikeCount = 9;
+  for (let index = 0; index < spikeCount; index += 1) {
+    const angle = (index / spikeCount) * Math.PI * 2 + 0.2;
+    // Short at the front so the number stays readable from the camera.
+    const height = Math.sin(angle) > 0.2 ? 0.28 : 0.45 + ((index * 7) % 3) * 0.1;
+    const spike = new THREE.Mesh(
+      kit.geometry("ice-spike", () => new THREE.ConeGeometry(0.14, 1, 4)),
+      spikeMaterial,
+    );
+    spike.scale.set(1, height, 1);
+    spike.position.set(Math.cos(angle) * radius * 1.18, height / 2, Math.sin(angle) * radius * 1.18);
+    spike.rotation.set(Math.sin(angle) * 0.25, index, -Math.cos(angle) * 0.25);
+    spike.castShadow = true;
+    addOutline(spike, kit, 1.08);
+    cover.add(spike);
+  }
+  return cover;
 }
 
 function createDestinationMarker(kit: SceneKit): THREE.Group {

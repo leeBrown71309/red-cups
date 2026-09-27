@@ -419,3 +419,229 @@
     display: grid;
   }
 }
+
+/* ---------- Map choice (lobby step 2, rematch) ---------- */
+.map-carousel {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 6px;
+  min-height: 0;
+  border-radius: 18px;
+}
+
+.map-carousel:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.map-carousel__arrow {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: 0 2px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 140ms var(--ease-out);
+}
+
+.map-carousel__arrow:hover {
+  transform: translateY(-1px);
+}
+
+.map-carousel__arrow:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--ink);
+}
+
+.map-carousel__slide {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  touch-action: pan-y;
+}
+
+.map-carousel__dots {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: center;
+  gap: 6px;
+}
+
+.map-carousel__dots button {
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  cursor: pointer;
+  transition:
+    width 180ms var(--ease-out),
+    background 180ms ease;
+}
+
+.map-carousel__dots button.is-active {
+  width: 24px;
+  border-radius: 999px;
+  background: var(--gold);
+}
+
+/* The option on show is the one picked: it always wears the selected frame. */
+.map-slide {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  height: 100%;
+  padding: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow:
+    0 3px 0 var(--ink),
+    0 0 0 3px var(--gold);
+  text-align: left;
+  grid-area: 1 / 1;
+  visibility: hidden;
+}
+
+.map-slide.is-current {
+  visibility: visible;
+  animation: map-slide-in 240ms var(--ease-out) both;
+}
+
+.map-slide__preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.map-slide__preview .board-map {
+  border-radius: 10px;
+}
+
+.map-slide__preview--random {
+  border: 2px dashed var(--paper-edge);
+  background: var(--cream-2);
+  color: var(--ink-soft);
+}
+
+.map-slide__text {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+
+.map-slide__text strong {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.map-slide__text small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.map-slide__highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  margin-top: 2px;
+}
+
+.map-slide__highlights span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cream-3);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+/* In a modal, and on short screens: the plan beside the text, so the buttons stay in view. */
+.map-carousel--compact .map-slide {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto;
+  align-items: center;
+  gap: 10px;
+}
+
+@keyframes map-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-slide.is-current {
+    animation: none;
+  }
+}
+
+.lobby__step-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+/* Short landscape phones: the plan beside the text, no feature chips, so the start button stays visible. */
+@media (max-height: 520px) {
+  .map-slide {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 10px;
+    padding: 6px;
+  }
+
+  .map-slide__highlights {
+    display: none;
+  }
+
+  .map-carousel__arrow {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Night fair behind the 3D board: a deep blue sky, a moon and a few stars. */
+.board-stage[data-map-theme="night-fair"] {
+  background:
+    radial-gradient(circle at 84% 14%, #fdf6d8 0 2.2%, rgba(253, 246, 216, 0.25) 2.6%, transparent 7%),
+    radial-gradient(1.5px 1.5px at 12% 18%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 28% 8%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 46% 16%, #ffd166 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 63% 6%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 72% 22%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 92% 30%, #3fe0ff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 6% 36%, #ff9fcd 50%, transparent 51%),
+    radial-gradient(130% 90% at 50% 0%, #2a2f6b 0%, #1b1f3b 55%, #0d1024 100%);
+}
+
+/* Far north behind the 3D board: a twilight sky with an aurora. */
+.board-stage[data-map-theme="polar"] {
+  background:
+    radial-gradient(60% 22% at 30% 12%, rgba(125, 255, 178, 0.45), transparent 70%),
+    radial-gradient(45% 18% at 68% 8%, rgba(120, 220, 255, 0.4), transparent 70%),
+    radial-gradient(35% 14% at 52% 20%, rgba(200, 150, 255, 0.3), transparent 70%),
+    linear-gradient(180deg, #243b6b 0%, #4f78a8 45%, #b8d4ec 100%);
+}
+
+.board-stage[data-map-theme="night-fair"] .board-stage__message {
+  color: var(--white);
+}

@@ -21,6 +21,7 @@ export type FeedbackEvent =
   | { type: "bullet-flight"; flight: BulletFlight }
   | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
   | { type: "blessing-started" }
+  | { type: "carousel-flipped"; reversed: boolean }
   | { type: "player-left"; playerId: PlayerId }
   | { type: "turn-skipped" }
   | { type: "item-used" }
@@ -29,7 +30,29 @@ export type FeedbackEvent =
   | { type: "victory"; playerId: PlayerId }
   | { type: "log"; entry: GameLogEntry }
   | { type: "pawn-hop" }
-  | { type: "pawn-tunnel" };
+  | { type: "pawn-tunnel" }
+  | { type: "pawn-slide" }
+  | { type: "ice-shatter"; playerId: PlayerId }
+  | { type: "ice-fall"; playerId: PlayerId; from: NodeId; to: NodeId; hit: boolean }
+  | { type: "blizzard"; from: NodeId | null; to: NodeId | null }
+  /** Luna Park: the ghost shows up on a carousel tile. */
+  | { type: "ghost-appeared"; nodeId: NodeId }
+  /** Luna Park: the ghost drifts one to three tiles along the roads, whichever way they run. */
+  | { type: "ghost-moved"; from: NodeId; to: NodeId; path: NodeId[] }
+  /** Luna Park: the ghost vanishes and reappears somewhere else on the board. */
+  | { type: "ghost-teleported"; from: NodeId; to: NodeId }
+  /** Luna Park: the ghost pounces on a player: a duel follows. */
+  | { type: "ghost-attack"; playerId: PlayerId; nodeId: NodeId }
+  /** Luna Park: beaten, the ghost fades away for a few rounds. */
+  | { type: "ghost-vanished"; nodeId: NodeId | null }
+  /** Luna Park: the ghost slaps a player and carries them off to Hell. */
+  | { type: "ghost-flung"; playerId: PlayerId; from: NodeId }
+  /** Banquise: a penguin throws a snowball at a player; the third hit freezes them. */
+  | { type: "snowball-thrown"; targetId: PlayerId; hit: boolean; frozen: boolean }
+  /** A volley of Tomates flies from one player to another; `stunned` when one knocked the target out. */
+  | { type: "tomato-thrown"; throwerId: PlayerId; targetId: PlayerId; count: number; stunned: boolean }
+  /** Luna Park: the ghost won and took coins or an item. */
+  | { type: "ghost-stole"; playerId: PlayerId };
 
 type Listener = (event: FeedbackEvent) => void;
 

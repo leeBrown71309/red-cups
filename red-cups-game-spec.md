@@ -30,7 +30,7 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
 | Duel en Enfer | Quand deux joueurs se trouvent en Enfer, un duel est déclenché. Le gagnant retourne en case 0 ; le perdant reste en Enfer. |
-| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux et vote des autres joueurs. |
+| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux, vote des autres joueurs et Basket. |
 | État client | React, Three.js et Zustand. Pas de serveur multijoueur dans le MVP. |
 
 ## 3. Plateau et déplacements
@@ -89,8 +89,57 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
 - Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
 - Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
-- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus.
+- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 5 → 0 paie.
 - Délinquant (400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
+
+### 3.2 bis Seconde carte : Luna Park (patch 0.1.3)
+
+Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origine. Le départ reste la case 0 et l’Enfer la case 11 sur toutes les cartes.
+
+- **Cases** : 0 départ ; carrousel 1 verte, 2 rouge, 3 verte, 4 rouge autour de l’Enfer (11, au centre) ; 5 boutique (SO), 6 verte (O), 7 rouge (NO), 8 boutique (N, première Red Cup), 9 neutre (NE), 10 verte (E), 12 boutique (SE).
+- **Carrousel** : 1 → 2 → 3 → 4 → 1 à sens unique ; **le sens s’inverse à chaque nouvelle Red Cup** (pas pour la Cup gagnante).
+- **Rayons** libres : 0–1, 2–10, 3–8, 4–7. **Tour extérieur** : 0–12, 12–10, 10–9, 9–8, 8–7, 7–6, 6–5, 5–0.
+- **Flèches** : 0 → 1 ou 12 ; 5 → 0 (seule entrée qui paie les 200 du départ) ; 8 → 3.
+- **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
+- **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
+- **Le fantôme** (patch 0.1.3) hante **tout le plateau**, sauf l’Enfer, sans respecter les routes :
+  - il apparaît au tour de table 2 ou 3, sur une case libre si possible ;
+  - à chaque changement de tour, trois fois sur quatre il **glisse de 1 à 3 cases** le long des routes, dans n’importe quel sens (flèches, sens uniques, carrousel et train fantôme ne le retiennent pas), en choisissant sa route au hasard à chaque carrefour et sans revenir en arrière sauf en cul-de-sac ; une fois sur quatre il **se téléporte** : il disparaît et réapparaît sur une case éloignée, à 3 routes au moins quand c’est possible ;
+  - s’il arrive sur un joueur, ou si un joueur s’arrête sur sa case (en marchant, téléporté ou tiré), un **duel contre le fantôme** commence avant la roue de la case. Il affronte chaque joueur de sa case une fois par arrêt, le joueur actif d’abord. Il **n’affronte jamais un joueur en Enfer**, et il épargne celui qui en sort pour atterrir sur sa case (Bouteille d’eau, Monopoly Man, New Cup, New Me…) jusqu’à son prochain déplacement ;
+  - le mini-jeu est tiré au sort comme un duel ordinaire (pile ou face, pierre-feuille-ciseaux, vote de la table, Basket). Le moteur tire la main du fantôme, ses tirs au Basket et, dès le début du duel, la pénalité et la récompense : tout est identique sur chaque appareil en ligne ;
+  - **fantôme vainqueur** : une pénalité parmi celles qui s’appliquent, au hasard : il **gifle le joueur et l’emporte en Enfer**, il **vole 300 pièces** (au plus ce que le joueur possède) ou il **vole un objet** au hasard (jamais une Red Cup). Pièces et objets volés vont dans son **butin**. Il reste sur sa case jusqu’à son prochain déplacement ;
+  - **joueur vainqueur** : il reprend **un seul** morceau du butin, tiré au hasard : un objet, ou **200 pièces** du tas de pièces (le reste attend le suivant). Butin vide : **+300 pièces**. Un objet repris dans un sac plein oblige à jeter un objet ; un objet qu’il ne pourrait pas garder (troisième exemplaire, seconde Gomme) n’est pas tiré. Le fantôme **disparaît 3 tours de table**, puis réapparaît et reprend son cycle ;
+  - un clic sur le fantôme ouvre son butin. Le butin survit à ses disparitions.
+- Intérêt de jeu : un tour complet fait 6 pas dans un sens du manège, 8 dans l’autre ; la première Cup est à 4 pas par l’est comme par le manège ; la case 5 n’est accessible que par 6 (goulet pour la Boue) ; chaque case du carrousel est un carrefour.
+
+| Case | Sorties (sens 1 → 2) | Sorties (sens inversé) |
+| ---- | -------------------- | ---------------------- |
+| 0    | 1, 12                | 1, 12                  |
+| 1    | 0, 2                 | 0, 4                   |
+| 2    | 3, 10                | 1, 10                  |
+| 3    | 4, 8                 | 2, 8                   |
+| 4    | 1, 7                 | 3, 7                   |
+| 5    | 0                    | 0                      |
+| 6    | 5, 7                 | 5, 7                   |
+| 7    | 4, 6, 8, 12 (train)  | 4, 6, 8, 12 (train)    |
+| 8    | 3                    | 3                      |
+| 9    | 8, 10                | 8, 10                  |
+| 10   | 2, 9, 12             | 2, 9, 12               |
+| 12   | 0, 10                | 0, 10                  |
+
+### 3.2 ter Troisième carte : Banquise (patch 0.1.3)
+
+Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun côté n’est « le côté sûr », le choix se fait entre une longue route certaine et un pari court sur la glace.
+
+- **Cases** : rangée avant 5 boutique, 1 verte, 0 départ, 2 verte, 12 boutique ; rangée du lac 6 rouge, **3 glace**, 4 verte, **7 glace**, 10 rouge ; rangée du fond 13 neutre, 8 boutique (première Red Cup), 9 neutre ; l’Enfer (11) est une crevasse juste derrière le lac.
+- **Routes** : 0 → 1 ou 2 (flèches) ; 4 → 0 (flèche, seule entrée qui paie les 200) ; tour extérieur 1–5–6–13–8–9–10–12–2 ; lac 6–3–4–7–10 ; 1–3, 2–7, 3–8, 7–8.
+- **Tour extérieur** : la Red Cup en 8 est à 5 déplacements, d’un côté comme de l’autre, avec une case rouge en chemin. **Par la glace** : 2 déplacements, puis le hasard.
+- **Glissade** : un déplacement (normal, Botte ou Délinquant) qui s’arrête sur une case de glace continue vers l’une des autres routes réelles de cette case (flèches et sens uniques respectés, jamais en arrière). S’il n’y a qu’une route, elle est imposée ; sinon elle est tirée au hasard, et la glissade continue tant qu’elle arrive sur de la glace. Seule la dernière case de la Botte glisse. Les cases glissées comptent comme traversées (Red light, Green light, bonus du départ) ; seule la case d’arrivée compte pour la roue, la boutique, la Boue et la Red Cup. Corde, échanges, téléportations et reculs ne glissent pas.
+- **Tombée de glace** : si la glissade tirée file vers la case de la Red Cup, la glace a 80 % de chances de tomber sur le joueur. Il reste alors pris au milieu de la route, sans rien atteindre, et son tour se termine. Au début de son tour suivant, il brise la glace et arrive sur la case visée (Red Cup, Boue, roue ; pas de boutique), puis joue normalement. Déplacé entre-temps (Corde, échange, Enfer…), sa glissade est perdue.
+- **Boules de neige** : dès qu’une Red Cup a été ramassée, les pingouins lancent une boule de neige à chaque changement de tour, sur un joueur tiré au hasard, jamais en Enfer ni déjà pris dans la glace. Une sur trois rate. À la 3ᵉ boule reçue, le joueur gèle sur place (bloc de glace) et passe son prochain tour ; son compteur repart à zéro. La barre des joueurs affiche le compteur (❄ 1/3, 2/3).
+- **Blizzard** : une troisième case glissante est tirée au lancement, puis déplacée au début de chaque tour de table impair (3, 5, 7…). Elle peut tomber sur n’importe quelle case qui a au moins deux routes, départ compris, sauf l’Enfer, les glaces 3 et 7, la case de la Red Cup et la glace qu’elle remplace. Un départ gelé ne paie pas les 200 pièces. Une Red Cup n’apparaît jamais sur la glace.
+
+**Choix de la carte** : après la liste des joueurs, une seconde étape du salon présente les cartes en carrousel (flèches, balayage ou touches ←/→) : « Aléatoire » (toujours en tête, la carte est tirée au lancement) puis chaque carte avec son plan. La carte affichée est la carte choisie. La **revanche** rouvre ce carrousel, positionné sur la carte qui vient d’être jouée : on peut rejouer au même endroit ou changer de carte. En ligne, seul l’hôte choisit la carte et lance la revanche ; les autres attendent sur l’écran de victoire et découvrent la carte au lancement. Rejouent tous ceux encore dans le salon, dans le même ordre de tour : qui l’a quitté, ou ne donne plus signe de vie depuis 75 secondes, est laissé de côté (fonction `rematch_room`, réservée à l’hôte d’un salon terminé). L’aide « Comment jouer » montre uniquement la carte jouée et sa légende. Chaque carte a sa propre musique : dans le carrousel, on entend celle de la carte affichée ; sur « Aléatoire » et dans tous les autres menus, on entend la musique de base du jeu.
 
 ### 3.3 Red Cups
 
@@ -154,6 +203,7 @@ Les prix ci-dessous sont relevés visuellement sur la slide de la boutique. Ils 
 | Corde | 500 |
 | Botte | 100 |
 | Boue | 200 |
+| Tomate | 10 |
 | Gomme | 350 |
 | Bullet Bill | 500 |
 | Middle Finger | 400 |
@@ -174,10 +224,11 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Botte | Permet de se déplacer de deux cases au lieu d’une ; à utiliser avant le déplacement. Son prix augmente comme décrit plus haut. |
 | Boue | Se pose sur la case de l’utilisateur, avant son action : il peut ensuite se déplacer (ou utiliser un autre objet) dans le même tour. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
-| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases, sauf lorsqu’une cible est proche (une case). Il retire 200 pièces à sa victime et l’étourdit pendant un tour. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
+| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases : une cible à deux cases ou moins est touchée (patch 0.1.3). Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
 | Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
+| Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant l’action du tour : elle ne compte pas comme une action et on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans **une seule** place du sac. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. |
 
@@ -197,8 +248,8 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Penta | Ajoute un emplacement à l’inventaire. |
 | Troll | À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
 | Je suis Cups | Le joueur ne reçoit pas le bonus de 200 pièces lié au départ. |
-| Je note | Quand le joueur subit l’effet d’un objet, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
-| Calme-toi | Quand un joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases. Le MVP affiche cette décision avant de poursuivre le tour. |
+| Je note | Quand le joueur subit l’effet d’un objet utilisé par un autre joueur, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Depuis le patch 0.1.3, un objet utilisé sur soi-même (Ndoye, Hollow Purple, Middle Finger) ou sa propre Boue ne donne pas de copie. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
+| Calme-toi | Quand un autre joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases, vers la case la plus éloignée de la nouvelle Cup. Depuis le patch 0.1.3, il n’est jamais proposé contre son propre détenteur. Le MVP affiche cette décision avant de poursuivre le tour. |
 
 ## 9. Enfer, roues et duels
 
@@ -206,9 +257,9 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 
 - La case 11 représente l’Enfer.
 - Un joueur en Enfer ne suit pas le déplacement normal. À son tour, il tourne la roue de l’Enfer jusqu’à sa libération.
-- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 ; le perdant y reste.
+- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 avec le bonus de 200 pièces du départ (sauf **Je suis Cups**, patch 0.1.3) ; le perdant y reste.
 - Certains effets spéciaux peuvent aussi faire sortir de l’Enfer. La Bouteille d’eau en est un exemple ; une roue positive peut en devenir un autre.
-- Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 et le perdant reste en Enfer.
+- Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 avec le bonus du départ et le perdant reste en Enfer.
 - **Peine maximale (règle confirmée par l’auteur)** : un joueur ne reste jamais plus de **5 de ses tours** en Enfer. Si, à la fin de son 5ᵉ tour, il ne s’est pas échappé (roue, objet, passif, duel), il sort en case 0 et paie **500 pièces**. Comme toute sortie de l’Enfer, il touche le bonus de 200 pièces du départ (sauf **Je suis Cups**) : la roue de l’Enfer peut lui avoir coûté bien plus. Le bonus est versé avant le dû, soit −300 pièces au total. Il rejoue normalement au tour suivant.
   - Les tours sautés en Enfer comptent dans les 5 tours.
   - Le compteur repart à zéro à chaque nouvel envoi en Enfer. Un joueur déjà en Enfer (Draven, par exemple) garde son compteur.
@@ -222,6 +273,8 @@ Le système tire uniformément un mode disponible :
 1. **Pile ou face** : vainqueur tiré à 50/50.
 2. **Pierre-feuille-ciseaux** : choix des deux duellistes, égalité rejouée.
 3. **Vote** : les duellistes ne votent pas ; les autres joueurs choisissent un vainqueur. Une égalité est départagée par pile ou face.
+4. **Basket** (patch 0.1.3, sur toutes les cartes) : un panier, une balle, 15 secondes pour marquer le plus de paniers. Le chrono ne part qu’après « Commencer le mini-jeu ». On tire quand le curseur de la jauge passe dans la zone verte ; la jauge accélère vers la fin. Entre deux joueurs, chacun a ses 15 secondes, l’un après l’autre ; contre le fantôme, il tire en même temps. Égalité : pile ou face. En ligne, les autres regardent les tirs en direct ; seul le score final, envoyé par l’appareil du tireur, compte (plafonné à 30).
+   - Le fantôme n’est pas une machine : sa forme du jour (40 à 70 % de réussite), ses séries chaudes ou froides, ses hésitations et son excès de confiance après 4 paniers d’affilée lui font marquer environ 6 paniers, de 0 à 12 selon les manches.
 
 Si aucun joueur extérieur n’est disponible pour voter, le mode vote est retiré du tirage. Dans le MVP sur un seul écran, l’hôte entre les choix et votes. Les entrées de pierre-feuille-ciseaux sont masquées successivement avant révélation.
 
@@ -306,6 +359,24 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
 
 ## 13. Historique des versions
+
+### 0.1.3 — septembre 2026
+
+- **Nouvelle carte Luna Park** : fête foraine de nuit avec un carrousel à sens unique autour de l’Enfer, qui s’inverse à chaque nouvelle Red Cup, et un train fantôme 7 → 12 (voir 3.2 bis). Une bannière annonce le changement de sens ; boutique et roues attendent sa fin.
+- **Nouvelle carte Banquise** : lac gelé en miroir où l’on glisse au hasard sur la glace, tombée de glace sur la route de la Red Cup, blizzard qui déplace une troisième glace tous les deux tours, crevasse de l’Enfer, neige et aurore boréale (voir 3.2 ter).
+- **Fantôme de Luna Park** : il rôde sur tout le plateau, glisse de case en case ou se téléporte, défie les joueurs qu’il croise, vole de l’argent ou des objets qu’il garde en butin, ou emporte sa victime en Enfer ; le battre rend un morceau du butin ou 300 pièces (voir 3.2 bis).
+- **Revanche en ligne** : l’hôte relance une partie, sur la carte de son choix, avec tous ceux encore dans le salon.
+- **Banquise, boules de neige** : après la première Red Cup, les pingouins bombardent les joueurs ; trois boules et on gèle un tour (voir 3.2 ter).
+- **Nouvel objet Tomate** (10 pièces) : à lancer sur les autres pour rire, avant son action, en volée de 1 à 5 ; jusqu’à 5 par place du sac ; 2 chances sur 100 par Tomate d’assommer la cible un tour (voir 7).
+- **Chat vocal** : activer ou couper son micro n’affiche plus « X s’est déconnecté » chez les autres joueurs.
+- **Nouveau mini-jeu Basket** : 15 secondes pour marquer le plus de paniers, dans tous les duels et sur toutes les cartes (voir 9.2).
+- **Musique** : une ambiance par carte (valse de fête foraine pour Luna Park, boîte à musique polaire pour Banquise), chacune avec sa version sombre quand le joueur actif est en Enfer ou pendant un duel ; celle du coffre à jouets est plus sombre qu’avant.
+- **Choix de la carte** : une étape du salon après la liste des joueurs, en carrousel, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit. La revanche propose le même carrousel, sur la carte qui vient d’être jouée.
+- **Comment jouer** : l’onglet Plateau montre la carte jouée, seule la légende défile ; les objets et les passifs détaillent toutes leurs conditions, une par une, avec des flèches.
+- **Je note** : plus de copie d’un objet utilisé sur soi-même, ni de sa propre Boue.
+- **Calme-toi** : jamais proposé à son détenteur contre lui-même.
+- **Duel** : le gagnant reçoit les 200 pièces du départ, comme toute sortie de l’Enfer.
+- **Bullet Bill** : une cible à deux cases est touchée d’une seule charge.
 
 ### 0.1.1 — septembre 2026
 

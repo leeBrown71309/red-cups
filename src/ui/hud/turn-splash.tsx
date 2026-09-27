@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
+import { getBoardMap } from "../../game/maps/map-registry";
 import { useGameStore } from "../../game/store";
 import { HELL_NODE_ID } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
@@ -13,6 +14,11 @@ export function TurnSplash() {
   const splash = useUiStore((state) => state.splash);
   const hideSplash = useUiStore((state) => state.hideSplash);
   const player = useGameStore((state) => state.players.find((candidate) => candidate.id === splash?.playerId));
+  // The very first turn announces the board too: online guests learn the host's pick here.
+  const openingTurn = useGameStore(
+    (state) => state.round === 1 && state.activePlayerIndex === 0 && !state.turnActionTaken,
+  );
+  const mapName = useGameStore((state) => getBoardMap(state.mapId).name);
 
   useEffect(() => {
     if (!splash) return undefined;
@@ -33,7 +39,9 @@ export function TurnSplash() {
           className="turn-splash__avatar"
         />
         <div>
-          <span className="turn-splash__eyebrow">{inHell ? "Depuis l’Enfer…" : "C’est parti !"}</span>
+          <span className="turn-splash__eyebrow">
+            {inHell ? "Depuis l’Enfer…" : openingTurn ? `C’est parti · ${mapName}` : "C’est parti !"}
+          </span>
           <strong className="turn-splash__title">Au tour de {player.name}</strong>
           <span className="turn-splash__passive">{PASSIVE_CATALOG[player.passiveId].name}</span>
         </div>

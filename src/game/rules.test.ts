@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chooseWheelResult } from "./catalog";
-import { earnsStartBonus, getNeighbors } from "./board";
+import { earnsStartBonus, getNeighbors, resolveBoard } from "./board";
 import { canAddItem, countRedCups, findLegalPath, getInventoryCapacity, getOpenInventorySlots } from "./rules";
 import type { Player } from "./types";
 
@@ -20,49 +20,51 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
   };
 }
 
+const classic = resolveBoard("classic");
+
 describe("board movement rules", () => {
   it("forces the exit of an arrow tile but lets players walk into it against the arrow", () => {
-    expect(getNeighbors(3)).toEqual([6]);
-    expect(getNeighbors(6)).toContain(3);
-    expect(getNeighbors(3, true).sort((left, right) => left - right)).toEqual([4, 6, 7]);
+    expect(getNeighbors(classic, 3)).toEqual([6]);
+    expect(getNeighbors(classic, 6)).toContain(3);
+    expect(getNeighbors(classic, 3, true).sort((left, right) => left - right)).toEqual([4, 6, 7]);
   });
 
   it("returns a legal two-step path for a boot move", () => {
     const player = makePlayer();
-    expect(findLegalPath(player, 5, 2)).toEqual([2, 5]);
+    expect(findLegalPath(classic, player, 5, 2)).toEqual([2, 5]);
   });
 
   it("leaves the start only upwards or leftwards", () => {
-    expect(getNeighbors(0).sort()).toEqual([2, 4]);
-    expect(getNeighbors(8)).toEqual([0]);
-    expect(getNeighbors(2)).not.toContain(0);
-    expect(getNeighbors(4)).toContain(0);
+    expect(getNeighbors(classic, 0).sort()).toEqual([2, 4]);
+    expect(getNeighbors(classic, 8)).toEqual([0]);
+    expect(getNeighbors(classic, 2)).not.toContain(0);
+    expect(getNeighbors(classic, 4)).toContain(0);
   });
 
   it("pays the start bonus only when entering the start from 8", () => {
-    expect(earnsStartBonus(8, [0])).toBe(true);
-    expect(earnsStartBonus(10, [8, 0])).toBe(true);
-    expect(earnsStartBonus(4, [0])).toBe(false);
-    expect(earnsStartBonus(4, [0, 2])).toBe(false);
-    expect(earnsStartBonus(2, [0])).toBe(false);
-    expect(earnsStartBonus(0, [2])).toBe(false);
+    expect(earnsStartBonus(classic, 8, [0])).toBe(true);
+    expect(earnsStartBonus(classic, 10, [8, 0])).toBe(true);
+    expect(earnsStartBonus(classic, 4, [0])).toBe(false);
+    expect(earnsStartBonus(classic, 4, [0, 2])).toBe(false);
+    expect(earnsStartBonus(classic, 2, [0])).toBe(false);
+    expect(earnsStartBonus(classic, 0, [2])).toBe(false);
   });
 
   it("takes the wrap-around tunnel from 7 to 1 only", () => {
-    expect(getNeighbors(7)).toContain(1);
-    expect(getNeighbors(1)).not.toContain(7);
-    expect(getNeighbors(1, true)).toContain(7);
+    expect(getNeighbors(classic, 7)).toContain(1);
+    expect(getNeighbors(classic, 1)).not.toContain(7);
+    expect(getNeighbors(classic, 1, true)).toContain(7);
   });
 
   it("never offers Hell as a normal destination", () => {
     for (let nodeId = 0; nodeId <= 10; nodeId += 1) {
-      expect(getNeighbors(nodeId, true)).not.toContain(11);
+      expect(getNeighbors(classic, nodeId, true)).not.toContain(11);
     }
   });
 });
 
 describe("board transcription", () => {
-  // Written down independently from BOARD_EDGES, from slide 1 and the author's reading of its arrows:
+  // Written down independently from the classic map data, from slide 1 and the author's reading of its arrows:
   // an arrow tile must be left through its arrow, any other road is free in both directions.
   const EXPECTED_EXITS: Record<number, number[]> = {
     0: [2, 4],
@@ -79,7 +81,7 @@ describe("board transcription", () => {
   };
 
   it.each(Object.entries(EXPECTED_EXITS))("lets a player leave tile %s only towards %j", (nodeId, exits) => {
-    expect(getNeighbors(Number(nodeId)).sort((left, right) => left - right)).toEqual(exits);
+    expect(getNeighbors(classic, Number(nodeId)).sort((left, right) => left - right)).toEqual(exits);
   });
 });
 

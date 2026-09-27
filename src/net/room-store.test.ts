@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
   fetchRoom: vi.fn(),
   leaveRoom: vi.fn(),
   openRoom: vi.fn(),
+  rematchRoom: vi.fn(),
   shuffleRoom: vi.fn(),
   advanceRoom: vi.fn(),
   touchSeat: vi.fn(),
@@ -139,6 +140,40 @@ describe("room store lobby", () => {
     expect(room.error).toBe("Cette partie est terminée.");
     expect(room.view).not.toBe("playing");
     expect(api.leaveRoom).toHaveBeenCalledWith(ROOM_CODE);
+  });
+
+  it("lets the host start a rematch for whoever is still at the table, in the same turn order", async () => {
+    const THIRD_ID = "third-user";
+    session.ensureSession.mockResolvedValue(HOST_ID);
+    api.createRoom.mockResolvedValue(ROOM_CODE);
+    api.fetchRoom.mockResolvedValue(lobbySnapshot([HOST_ID, GUEST_ID, THIRD_ID]));
+    await useRoomStore.getState().createAndJoin("Hote", 0);
+
+    // The game is over: the guest played first, the third player has gone quiet since.
+    const over = lobbySnapshot([HOST_ID, GUEST_ID, THIRD_ID]);
+    over.status = "over";
+    over.seatOrder = [GUEST_ID, THIRD_ID, HOST_ID];
+    over.players[2].absent = true;
+    api.fetchRoom.mockResolvedValue(over);
+    api.rematchRoom.mockResolvedValue(undefined);
+    await useRoomStore.getState().rematch("banquise");
+
+    expect(useRoomStore.getState().error).toBeNull();
+    const [code, state, seatOrder] = api.rematchRoom.mock.calls[0];
+    expect(code).toBe(ROOM_CODE);
+    expect(seatOrder).toEqual([GUEST_ID, HOST_ID]);
+    expect(state).toMatchObject({ phase: "playing", mapId: "banquise" });
+    expect(state.players.map((player: { name: string }) => player.name)).toEqual(["P1", "P0"]);
+  });
+
+  it("does not let a guest start the rematch", async () => {
+    session.ensureSession.mockResolvedValue(GUEST_ID);
+    api.fetchRoom.mockResolvedValue(lobbySnapshot([HOST_ID, GUEST_ID]));
+    await useRoomStore.getState().join(ROOM_CODE, "Invite", 1);
+
+    await useRoomStore.getState().rematch("classic");
+
+    expect(api.rematchRoom).not.toHaveBeenCalled();
   });
 
   it("does not let a guest draw the turn order", async () => {

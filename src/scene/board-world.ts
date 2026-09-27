@@ -1,29 +1,44 @@
 import * as THREE from "three";
-import { BOARD_EDGES, BOARD_NODES, getBoardNode } from "../game/board";
-import type { NodeId, PlayerMovement } from "../game/types";
+import type { BoardEdge, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
+import type { MapThemeId } from "../game/maps/map-types";
+import { getSceneTheme, type SceneTheme } from "../theme/map-themes";
 import { SCENE_COLORS } from "../theme/palette";
-import { SHOP_STALL_PLACEMENTS, START_FLAG_OFFSET, getNodePosition, getTunnelLayout } from "./board-layout";
+import { BoardLayout } from "./board-layout";
 import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
+import { GhostActor, type GhostView } from "./ghost-actor";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
+import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
+import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
+import { createIceCrevasse } from "./models/polar-landmarks-model";
+import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
 import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
-import { createPond, createScenery, createTray } from "./models/scenery-model";
+import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-model";
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
 import { SceneKit, easeOutBack } from "./scene-kit";
+import { SNOWBALL_FLIGHT_MS, TOMATO_FLIGHT_MS, TOMATO_VOLLEY_GAP_MS } from "../theme/timing";
 
 export interface BoardView {
   mode: CameraMode;
+  /** Luna Park: which way the carousel turns right now. */
+  carouselReversed: boolean;
+  /** Banquise: the blizzard's temporary ice tile. */
+  iceTileNodeId: NodeId | null;
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
   bulletBill: BulletView | null;
   /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
   bulletFlightSeq: number | null;
+  /** Luna Park: the ghost of the carousel; null on the other maps and outside a game. */
+  ghost: GhostView | null;
+  /** Sequence of the ghost's last deed, so the scene holds it in place until the deed is replayed. */
+  ghostEventSeq: number | null;
   /** Destination → path from `pathOrigin`, for every legal choice. */
   legalPaths: Map<NodeId, NodeId[]>;
   pathOrigin: NodeId | null;
@@ -36,20 +51,35 @@ export interface BoardView {
 
 export interface BoardWorldCallbacks {
   onTileSelect: (nodeId: NodeId, pointerType: string) => void;
+  /** Luna Park: the ghost was clicked, to look at its loot. */
+  onGhostSelect: () => void;
 }
 
+/** Awning colour of the shop booths; the toy box keeps the shop blue. */
+const STALL_AWNINGS: Partial<Record<MapThemeId, string>> = {
+  "night-fair": "#ff4fa3",
+  polar: "#35c6f4",
+};
+
 const TAP_DISTANCE_PX = 9;
+const BLIZZARD_FOG_SECONDS = 2.6;
 const TAP_DURATION_MS = 650;
 
 /**
- * Owns the Three.js scene. React feeds it a serialisable `BoardView`; the
- * world never reads or writes the game store directly.
+ * Owns the Three.js scene of one map. React feeds it a serialisable
+ * `BoardView`; the world never reads or writes the game store directly.
+ * Showing another map means building another world.
  */
 export class BoardWorld {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly kit = new SceneKit();
+  private readonly layout: BoardLayout;
+  private readonly theme: SceneTheme;
   private readonly rig: CameraRig;
+  private carouselHell: CarouselHell | null = null;
+  /** Banquise: seconds of blizzard fog left, thickening then clearing. */
+  private blizzardFog = 0;
   private readonly tiles = new Map<NodeId, TileVisual>();
   private readonly roads: RoadNetwork;
   private readonly pawns: PawnController;
@@ -57,7 +87,11 @@ export class BoardWorld {
   private readonly animated: AnimatedProp[] = [];
   private readonly redCup: AnimatedProp;
   private readonly bullet: BulletBillActor;
+  /** Only on maps a ghost haunts. */
+  private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
+  /** Banquise: the penguins of the scenery, who throw the snowballs. */
+  private penguins: THREE.Object3D[] = [];
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly resizeObserver: ResizeObserver;
@@ -72,7 +106,10 @@ export class BoardWorld {
   constructor(
     private readonly container: HTMLElement,
     private readonly callbacks: BoardWorldCallbacks,
+    mapId: MapId,
   ) {
+    this.layout = new BoardLayout(mapId);
+    this.theme = getSceneTheme(this.layout.map.themeId);
     const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarsePointer ? 1.75 : 2));
@@ -82,22 +119,31 @@ export class BoardWorld {
     this.renderer.domElement.classList.add("board-canvas");
     container.appendChild(this.renderer.domElement);
 
-    this.rig = new CameraRig(this.renderer.domElement);
+    this.rig = new CameraRig(this.renderer.domElement, this.layout.cameraBounds);
     this.addLights(coarsePointer ? 1_024 : 2_048);
     this.buildBoard();
 
-    this.roads = new RoadNetwork(this.kit);
+    this.roads = new RoadNetwork(this.kit, this.layout, this.theme.roads);
     this.scene.add(this.roads.group);
 
-    this.pawns = new PawnController(this.kit);
+    this.pawns = new PawnController(this.kit, this.layout, {
+      onGhostSlap: (pawnId) => this.ghost?.fling(pawnId) ?? null,
+    });
     this.scene.add(this.pawns.group);
 
     this.redCup = createRedCup(this.kit);
     this.redCup.group.visible = false;
     this.scene.add(this.redCup.group);
 
-    this.bullet = new BulletBillActor(this.kit, this.effects);
+    this.bullet = new BulletBillActor(this.kit, this.effects, this.layout);
     this.scene.add(this.bullet.group);
+
+    if (this.layout.map.haunted) {
+      this.ghost = new GhostActor(this.kit, this.effects, this.layout, this.pawns, (strength, durationMs) =>
+        this.rig.shakeFor(strength, durationMs),
+      );
+      this.scene.add(this.ghost.group);
+    }
 
     this.scene.add(this.effects.group);
 
@@ -122,6 +168,11 @@ export class BoardWorld {
     if (firstView) this.pawns.acknowledgeMovement(view.lastMovement);
 
     this.rig.setMode(view.mode);
+    this.roads.setCarouselReversed(view.carouselReversed);
+    for (const [nodeId, tile] of this.tiles) {
+      tile.setIce(this.layout.getNode(nodeId)?.ice === true || nodeId === view.iceTileNodeId);
+    }
+    this.carouselHell?.setReversed(view.carouselReversed);
     this.pawns.sync(view.pawns, view.lastMovement);
     this.refreshHighlights();
 
@@ -129,13 +180,14 @@ export class BoardWorld {
       this.cupNodeId = view.redCupNodeId;
       this.redCup.group.visible = view.redCupNodeId !== null;
       if (view.redCupNodeId !== null) {
-        this.redCup.group.position.copy(getNodePosition(view.redCupNodeId)).setY(TILE_HEIGHT);
+        this.redCup.group.position.copy(this.layout.getNodePosition(view.redCupNodeId)).setY(TILE_HEIGHT);
         this.cupPopProgress = firstView ? 1 : 0;
       }
     }
 
     this.syncMud(view.mudNodeIds);
     this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
+    this.ghost?.sync(view.ghost, view.ghostEventSeq);
     this.refreshCoveredTiles(view);
   }
 
@@ -148,7 +200,7 @@ export class BoardWorld {
   }
 
   focusOnNode(nodeId: NodeId): void {
-    this.rig.focusOn(getNodePosition(nodeId));
+    this.rig.focusOn(this.layout.getNodePosition(nodeId));
   }
 
   dispose(): void {
@@ -178,17 +230,20 @@ export class BoardWorld {
     canvas.remove();
   }
 
+  /** Sunlight over the toy box, moonlight over the night fair; both keep soft shadows. */
   private addLights(shadowMapSize: number): void {
-    this.scene.add(new THREE.HemisphereLight("#fff6e8", "#b98d6a", 1.45));
+    const lights = this.theme.lights;
+    this.scene.add(new THREE.HemisphereLight(lights.sky, lights.ground, lights.ambient));
 
-    const sun = new THREE.DirectionalLight("#fff0d8", 2.5);
-    sun.position.set(-10, 22, 14);
+    const sun = new THREE.DirectionalLight(lights.sun, lights.sunIntensity);
+    sun.position.set(...lights.sunPosition);
     sun.castShadow = true;
     sun.shadow.mapSize.set(shadowMapSize, shadowMapSize);
-    sun.shadow.camera.left = -17;
-    sun.shadow.camera.right = 17;
-    sun.shadow.camera.top = 14;
-    sun.shadow.camera.bottom = -14;
+    const { halfWidth, halfDepth } = this.layout.cameraBounds;
+    sun.shadow.camera.left = -halfWidth - 3.6;
+    sun.shadow.camera.right = halfWidth + 3.6;
+    sun.shadow.camera.top = halfDepth + 4.4;
+    sun.shadow.camera.bottom = -halfDepth - 4.4;
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 60;
     sun.shadow.radius = 4;
@@ -196,13 +251,13 @@ export class BoardWorld {
     sun.shadow.normalBias = 0.03;
     this.scene.add(sun);
 
-    const fill = new THREE.DirectionalLight("#dbe8ff", 0.55);
+    const fill = new THREE.DirectionalLight(lights.fill, lights.fillIntensity);
     fill.position.set(12, 8, -8);
     this.scene.add(fill);
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(140, 140),
-      new THREE.ShadowMaterial({ color: "#7a4a3a", opacity: 0.2 }),
+      new THREE.ShadowMaterial({ color: lights.shadow, opacity: lights.shadowOpacity }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -1.66;
@@ -210,51 +265,108 @@ export class BoardWorld {
     this.scene.add(ground);
   }
 
-  private buildBoard(): void {
-    this.scene.add(createTray(this.kit));
-    this.scene.add(createScenery(this.kit));
-    this.addAnimated(createPond(this.kit));
+  /** Tray, decorations and Hell follow the map's art direction. */
+  private buildSurroundings(): void {
+    const { layout } = this;
+    switch (layout.map.themeId) {
+      case "night-fair":
+        this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
+        this.addAnimated(createNightFairScenery(this.kit, layout));
+        return;
+      case "polar":
+        this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
+        {
+          const scenery = createPolarScenery(this.kit, layout);
+          this.addAnimated(scenery);
+          this.penguins = scenery.penguins;
+        }
+        return;
+      default:
+        this.scene.add(createTray(this.kit, layout, TOY_BOX_TRAY));
+        this.scene.add(createScenery(this.kit, layout));
+        if (layout.config.pond) this.addAnimated(createPond(this.kit, layout.config.pond));
+    }
+  }
 
-    for (const node of BOARD_NODES) {
-      // Hell is never a walkable destination, so it gets a crater instead of a tile.
+  private createHell(): AnimatedProp {
+    switch (this.layout.map.themeId) {
+      case "night-fair": {
+        const carousel = createCarouselHell(this.kit);
+        this.carouselHell = carousel;
+        return carousel;
+      }
+      case "polar":
+        return createIceCrevasse(this.kit);
+      default:
+        return createHellPit(this.kit);
+    }
+  }
+
+  private buildBoard(): void {
+    const { layout } = this;
+    this.buildSurroundings();
+
+    for (const node of layout.board.nodes) {
+      // Hell is never a walkable destination, so it gets a landmark instead of a tile.
       if (node.id === HELL_NODE_ID) {
-        const hell = createHellPit(this.kit);
+        const hell = this.createHell();
         hell.group.position.set(node.x, 0, node.z);
         this.addAnimated(hell);
         continue;
       }
 
-      const tile = createTileVisual(node, this.kit);
+      const tile = createTileVisual(node, this.kit, { neon: this.theme.neonTiles });
       this.tiles.set(node.id, tile);
       this.scene.add(tile.group);
 
-      const stallPlacement = SHOP_STALL_PLACEMENTS[node.id];
+      const stallPlacement = layout.config.shopStalls[node.id];
       if (node.kind === "shop" && stallPlacement) {
-        const stall = createShopStall(this.kit);
+        const stall = createShopStall(this.kit, STALL_AWNINGS[layout.map.themeId]);
         stall.position.set(node.x + stallPlacement.x, 0, node.z + stallPlacement.z);
         stall.rotation.y = stallPlacement.rotation;
         this.scene.add(stall);
       }
     }
 
-    const start = getBoardNode(START_NODE_ID);
+    const start = layout.getNode(START_NODE_ID);
     if (start) {
       const flag = createStartFlag(this.kit);
-      flag.group.position.set(start.x + START_FLAG_OFFSET.x, TILE_HEIGHT, start.z + START_FLAG_OFFSET.z);
+      const offset = layout.config.startFlagOffset;
+      flag.group.position.set(start.x + offset.x, TILE_HEIGHT, start.z + offset.z);
       this.addAnimated(flag);
     }
 
-    for (const edge of BOARD_EDGES) {
-      if (edge.kind !== "tunnel") continue;
-      const tunnel = getTunnelLayout(edge);
-      const entranceFacing = tunnel.entrance.x < 0 ? 1 : -1;
-      const entrance = createTunnelPortal(this.kit, entranceFacing, `Tunnel → ${edge.to}`);
-      entrance.group.position.copy(tunnel.entrance);
-      this.addAnimated(entrance);
-      const exit = createTunnelPortal(this.kit, entranceFacing === 1 ? -1 : 1, `Depuis ${edge.from}`);
-      exit.group.position.copy(tunnel.exit);
-      this.addAnimated(exit);
+    for (const edge of layout.board.edges) {
+      if (edge.kind === "tunnel") this.addTunnelEnds(edge);
     }
+  }
+
+  private addTunnelEnds(edge: BoardEdge): void {
+    const tunnel = this.layout.getTunnelLayout(edge);
+    const { from: fromNodeId, to: toNodeId } = edge;
+
+    if (this.layout.map.tunnelStyle === "portals") {
+      const ends: [THREE.Vector3, NodeId, string][] = [
+        [tunnel.entrance, fromNodeId, `Train fantôme → ${toNodeId}`],
+        [tunnel.exit, toNodeId, `Depuis ${fromNodeId}`],
+      ];
+      for (const [position, nodeId, sign] of ends) {
+        const portal = createGhostTrainPortal(this.kit, sign);
+        const toTile = this.layout.getNodePosition(nodeId).sub(position);
+        portal.group.position.copy(position);
+        portal.group.rotation.y = Math.atan2(toTile.x, toTile.z);
+        this.addAnimated(portal);
+      }
+      return;
+    }
+
+    const entranceFacing = tunnel.entrance.x < 0 ? 1 : -1;
+    const entrance = createTunnelPortal(this.kit, entranceFacing, `Tunnel → ${toNodeId}`);
+    entrance.group.position.copy(tunnel.entrance);
+    this.addAnimated(entrance);
+    const exit = createTunnelPortal(this.kit, entranceFacing === 1 ? -1 : 1, `Depuis ${fromNodeId}`);
+    exit.group.position.copy(tunnel.exit);
+    this.addAnimated(exit);
   }
 
   private addAnimated(prop: AnimatedProp): void {
@@ -272,7 +384,7 @@ export class BoardWorld {
     for (const nodeId of wanted) {
       if (this.mudPuddles.has(nodeId)) continue;
       const puddle = createMudPuddle(this.kit);
-      puddle.group.position.copy(getNodePosition(nodeId)).add(new THREE.Vector3(-0.45, -0.02, 0.4));
+      puddle.group.position.copy(this.layout.getNodePosition(nodeId)).add(new THREE.Vector3(-0.45, -0.02, 0.4));
       this.scene.add(puddle.group);
       this.mudPuddles.set(nodeId, puddle);
     }
@@ -312,6 +424,7 @@ export class BoardWorld {
     const elapsed = this.timer.getElapsed();
 
     this.rig.update(delta);
+    this.updateBlizzardFog(delta);
     this.roads.update(elapsed);
     this.pawns.update(elapsed, delta);
     this.effects.update(delta);
@@ -326,9 +439,24 @@ export class BoardWorld {
     }
 
     this.bullet.update(elapsed, delta);
+    this.ghost?.update(elapsed, delta);
 
     this.renderer.render(this.scene, this.rig.camera);
   };
+
+  /** The blizzard's white-out: fog thickens over the board, then lifts as the gust passes. */
+  private updateBlizzardFog(delta: number): void {
+    if (this.blizzardFog <= 0) return;
+    this.blizzardFog = Math.max(0, this.blizzardFog - delta);
+    const progress = 1 - this.blizzardFog / BLIZZARD_FOG_SECONDS;
+    const density = Math.sin(progress * Math.PI) * 0.045;
+    if (this.blizzardFog === 0) {
+      this.scene.fog = null;
+      return;
+    }
+    if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density = density;
+    else this.scene.fog = new THREE.FogExp2("#eaf4ff", density);
+  }
 
   private resize(): void {
     const width = this.container.clientWidth;
@@ -338,13 +466,24 @@ export class BoardWorld {
     this.rig.resize(width, height);
   }
 
-  private pickNode(event: PointerEvent): NodeId | null {
+  private aimRaycaster(event: PointerEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pointer, this.rig.camera);
+  }
+
+  /** The ghost floats above its tile, so when the pointer is on it, it wins over the tiles. */
+  private pickGhost(event: PointerEvent): boolean {
+    if (!this.ghost) return false;
+    this.aimRaycaster(event);
+    return this.ghost.hitDistance(this.raycaster) !== null;
+  }
+
+  private pickNode(event: PointerEvent): NodeId | null {
+    this.aimRaycaster(event);
     const pickMeshes = [...this.tiles.values()].map((tile) => tile.pickMesh);
     const hit = this.raycaster.intersectObjects(pickMeshes, false)[0];
     const nodeId = hit?.object.userData.nodeId;
@@ -362,6 +501,10 @@ export class BoardWorld {
     const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
     if (moved > TAP_DISTANCE_PX || performance.now() - start.time > TAP_DURATION_MS) return;
 
+    if (this.pickGhost(event)) {
+      this.callbacks.onGhostSelect();
+      return;
+    }
     const nodeId = this.pickNode(event);
     if (nodeId !== null && this.view?.legalPaths.has(nodeId)) {
       this.callbacks.onTileSelect(nodeId, event.pointerType);
@@ -370,9 +513,10 @@ export class BoardWorld {
 
   private readonly handlePointerMove = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || event.buttons !== 0) return;
-    const nodeId = this.pickNode(event);
+    const onGhost = this.pickGhost(event);
+    const nodeId = onGhost ? null : this.pickNode(event);
     const hovered = nodeId !== null && this.view?.legalPaths.has(nodeId) ? nodeId : null;
-    this.renderer.domElement.style.cursor = hovered !== null ? "pointer" : "";
+    this.renderer.domElement.style.cursor = onGhost || hovered !== null ? "pointer" : "";
     if (hovered === this.hoveredNodeId) return;
     this.hoveredNodeId = hovered;
     this.refreshHighlights();
@@ -384,6 +528,16 @@ export class BoardWorld {
     this.refreshHighlights();
   };
 
+  /** Banquise: the penguin standing closest to `target`, or the far edge of the tray without one. */
+  private findNearestPenguin(target: THREE.Vector3): THREE.Vector3 {
+    let nearest: THREE.Vector3 | null = null;
+    for (const penguin of this.penguins) {
+      const position = penguin.getWorldPosition(new THREE.Vector3());
+      if (!nearest || position.distanceTo(target) < nearest.distanceTo(target)) nearest = position;
+    }
+    return nearest ?? new THREE.Vector3(target.x, 0, -this.layout.halfDepth - 1);
+  }
+
   private readonly handleFeedback = (event: FeedbackEvent) => {
     switch (event.type) {
       case "currency": {
@@ -394,7 +548,7 @@ export class BoardWorld {
         return;
       }
       case "cup-collected":
-        this.effects.spawnConfetti(getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+        this.effects.spawnConfetti(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         return;
       case "hell-entered":
       case "hell-escaped":
@@ -404,20 +558,94 @@ export class BoardWorld {
         return;
       }
       case "mud-triggered":
-        this.effects.spawnPoof(getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
+        this.effects.spawnPoof(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
         return;
       case "bullet-flight": {
         this.bullet.launch(event.flight);
         const landing = event.flight.path[event.flight.path.length - 1] ?? event.flight.from;
         if (this.view?.mode === "play" && this.view.followActivePlayer) {
-          this.rig.focusOn(getNodePosition(landing), 0.78);
+          this.rig.focusOn(this.layout.getNodePosition(landing), 0.78);
         }
         return;
       }
       case "bullet-hit": {
-        this.effects.spawnExplosion(getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+        this.effects.spawnExplosion(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         this.rig.shakeFor(0.45, 650);
         this.pawns.knockOut(event.playerId);
+        return;
+      }
+      case "blizzard": {
+        this.effects.spawnBlizzard(this.layout.halfWidth, this.layout.halfDepth);
+        this.blizzardFog = BLIZZARD_FOG_SECONDS;
+        if (event.from !== null)
+          this.effects.spawnIceBurst(this.layout.getNodePosition(event.from).setY(TILE_HEIGHT), 10);
+        if (event.to !== null) this.effects.spawnIceBurst(this.layout.getNodePosition(event.to).setY(TILE_HEIGHT), 18);
+        return;
+      }
+      case "ice-fall": {
+        const halfway = this.layout.getNodePosition(event.from).lerp(this.layout.getNodePosition(event.to), 0.5);
+        this.effects.spawnIceFall(halfway.setY(0.05), event.hit);
+        return;
+      }
+      case "ice-shatter": {
+        const position = this.pawns.getPawnPosition(event.playerId);
+        if (position) this.effects.spawnIceBurst(position, 16);
+        return;
+      }
+      case "carousel-flipped": {
+        const hell = this.layout.getNodePosition(HELL_NODE_ID).setY(TILE_HEIGHT + 2.4);
+        this.effects.spawnConfetti(hell);
+        return;
+      }
+      case "ghost-appeared":
+        this.ghost?.appeared(event.nodeId);
+        return;
+      case "ghost-moved":
+        this.ghost?.moved(event.path);
+        return;
+      case "ghost-teleported":
+        this.ghost?.teleported(event.to);
+        return;
+      case "ghost-attack":
+        this.ghost?.attacked(event.playerId);
+        return;
+      case "ghost-vanished":
+        this.ghost?.vanished();
+        return;
+      case "ghost-flung":
+        this.ghost?.flung();
+        return;
+      case "ghost-stole":
+        this.ghost?.stole(event.playerId);
+        return;
+      case "snowball-thrown": {
+        const target = this.pawns.getPawnPosition(event.targetId);
+        if (!target) return;
+        const penguin = this.findNearestPenguin(target);
+        // A miss lands a step beside the target, on the side facing the penguin.
+        const aim = event.hit ? target : target.clone().add(new THREE.Vector3(0.9, 0, 0.5));
+        this.effects.spawnSnowballThrow(penguin, aim, SNOWBALL_FLIGHT_MS / 1000, () => {
+          if (event.frozen) this.pawns.freezeSolid(event.targetId);
+          if (event.hit) this.effects.spawnFloatingText(target, event.frozen ? "Gelé !" : "❄", "#bfeaff");
+        });
+        return;
+      }
+      case "tomato-thrown": {
+        const from = this.pawns.getPawnPosition(event.throwerId);
+        const to = this.pawns.getPawnPosition(event.targetId);
+        if (!from || !to) return;
+        // Rapid fire: each Tomate of the volley leaves a moment after the last, on a slightly different arc.
+        for (let index = 0; index < event.count; index += 1) {
+          const last = index === event.count - 1;
+          const aim = to.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5));
+          window.setTimeout(() => {
+            this.effects.spawnTomatoThrow(from, aim, TOMATO_FLIGHT_MS / 1000, () => {
+              if (!last || !event.stunned) return;
+              this.pawns.knockOut(event.targetId);
+              this.effects.spawnFloatingText(to, "K.O. !", "#ffd166");
+            });
+          }, index * TOMATO_VOLLEY_GAP_MS);
+        }
         return;
       }
       case "player-left": {
@@ -429,7 +657,7 @@ export class BoardWorld {
         const view = this.view;
         if (!view || view.mode !== "play" || !view.followActivePlayer) return;
         const pawn = view.pawns.find((candidate) => candidate.id === event.playerId);
-        if (pawn) this.rig.focusOn(getNodePosition(pawn.position), 0.78);
+        if (pawn) this.rig.focusOn(this.layout.getNodePosition(pawn.position), 0.78);
         return;
       }
       default:

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { MapId } from "../../game/types";
 import { PLAYER_COLORS } from "../../game/types";
 import { AudioToggles } from "../components/audio-controls";
 import { GameLogo } from "../components/game-logo";
@@ -6,6 +7,8 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { CoinIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 import { HelpModal } from "../modals/help-modal";
+import { drawChosenMap, useMapChoiceStore } from "./map-choice-store";
+import { MapPicker, describeMapChoice } from "./map-picker";
 
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
@@ -34,8 +37,12 @@ function rememberNames(names: string[]): void {
   }
 }
 
+/** The lobby asks who plays first, then on which board. */
+type LobbyStep = "players" | "map";
+
 interface LobbyScreenProps {
-  onStart: (names: string[]) => void;
+  /** A random choice is already drawn here: the game always starts on a named map. */
+  onStart: (names: string[], mapId: MapId) => void;
   /** Offered only when the build has an online backend. */
   onPlayOnline?: () => void;
 }
@@ -43,6 +50,8 @@ interface LobbyScreenProps {
 export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
   const [names, setNames] = useState<string[]>(loadRememberedNames);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [step, setStep] = useState<LobbyStep>("players");
+  const mapChoice = useMapChoiceStore((state) => state.choice);
 
   useEffect(() => rememberNames(names), [names]);
 
@@ -60,7 +69,11 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
       return shuffled;
     });
 
-  const startGame = () => onStart(names.map((name, index) => name.trim() || `Joueur ${index + 1}`));
+  const startGame = () =>
+    onStart(
+      names.map((name, index) => name.trim() || `Joueur ${index + 1}`),
+      drawChosenMap(),
+    );
 
   return (
     <main className="lobby">
@@ -97,62 +110,86 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
         </div>
       </section>
 
-      <section className="lobby__panel panel" aria-labelledby="lobby-title">
-        <header className="lobby__panel-header">
-          <div>
-            <span className="eyebrow">Nouvelle partie</span>
-            <h1 id="lobby-title">Qui joue ce soir ?</h1>
+      {step === "players" ? (
+        <section className="lobby__panel panel" aria-labelledby="lobby-title">
+          <header className="lobby__panel-header">
+            <div>
+              <span className="eyebrow">Nouvelle partie · étape 1/2</span>
+              <h1 id="lobby-title">Qui joue ce soir ?</h1>
+            </div>
+            <span className="count-badge">
+              {names.length}/{MAX_PLAYERS}
+            </span>
+          </header>
+
+          <ol className="lobby__players">
+            {names.map((name, index) => (
+              <li className="lobby-player" key={index} style={{ animationDelay: `${index * 40}ms` }}>
+                <span className="lobby-player__seat">{index + 1}</span>
+                <PlayerAvatar color={PLAYER_COLORS[index]} size={44} />
+                <input
+                  className="lobby-player__input"
+                  value={name}
+                  maxLength={NAME_MAX_LENGTH}
+                  aria-label={`Nom du joueur ${index + 1}`}
+                  onChange={(event) => updateName(index, event.target.value)}
+                  onFocus={(event) => event.target.select()}
+                />
+                <button
+                  type="button"
+                  className="icon-button icon-button--small"
+                  onClick={() => removePlayer(index)}
+                  disabled={names.length <= MIN_PLAYERS}
+                  aria-label={`Retirer ${name || `le joueur ${index + 1}`}`}
+                >
+                  <UiIcon name="close" size={18} />
+                </button>
+              </li>
+            ))}
+          </ol>
+
+          <div className="lobby__tools">
+            <button
+              type="button"
+              className="btn btn--cream btn--small"
+              onClick={addPlayer}
+              disabled={names.length >= MAX_PLAYERS}
+            >
+              <UiIcon name="plus" size={18} /> Ajouter
+            </button>
+            <button type="button" className="btn btn--cream btn--small" onClick={shuffleOrder}>
+              <UiIcon name="dice" size={18} /> Mélanger l’ordre
+            </button>
           </div>
-          <span className="count-badge">
-            {names.length}/{MAX_PLAYERS}
-          </span>
-        </header>
 
-        <ol className="lobby__players">
-          {names.map((name, index) => (
-            <li className="lobby-player" key={index} style={{ animationDelay: `${index * 40}ms` }}>
-              <span className="lobby-player__seat">{index + 1}</span>
-              <PlayerAvatar color={PLAYER_COLORS[index]} size={44} />
-              <input
-                className="lobby-player__input"
-                value={name}
-                maxLength={NAME_MAX_LENGTH}
-                aria-label={`Nom du joueur ${index + 1}`}
-                onChange={(event) => updateName(index, event.target.value)}
-                onFocus={(event) => event.target.select()}
-              />
-              <button
-                type="button"
-                className="icon-button icon-button--small"
-                onClick={() => removePlayer(index)}
-                disabled={names.length <= MIN_PLAYERS}
-                aria-label={`Retirer ${name || `le joueur ${index + 1}`}`}
-              >
-                <UiIcon name="close" size={18} />
-              </button>
-            </li>
-          ))}
-        </ol>
-
-        <div className="lobby__tools">
-          <button
-            type="button"
-            className="btn btn--cream btn--small"
-            onClick={addPlayer}
-            disabled={names.length >= MAX_PLAYERS}
-          >
-            <UiIcon name="plus" size={18} /> Ajouter
+          <button type="button" className="btn btn--cup btn--large lobby__start" onClick={() => setStep("map")}>
+            Suivant : la carte →
           </button>
-          <button type="button" className="btn btn--cream btn--small" onClick={shuffleOrder}>
-            <UiIcon name="dice" size={18} /> Mélanger l’ordre
-          </button>
-        </div>
+          <p className="lobby__note">Les passifs sont tirés au hasard au lancement.</p>
+        </section>
+      ) : (
+        <section className="lobby__panel panel" aria-labelledby="lobby-map-title">
+          <header className="lobby__panel-header">
+            <div>
+              <span className="eyebrow">Nouvelle partie · étape 2/2</span>
+              <h1 id="lobby-map-title">Sur quelle carte ?</h1>
+            </div>
+            <span className="count-badge">{names.length} joueurs</span>
+          </header>
 
-        <button type="button" className="btn btn--cup btn--large lobby__start" onClick={startGame}>
-          <UiIcon name="play" size={22} /> Lancer la partie
-        </button>
-        <p className="lobby__note">Les passifs sont tirés au hasard. La première Red Cup attend en case 8.</p>
-      </section>
+          <MapPicker />
+
+          <div className="lobby__step-actions">
+            <button type="button" className="btn btn--cream" onClick={() => setStep("players")}>
+              ← Retour
+            </button>
+            <button type="button" className="btn btn--cup btn--large lobby__start" onClick={startGame}>
+              <UiIcon name="play" size={22} /> Lancer la partie
+            </button>
+          </div>
+          <p className="lobby__note">{describeMapChoice(mapChoice)}</p>
+        </section>
+      )}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
     </main>

@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { setActionRelay, useGameStore } from "../game/store";
-import type { PlayerId } from "../game/types";
+import type { MapId, PlayerId } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
 import { createRandomSeed } from "../utils/seeded-random";
@@ -14,6 +14,7 @@ import {
   fetchRoom,
   leaveRoom,
   openRoom,
+  rematchRoom,
   shuffleRoom,
   touchSeat,
   type RoomPlayer,
@@ -24,9 +25,11 @@ import {
   applyRemoteAction,
   buildOnlineGame,
   getPlayerIdOfUser,
+  hasLeftRoom,
   prepareLocalAction,
   type RoomWire,
 } from "./room-protocol";
+import { attachBasketLive, handleBasketWire, type BasketWire } from "./basket-live";
 import { ensureSession, getSupabase } from "./supabase-client";
 import {
   attachVoice,
@@ -73,7 +76,10 @@ interface RoomState {
   join: (code: string, name: string, avatar: number) => Promise<void>;
   updateSeat: (name: string, avatar: number) => Promise<void>;
   shuffleOrder: () => Promise<void>;
-  startGame: () => Promise<void>;
+  /** Host only: opens the room's game on the given map. */
+  startGame: (mapId: MapId) => Promise<void>;
+  /** Host only, once the game is over: a new game for whoever is still at the table. */
+  rematch: (mapId: MapId) => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
   clearError: () => void;
@@ -130,8 +136,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
       seatOrder: room.seatOrder,
       version: room.version,
     });
-    // A finished game is never come back to: a reload must not bring its room back.
+    // A finished game is never come back to: a reload must not bring its room back, unless a rematch reopens it.
     if (room.status === "over") rememberRoom(null);
+    else rememberRoom(room.code);
     if (room.status !== "lobby" && room.state) {
       useGameStore.getState().adoptGame(room.state);
       set({ view: "playing" });
@@ -241,6 +248,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.on("broadcast", { event: "room" }, ({ payload }) => enqueue(() => handleWire(payload as RoomWire)));
     // Voice signalling skips the game queue: a call must not wait behind a resync.
     channel.on("broadcast", { event: "voice" }, ({ payload }) => void handleVoiceWire(payload as VoiceWire));
+    // Live Basket shots are only for the show: they skip the game queue too.
+    channel.on("broadcast", { event: "basket" }, ({ payload }) => handleBasketWire(payload as BasketWire));
+    attachBasketLive((wire) => void channel?.send({ type: "broadcast", event: "basket", payload: wire }));
     channel.on("presence", { event: "sync" }, () => {
       const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
@@ -250,7 +260,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.on("presence", { event: "join" }, ({ key }) => {
       if (key !== userId && get().view === "lobby") enqueue(resync);
     });
-    channel.on("presence", { event: "leave" }, ({ key }) => {
+    channel.on("presence", { event: "leave" }, ({ key, currentPresences }) => {
+      // A device that only updated its presence (voice chat) has not left.
+      if (!hasLeftRoom(currentPresences)) return;
       if (key !== userId && get().view === "lobby") enqueue(resync);
       if (key === userId || get().view !== "playing") return;
       const name = get().players.find((player) => player.userId === key)?.name;
@@ -276,6 +288,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
   const disconnect = async () => {
     setActionRelay(null);
     detachVoice();
+    attachBasketLive(null);
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
     if (channel) await getSupabase().removeChannel(channel);
@@ -399,13 +412,34 @@ export const useRoomStore = create<RoomState>((set, get) => {
         broadcast({ kind: "roster" });
       }),
 
-    startGame: () =>
+    startGame: (mapId) =>
       run(async () => {
         const { code, players, myUserId, hostId } = get();
         if (!code || myUserId !== hostId) return;
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed());
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
         await openRoom(code, state, seatOrder);
+        await resync();
+        broadcast({ kind: "start" });
+      }),
+
+    rematch: (mapId) =>
+      run(async () => {
+        const { code, myUserId, hostId } = get();
+        if (!code || myUserId !== hostId) return;
+        const room = await fetchRoom(code);
+        if (!room || room.status !== "over") throw new Error("La revanche n’est plus possible.");
+        // Same turn order as the game just played, without whoever left or went quiet.
+        const rank = (userId: string) => {
+          const seat = room.seatOrder.indexOf(userId);
+          return seat < 0 ? room.seatOrder.length : seat;
+        };
+        const players = room.players
+          .filter((player) => !player.absent || player.userId === myUserId)
+          .sort((left, right) => rank(left.userId) - rank(right.userId));
+        if (players.length < 2) throw new Error("Il faut au moins deux joueurs encore à table.");
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
+        await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
       }),

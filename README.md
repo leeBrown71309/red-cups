@@ -105,6 +105,25 @@ limitée à deux projets par compte.
 - **Sens de circulation** : la sortie imposée d’une case fléchée porte des chevrons orange animés, sur la moitié de
   route qui part de cette case (on peut y entrer par cette route, mais on doit en sortir par là). Les routes libres
   n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
+- **Luna Park** (seconde carte) : la même boîte de jeu, la nuit. Pavés bleu nuit, cases à bord néon, guirlandes
+  d’ampoules, grande roue et chapiteau au fond, lampadaires, ballons et confettis. L’Enfer est un manège maudit dont
+  les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte
+  décrit ses cases et routes dans `src/game/maps/`, sa mise en scène dans `src/scene/map-layouts.ts` et ses couleurs
+  dans `src/theme/map-themes.ts`.
+- **Banquise** (troisième carte) : neige, lac gelé brillant, sapins enneigés, bonhommes de neige, igloo, pingouins qui
+  se dandinent, flocons et aurore boréale. Les cases de glace ont un reflet, un liseré givré et des pics de glace ; le
+  pion y tourne sur lui-même puis glisse dans la direction tirée. La tombée de glace l’enferme dans un bloc au milieu de
+  la route, qu’il brise au tour suivant. Le blizzard souffle des rafales de neige et un brouillard blanc, fait fondre
+  l’ancienne glace et en fait pousser une nouvelle. L’Enfer est une crevasse hérissée d’éclats de glace.
+- **Fantôme de Luna Park** : un drap déchiré aux orbites creuses qui rôde sur tout le plateau, surgit dans une
+  brume violette, glisse de case en case par-dessus les routes ou se dissout pour ressurgir au loin, gifle ses
+  victimes et les emporte en Enfer. Un clic ouvre son butin.
+- **Tomate** : une volée de 1 à 5 tomates part en rafale, en cloche, d’un pion à l’autre et s’écrase en gerbes rouges ;
+  un « K.O. ! » et une pirouette quand elle assomme sa cible.
+- **Basket** : mini-jeu de duel de 15 secondes (jauge, zone verte, balles en vol), vu en direct par toute la table
+  en ligne.
+- **Musique par carte** : boucle cosy pour le coffre à jouets, valse de fête foraine pour Luna Park, boîte à musique
+  en 6/8 pour Banquise ; chacune a sa version sombre quand le joueur actif est en Enfer.
 - **Personnages** : petits blobs chibi aux grands yeux, une couleur et un accessoire par siège (chapeau de fête, pousse,
   nœud, antenne, cornes, oreilles de chat, bonnet, auréole) pour rester reconnaissables même sans les couleurs.
 - **Interface** : papier crème, contours encre prune épais, boutons « bonbon » qui s’enfoncent, typographies Fredoka

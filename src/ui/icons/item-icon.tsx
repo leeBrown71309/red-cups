@@ -160,6 +160,23 @@ const ITEM_ARTWORK: Record<ItemId, () => ReactElement> = {
       <path d="M23 13 C30 16 34 21 35 27" fill="none" stroke="#ffd9d4" strokeWidth="3" strokeLinecap="round" />
     </>
   ),
+  tomato: () => (
+    <>
+      <path
+        d="M32 18 C47 18 56 27 56 38 C56 50 45 58 32 58 C19 58 8 50 8 38 C8 27 17 18 32 18 Z"
+        fill="#e8453c"
+        {...OUTLINE}
+      />
+      <path d="M20 26 C17 30 16 34 17 38" fill="none" stroke="#ff9b8f" strokeWidth="3.5" strokeLinecap="round" />
+      <path
+        d="M32 21 L26 13 L31 16 L32 9 L35 16 L41 12 L37 20 L45 20 L36 24 Z"
+        fill="#5cc46a"
+        {...OUTLINE}
+        strokeWidth={3}
+      />
+      <path d="M32 9 L33 4" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+    </>
+  ),
 };
 
 export function ItemIcon({ itemId, size, className }: IconProps & { itemId: ItemId }) {

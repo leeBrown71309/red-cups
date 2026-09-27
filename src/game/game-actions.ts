@@ -1,9 +1,12 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
-import { NORMAL_NODE_IDS } from "./board";
+import { getBoard } from "./board";
+import { createGhost, spareHellPlayers } from "./ghost";
+import { pickBlizzardTile } from "./ice";
+import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
-import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel } from "./duel";
+import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { runWithSeededSource } from "./engine-random";
 import {
   addCupCycleEffects,
@@ -38,6 +41,7 @@ import {
   placeInHell,
   randomChoice,
   removeInventoryEntry,
+  spendItemEntry,
   shuffle,
   updatePlayer,
 } from "./state-utils";
@@ -46,6 +50,7 @@ import {
   applyMove,
   cancelDeclaredAction,
   carryOutDeclaredAction,
+  isThrownItem,
   openReactionWindow,
   planItemUse,
   planMove,
@@ -53,6 +58,7 @@ import {
 import type {
   GameState,
   ItemId,
+  MapId,
   NodeId,
   Player,
   PlayerColor,
@@ -62,15 +68,7 @@ import type {
   WheelId,
   WheelOutcomeId,
 } from "./types";
-import {
-  EMPTY_GAME_STATE,
-  FIRST_ROUND,
-  HELL_NODE_ID,
-  INITIAL_RED_CUP_NODE_ID,
-  PLAYER_COLORS,
-  STARTING_CURRENCY,
-  START_NODE_ID,
-} from "./types";
+import { EMPTY_GAME_STATE, FIRST_ROUND, HELL_NODE_ID, PLAYER_COLORS, STARTING_CURRENCY, START_NODE_ID } from "./types";
 
 /**
  * Every change to a game is one serialisable action run through `reduceGame`.
@@ -78,12 +76,13 @@ import {
  * device, which all reduce it the same way.
  */
 export type GameAction =
-  | { type: "startGame"; playerNames: string[]; seed?: number; avatarColors?: PlayerColor[] }
+  | { type: "startGame"; playerNames: string[]; seed?: number; avatarColors?: PlayerColor[]; mapId?: MapId }
   | { type: "resetGame" }
   | { type: "movePlayer"; destination: NodeId; ignoreArrows: boolean }
   | { type: "prepareBoot"; entryId: string }
   | { type: "buyItem"; itemId: ItemId }
-  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId }
+  /** `count`: Tomates thrown in one go from their stack; one for every other item. */
+  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
@@ -98,6 +97,8 @@ export type GameAction =
   | { type: "pickDuelHand"; playerId: PlayerId; choice: RpsChoice }
   | { type: "castDuelVote"; voterId: PlayerId; candidateId: PlayerId }
   | { type: "resolveDuel"; winnerId: PlayerId }
+  | { type: "startBasketRound"; playerId: PlayerId }
+  | { type: "submitBasketScore"; playerId: PlayerId; score: number }
   | { type: "discardInventoryEntry"; entryId: string }
   | { type: "repositionBeforeCup"; destination: NodeId }
   | { type: "resolveCalmDown"; useEffect: boolean };
@@ -132,21 +133,37 @@ export function getSeatPlayerId(seatIndex: number): PlayerId {
   return `p${seatIndex + 1}`;
 }
 
+/** A random map is drawn by the lobby beforehand: the action always names the board. */
 function startGame(
   state: GameState,
   playerNames: string[],
   seed: number | undefined,
   avatarColors: PlayerColor[] | undefined,
+  mapId: MapId | undefined,
 ): GameState {
   if (playerNames.length < 2) return state;
-  const build = (): GameState => ({
-    ...EMPTY_GAME_STATE,
-    phase: "playing",
-    turnStage: "move",
-    players: createPlayers(playerNames, avatarColors),
-    redCupNodeId: INITIAL_RED_CUP_NODE_ID,
-    log: [makeLog("La partie commence. La première Red Cup est en case 8.", "event")],
-  });
+  const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
+  const build = (): GameState => {
+    const opening: GameState = {
+      ...EMPTY_GAME_STATE,
+      phase: "playing",
+      turnStage: "move",
+      mapId: map.id,
+      players: createPlayers(playerNames, avatarColors),
+      redCupNodeId: map.initialCupNodeId,
+      log: [
+        makeLog(
+          `La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`,
+          "event",
+        ),
+      ],
+    };
+    // Banquise opens with its third ice tile already laid; blizzards move it later on.
+    const withIce =
+      map.blizzardEveryRounds === undefined ? opening : { ...opening, iceTileNodeId: pickBlizzardTile(opening) };
+    // Luna Park's ghost waits a round or two before haunting the carousel.
+    return { ...withIce, ghost: createGhost(withIce) };
+  };
   if (seed === undefined) return build();
   const { result, seed: seededRandom } = runWithSeededSource({ rngState: seed >>> 0, nextId: 0 }, build);
   return { ...result, seededRandom };
@@ -180,7 +197,7 @@ function applyWheelOutcome(
     case "lose-item": {
       const entry = randomChoice(player.inventory.filter((candidate) => candidate.kind === "item"));
       if (!entry) return applyCurrencyChange(state, player.id, -100);
-      const nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entry.id));
+      const nextState = updatePlayer(state, player.id, (current) => spendItemEntry(current, entry.id));
       return addLog(nextState, `${player.name} perd un objet.`, "bad");
     }
     case "skip-turn":
@@ -232,7 +249,7 @@ function prepareBoot(state: GameState, entryId: string): GameState {
 
 function buyItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "shop" || !isShopNode(player.position)) return state;
+  if (!player || state.turnStage !== "shop" || !isShopNode(getBoard(state), player.position)) return state;
 
   const price = getItemPrice(itemId, state.bootPrice);
   if (player.currency < price) return state;
@@ -256,9 +273,15 @@ function buyItem(state: GameState, itemId: ItemId): GameState {
   return addLog(nextState, `${player.name} achète ${ITEM_CATALOG[itemId].name} pour ${price} pièces.`, "good");
 }
 
-function useItem(state: GameState, entryId: string, targetPlayerId: PlayerId | undefined): GameState {
-  const plan = planItemUse(state, entryId, targetPlayerId);
+function useItem(
+  state: GameState,
+  entryId: string,
+  targetPlayerId: PlayerId | undefined,
+  count: number | undefined,
+): GameState {
+  const plan = planItemUse(state, entryId, targetPlayerId, count);
   if (!plan) return state;
+  if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
   const waiting = openReactionWindow(state, {
     type: "item",
     entryId,
@@ -282,8 +305,12 @@ function endTurn(state: GameState): GameState {
   const noLegalMove =
     state.turnStage === "move" &&
     activePlayer !== undefined &&
-    getUniqueLegalDestinations(activePlayer, state.moveDistance, canUseDelinquent(activePlayer, state.round)).length ===
-      0;
+    getUniqueLegalDestinations(
+      getBoard(state),
+      activePlayer,
+      state.moveDistance,
+      canUseDelinquent(activePlayer, state.round),
+    ).length === 0;
   if (!["shop", "turn-end"].includes(state.turnStage) && !noLegalMove) return state;
   const ended: GameState = { ...state, turnStage: "turn-end" };
   return isTableBroke(ended) ? startBlessingRound(ended) : beginNextTurn(ended);
@@ -299,7 +326,7 @@ function spinTileWheel(current: GameState): GameState {
   if (current.turnStage !== "tile-wheel") return current;
   const state = validTileWheels(current);
   const [next, ...rest] = state.pendingTileWheels;
-  const wheelId = next ? getTileWheel(next.nodeId) : null;
+  const wheelId = next ? getTileWheel(getBoard(state), next.nodeId) : null;
   if (!next || !wheelId) return { ...state, turnStage: state.tileWheelResumeStage };
   const queueRest = { ...state, pendingTileWheels: rest };
   return startWheel(queueRest, wheelId, next.playerId, state.tileWheelResumeStage, { origin: "tile" });
@@ -325,12 +352,17 @@ function resolveWheel(state: GameState): GameState {
       pendingChallenge: { playerId: pending.playerId, resumeStage: pending.resumeStage },
       turnStage: "target",
     };
-    return pending.sourceItemId ? itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId) : nextState;
+    return pending.sourceItemId
+      ? itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id)
+      : nextState;
   }
 
   let nextState: GameState = { ...state, pendingWheel: null, turnStage: pending.resumeStage };
   nextState = applyWheelOutcome(nextState, player, pending.wheelId, pending.result.id, pending.result.amount ?? 0);
-  if (pending.sourceItemId) nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId);
+  // The item's user is still the active player: its wheel always resolves within their turn.
+  if (pending.sourceItemId) {
+    nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id);
+  }
   if (nextState.pendingDiscard) return nextState;
   return settleBoard(nextState, pending.resumeStage);
 }
@@ -374,6 +406,14 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
     const copiedItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, copiedItem));
     nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`, "event");
+  } else if (pending.reason === "loot" && pending.itemId) {
+    const lootItem = pending.itemId;
+    nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, lootItem));
+    nextState = addLog(
+      nextState,
+      `${player.name} reprend ${ITEM_CATALOG[lootItem].name} dans le butin du fantôme.`,
+      "good",
+    );
   }
 
   const waitsForDecision = ["reposition", "passive-choice"].includes(nextState.turnStage);
@@ -384,7 +424,12 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
 function repositionBeforeCup(state: GameState, destination: NodeId): GameState {
   const playerId = state.pendingCupRepositionPlayerId;
   const player = findPlayer(state, playerId);
-  if (!playerId || !player || state.pendingCupRevealNodeId === null || !NORMAL_NODE_IDS.includes(destination)) {
+  if (
+    !playerId ||
+    !player ||
+    state.pendingCupRevealNodeId === null ||
+    !getBoard(state).normalNodeIds.includes(destination)
+  ) {
     return state;
   }
 
@@ -433,10 +478,18 @@ function resolveCalmDown(state: GameState, useEffect: boolean): GameState {
   return settleBoard(nextState, pending.resumeStage);
 }
 
+/** Runs one action; the Luna Park ghost first spares whoever stands in Hell before it. */
 function applyGameAction(state: GameState, action: GameAction): GameState {
+  const prepared = spareHellPlayers(state);
+  const result = dispatchGameAction(prepared, action);
+  // A refused action must hand back the very same object, even if the ghost's memory was touched.
+  return result === prepared ? state : result;
+}
+
+function dispatchGameAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "startGame":
-      return startGame(state, action.playerNames, action.seed, action.avatarColors);
+      return startGame(state, action.playerNames, action.seed, action.avatarColors, action.mapId);
     case "resetGame":
       return EMPTY_GAME_STATE;
     case "movePlayer":
@@ -446,7 +499,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     case "buyItem":
       return buyItem(state, action.itemId);
     case "useItem":
-      return useItem(state, action.entryId, action.targetPlayerId);
+      return useItem(state, action.entryId, action.targetPlayerId, action.count);
     case "resolveReaction":
       return resolveReaction(state, action.reactorId);
     case "endTurn":
@@ -477,6 +530,10 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       return castDuelVote(state, action.voterId, action.candidateId);
     case "resolveDuel":
       return resolveDuel(state, action.winnerId);
+    case "startBasketRound":
+      return startBasketRound(state, action.playerId);
+    case "submitBasketScore":
+      return submitBasketScore(state, action.playerId, action.score);
     case "discardInventoryEntry":
       return discardInventoryEntry(state, action.entryId);
     case "repositionBeforeCup":

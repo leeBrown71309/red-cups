@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { resolveBoard } from "../../game/board";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { getTileWheel } from "../../game/rules";
 import { useGameStore } from "../../game/store";
@@ -77,7 +78,11 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
   const spinTileWheel = useGameStore((state) => state.spinTileWheel);
   const tileWheels = useGameStore((state) => state.pendingTileWheels);
   const players = useGameStore((state) => state.players);
+  const mapId = useGameStore((state) => state.mapId);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
+  const ghostDuel = useGameStore(
+    (state) => state.pendingDuel?.ghost !== undefined && state.pendingDuel?.ghost !== null,
+  );
 
   switch (stage) {
     case "move":
@@ -107,7 +112,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
     }
     case "tile-wheel": {
       const spinner = players.find((candidate) => candidate.id === tileWheels[0]?.playerId) ?? player;
-      const fortune = getTileWheel(spinner.position) === "fortune";
+      const fortune = getTileWheel(resolveBoard(mapId), spinner.position) === "fortune";
       const pushedThere = spinner.id !== player.id;
       return (
         <DockPrompt
@@ -176,7 +181,11 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
     case "wheel-result":
       return <DockPrompt title="La roue tourne…" hint="Croise les doigts." />;
     case "duel":
-      return <DockPrompt title="Duel en Enfer !" hint="Un seul en ressortira." />;
+      return ghostDuel ? (
+        <DockPrompt title="Le fantôme attaque !" hint="Bats-le pour reprendre son butin." />
+      ) : (
+        <DockPrompt title="Duel en Enfer !" hint="Un seul en ressortira." />
+      );
     default:
       return null;
   }
@@ -278,7 +287,10 @@ function MoveContent({ player }: { player: Player }) {
           onClick={() => setIgnoreArrows(!ignoreArrows)}
           disabled={delinquentHint !== null}
           aria-pressed={ignoreArrows}
-          title={delinquentHint?.full ?? `Délinquant : ${DELINQUENT_COST} pièces par flèche ignorée`}
+          title={
+            delinquentHint?.full ??
+            `Délinquant : ${DELINQUENT_COST} pièces pour ce déplacement, quel que soit le nombre de sens interdits`
+          }
         >
           {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} ·{" "}
           {delinquentHint ? delinquentHint.short : `−${DELINQUENT_COST}`}

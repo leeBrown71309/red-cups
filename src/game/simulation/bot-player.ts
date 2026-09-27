@@ -1,6 +1,6 @@
 import { canAbandon } from "../abandon";
-import { getDuelVoterIds } from "../duel";
-import { NORMAL_NODE_IDS, getShortestPath } from "../board";
+import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
+import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -32,20 +32,22 @@ function pick<T>(values: T[], random: Random): T | undefined {
 
 function distanceToCup(store: GameStore, nodeId: NodeId): number {
   if (store.redCupNodeId === null) return 0;
-  return getShortestPath(nodeId, store.redCupNodeId, false)?.length ?? 99;
+  return getShortestPath(getBoard(store), nodeId, store.redCupNodeId, false)?.length ?? 99;
 }
 
 interface ItemOption {
   entry: InventoryEntry & { kind: "item" };
   targetId?: PlayerId;
+  /** A whole volley of Tomates, or part of the stack. */
+  count?: number;
 }
 
 function useItemAction(store: GameStore, option: ItemOption): BotAction {
   const userId = getActivePlayer(store)?.id ?? "";
   return {
     label: `use:${option.entry.itemId}`,
-    perform: (current) => current.useItem(option.entry.id, option.targetId),
-    item: { itemId: option.entry.itemId, userId, targetPlayerId: option.targetId },
+    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count),
+    item: { itemId: option.entry.itemId, userId, targetPlayerId: option.targetId, count: option.count },
   };
 }
 
@@ -57,9 +59,11 @@ function listUsableItems(store: GameStore): ItemOption[] {
     if (ITEM_CATALOG[entry.itemId].target !== "player") {
       return planItemUse(store, entry.id) ? [{ entry }] : [];
     }
+    // A stack is thrown all at once: the table picks the volley's size in the dialog, the bot empties it.
+    const count = entry.count ?? 1;
     return store.players
-      .filter((target) => planItemUse(store, entry.id, target.id) !== null)
-      .map((target) => ({ entry, targetId: target.id }));
+      .filter((target) => planItemUse(store, entry.id, target.id, count) !== null)
+      .map((target) => ({ entry, targetId: target.id, ...(count > 1 ? { count } : {}) }));
   });
 }
 
@@ -75,9 +79,10 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   const items = listUsableItems(store);
   if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
 
-  const regular = getUniqueLegalDestinations(player, store.moveDistance, false);
+  const board = getBoard(store);
+  const regular = getUniqueLegalDestinations(board, player, store.moveDistance, false);
   const rebel = canUseDelinquent(player, store.round)
-    ? getUniqueLegalDestinations(player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
+    ? getUniqueLegalDestinations(board, player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
     : [];
 
   if (rebel.length > 0 && random() < 0.25) {
@@ -130,8 +135,18 @@ function chooseDuelAction(store: GameStore, random: Random): BotAction | null {
   if (winnerId) return { label: `duel:${duel.mode}`, perform: (current) => current.resolveDuel(winnerId) };
 
   if (duel.mode === "coin-flip") return { label: "duel:flip", perform: (current) => current.flipDuelCoin() };
+  if (duel.mode === "basket") {
+    const shooterId = duel.basket?.shooterId ?? getNextBasketShooterId(duel);
+    if (!shooterId) return null;
+    if (duel.basket?.shooterId !== shooterId) {
+      return { label: "duel:basket-start", perform: (current) => current.startBasketRound(shooterId) };
+    }
+    // A table of humans scores anywhere from a couple of baskets to a dozen.
+    const score = Math.floor(random() * 13);
+    return { label: "duel:basket-score", perform: (current) => current.submitBasketScore(shooterId, score) };
+  }
   if (duel.mode === "rock-paper-scissors") {
-    const chooserId = [duel.playerOneId, duel.playerTwoId].find((id) => !duel.rpsChoices[id]);
+    const chooserId = getHumanDuellistIds(duel).find((id) => !duel.rpsChoices[id]);
     const choice = pick(RPS_CHOICES, random);
     if (!chooserId || !choice) return null;
     return { label: "duel:hand", perform: (current) => current.pickDuelHand(chooserId, choice) };
@@ -198,7 +213,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "reposition": {
-      const nodeId = pick(NORMAL_NODE_IDS, random)!;
+      const nodeId = pick(getBoard(store).normalNodeIds, random)!;
       return { label: "reposition", perform: (current) => current.repositionBeforeCup(nodeId) };
     }
 
