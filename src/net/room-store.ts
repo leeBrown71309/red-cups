@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { setActionRelay, useGameStore } from "../game/store";
-import type { PlayerId } from "../game/types";
+import type { MapId, PlayerId } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
 import { createRandomSeed } from "../utils/seeded-random";
@@ -73,7 +73,8 @@ interface RoomState {
   join: (code: string, name: string, avatar: number) => Promise<void>;
   updateSeat: (name: string, avatar: number) => Promise<void>;
   shuffleOrder: () => Promise<void>;
-  startGame: () => Promise<void>;
+  /** Host only: opens the room's game on the given map. */
+  startGame: (mapId: MapId) => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
   clearError: () => void;
@@ -399,12 +400,12 @@ export const useRoomStore = create<RoomState>((set, get) => {
         broadcast({ kind: "roster" });
       }),
 
-    startGame: () =>
+    startGame: (mapId) =>
       run(async () => {
         const { code, players, myUserId, hostId } = get();
         if (!code || myUserId !== hostId) return;
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed());
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
         await openRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });

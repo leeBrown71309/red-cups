@@ -1,4 +1,4 @@
-import { settleBoard } from "./game-effects";
+import { addStartBonus, settleBoard } from "./game-effects";
 import { addLog, findPlayer, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, PendingDuel, PlayerId, RpsChoice } from "./types";
 import { START_NODE_ID } from "./types";
@@ -70,7 +70,8 @@ export function castDuelVote(state: GameState, voterId: PlayerId, candidateId: P
 }
 
 /**
- * Applies the duel: the winner goes back to the start, the loser stays in Hell.
+ * Applies the duel: the winner goes back to the start with the start bonus,
+ * like every other way out of Hell, and the loser stays there.
  * Once the engine has decided the duel, only that winner is accepted.
  */
 export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
@@ -90,5 +91,6 @@ export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
     `${winner.name} gagne le duel et retourne en case 0. ${loser.name} reste en Enfer.`,
     "good",
   );
+  nextState = addStartBonus(nextState, winnerId);
   return settleBoard(nextState, duel.resumeStage);
 }

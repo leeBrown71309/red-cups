@@ -1,6 +1,6 @@
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds } from "../duel";
-import { NORMAL_NODE_IDS, getShortestPath } from "../board";
+import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -32,7 +32,7 @@ function pick<T>(values: T[], random: Random): T | undefined {
 
 function distanceToCup(store: GameStore, nodeId: NodeId): number {
   if (store.redCupNodeId === null) return 0;
-  return getShortestPath(nodeId, store.redCupNodeId, false)?.length ?? 99;
+  return getShortestPath(getBoard(store), nodeId, store.redCupNodeId, false)?.length ?? 99;
 }
 
 interface ItemOption {
@@ -75,9 +75,10 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   const items = listUsableItems(store);
   if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
 
-  const regular = getUniqueLegalDestinations(player, store.moveDistance, false);
+  const board = getBoard(store);
+  const regular = getUniqueLegalDestinations(board, player, store.moveDistance, false);
   const rebel = canUseDelinquent(player, store.round)
-    ? getUniqueLegalDestinations(player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
+    ? getUniqueLegalDestinations(board, player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
     : [];
 
   if (rebel.length > 0 && random() < 0.25) {
@@ -198,7 +199,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "reposition": {
-      const nodeId = pick(NORMAL_NODE_IDS, random)!;
+      const nodeId = pick(getBoard(store).normalNodeIds, random)!;
       return { label: "reposition", perform: (current) => current.repositionBeforeCup(nodeId) };
     }
 

@@ -1,5 +1,5 @@
 import { createEngineId } from "./engine-random";
-import { earnsStartBonus, getShortestPath } from "./board";
+import { earnsStartBonus, getBoard, getShortestPath } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import {
   addRedGreenBonuses,
@@ -44,17 +44,18 @@ export function planMove(state: GameState, destination: NodeId, ignoreArrows: bo
   const player = getActivePlayer(state);
   if (state.phase !== "playing" || state.turnStage !== "move" || !player) return null;
 
-  const regularPath = findLegalPath(player, destination, state.moveDistance, false);
+  const board = getBoard(state);
+  const regularPath = findLegalPath(board, player, destination, state.moveDistance, false);
   if (regularPath) return { path: regularPath, rebel: false };
 
   // Délinquant only pays when the destination really requires going against an arrow.
   if (!ignoreArrows || !canUseDelinquent(player, state.round)) return null;
-  const rebelPath = findLegalPath(player, destination, state.moveDistance, true);
+  const rebelPath = findLegalPath(board, player, destination, state.moveDistance, true);
   return rebelPath ? { path: rebelPath, rebel: true } : null;
 }
 
-function getArrivalStage(nodeId: NodeId): TurnStage {
-  return isShopNode(nodeId) ? "shop" : "turn-end";
+function getArrivalStage(state: GameState, nodeId: NodeId): TurnStage {
+  return isShopNode(getBoard(state), nodeId) ? "shop" : "turn-end";
 }
 
 export function applyMove(state: GameState, destination: NodeId, plan: MovePlan): GameState {
@@ -70,13 +71,13 @@ export function applyMove(state: GameState, destination: NodeId, plan: MovePlan)
   nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
   nextState = addLog(nextState, `${player.name} se déplace en case ${destination}.`);
   nextState = addRedGreenBonuses(nextState, player.id, plan.path);
-  if (earnsStartBonus(player.position, plan.path)) nextState = addStartBonus(nextState, player.id);
+  if (earnsStartBonus(getBoard(state), player.position, plan.path)) nextState = addStartBonus(nextState, player.id);
 
   nextState = {
     ...nextState,
     moveDistance: 1,
     turnActionTaken: true,
-    turnStage: getArrivalStage(destination),
+    turnStage: getArrivalStage(state, destination),
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
       playerId: player.id,
@@ -160,13 +161,13 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
     case "hollow-purple":
       if (!target) return state;
       nextState = sendPlayerToHell(nextState, target.id);
-      nextState = itemCopyForPassive(nextState, target.id, itemId);
+      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "rope":
       if (!target) return state;
       nextState = pullWithRope(nextState, player, target);
-      nextState = itemCopyForPassive(nextState, target.id, itemId);
+      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "mud":
@@ -184,7 +185,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
         skippedTurns: currentPlayer.skippedTurns + 1,
       }));
       nextState = addLog(nextState, `${target.name} devra passer son prochain tour.`, "bad");
-      nextState = itemCopyForPassive(nextState, target.id, itemId);
+      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "monopoly-man":
@@ -202,11 +203,11 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
         }),
       };
       nextState = addLog(nextState, `${player.name} échange sa place avec ${target.name}.`, "event");
-      nextState = itemCopyForPassive(nextState, target.id, itemId);
+      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "water-bottle": {
-      const destination = randomNormalNode();
+      const destination = randomNormalNode(getBoard(state));
       nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
       nextState = addLog(nextState, `${player.name} sort de l’Enfer et atterrit en case ${destination}.`, "good");
       if (nextState.redCupNodeId === destination) {
@@ -244,7 +245,7 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
     return addLog(nextState, `${target.name} est tiré sur la case de ${user.name}.`, "event");
   }
 
-  const path = getShortestPath(target.position, user.position, true) ?? [];
+  const path = getShortestPath(getBoard(state), target.position, user.position, true) ?? [];
   const steps = Math.ceil(path.length / 2);
   const nextState = updatePlayer(state, target.id, (currentPlayer) => ({
     ...currentPlayer,

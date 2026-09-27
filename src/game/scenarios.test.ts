@@ -370,6 +370,104 @@ describe("Je note and the no-stacking rule", () => {
   });
 });
 
+describe("Je note on its own items (patch 0.1.3)", () => {
+  it("gives no copy of a Ndoye its holder spins on themselves", () => {
+    startTable(["i-take-notes", "troll"]);
+    editPlayer(0, { inventory: [{ id: "ndoye-1", kind: "item", itemId: "ndoye" }] });
+    // 0.99 lands on "Rien" on the wheel of misfortune.
+    vi.spyOn(Math, "random").mockReturnValue(0.99);
+
+    store().useItem("ndoye-1", store().players[0].id);
+    store().resolveWheel();
+
+    expect(store().players[0].inventory).toHaveLength(0);
+  });
+
+  it("gives no copy of a Hollow Purple its holder fires at themselves", () => {
+    startTable(["i-take-notes", "troll"]);
+    editPlayer(0, { inventory: [{ id: "purple-1", kind: "item", itemId: "hollow-purple" }] });
+
+    store().useItem("purple-1", store().players[0].id);
+
+    expect(store().players[0].position).toBe(HELL_NODE_ID);
+    expect(store().players[0].inventory).toHaveLength(0);
+  });
+
+  it("gives no copy of its own mud", () => {
+    startTable(["i-take-notes", "troll"]);
+    useGameStore.setState({ mudTraps: [{ id: "mud-1", nodeId: 2, ownerId: store().players[0].id }] });
+
+    store().movePlayer(2);
+
+    expect(store().players[0].inventory).toHaveLength(0);
+  });
+
+  it("still copies an item somebody else used on its holder", () => {
+    startTable(["built-like-a-tank", "i-take-notes"]);
+    editPlayer(0, { inventory: [{ id: "finger-1", kind: "item", itemId: "middle-finger" }] });
+
+    store().useItem("finger-1", store().players[1].id);
+
+    expect(store().players[1].inventory).toContainEqual(
+      expect.objectContaining({ kind: "item", itemId: "middle-finger" }),
+    );
+  });
+});
+
+describe("Calme-toi (patch 0.1.3)", () => {
+  it("is never offered to the holder against themselves", () => {
+    startTable(["calm-down", "troll"]);
+    editPlayer(0, { position: 10 });
+    // The next Cup lands on tile 1, two steps from 8.
+    vi.spyOn(Math, "random").mockReturnValue(0);
+
+    store().movePlayer(8);
+
+    expect(store().redCupNodeId).toBe(1);
+    expect(store().pendingCalmDown).toBeNull();
+    expect(store().turnStage).toBe("shop");
+  });
+});
+
+describe("duel winner (patch 0.1.3)", () => {
+  function startDuelInHell(passives: PassiveId[]): void {
+    startTable(passives);
+    editPlayer(0, { position: HELL_NODE_ID });
+    editPlayer(1, { position: HELL_NODE_ID });
+    useGameStore.setState({
+      turnStage: "duel",
+      pendingDuel: {
+        playerOneId: store().players[0].id,
+        playerTwoId: store().players[1].id,
+        mode: "rock-paper-scissors",
+        resumeStage: "turn-end",
+        rpsChoices: {},
+        rpsTiedRound: null,
+        rpsTies: 0,
+        votes: {},
+        voteTieBroken: false,
+        winnerId: store().players[0].id,
+      },
+    });
+  }
+
+  it("pays the start bonus to the winner going back to the start", () => {
+    startDuelInHell(["built-like-a-tank", "troll"]);
+    store().resolveDuel(store().players[0].id);
+
+    expect(store().players[0].position).toBe(0);
+    expect(store().players[0].currency).toBe(2_000 + START_BONUS);
+    expect(store().players[1].currency).toBe(2_000);
+  });
+
+  it("pays nothing to a winner with Je suis Cups", () => {
+    startDuelInHell(["im-cups", "troll"]);
+    store().resolveDuel(store().players[0].id);
+
+    expect(store().players[0].currency).toBe(2_000);
+  });
+});
+
 describe("Bullet Bill", () => {
   it("hits a player standing on its own tile at the end of the round", () => {
     startTable(["built-like-a-tank", "troll"]);

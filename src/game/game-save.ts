@@ -1,11 +1,12 @@
 import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middleware";
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
 import type { GameState } from "./types";
+import { isMapId } from "./maps/map-registry";
 import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 6;
+export const GAME_SAVE_VERSION = 7;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -65,12 +66,15 @@ type SaveRecord = Record<string, unknown>;
  * flag, Bullet Bill's flight, the Tour de Bénédiction, abandons and the Non
  * merci cooldown, which replaces the once-per-Cup rule. Version 6 moved duels
  * into the engine (hands, votes, decided winner) and added the online seed.
+ * Version 7 (patch 0.1.3) added the board choice: older games were classic.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
   const duel = save.pendingDuel as SaveRecord | null | undefined;
   return {
     ...save,
+    mapId: isMapId(save.mapId) ? save.mapId : EMPTY_GAME_STATE.mapId,
+    carouselReversed: save.carouselReversed === true,
     seededRandom: save.seededRandom ?? null,
     pendingDuel: duel
       ? {

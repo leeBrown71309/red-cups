@@ -40,7 +40,7 @@ function simulate(game: SimulatedGame, index: number): HistoryGame {
     avatar: seat,
     absent: false,
   }));
-  const { state } = buildOnlineGame(players, game.seed);
+  const { state } = buildOnlineGame(players, game.seed, "classic");
   const final: GameState = playBotsFrom(state, {
     seed: game.seed,
     maxSteps: game.maxSteps,

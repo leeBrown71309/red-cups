@@ -1,4 +1,4 @@
-import { getShortestPath } from "./board";
+import { getBoard, getShortestPath } from "./board";
 import { addLog, applyCurrencyChange, updatePlayer } from "./state-utils";
 import type { BulletFlight, GameState, NodeId, Player } from "./types";
 import { BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "./types";
@@ -9,7 +9,7 @@ import { BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "./types";
  * at the start of every round, from the next one on.
  */
 
-/** Tiles covered per charge; a close target is approached one tile at a time. */
+/** Tiles covered per charge: a target one or two tiles away is hit, a farther one is only approached. */
 const CHARGE_STEPS = 2;
 
 export function launchBulletBill(state: GameState): GameState {
@@ -26,9 +26,10 @@ interface ChaseTarget {
 
 /** Arrows do not bind a projectile; players in Hell are out of its reach. Ties go to the first seat. */
 function findNearestTarget(state: GameState, from: NodeId): ChaseTarget | undefined {
+  const board = getBoard(state);
   return state.players
     .filter((player) => player.position !== HELL_NODE_ID)
-    .map((player) => ({ player, path: getShortestPath(from, player.position, true) }))
+    .map((player) => ({ player, path: getShortestPath(board, from, player.position, true) }))
     .filter((entry): entry is ChaseTarget => entry.path !== null)
     .sort((left, right) => left.path.length - right.path.length)[0];
 }
@@ -49,9 +50,8 @@ function chargeNearestPlayer(state: GameState): GameState {
   const target = findNearestTarget(state, bullet.position);
   if (!target) return state;
 
-  // A player standing on Bullet Bill's own tile is hit without it moving.
-  const steps = target.path.length <= CHARGE_STEPS ? 1 : CHARGE_STEPS;
-  const path = target.path.slice(0, steps);
+  // A closer target ends the charge early; one standing on Bullet Bill's own tile is hit without it moving.
+  const path = target.path.slice(0, CHARGE_STEPS);
   const position = path[path.length - 1] ?? bullet.position;
   const hit = position === target.player.position;
   const flight: BulletFlight = {

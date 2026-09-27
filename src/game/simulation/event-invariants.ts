@@ -1,5 +1,5 @@
 import { isTableBroke } from "../blessing";
-import { getNeighbors } from "../board";
+import { getBoard, getNeighbors } from "../board";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
@@ -33,9 +33,10 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
     found.push(violation("bullet-flight-start", `Bullet Bill took off from ${flight.from}`));
   }
   if (flight.path.length > 2) found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  const board = getBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
-    if (!getNeighbors(landing, true).includes(step)) {
+    if (!getNeighbors(board, landing, true).includes(step)) {
       found.push(violation("bullet-follows-roads", `Bullet Bill flew ${landing} → ${step} off the roads`));
     }
     landing = step;

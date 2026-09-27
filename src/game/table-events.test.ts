@@ -62,6 +62,24 @@ describe("Bullet Bill", () => {
     );
   });
 
+  it("hits a player two tiles away in a single charge", () => {
+    startTable(["built-like-a-tank", "troll"]);
+    // Tile 9 is two tiles from the start (0 → 4 → 9), tile 6 three.
+    editPlayer(0, { position: 6 });
+    editPlayer(1, { position: 9 });
+    useGameStore.setState({
+      activePlayerIndex: 1,
+      turnStage: "turn-end",
+      bulletBill: { status: "active", position: 0, spawnRound: 1 },
+    });
+    store().endTurn();
+
+    const victim = store().players[1];
+    expect(store().lastBulletFlight).toEqual(expect.objectContaining({ from: 0, path: [4, 9], victimId: victim.id }));
+    expect(store().bulletBill).toBeNull();
+    expect(victim.currency).toBe(STARTING_CURRENCY - BULLET_BILL_DAMAGE);
+  });
+
   it("records the hit so the board can play the explosion", () => {
     startTable(["built-like-a-tank", "troll"]);
     editPlayer(1, { position: 5 });
