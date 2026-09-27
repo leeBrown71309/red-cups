@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { MapId } from "../../game/types";
 import { PLAYER_COLORS } from "../../game/types";
 import { AudioToggles } from "../components/audio-controls";
+import { FullscreenButton } from "../components/fullscreen-button";
 import { GameLogo } from "../components/game-logo";
 import { PlayerAvatar } from "../components/player-avatar";
 import { CoinIcon, RedCupIcon } from "../icons/item-icon";
@@ -82,6 +83,7 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
         <button type="button" className="icon-button" onClick={() => setHelpOpen(true)} aria-label="Comment jouer">
           <UiIcon name="help" />
         </button>
+        <FullscreenButton />
       </div>
 
       <section className="lobby__hero">
@@ -162,10 +164,12 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
             </button>
           </div>
 
-          <button type="button" className="btn btn--cup btn--large lobby__start" onClick={() => setStep("map")}>
-            Suivant : la carte →
-          </button>
           <p className="lobby__note">Les passifs sont tirés au hasard au lancement.</p>
+          <div className="lobby__actions">
+            <button type="button" className="btn btn--cup btn--large lobby__start" onClick={() => setStep("map")}>
+              Suivant : la carte →
+            </button>
+          </div>
         </section>
       ) : (
         <section className="lobby__panel panel" aria-labelledby="lobby-map-title">

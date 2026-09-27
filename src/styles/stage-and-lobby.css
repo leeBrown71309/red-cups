@@ -120,6 +120,9 @@
   gap: clamp(16px, 3vw, 40px);
   padding: calc(clamp(16px, 4vh, 40px) + var(--safe-top)) calc(clamp(16px, 4vw, 56px) + var(--safe-right))
     calc(clamp(16px, 4vh, 40px) + var(--safe-bottom)) calc(clamp(16px, 4vw, 56px) + var(--safe-left));
+  /* dvh follows the height really visible when the iOS browser bars are showing. */
+  padding: calc(clamp(16px, 4dvh, 40px) + var(--safe-top)) calc(clamp(16px, 4vw, 56px) + var(--safe-right))
+    calc(clamp(16px, 4dvh, 40px) + var(--safe-bottom)) calc(clamp(16px, 4vw, 56px) + var(--safe-left));
   pointer-events: none;
 }
 
@@ -177,7 +180,11 @@
   gap: 12px;
   max-height: 100%;
   min-height: 0;
-  padding: 18px;
+  --panel-pad: 18px;
+  padding: var(--panel-pad);
+  /* When the screen is too short (iPhone with its browser bars), the card scrolls, never the page. */
+  overflow-y: auto;
+  overscroll-behavior: contain;
   animation: pop-in 600ms 120ms var(--ease-out) both;
 }
 
@@ -198,7 +205,9 @@
 .lobby__players {
   display: grid;
   gap: 8px;
-  min-height: 0;
+  /* The list shrinks first but always keeps about two rows in sight. */
+  flex: 1 1 auto;
+  min-height: 128px;
   padding: 2px 4px 4px 2px;
   overflow-y: auto;
 }
@@ -256,6 +265,30 @@
   width: 100%;
 }
 
+/* Stays pinned to the bottom of a scrolling card, so the way forward is always reachable. */
+.lobby__actions {
+  position: sticky;
+  /* Covers the card's bottom padding, redrawing its white keyline, so nothing scrolls into view below it. */
+  bottom: calc(-1 * var(--panel-pad));
+  z-index: 1;
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+  margin-bottom: calc(-1 * var(--panel-pad));
+  padding: 4px 0 var(--panel-pad);
+  background: var(--cream);
+  box-shadow: inset 0 -3px 0 var(--white);
+}
+
+.lobby__actions .btn {
+  flex: 1;
+}
+
+.lobby__actions .lobby__start {
+  flex: 2;
+  width: auto;
+}
+
 .lobby__note {
   color: var(--ink-soft);
   font-size: 0.82rem;
@@ -288,8 +321,17 @@
   }
 
   .lobby__panel {
+    --panel-pad: 12px;
     gap: 8px;
-    padding: 12px;
+  }
+
+  .lobby__players {
+    min-height: 100px;
+  }
+
+  /* Keeps the hero clear of the audio buttons that move to the bottom-left corner. */
+  .lobby__hero {
+    padding-bottom: 48px;
   }
 
   .lobby__panel-header h1 {
@@ -321,9 +363,19 @@
     display: none;
   }
 
-  .lobby__start {
+  /* hud.css shrinks every .btn on short screens: the lobby's main actions keep their size. */
+  .lobby .lobby__start,
+  .lobby .lobby__actions .btn {
     min-height: 50px;
     font-size: 1.1rem;
+  }
+}
+
+/* iPhone in the browser, bars showing: only what matters stays on the left. */
+@media (max-height: 360px) {
+  .lobby__tagline,
+  .lobby__facts {
+    display: none;
   }
 }
 
@@ -339,10 +391,14 @@
   inset: 0;
   z-index: 110;
   display: grid;
-  place-content: center;
+  /* safe center: on a short screen the content starts at the top and scrolls instead of being cut. */
+  place-content: safe center;
   justify-items: center;
   gap: 14px;
-  padding: 24px;
+  padding: calc(24px + var(--safe-top)) calc(24px + var(--safe-right)) calc(24px + var(--safe-bottom))
+    calc(24px + var(--safe-left));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background:
     radial-gradient(60% 60% at 50% 40%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 70%),
     linear-gradient(180deg, var(--backdrop-top), var(--backdrop-bottom));
@@ -378,7 +434,8 @@
   inset: 0;
   z-index: 100;
   display: none;
-  place-content: center;
+  place-content: safe center;
+  overflow-y: auto;
   justify-items: center;
   gap: 10px;
   padding: 24px;
