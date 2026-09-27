@@ -24,6 +24,7 @@ import {
   applyRemoteAction,
   buildOnlineGame,
   getPlayerIdOfUser,
+  hasLeftRoom,
   prepareLocalAction,
   type RoomWire,
 } from "./room-protocol";
@@ -255,7 +256,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.on("presence", { event: "join" }, ({ key }) => {
       if (key !== userId && get().view === "lobby") enqueue(resync);
     });
-    channel.on("presence", { event: "leave" }, ({ key }) => {
+    channel.on("presence", { event: "leave" }, ({ key, currentPresences }) => {
+      // A device that only updated its presence (voice chat) has not left.
+      if (!hasLeftRoom(currentPresences)) return;
       if (key !== userId && get().view === "lobby") enqueue(resync);
       if (key === userId || get().view !== "playing") return;
       const name = get().players.find((player) => player.userId === key)?.name;
