@@ -5,10 +5,6 @@
   gap: 8px;
 }
 
-.online .lobby__panel {
-  overflow-y: auto;
-}
-
 .online .lobby__hero {
   max-width: 420px;
 }
@@ -134,6 +130,12 @@
 
 .online__code {
   letter-spacing: 0.08em;
+}
+
+/* Code, link and shuffle share one row: short labels, the full ones live in aria-label/title. */
+.online__tools .btn {
+  padding: 0 10px;
+  white-space: nowrap;
 }
 
 .online__waiting {
@@ -423,15 +425,6 @@
   font-size: 0.82rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.online__voice {
-  margin-bottom: 0;
-  padding: 8px 12px;
-}
-
-.online__voice:empty {
-  display: none;
 }
 
 .icon-button.is-live {

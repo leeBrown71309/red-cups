@@ -4,7 +4,8 @@ import { useAccountStore } from "../../net/account-store";
 import { buildInviteLink, normalizeRoomCode, type RoomPlayer } from "../../net/room-api";
 import { useRoomStore } from "../../net/room-store";
 import { AudioToggles } from "../components/audio-controls";
-import { VoiceBadge, VoiceMicButton, VoiceSettingRow } from "../components/voice-controls";
+import { VoiceBadge, VoiceMicButton } from "../components/voice-controls";
+import { FullscreenButton } from "../components/fullscreen-button";
 import { GameLogo } from "../components/game-logo";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
@@ -37,6 +38,7 @@ export function OnlineScreen() {
       <div className="lobby__corner">
         <AudioToggles />
         <VoiceMicButton />
+        <FullscreenButton />
       </div>
 
       <section className="lobby__hero">
@@ -273,35 +275,41 @@ function RoomLobby() {
         </span>
       </header>
 
-      <div className="lobby__tools">
-        <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("code")}>
-          <UiIcon name={copied === "code" ? "check" : "copy"} size={18} />{" "}
-          {copied === "code" ? "Code copié !" : "Copier le code"}
+      {/* One compact row: the roster below gets the height back on landscape phones. */}
+      <div className="lobby__tools online__tools">
+        <button
+          type="button"
+          className="btn btn--cream btn--small"
+          onClick={() => void copy("code")}
+          aria-label="Copier le code"
+          title="Copier le code"
+        >
+          <UiIcon name={copied === "code" ? "check" : "copy"} size={18} /> {copied === "code" ? "Copié !" : "Code"}
         </button>
-        <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("link")}>
-          <UiIcon name={copied === "link" ? "check" : "link"} size={18} />{" "}
-          {copied === "link" ? "Lien copié !" : "Copier le lien"}
+        <button
+          type="button"
+          className="btn btn--cream btn--small"
+          onClick={() => void copy("link")}
+          aria-label="Copier le lien"
+          title="Copier le lien"
+        >
+          <UiIcon name={copied === "link" ? "check" : "link"} size={18} /> {copied === "link" ? "Copié !" : "Lien"}
         </button>
-      </div>
-
-      <RosterList players={players} hostId={hostId} myUserId={myUserId} />
-
-      {isHost && (
-        <div className="lobby__tools">
+        {isHost && (
           <button
             type="button"
             className="btn btn--cream btn--small"
             onClick={() => void shuffleOrder()}
             disabled={busy || players.length < MIN_PLAYERS}
+            aria-label="Mélanger l’ordre"
+            title="Mélanger l’ordre"
           >
-            <UiIcon name="dice" size={18} /> Mélanger l’ordre
+            <UiIcon name="dice" size={18} /> Mélanger
           </button>
-        </div>
-      )}
-
-      <div className="audio-sliders online__voice">
-        <VoiceSettingRow />
+        )}
       </div>
+
+      <RosterList players={players} hostId={hostId} myUserId={myUserId} />
 
       {me && (
         <details className="online__change-avatar">
@@ -317,26 +325,34 @@ function RoomLobby() {
         </details>
       )}
 
-      {isHost ? (
-        <button
-          type="button"
-          className="btn btn--cup btn--large lobby__start"
-          onClick={() => setPickingMap(true)}
-          disabled={busy || players.length < MIN_PLAYERS}
-        >
-          Suivant : la carte →
-        </button>
-      ) : (
-        <p className="online__waiting">En attente de l’hôte : il choisit la carte puis lance la partie…</p>
-      )}
+      {!isHost && <p className="online__waiting">En attente de l’hôte : il choisit la carte puis lance la partie…</p>}
       <p className="lobby__note">
         {players.length < MIN_PLAYERS
           ? "Il faut au moins deux joueurs. Partage le code ou le lien."
           : "L’ordre du tour est celui de la liste. Les passifs sont tirés au hasard."}
       </p>
-      <button type="button" className="btn btn--cream btn--small" onClick={() => void leave()} disabled={busy}>
-        <UiIcon name="logout" size={18} /> Quitter le salon
-      </button>
+      <div className="lobby__actions">
+        <button
+          type="button"
+          className="btn btn--cream lobby__leave"
+          onClick={() => void leave()}
+          disabled={busy}
+          aria-label="Quitter le salon"
+        >
+          <UiIcon name="logout" size={18} /> Quitter
+        </button>
+        {isHost && (
+          <button
+            type="button"
+            className="btn btn--cup lobby__start"
+            onClick={() => setPickingMap(true)}
+            disabled={busy || players.length < MIN_PLAYERS}
+            aria-label="Suivant : choisir la carte"
+          >
+            Suivant →
+          </button>
+        )}
+      </div>
     </>
   );
 }
