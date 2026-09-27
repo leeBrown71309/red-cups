@@ -28,6 +28,16 @@ import {
   type RoomWire,
 } from "./room-protocol";
 import { ensureSession, getSupabase } from "./supabase-client";
+import {
+  attachVoice,
+  detachVoice,
+  getVoicePresence,
+  handleVoiceWire,
+  joinVoiceIfEnabled,
+  readVoicePresence,
+  updateVoicePresence,
+  type VoiceWire,
+} from "./voice";
 
 /**
  * The online room this device sits at, and the plumbing behind it: the
@@ -120,6 +130,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
       seatOrder: room.seatOrder,
       version: room.version,
     });
+    // A finished game is never come back to: a reload must not bring its room back.
+    if (room.status === "over") rememberRoom(null);
     if (room.status !== "lobby" && room.state) {
       useGameStore.getState().adoptGame(room.state);
       set({ view: "playing" });
@@ -158,6 +170,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
       if (await advanceRoom(code, nextState, version)) {
         useGameStore.getState().adoptGame(nextState);
         set({ version: version + 1, status: nextState.phase === "finished" ? "over" : "playing" });
+        if (nextState.phase === "finished") rememberRoom(null);
         broadcast({ kind: "action", action, fromVersion: version, senderId: myUserId });
         return;
       }
@@ -180,6 +193,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
         if (outcome.kind === "applied") {
           useGameStore.getState().adoptGame(outcome.state);
           set({ version: outcome.version, status: outcome.state.phase === "finished" ? "over" : "playing" });
+          if (outcome.state.phase === "finished") rememberRoom(null);
         } else if (outcome.kind === "resync") {
           await resync();
         }
@@ -217,10 +231,20 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel = supabase.channel(`room:${code}`, {
       config: { private: true, broadcast: { self: false }, presence: { key: userId } },
     });
+    const announce = () => void channel?.track({ at: Date.now(), ...getVoicePresence() });
+    attachVoice({
+      selfId: userId,
+      send: (wire) => void channel?.send({ type: "broadcast", event: "voice", payload: wire }),
+      announce,
+    });
+
     channel.on("broadcast", { event: "room" }, ({ payload }) => enqueue(() => handleWire(payload as RoomWire)));
+    // Voice signalling skips the game queue: a call must not wait behind a resync.
+    channel.on("broadcast", { event: "voice" }, ({ payload }) => void handleVoiceWire(payload as VoiceWire));
     channel.on("presence", { event: "sync" }, () => {
-      const presence = channel?.presenceState() ?? {};
+      const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
+      updateVoicePresence(readVoicePresence(presence));
     });
     // In the lobby, somebody arriving or leaving also refreshes the roster, in case its broadcast was lost.
     channel.on("presence", { event: "join" }, ({ key }) => {
@@ -235,7 +259,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         set({ connection: "online" });
-        void channel?.track({ at: Date.now() });
+        announce();
+        joinVoiceIfEnabled();
         // Back after a drop: whatever was broadcast meanwhile is in the snapshot.
         if (hasSubscribed) enqueue(resync);
         hasSubscribed = true;
@@ -250,6 +275,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
 
   const disconnect = async () => {
     setActionRelay(null);
+    detachVoice();
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
     if (channel) await getSupabase().removeChannel(channel);
@@ -327,6 +353,11 @@ export const useRoomStore = create<RoomState>((set, get) => {
         await ensureSession();
         const room = await fetchRoom(code);
         if (!room) throw new Error("Aucun salon avec ce code.");
+        // The players still at the table keep their standings; nobody else comes back to it.
+        if (room.status === "over") {
+          if (room.isPlayer) await leaveRoom(code).catch(() => undefined);
+          throw new Error("Cette partie est terminée.");
+        }
         if (room.isPlayer) {
           set({ myUserId: await ensureSession() });
           rememberRoom(code);

@@ -28,6 +28,11 @@ export function getPlayerIdOfUser(seatOrder: string[], userId: string): PlayerId
   return seat < 0 ? null : getSeatPlayerId(seat);
 }
 
+/** The user playing an engine player, the other way round. */
+export function getUserIdOfPlayer(seatOrder: string[], playerId: PlayerId): string | null {
+  return seatOrder.find((_, seat) => getSeatPlayerId(seat) === playerId) ?? null;
+}
+
 /**
  * The state this device's action leads to, or null when it may not play it
  * (not its turn, or refused by the rules). Nothing is sent in that case.

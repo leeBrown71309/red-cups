@@ -4,6 +4,7 @@ import { useAccountStore } from "../../net/account-store";
 import { buildInviteLink, normalizeRoomCode, type RoomPlayer } from "../../net/room-api";
 import { useRoomStore } from "../../net/room-store";
 import { AudioToggles } from "../components/audio-controls";
+import { VoiceBadge, VoiceSettingRow } from "../components/voice-controls";
 import { GameLogo } from "../components/game-logo";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
@@ -258,6 +259,10 @@ function RoomLobby() {
         </div>
       )}
 
+      <div className="audio-sliders online__voice">
+        <VoiceSettingRow />
+      </div>
+
       {me && (
         <details className="online__change-avatar">
           <summary>Changer d’avatar</summary>
@@ -319,6 +324,7 @@ function RosterList({
               {player.userId === myUserId && <em> (toi)</em>}
             </span>
             <span className="online-player__badges">
+              <VoiceBadge userId={player.userId} />
               {player.userId === hostId && <UiIcon name="crown" size={18} />}
               {myUserId && (
                 <span

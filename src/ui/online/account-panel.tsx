@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useAccountStore } from "../../net/account-store";
 import { UiIcon } from "../icons/ui-icon";
+import { GameHistoryModal } from "./game-history";
 import { ONLINE_NAME_MAX_LENGTH } from "./online-name";
 
 /**
  * Guest or Google account. An account keeps its profile name from one visit
- * to the next; that is all a profile holds for now.
+ * to the next, and the history of its online games.
  */
 export function AccountPanel() {
   const kind = useAccountStore((state) => state.kind);
@@ -14,6 +15,7 @@ export function AccountPanel() {
   const busy = useAccountStore((state) => state.busy);
   const signInWithGoogle = useAccountStore((state) => state.signInWithGoogle);
   const signOut = useAccountStore((state) => state.signOut);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (kind !== "google") {
     return (
@@ -22,7 +24,7 @@ export function AccountPanel() {
           <UiIcon name="user" size={22} />
           <div>
             <strong>Tu joues en invité</strong>
-            <span>Connecte-toi pour garder ton nom de profil.</span>
+            <span>Connecte-toi pour garder ton nom et l’historique de tes parties.</span>
           </div>
         </div>
         <button type="button" className="btn btn--cream btn--small" onClick={signInWithGoogle} disabled={busy}>
@@ -52,6 +54,10 @@ export function AccountPanel() {
         </button>
       </div>
       <ProfileNameForm key={displayName ?? ""} initialName={displayName ?? ""} />
+      <button type="button" className="btn btn--cream btn--small" onClick={() => setHistoryOpen(true)}>
+        <UiIcon name="journal" size={18} /> Mes parties
+      </button>
+      {historyOpen && <GameHistoryModal onClose={() => setHistoryOpen(false)} />}
     </section>
   );
 }

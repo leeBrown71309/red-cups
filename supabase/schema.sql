@@ -63,9 +63,44 @@ create table if not exists public.profiles (
   )
 );
 
+-- ----------------------------------------------------------------- history
+--
+-- A game played online, kept after its room is gone. Only games with at
+-- least one Google account at the table are recorded: a guest has no
+-- identity to come back with, so nobody could ever read a guests-only game.
+-- Ranks, winner and rounds are read from `final` on the device, so the
+-- rules are never written a second time in SQL.
+create table if not exists public.games (
+  id         uuid primary key default gen_random_uuid(),
+  room_code  text not null,
+  status     text not null default 'playing' check (status in ('playing', 'finished', 'unfinished')),
+  started_at timestamptz not null default now(),
+  ended_at   timestamptz,
+  final      jsonb                           -- the last GameState, without its log
+);
+
+-- One row per chair. `seat` is the engine's player index (player id `p<seat+1>`).
+-- The history belongs to the auth account rather than to its profile, so an
+-- account that never picked a profile name still finds its games.
+create table if not exists public.game_seats (
+  game_id    uuid not null references public.games(id) on delete cascade,
+  seat       smallint not null check (seat >= 0 and seat < 8),
+  account_id uuid references auth.users(id) on delete set null,
+  name       text not null,
+  avatar     smallint not null,
+  primary key (game_id, seat)
+);
+
+create index if not exists game_seats_account on public.game_seats (account_id, game_id);
+
+-- Not a foreign key: the room row is deleted while its game is being closed.
+alter table public.rooms add column if not exists game_id uuid;
+
 alter table public.rooms enable row level security;
 alter table public.room_players enable row level security;
 alter table public.profiles enable row level security;
+alter table public.games enable row level security;
+alter table public.game_seats enable row level security;
 
 -- --------------------------------------------------------------- functions
 --
@@ -242,7 +277,8 @@ begin
 end;
 $$;
 
--- Leaving. A lobby whose host walks out closes; a game under way goes on.
+-- Leaving. A lobby whose host walks out closes; a game under way goes on;
+-- a finished game closes with its last player, since nobody may come back to it.
 create or replace function public.leave_room(p_code text)
 returns void
 language plpgsql
@@ -257,6 +293,9 @@ begin
   end if;
   delete from public.room_players where room_code = p_code and user_id = me;
   delete from public.rooms where code = p_code and host_id = me and status = 'lobby';
+  delete from public.rooms r
+   where r.code = p_code and r.status = 'over'
+     and not exists (select 1 from public.room_players p where p.room_code = r.code);
 end;
 $$;
 
@@ -297,6 +336,7 @@ declare
   listed   integer := jsonb_array_length(p_seat_order);
   seated   integer;
   matching integer;
+  game     uuid;
 begin
   if not exists (select 1 from public.rooms where code = p_code and host_id = me and status = 'lobby') then
     raise exception 'Seul l''hôte peut lancer la partie' using errcode = '42501';
@@ -310,8 +350,24 @@ begin
     raise exception 'La liste des joueurs a changé : relance la partie' using errcode = '22023';
   end if;
 
+  -- The history opens with the game, if a Google account sits at the table.
+  if exists (
+    select 1 from public.room_players p join auth.users u on u.id = p.user_id
+     where p.room_code = p_code and u.is_anonymous is not true
+  ) then
+    insert into public.games (room_code) values (p_code) returning id into game;
+    insert into public.game_seats (game_id, seat, account_id, name, avatar)
+    select game, (o.idx - 1)::smallint,
+           case when u.is_anonymous is not true then p.user_id end,
+           p.name, p.avatar
+      from jsonb_array_elements_text(p_seat_order) with ordinality as o(client, idx)
+      join public.room_players p on p.room_code = p_code and p.user_id::text = o.client
+      left join auth.users u on u.id = p.user_id;
+  end if;
+
   update public.rooms
-     set status = 'playing', state = p_state, version = 1, seat_order = p_seat_order, updated_at = now()
+     set status = 'playing', state = p_state, version = 1, seat_order = p_seat_order, game_id = game,
+         updated_at = now()
    where code = p_code;
 
   update public.room_players p
@@ -332,7 +388,8 @@ security definer
 set search_path = public
 as $$
 declare
-  hit integer;
+  game uuid;
+  hit  integer;
 begin
   if not public.is_room_player(p_code, auth.uid()) then
     raise exception 'Tu ne joues pas dans ce salon' using errcode = '42501';
@@ -345,9 +402,88 @@ begin
          version = p_from + 1,
          status = case when p_state->>'phase' = 'finished' then 'over' else 'playing' end,
          updated_at = now()
-   where code = p_code and version = p_from and status = 'playing';
+   where code = p_code and version = p_from and status = 'playing'
+  returning game_id into game;
   get diagnostics hit = row_count;
+
+  if hit = 1 and p_state->>'phase' = 'finished' then
+    perform public.close_game(game, p_state, 'finished', now());
+  end if;
   return hit = 1;
+end;
+$$;
+
+-- ----------------------------------------------------------------- history
+
+-- Writes a game's end once: a finished game is never turned into an
+-- unfinished one when its room is deleted afterwards. Called by the
+-- functions above only, never by a device.
+create or replace function public.close_game(p_game uuid, p_state jsonb, p_status text, p_at timestamptz)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.games
+     set status = p_status, ended_at = p_at, final = p_state - 'log'
+   where id = p_game and status = 'playing';
+$$;
+
+-- A room deleted during its game (every player gone quiet) leaves the game unfinished.
+create or replace function public.close_game_with_room()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if old.game_id is not null then
+    perform public.close_game(old.game_id, old.state, 'unfinished', old.updated_at);
+  end if;
+  return old;
+end;
+$$;
+
+drop trigger if exists rooms_close_game on public.rooms;
+create trigger rooms_close_game before delete on public.rooms
+  for each row execute function public.close_game_with_room();
+
+-- The caller's latest games, newest first. The other players are only named
+-- as they sat at the table: no other account's id ever leaves the database.
+create or replace function public.get_my_games(p_limit integer default 20)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if me is null then
+    raise exception 'Identité manquante' using errcode = '28000';
+  end if;
+
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', g.id,
+      'status', g.status,
+      'started_at', g.started_at,
+      'ended_at', g.ended_at,
+      'final', g.final,
+      'my_seat', (select min(s.seat) from public.game_seats s where s.game_id = g.id and s.account_id = me),
+      'seats', (
+        select jsonb_agg(jsonb_build_object('seat', s.seat, 'name', s.name, 'avatar', s.avatar) order by s.seat)
+          from public.game_seats s where s.game_id = g.id
+      )
+    ) order by g.started_at desc)
+    from (
+      select * from public.games g
+       where exists (select 1 from public.game_seats s where s.game_id = g.id and s.account_id = me)
+       order by g.started_at desc
+       limit least(greatest(coalesce(p_limit, 20), 1), 50)
+    ) g
+  ), '[]'::jsonb);
 end;
 $$;
 
@@ -439,10 +575,19 @@ begin
     'public.advance_room(text, jsonb, integer)',
     'public.get_my_profile()',
     'public.save_profile(text)',
+    'public.get_my_games(integer)',
     'public.is_room_player(text, uuid)'
   ] loop
     execute format('revoke execute on function %s from public, anon', fn);
     execute format('grant execute on function %s to authenticated', fn);
+  end loop;
+
+  -- Nobody may close a game by hand: only the room functions and the trigger do.
+  foreach fn in array array[
+    'public.close_game(uuid, jsonb, text, timestamptz)',
+    'public.close_game_with_room()'
+  ] loop
+    execute format('revoke execute on function %s from public, anon, authenticated', fn);
   end loop;
 end;
 $$;
