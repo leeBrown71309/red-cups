@@ -38,14 +38,16 @@ function distanceToCup(store: GameStore, nodeId: NodeId): number {
 interface ItemOption {
   entry: InventoryEntry & { kind: "item" };
   targetId?: PlayerId;
+  /** A whole volley of Tomates, or part of the stack. */
+  count?: number;
 }
 
 function useItemAction(store: GameStore, option: ItemOption): BotAction {
   const userId = getActivePlayer(store)?.id ?? "";
   return {
     label: `use:${option.entry.itemId}`,
-    perform: (current) => current.useItem(option.entry.id, option.targetId),
-    item: { itemId: option.entry.itemId, userId, targetPlayerId: option.targetId },
+    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count),
+    item: { itemId: option.entry.itemId, userId, targetPlayerId: option.targetId, count: option.count },
   };
 }
 
@@ -57,9 +59,11 @@ function listUsableItems(store: GameStore): ItemOption[] {
     if (ITEM_CATALOG[entry.itemId].target !== "player") {
       return planItemUse(store, entry.id) ? [{ entry }] : [];
     }
+    // A stack is thrown all at once: the table picks the volley's size in the dialog, the bot empties it.
+    const count = entry.count ?? 1;
     return store.players
-      .filter((target) => planItemUse(store, entry.id, target.id) !== null)
-      .map((target) => ({ entry, targetId: target.id }));
+      .filter((target) => planItemUse(store, entry.id, target.id, count) !== null)
+      .map((target) => ({ entry, targetId: target.id, ...(count > 1 ? { count } : {}) }));
   });
 }
 

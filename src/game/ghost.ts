@@ -1,10 +1,10 @@
 import { getBoard } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
-import { drawEngineRandom } from "./engine-random";
+import { createEngineId, drawEngineRandom } from "./engine-random";
 import { settleBoard, sendPlayerToHell } from "./game-effects";
 import { getBoardMap } from "./maps/map-registry";
-import { countItemCopies, getInventoryCapacity } from "./rules";
+import { canAddItem, countItemCopies, getInventoryCapacity } from "./rules";
 import {
   addLog,
   appendItem,
@@ -12,7 +12,7 @@ import {
   findPlayer,
   getActivePlayer,
   randomChoice,
-  removeInventoryEntry,
+  spendItemEntry,
   updatePlayer,
 } from "./state-utils";
 import type { GameState, GhostPenalty, GhostReward, GhostState, NodeId, Player, PlayerId, TurnStage } from "./types";
@@ -21,14 +21,17 @@ import {
   GHOST_EMPTY_LOOT_REWARD,
   GHOST_ID,
   GHOST_LOOT_COINS,
+  GHOST_MAX_DRIFT_STEPS,
   GHOST_STEAL_COINS,
+  GHOST_TELEPORT_CHANCE,
+  GHOST_TELEPORT_MIN_DISTANCE,
   HELL_NODE_ID,
 } from "./types";
 
 /**
- * Luna Park's ghost haunts the four carousel tiles. It shows up a round or
- * two into the game, then moves one tile along the ride at every turn change,
- * so the table can see it coming: chase it for its loot, or keep away. When
+ * Luna Park's ghost haunts the whole board. It shows up a round or two into
+ * the game, then at every turn change drifts a few tiles along the roads,
+ * whichever way they run, or vanishes and reappears far away. When
  * it lands on a player, or a player stops on its tile, the two duel. Winning
  * it steals (Hell, coins or an item, kept as loot); losing, it gives back one
  * piece of that loot, or pays a reward when it has none, then goes away for a
@@ -38,19 +41,10 @@ import {
 
 /** The ghost of a new game, or null on maps it does not haunt. */
 export function createGhost(state: GameState): GhostState | null {
-  if (!getBoardMap(state.mapId).ghostTiles) return null;
+  if (!getBoardMap(state.mapId).haunted) return null;
   // First seen in round 2 or 3: the table gets a round to spread out before it.
   const returnsAtRound = state.round + 1 + (drawEngineRandom() < 0.5 ? 0 : 1);
   return { nodeId: null, returnsAtRound, loot: { coins: 0, items: [] }, metPlayerIds: [] };
-}
-
-/** The carousel tile after `nodeId`, the way the ride currently turns. */
-export function getNextGhostTile(state: GameState, nodeId: NodeId): NodeId {
-  const tiles = getBoardMap(state.mapId).ghostTiles ?? [];
-  const next = getBoard(state).edges.find(
-    (edge) => edge.kind === "carousel" && edge.from === nodeId && tiles.includes(edge.to),
-  );
-  return next?.to ?? nodeId;
 }
 
 function withGhost(state: GameState, ghost: GhostState): GameState {
@@ -61,38 +55,122 @@ function recordGhostEvent(state: GameState, event: Omit<NonNullable<GameState["l
   return { ...state, lastGhostEvent: { seq: (state.lastGhostEvent?.seq ?? 0) + 1, ...event } };
 }
 
+/** Every tile the ghost may haunt: the whole board but Hell. */
+function getHauntedTiles(state: GameState): NodeId[] {
+  return getBoardMap(state.mapId).haunted ? getBoard(state).normalNodeIds : [];
+}
+
+/** Tiles one road away, whichever way the road runs: arrows, tunnels and the carousel do not bind a ghost. */
+function getGhostNeighbors(state: GameState, nodeId: NodeId): NodeId[] {
+  const neighbors = getBoard(state).edges.flatMap((edge) =>
+    edge.from === nodeId ? [edge.to] : edge.to === nodeId ? [edge.from] : [],
+  );
+  return [...new Set(neighbors)].filter((neighbor) => neighbor !== HELL_NODE_ID);
+}
+
+/** Roads between two tiles for a ghost, which takes any road either way. */
+function getGhostDistances(state: GameState, from: NodeId): Map<NodeId, number> {
+  const distances = new Map<NodeId, number>([[from, 0]]);
+  const queue = [from];
+  while (queue.length > 0) {
+    const nodeId = queue.shift()!;
+    for (const neighbor of getGhostNeighbors(state, nodeId)) {
+      if (distances.has(neighbor)) continue;
+      distances.set(neighbor, (distances.get(nodeId) ?? 0) + 1);
+      queue.push(neighbor);
+    }
+  }
+  return distances;
+}
+
+/**
+ * One to three tiles along the roads, picked at random at every crossroads
+ * and never straight back where it came from unless the road ends there.
+ */
+function drawGhostDrift(state: GameState, from: NodeId): NodeId[] {
+  const steps = 1 + Math.floor(drawEngineRandom() * GHOST_MAX_DRIFT_STEPS);
+  const path: NodeId[] = [];
+  let previous: NodeId | null = null;
+  let current = from;
+  for (let step = 0; step < steps; step += 1) {
+    const neighbors = getGhostNeighbors(state, current);
+    const onwards = neighbors.filter((neighbor) => neighbor !== previous);
+    const next = randomChoice(onwards.length > 0 ? onwards : neighbors);
+    if (next === undefined) break;
+    path.push(next);
+    previous = current;
+    current = next;
+  }
+  return path;
+}
+
+/** A tile far across the board, the way a ghost vanishes and turns up somewhere else. */
+function drawGhostTeleport(state: GameState, from: NodeId): NodeId | undefined {
+  const distances = getGhostDistances(state, from);
+  const others = getHauntedTiles(state).filter((nodeId) => nodeId !== from);
+  const far = others.filter((nodeId) => (distances.get(nodeId) ?? Infinity) >= GHOST_TELEPORT_MIN_DISTANCE);
+  return randomChoice(far.length > 0 ? far : others);
+}
+
 /**
  * Turn change: an absent ghost comes back once its round has come, on a free
- * carousel tile if there is one; a present one rides one tile on.
+ * tile if there is one. A present one is no slave to the roads: it mostly
+ * drifts one to three tiles along them, whichever way they run, and now and
+ * then vanishes to reappear far across the board.
  */
 export function advanceGhost(state: GameState): GameState {
   const ghost = state.ghost;
-  const tiles = getBoardMap(state.mapId).ghostTiles;
-  if (!ghost || !tiles || state.phase !== "playing") return state;
+  const tiles = getHauntedTiles(state);
+  if (!ghost || tiles.length === 0 || state.phase !== "playing") return state;
 
   if (ghost.nodeId === null) {
     if (state.round < ghost.returnsAtRound) return state;
     const occupied = new Set(state.players.map((player) => player.position));
     const tile = randomChoice(tiles.filter((nodeId) => !occupied.has(nodeId))) ?? randomChoice(tiles) ?? tiles[0];
     const appeared = withGhost(state, { ...ghost, nodeId: tile, metPlayerIds: [] });
-    const logged = addLog(appeared, `Un fantôme surgit sur la case ${tile} du carrousel !`, "event");
+    const logged = addLog(appeared, `Un fantôme surgit sur la case ${tile} !`, "event");
     return recordGhostEvent(logged, { kind: "appear", from: null, to: tile });
   }
 
-  const next = getNextGhostTile(state, ghost.nodeId);
-  const moved = withGhost(state, { ...ghost, nodeId: next, metPlayerIds: [] });
-  return recordGhostEvent(moved, { kind: "move", from: ghost.nodeId, to: next });
+  const from = ghost.nodeId;
+  const teleportTo = drawEngineRandom() < GHOST_TELEPORT_CHANCE ? drawGhostTeleport(state, from) : undefined;
+  if (teleportTo !== undefined) {
+    const teleported = withGhost(state, { ...ghost, nodeId: teleportTo, metPlayerIds: [] });
+    const logged = addLog(teleported, `Le fantôme disparaît… et réapparaît en case ${teleportTo} !`, "event");
+    return recordGhostEvent(logged, { kind: "teleport", from, to: teleportTo });
+  }
+
+  const path = drawGhostDrift(state, from);
+  const to = path[path.length - 1] ?? from;
+  const moved = withGhost(state, { ...ghost, nodeId: to, metPlayerIds: [] });
+  return recordGhostEvent(moved, { kind: "move", from, to, path });
+}
+
+/**
+ * A player in Hell has suffered enough: whoever gets out of it (Bouteille
+ * d’eau, Monopoly Man, New Cup, New Me…) and lands on the ghost's tile is left
+ * alone until the ghost rides on. Run before every action, it counts everyone
+ * standing in Hell at that moment as already met.
+ */
+export function spareHellPlayers(state: GameState): GameState {
+  const ghost = state.ghost;
+  if (!ghost || ghost.nodeId === null || state.phase !== "playing") return state;
+  const spared = state.players
+    .filter((player) => player.position === HELL_NODE_ID && !ghost.metPlayerIds.includes(player.id))
+    .map((player) => player.id);
+  return spared.length === 0 ? state : withGhost(state, { ...ghost, metPlayerIds: [...ghost.metPlayerIds, ...spared] });
 }
 
 /**
  * Who the ghost duels now: a player on its tile it has not met there yet,
- * the one whose turn it is first, then in seat order.
+ * the one whose turn it is first, then in seat order. Never anybody in Hell.
  */
 export function findGhostOpponent(state: GameState): Player | undefined {
   const ghost = state.ghost;
   if (!ghost || ghost.nodeId === null) return undefined;
   const candidates = state.players.filter(
-    (player) => player.position === ghost.nodeId && !ghost.metPlayerIds.includes(player.id),
+    (player) =>
+      player.position === ghost.nodeId && player.position !== HELL_NODE_ID && !ghost.metPlayerIds.includes(player.id),
   );
   const active = getActivePlayer(state);
   return candidates.find((player) => player.id === active?.id) ?? candidates[0];
@@ -100,6 +178,9 @@ export function findGhostOpponent(state: GameState): Player | undefined {
 
 /** An item the winner may hold: never a third copy, never a second Gomme; a full bag makes room. */
 function canTakeLootItem(player: Player, itemId: GhostState["loot"]["items"][number]["itemId"]): boolean {
+  if (canAddItem(player, itemId)) return true;
+  // A full stack of Tomates cannot take one more, whatever is thrown away.
+  if (ITEM_CATALOG[itemId].stackLimit && countItemCopies(player, itemId) > 0) return false;
   const copies = countItemCopies(player, itemId);
   if (copies >= 2 || (itemId === "eraser" && copies >= 1)) return false;
   const bagFull = player.inventory.length >= getInventoryCapacity(player);
@@ -171,7 +252,7 @@ function applyReward(state: GameState, player: Player, reward: GhostReward): Gam
 
   const loot = { ...ghost.loot, items: ghost.loot.items.filter((entry) => entry.id !== reward.entryId) };
   const nextState = withGhost(state, { ...ghost, loot });
-  if (player.inventory.length >= getInventoryCapacity(player)) {
+  if (!canAddItem(player, reward.itemId)) {
     return {
       ...nextState,
       turnStage: "discard",
@@ -211,9 +292,10 @@ function applyPenalty(state: GameState, player: Player, penalty: GhostPenalty): 
     }
     case "item": {
       if (!player.inventory.some((entry) => entry.id === penalty.entryId)) return state;
-      const loot = { ...ghost.loot, items: [...ghost.loot.items, { id: penalty.entryId, itemId: penalty.itemId }] };
+      // One item only: a stack of Tomates loses a single one.
+      const loot = { ...ghost.loot, items: [...ghost.loot.items, { id: createEngineId(), itemId: penalty.itemId }] };
       const nextState = updatePlayer(withGhost(state, { ...ghost, loot }), player.id, (current) =>
-        removeInventoryEntry(current, penalty.entryId),
+        spendItemEntry(current, penalty.entryId),
       );
       return addLog(nextState, `Le fantôme vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}.`, "bad");
     }

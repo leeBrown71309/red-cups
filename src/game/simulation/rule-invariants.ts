@@ -1,8 +1,15 @@
 import { earnsStartBonus, getBoard, getNeighbors, hasCarousel, isIce } from "../board";
-import { ITEM_ORDER } from "../catalog";
-import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
+import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
+import {
+  countItemCopies,
+  countItemUnits,
+  countRedCups,
+  getInventoryCapacity,
+  getTileWheel,
+  isShopNode,
+} from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
-import type { GameState, ItemId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
+import type { GameState, ItemId, NodeId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
   CURRENCY_RESET_THRESHOLD,
   FIRST_ROUND,
@@ -11,6 +18,7 @@ import {
   NO_THANKS_COOLDOWN_ROUNDS,
   RED_CUP_GOAL,
   GHOST_ID,
+  GHOST_MAX_DRIFT_STEPS,
   START_NODE_ID,
 } from "../types";
 import { getBoardMap } from "../maps/map-registry";
@@ -61,6 +69,11 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   }
   for (const itemId of ITEM_ORDER) {
     const copies = countItemCopies(player, itemId);
+    const stackLimit = ITEM_CATALOG[itemId].stackLimit;
+    if (stackLimit && copies > 1) found.push(violation("one-stack", `${name} fills ${copies} slots with ${itemId}`));
+    if (stackLimit && countItemUnits(player, itemId) > stackLimit) {
+      found.push(violation("stack-limit", `${name} piles ${countItemUnits(player, itemId)} × ${itemId}`));
+    }
     if (copies > 2) found.push(violation("no-third-copy", `${name} has ${copies} × ${itemId}`));
     if (itemId === "eraser" && copies > 1) found.push(violation("single-eraser", `${name} has ${copies} Gommes`));
     if (itemId === "bullet-bill" && copies > 0) {
@@ -313,18 +326,18 @@ function checkGhostFling(previous: GameState, next: GameState, movement: PlayerM
   }
 }
 
-/** Luna Park: the ghost stays on the carousel tiles, keeps real loot and never duels a player twice in a row. */
+/** Luna Park: the ghost stays out of Hell, keeps real loot and never duels a player twice in a row. */
 function checkGhost(state: GameState, found: RuleViolation[]): void {
   const ghost = state.ghost;
-  const tiles = getBoardMap(state.mapId).ghostTiles;
-  if (!tiles) {
+  const tiles = getBoard(state).normalNodeIds;
+  if (!getBoardMap(state.mapId).haunted) {
     if (ghost) found.push(violation("ghost-map", `a ghost haunts ${state.mapId}`));
     return;
   }
   if (state.phase === "playing" && !ghost) found.push(violation("ghost-exists", "Luna Park lost its ghost"));
   if (!ghost) return;
   if (ghost.nodeId !== null && !tiles.includes(ghost.nodeId)) {
-    found.push(violation("ghost-tile", `the ghost stands on tile ${ghost.nodeId}, off the carousel`));
+    found.push(violation("ghost-tile", `the ghost stands on tile ${ghost.nodeId}, off the board`));
   }
   if (ghost.loot.coins < 0) found.push(violation("ghost-loot", `the ghost holds ${ghost.loot.coins} coins`));
   const duel = state.pendingDuel;
@@ -333,6 +346,30 @@ function checkGhost(state: GameState, found: RuleViolation[]): void {
   }
   if (duel && duel.playerTwoId === GHOST_ID && !duel.ghost) {
     found.push(violation("ghost-stakes", "the ghost duels with nothing at stake"));
+  }
+}
+
+/** Luna Park: a drift follows real roads (either way, 1 to 3 of them); a teleport really goes somewhere else. */
+function checkGhostMove(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const deed = next.lastGhostEvent;
+  if (!deed || deed.seq === previous.lastGhostEvent?.seq) return;
+  if (deed.kind === "teleport" && (deed.from === deed.to || deed.to === HELL_NODE_ID)) {
+    found.push(violation("ghost-teleport", `the ghost teleported from ${deed.from} to ${deed.to}`));
+  }
+  if (deed.kind !== "move") return;
+  const path = deed.path ?? [];
+  const edges = getBoard(previous).edges;
+  const linked = (a: NodeId, b: NodeId) =>
+    edges.some((edge) => (edge.from === a && edge.to === b) || (edge.from === b && edge.to === a));
+  let from = deed.from;
+  for (const step of path) {
+    if (from === null || step === HELL_NODE_ID || !linked(from, step)) {
+      found.push(violation("ghost-drift", `the ghost drifted ${from} → ${step} off the roads`));
+    }
+    from = step;
+  }
+  if (path.length < 1 || path.length > GHOST_MAX_DRIFT_STEPS || path[path.length - 1] !== deed.to) {
+    found.push(violation("ghost-drift-length", `the ghost drifted ${path.length} tiles`));
   }
 }
 
@@ -559,6 +596,8 @@ export interface AppliedItem {
   itemId: ItemId;
   userId: PlayerId;
   targetPlayerId?: PlayerId;
+  /** Tomates thrown at once. */
+  count?: number;
 }
 
 function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem, found: RuleViolation[]): void {
@@ -570,8 +609,8 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   if (!user || !userAfter) return;
   const label = `${user.name} used ${item.itemId}`;
 
-  // Je note never copies an item its holder used on themselves: the bag always loses it.
-  if (countItemCopies(userAfter, item.itemId) !== countItemCopies(user, item.itemId) - 1) {
+  // Je note never copies an item its holder used on themselves: the bag always loses it (one of a stack).
+  if (countItemUnits(userAfter, item.itemId) !== countItemUnits(user, item.itemId) - (item.count ?? 1)) {
     found.push(violation("item-consumed", `${label} but the bag did not lose it`));
   }
 
@@ -606,6 +645,22 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
         found.push(violation("monopoly-man-no-arrival", `${label}: the swap led to ${next.turnStage}`));
       }
       break;
+    case "tomato": {
+      // Je note may have its holder make room for the copied Tomate first.
+      const copyDiscard = next.turnStage === "discard" && next.pendingDiscard?.itemId === "tomato";
+      const stageChanged = next.turnStage !== previous.turnStage && !copyDiscard;
+      if (stageChanged || next.turnActionTaken !== previous.turnActionTaken) {
+        found.push(
+          violation("tomato-keeps-turn", `${label}: the turn went from ${previous.turnStage} to ${next.turnStage}`),
+        );
+      }
+      const stunned = next.lastTomatoThrow?.stunned === true;
+      const skipped = (targetAfter?.skippedTurns ?? 0) - (target?.skippedTurns ?? 0);
+      if (target?.id === user.id || skipped !== (stunned ? 1 : 0)) {
+        found.push(violation("tomato", `${label}: target skipped ${skipped} turn(s), stunned ${stunned}`));
+      }
+      break;
+    }
     case "draven":
       if (next.players.some((player) => player.position !== HELL_NODE_ID)) {
         found.push(violation("draven", `${label}: someone escaped the trip to Hell`));
@@ -686,5 +741,6 @@ export function checkTransition(previous: GameState, next: GameState, appliedIte
   checkAbandon(previous, next, found);
   checkMudReward(previous, next, found);
   checkGhostDuelResult(previous, next, found);
+  checkGhostMove(previous, next, found);
   return found;
 }

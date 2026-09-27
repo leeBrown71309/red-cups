@@ -102,9 +102,10 @@ Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origin
 - **Flèches** : 0 → 1 ou 12 ; 5 → 0 (seule entrée qui paie les 200 du départ) ; 8 → 3.
 - **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
 - **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
-- **Le fantôme** (patch 0.1.3) hante les cases du carrousel 1 à 4 :
-  - il apparaît au tour de table 2 ou 3, sur une case du carrousel libre si possible, puis avance d’une case **dans le sens du manège** à chaque changement de tour : on le voit venir, on peut le chasser ou l’éviter ;
-  - s’il arrive sur un joueur, ou si un joueur s’arrête sur sa case (en marchant, téléporté ou tiré), un **duel contre le fantôme** commence avant la roue de la case. Il affronte chaque joueur de sa case une fois par arrêt, le joueur actif d’abord ;
+- **Le fantôme** (patch 0.1.3) hante **tout le plateau**, sauf l’Enfer, sans respecter les routes :
+  - il apparaît au tour de table 2 ou 3, sur une case libre si possible ;
+  - à chaque changement de tour, trois fois sur quatre il **glisse de 1 à 3 cases** le long des routes, dans n’importe quel sens (flèches, sens uniques, carrousel et train fantôme ne le retiennent pas), en choisissant sa route au hasard à chaque carrefour et sans revenir en arrière sauf en cul-de-sac ; une fois sur quatre il **se téléporte** : il disparaît et réapparaît sur une case éloignée, à 3 routes au moins quand c’est possible ;
+  - s’il arrive sur un joueur, ou si un joueur s’arrête sur sa case (en marchant, téléporté ou tiré), un **duel contre le fantôme** commence avant la roue de la case. Il affronte chaque joueur de sa case une fois par arrêt, le joueur actif d’abord. Il **n’affronte jamais un joueur en Enfer**, et il épargne celui qui en sort pour atterrir sur sa case (Bouteille d’eau, Monopoly Man, New Cup, New Me…) jusqu’à son prochain déplacement ;
   - le mini-jeu est tiré au sort comme un duel ordinaire (pile ou face, pierre-feuille-ciseaux, vote de la table, Basket). Le moteur tire la main du fantôme, ses tirs au Basket et, dès le début du duel, la pénalité et la récompense : tout est identique sur chaque appareil en ligne ;
   - **fantôme vainqueur** : une pénalité parmi celles qui s’appliquent, au hasard : il **gifle le joueur et l’emporte en Enfer**, il **vole 300 pièces** (au plus ce que le joueur possède) ou il **vole un objet** au hasard (jamais une Red Cup). Pièces et objets volés vont dans son **butin**. Il reste sur sa case jusqu’à son prochain déplacement ;
   - **joueur vainqueur** : il reprend **un seul** morceau du butin, tiré au hasard : un objet, ou **200 pièces** du tas de pièces (le reste attend le suivant). Butin vide : **+300 pièces**. Un objet repris dans un sac plein oblige à jeter un objet ; un objet qu’il ne pourrait pas garder (troisième exemplaire, seconde Gomme) n’est pas tiré. Le fantôme **disparaît 3 tours de table**, puis réapparaît et reprend son cycle ;
@@ -201,6 +202,7 @@ Les prix ci-dessous sont relevés visuellement sur la slide de la boutique. Ils 
 | Corde | 500 |
 | Botte | 100 |
 | Boue | 200 |
+| Tomate | 10 |
 | Gomme | 350 |
 | Bullet Bill | 500 |
 | Middle Finger | 400 |
@@ -225,6 +227,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
 | Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
+| Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant l’action du tour : elle ne compte pas comme une action et on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans **une seule** place du sac. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. |
 
@@ -360,7 +363,9 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 
 - **Nouvelle carte Luna Park** : fête foraine de nuit avec un carrousel à sens unique autour de l’Enfer, qui s’inverse à chaque nouvelle Red Cup, et un train fantôme 7 → 12 (voir 3.2 bis). Une bannière annonce le changement de sens ; boutique et roues attendent sa fin.
 - **Nouvelle carte Banquise** : lac gelé en miroir où l’on glisse au hasard sur la glace, tombée de glace sur la route de la Red Cup, blizzard qui déplace une troisième glace tous les deux tours, crevasse de l’Enfer, neige et aurore boréale (voir 3.2 ter).
-- **Fantôme de Luna Park** : il hante le carrousel en suivant le manège, défie les joueurs qu’il croise, vole de l’argent ou des objets qu’il garde en butin, ou emporte sa victime en Enfer ; le battre rend un morceau du butin ou 300 pièces (voir 3.2 bis).
+- **Fantôme de Luna Park** : il rôde sur tout le plateau, glisse de case en case ou se téléporte, défie les joueurs qu’il croise, vole de l’argent ou des objets qu’il garde en butin, ou emporte sa victime en Enfer ; le battre rend un morceau du butin ou 300 pièces (voir 3.2 bis).
+- **Nouvel objet Tomate** (10 pièces) : à lancer sur les autres pour rire, avant son action, en volée de 1 à 5 ; jusqu’à 5 par place du sac ; 2 chances sur 100 par Tomate d’assommer la cible un tour (voir 7).
+- **Chat vocal** : activer ou couper son micro n’affiche plus « X s’est déconnecté » chez les autres joueurs.
 - **Nouveau mini-jeu Basket** : 15 secondes pour marquer le plus de paniers, dans tous les duels et sur toutes les cartes (voir 9.2).
 - **Musique** : une ambiance par carte (valse de fête foraine pour Luna Park, boîte à musique polaire pour Banquise), chacune avec sa version sombre quand le joueur actif est en Enfer ou pendant un duel ; celle du coffre à jouets est plus sombre qu’avant.
 - **Choix de la carte** : une étape du salon après la liste des joueurs, en carrousel, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit. La revanche propose le même carrousel, sur la carte qui vient d’être jouée.

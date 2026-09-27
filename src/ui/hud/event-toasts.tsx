@@ -83,8 +83,8 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
       return {
         tone: "ghost",
         eyebrow: "Luna Park",
-        title: "Un fantôme hante le carrousel !",
-        detail: `Il surgit sur la case ${event.nodeId} et suit le manège. Clique-le pour voir son butin.`,
+        title: "Un fantôme hante la fête foraine !",
+        detail: `Il surgit sur la case ${event.nodeId} et rôde partout, routes ou pas. Clique-le pour voir son butin.`,
       };
     case "ghost-attack":
       return {

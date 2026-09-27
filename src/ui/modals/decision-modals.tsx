@@ -3,6 +3,7 @@ import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
+import { getEntryUnits } from "../../game/state-utils";
 import { useCanActFor } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
 import { WaitingNote } from "../components/waiting-note";
@@ -51,14 +52,68 @@ export function PlayerPickList({
   );
 }
 
-/** Target selection for Ndoye, Hollow Purple, Corde, Middle Finger and Monopoly Man. */
+/**
+ * Target selection for Ndoye, Hollow Purple, Corde, Middle Finger, Monopoly
+ * Man and the Tomate. A stack of Tomates then asks how many to throw, so a
+ * whole volley goes in one go instead of one pick per Tomate.
+ */
 export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose: () => void }) {
   const players = useGameStore((state) => state.players);
   const activePlayer = useGameStore((state) => state.players[state.activePlayerIndex]);
   const useItem = useGameStore((state) => state.useItem);
+  const [targetId, setTargetId] = useState<PlayerId | null>(null);
+  const [count, setCount] = useState(1);
   const entry = activePlayer?.inventory.find((candidate) => candidate.id === entryId);
   if (!activePlayer || entry?.kind !== "item") return null;
   const item = ITEM_CATALOG[entry.itemId];
+  const units = getEntryUnits(entry);
+  const target = players.find((player) => player.id === targetId);
+
+  const throwAt = (playerId: PlayerId, volley: number) => {
+    useItem(entry.id, playerId, volley > 1 ? volley : undefined);
+    onClose();
+  };
+
+  if (target && item.stackLimit) {
+    return (
+      <ModalShell
+        title={`Combien de ${item.name}s ?`}
+        eyebrow={`Sur ${target.name}`}
+        onClose={onClose}
+        className="target-modal"
+      >
+        <div className="target-modal__item">
+          <PlayerAvatar color={target.color} size={46} expression={getAvatarExpression(target)} />
+          <p>
+            Chaque {item.name} a 2 chances sur 100 d’assommer {target.name}. Tu en as {units}.
+          </p>
+        </div>
+        <div className="volley-picker" role="radiogroup" aria-label={`Nombre de ${item.name}s`}>
+          {Array.from({ length: units }, (_, index) => index + 1).map((option) => (
+            <button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={count === option}
+              className={`volley-picker__option ${count === option ? "is-selected" : ""}`}
+              onClick={() => setCount(option)}
+            >
+              <ItemIcon itemId={entry.itemId} size={28} />
+              {option}
+            </button>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="btn btn--cream" onClick={() => setTargetId(null)}>
+            ← Autre cible
+          </button>
+          <button type="button" className="btn btn--cup" onClick={() => throwAt(target.id, count)} data-autofocus>
+            Lancer {count === 1 ? `1 ${item.name}` : `${count} ${item.name}s`} !
+          </button>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell
@@ -75,8 +130,13 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         players={players}
         isDisabled={(player) => (player.id === activePlayer.id && !item.canTargetSelf ? "Pas sur toi" : null)}
         onPick={(playerId) => {
-          useItem(entry.id, playerId);
-          onClose();
+          // A single Tomate needs no count: it flies at once.
+          if (item.stackLimit && units > 1) {
+            setCount(units);
+            setTargetId(playerId);
+          } else {
+            throwAt(playerId, 1);
+          }
         }}
       />
     </ModalShell>

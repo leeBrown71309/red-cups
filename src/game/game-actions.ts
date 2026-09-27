@@ -1,7 +1,7 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { getBoard } from "./board";
-import { createGhost } from "./ghost";
+import { createGhost, spareHellPlayers } from "./ghost";
 import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
@@ -41,6 +41,7 @@ import {
   placeInHell,
   randomChoice,
   removeInventoryEntry,
+  spendItemEntry,
   shuffle,
   updatePlayer,
 } from "./state-utils";
@@ -49,6 +50,7 @@ import {
   applyMove,
   cancelDeclaredAction,
   carryOutDeclaredAction,
+  isThrownItem,
   openReactionWindow,
   planItemUse,
   planMove,
@@ -79,7 +81,8 @@ export type GameAction =
   | { type: "movePlayer"; destination: NodeId; ignoreArrows: boolean }
   | { type: "prepareBoot"; entryId: string }
   | { type: "buyItem"; itemId: ItemId }
-  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId }
+  /** `count`: Tomates thrown in one go from their stack; one for every other item. */
+  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
@@ -194,7 +197,7 @@ function applyWheelOutcome(
     case "lose-item": {
       const entry = randomChoice(player.inventory.filter((candidate) => candidate.kind === "item"));
       if (!entry) return applyCurrencyChange(state, player.id, -100);
-      const nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entry.id));
+      const nextState = updatePlayer(state, player.id, (current) => spendItemEntry(current, entry.id));
       return addLog(nextState, `${player.name} perd un objet.`, "bad");
     }
     case "skip-turn":
@@ -270,9 +273,15 @@ function buyItem(state: GameState, itemId: ItemId): GameState {
   return addLog(nextState, `${player.name} achète ${ITEM_CATALOG[itemId].name} pour ${price} pièces.`, "good");
 }
 
-function useItem(state: GameState, entryId: string, targetPlayerId: PlayerId | undefined): GameState {
-  const plan = planItemUse(state, entryId, targetPlayerId);
+function useItem(
+  state: GameState,
+  entryId: string,
+  targetPlayerId: PlayerId | undefined,
+  count: number | undefined,
+): GameState {
+  const plan = planItemUse(state, entryId, targetPlayerId, count);
   if (!plan) return state;
+  if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
   const waiting = openReactionWindow(state, {
     type: "item",
     entryId,
@@ -469,7 +478,15 @@ function resolveCalmDown(state: GameState, useEffect: boolean): GameState {
   return settleBoard(nextState, pending.resumeStage);
 }
 
+/** Runs one action; the Luna Park ghost first spares whoever stands in Hell before it. */
 function applyGameAction(state: GameState, action: GameAction): GameState {
+  const prepared = spareHellPlayers(state);
+  const result = dispatchGameAction(prepared, action);
+  // A refused action must hand back the very same object, even if the ghost's memory was touched.
+  return result === prepared ? state : result;
+}
+
+function dispatchGameAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "startGame":
       return startGame(state, action.playerNames, action.seed, action.avatarColors, action.mapId);
@@ -482,7 +499,7 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
     case "buyItem":
       return buyItem(state, action.itemId);
     case "useItem":
-      return useItem(state, action.entryId, action.targetPlayerId);
+      return useItem(state, action.entryId, action.targetPlayerId, action.count);
     case "resolveReaction":
       return resolveReaction(state, action.reactorId);
     case "endTurn":

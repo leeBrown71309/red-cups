@@ -9,6 +9,7 @@ import {
   GHOST_COOLDOWN_ROUNDS,
   GHOST_EMPTY_LOOT_REWARD,
   GHOST_LOOT_COINS,
+  GHOST_MAX_DRIFT_STEPS,
   GHOST_STEAL_COINS,
   HELL_EXIT_TOLL,
   HELL_TURN_LIMIT,
@@ -82,10 +83,11 @@ function getTurnSteps(mapId: MapId): string[] {
         "Délinquant peut le prendre à contresens.",
     );
   }
-  if (board.map.ghostTiles) {
+  if (board.map.haunted) {
     steps.push(
-      `Le fantôme : il hante les cases ${board.map.ghostTiles.join(", ")} du carrousel et avance d’une case dans le ` +
-        "sens du manège à chaque fin de tour. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel.",
+      "Le fantôme rôde sur tout le plateau, sans respecter les routes : à chaque fin de tour, il glisse de 1 à " +
+        `${GHOST_MAX_DRIFT_STEPS} cases, ou disparaît pour réapparaître au loin. S’il tombe sur toi, ou si tu ` +
+        "t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
       `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
         `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
         `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,

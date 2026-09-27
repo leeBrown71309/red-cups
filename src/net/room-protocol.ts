@@ -22,6 +22,16 @@ export type RoomWire =
   /** The host kicked off: everybody loads the first snapshot. */
   | { kind: "start" };
 
+/**
+ * Whether a presence "leave" means the device really left the room. Any change
+ * of a device's presence (the mic turned on, off or muted) is sent as its old
+ * entry leaving and its new one joining: the device still has an entry then,
+ * and must not be announced as disconnected.
+ */
+export function hasLeftRoom(currentPresences: readonly unknown[] | undefined): boolean {
+  return !currentPresences || currentPresences.length === 0;
+}
+
 /** The engine player a user plays, from their position in the frozen seat order. */
 export function getPlayerIdOfUser(seatOrder: string[], userId: string): PlayerId | null {
   const seat = seatOrder.indexOf(userId);

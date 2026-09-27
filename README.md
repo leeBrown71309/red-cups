@@ -115,9 +115,11 @@ limitée à deux projets par compte.
   pion y tourne sur lui-même puis glisse dans la direction tirée. La tombée de glace l’enferme dans un bloc au milieu de
   la route, qu’il brise au tour suivant. Le blizzard souffle des rafales de neige et un brouillard blanc, fait fondre
   l’ancienne glace et en fait pousser une nouvelle. L’Enfer est une crevasse hérissée d’éclats de glace.
-- **Fantôme de Luna Park** : un drap déchiré aux orbites creuses qui flotte sur le carrousel, surgit dans une
-  brume violette, glisse d’une case à l’autre, gifle ses victimes et les emporte en Enfer, se dissout quand on le
-  bat. Un clic ouvre son butin.
+- **Fantôme de Luna Park** : un drap déchiré aux orbites creuses qui rôde sur tout le plateau, surgit dans une
+  brume violette, glisse de case en case par-dessus les routes ou se dissout pour ressurgir au loin, gifle ses
+  victimes et les emporte en Enfer. Un clic ouvre son butin.
+- **Tomate** : une volée de 1 à 5 tomates part en rafale, en cloche, d’un pion à l’autre et s’écrase en gerbes rouges ;
+  un « K.O. ! » et une pirouette quand elle assomme sa cible.
 - **Basket** : mini-jeu de duel de 15 secondes (jauge, zone verte, balles en vol), vu en direct par toute la table
   en ligne.
 - **Musique par carte** : boucle cosy pour le coffre à jouets, valse de fête foraine pour Luna Park, boîte à musique

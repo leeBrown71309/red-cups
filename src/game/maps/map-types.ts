@@ -34,7 +34,7 @@ export interface BoardMap {
   initialCupNodeId: NodeId;
   /** Banquise: a blizzard moves the temporary ice tile at the start of every this many rounds. */
   blizzardEveryRounds?: number;
-  /** Luna Park: the carousel tiles a ghost haunts, following the ride from one to the next. */
-  ghostTiles?: NodeId[];
+  /** Luna Park: a ghost roams the whole board (see `src/game/ghost.ts`). */
+  haunted?: boolean;
   roadLegend: RoadLegendEntry[];
 }

@@ -1,5 +1,6 @@
 import { getBoardNode, getPathsOfLength, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
+import { getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
@@ -22,8 +23,23 @@ export function countItemCopies(player: Player, itemId: ItemId): number {
   return player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
 }
 
-/** No stacking: at most two copies of an item, and a single Gomme. */
+/** Items of one kind in the bag, a stack counting each of its units. */
+export function countItemUnits(player: Player, itemId: ItemId): number {
+  return player.inventory
+    .filter((entry) => entry.kind === "item" && entry.itemId === itemId)
+    .reduce((total, entry) => total + getEntryUnits(entry), 0);
+}
+
+/**
+ * At most two copies of an item and a single Gomme; a stackable item (the
+ * Tomate) fills one slot only, up to its limit.
+ */
 export function canAddItem(player: Player, itemId: ItemId): boolean {
+  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
+  if (stackLimit) {
+    const units = countItemUnits(player, itemId);
+    return units > 0 ? units < stackLimit : getOpenInventorySlots(player) > 0;
+  }
   if (getOpenInventorySlots(player) === 0) return false;
   const itemCount = countItemCopies(player, itemId);
   if (itemId === "eraser" && itemCount >= 1) return false;

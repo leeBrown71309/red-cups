@@ -21,6 +21,7 @@ import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-mo
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
 import { SceneKit, easeOutBack } from "./scene-kit";
+import { TOMATO_FLIGHT_MS, TOMATO_VOLLEY_GAP_MS } from "../theme/timing";
 
 export interface BoardView {
   mode: CameraMode;
@@ -135,7 +136,7 @@ export class BoardWorld {
     this.bullet = new BulletBillActor(this.kit, this.effects, this.layout);
     this.scene.add(this.bullet.group);
 
-    if (this.layout.map.ghostTiles) {
+    if (this.layout.map.haunted) {
       this.ghost = new GhostActor(this.kit, this.effects, this.layout, this.pawns, (strength, durationMs) =>
         this.rig.shakeFor(strength, durationMs),
       );
@@ -584,7 +585,10 @@ export class BoardWorld {
         this.ghost?.appeared(event.nodeId);
         return;
       case "ghost-moved":
-        this.ghost?.moved(event.to);
+        this.ghost?.moved(event.path);
+        return;
+      case "ghost-teleported":
+        this.ghost?.teleported(event.to);
         return;
       case "ghost-attack":
         this.ghost?.attacked(event.playerId);
@@ -598,6 +602,24 @@ export class BoardWorld {
       case "ghost-stole":
         this.ghost?.stole(event.playerId);
         return;
+      case "tomato-thrown": {
+        const from = this.pawns.getPawnPosition(event.throwerId);
+        const to = this.pawns.getPawnPosition(event.targetId);
+        if (!from || !to) return;
+        // Rapid fire: each Tomate of the volley leaves a moment after the last, on a slightly different arc.
+        for (let index = 0; index < event.count; index += 1) {
+          const last = index === event.count - 1;
+          const aim = to.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.5, 0, (Math.random() - 0.5) * 0.5));
+          window.setTimeout(() => {
+            this.effects.spawnTomatoThrow(from, aim, TOMATO_FLIGHT_MS / 1000, () => {
+              if (!last || !event.stunned) return;
+              this.pawns.knockOut(event.targetId);
+              this.effects.spawnFloatingText(to, "K.O. !", "#ffd166");
+            });
+          }, index * TOMATO_VOLLEY_GAP_MS);
+        }
+        return;
+      }
       case "player-left": {
         const position = this.pawns.getPawnPosition(event.playerId);
         if (position) this.effects.spawnPoof(position, "#ffffff");
