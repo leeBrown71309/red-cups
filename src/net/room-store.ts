@@ -28,6 +28,16 @@ import {
   type RoomWire,
 } from "./room-protocol";
 import { ensureSession, getSupabase } from "./supabase-client";
+import {
+  attachVoice,
+  detachVoice,
+  getVoicePresence,
+  handleVoiceWire,
+  joinVoiceIfEnabled,
+  readVoicePresence,
+  updateVoicePresence,
+  type VoiceWire,
+} from "./voice";
 
 /**
  * The online room this device sits at, and the plumbing behind it: the
@@ -221,10 +231,20 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel = supabase.channel(`room:${code}`, {
       config: { private: true, broadcast: { self: false }, presence: { key: userId } },
     });
+    const announce = () => void channel?.track({ at: Date.now(), ...getVoicePresence() });
+    attachVoice({
+      selfId: userId,
+      send: (wire) => void channel?.send({ type: "broadcast", event: "voice", payload: wire }),
+      announce,
+    });
+
     channel.on("broadcast", { event: "room" }, ({ payload }) => enqueue(() => handleWire(payload as RoomWire)));
+    // Voice signalling skips the game queue: a call must not wait behind a resync.
+    channel.on("broadcast", { event: "voice" }, ({ payload }) => void handleVoiceWire(payload as VoiceWire));
     channel.on("presence", { event: "sync" }, () => {
-      const presence = channel?.presenceState() ?? {};
+      const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
+      updateVoicePresence(readVoicePresence(presence));
     });
     // In the lobby, somebody arriving or leaving also refreshes the roster, in case its broadcast was lost.
     channel.on("presence", { event: "join" }, ({ key }) => {
@@ -239,7 +259,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.subscribe((status) => {
       if (status === "SUBSCRIBED") {
         set({ connection: "online" });
-        void channel?.track({ at: Date.now() });
+        announce();
+        joinVoiceIfEnabled();
         // Back after a drop: whatever was broadcast meanwhile is in the snapshot.
         if (hasSubscribed) enqueue(resync);
         hasSubscribed = true;
@@ -254,6 +275,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
 
   const disconnect = async () => {
     setActionRelay(null);
+    detachVoice();
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
     if (channel) await getSupabase().removeChannel(channel);

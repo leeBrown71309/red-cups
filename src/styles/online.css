@@ -383,3 +383,58 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+/* -------------------------------------------------------------- voice chat */
+
+.voice-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--ink);
+  transition:
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.voice-badge.is-talking {
+  background: var(--mint);
+  color: var(--white);
+  box-shadow: 0 0 0 3px var(--mint-light);
+}
+
+.voice-badge.is-muted {
+  background: var(--cream-3);
+  color: var(--ink-faint);
+}
+
+.player-chip .voice-badge {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+}
+
+.voice-setting__status {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online__voice {
+  margin-bottom: 0;
+  padding: 8px 12px;
+}
+
+.online__voice:empty {
+  display: none;
+}
+
+.icon-button.is-live {
+  background: var(--mint);
+  color: var(--white);
+}

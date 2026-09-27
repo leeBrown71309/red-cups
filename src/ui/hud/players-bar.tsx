@@ -4,7 +4,10 @@ import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL } from "../../game/types";
+import { getUserIdOfPlayer } from "../../net/room-protocol";
+import { useRoomStore } from "../../net/room-store";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
+import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -54,6 +57,7 @@ export function PlayersBar() {
   const players = useGameStore((state) => state.players);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
   const phase = useGameStore((state) => state.phase);
+  const seatOrder = useRoomStore((state) => state.seatOrder);
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -108,6 +112,7 @@ export function PlayersBar() {
                   <CupPips count={cups} size={12} />
                 </span>
               </span>
+              <VoiceBadge userId={getUserIdOfPlayer(seatOrder, player.id)} />
               {player.skippedTurns > 0 && (
                 <span className="player-chip__badge" title="Passe son prochain tour">
                   <UiIcon name="sleep" size={12} strokeWidth={2.8} />

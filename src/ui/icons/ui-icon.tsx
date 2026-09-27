@@ -24,6 +24,8 @@ const UI_ICON_PATHS = {
   arrowRight: "M5 12h14M13 6l6 6l-6 6",
   arrowLeft: "M19 12H5M11 6l-6 6l6 6",
   clock: "M12 21a9 9 0 1 0 0-18a9 9 0 1 0 0 18M12 7v5l3 2",
+  mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3",
+  micOff: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16",
   check: "M5 12.5l4.5 4.5L19 7",
   crown: "M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
