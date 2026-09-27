@@ -43,6 +43,10 @@ create table if not exists public.room_players (
   primary key (room_code, user_id)
 );
 
+-- Arrival order in the lobby. A counter rather than `joined_at`: two players
+-- sitting down within the clock's resolution would otherwise tie.
+alter table public.room_players add column if not exists arrival bigint generated always as identity;
+
 -- Two players grabbing the same avatar at the same moment are settled here:
 -- the second one gets a constraint violation, the one outcome that cannot go wrong.
 create unique index if not exists room_players_avatar_unique on public.room_players (room_code, avatar);
@@ -176,7 +180,7 @@ begin
         select jsonb_agg(jsonb_build_object(
           'user_id', p.user_id, 'seat', p.seat, 'name', p.name, 'avatar', p.avatar,
           'absent', p.last_seen < now() - interval '75 seconds'
-        ) order by drawn.position nulls last, p.joined_at)
+        ) order by drawn.position nulls last, p.arrival)
         from public.room_players p
         left join jsonb_array_elements_text(r.seat_order) with ordinality as drawn(user_id, position)
           on drawn.user_id = p.user_id::text
