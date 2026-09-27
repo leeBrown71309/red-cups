@@ -781,6 +781,13 @@
     linear-gradient(135deg, var(--gold), var(--mint));
 }
 
+/* Luna Park: the carousel changes direction. */
+.alert-banner--carousel {
+  background:
+    repeating-conic-gradient(from 0deg at 12% 50%, rgba(255, 255, 255, 0.12) 0 18deg, transparent 18deg 36deg),
+    linear-gradient(135deg, #ff4fa3, #5b1d8f);
+}
+
 .alert-banner__icon {
   display: grid;
   flex: none;

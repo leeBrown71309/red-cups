@@ -1,6 +1,6 @@
+/** Every map keeps its start on tile 0 and Hell on tile 11 (checked by the map tests). */
 export const START_NODE_ID = 0;
 export const HELL_NODE_ID = 11;
-export const INITIAL_RED_CUP_NODE_ID = 8;
 export const RED_CUP_GOAL = 3;
 export const STARTING_CURRENCY = 2_000;
 export const BASE_INVENTORY_CAPACITY = 4;
@@ -36,6 +36,7 @@ export const PLAYER_COLORS = [
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 export type NodeId = number;
 export type PlayerId = string;
+export type MapId = "classic" | "luna-park";
 
 export type ItemId =
   | "ndoye"
@@ -101,8 +102,12 @@ export interface BoardEdge {
    * any road, including this one walked backwards.
    */
   arrow?: boolean;
-  /** A tunnel leaves the board on one side and comes back on the other. */
-  kind?: "road" | "tunnel";
+  /**
+   * A tunnel is a one-way passage from `from` to `to`, counted as one step.
+   * A carousel road is one-way too, but its direction flips with the game
+   * (`GameState.carouselReversed`); maps list it in its starting direction.
+   */
+  kind?: "road" | "tunnel" | "carousel";
 }
 
 export type TurnStage =
@@ -268,6 +273,10 @@ export interface SeededRandomState {
 
 export interface GameState {
   phase: "setup" | "playing" | "finished";
+  /** Board the game is played on. */
+  mapId: MapId;
+  /** Luna Park: the carousel turns the other way, flipped at every new Red Cup. */
+  carouselReversed: boolean;
   turnStage: TurnStage;
   players: Player[];
   activePlayerIndex: number;
@@ -314,6 +323,8 @@ export interface GameState {
 
 export const EMPTY_GAME_STATE: GameState = {
   phase: "setup",
+  mapId: "classic",
+  carouselReversed: false,
   turnStage: "move",
   players: [],
   activePlayerIndex: 0,

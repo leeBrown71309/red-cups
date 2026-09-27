@@ -53,7 +53,10 @@ export default function App() {
       {phase !== "setup" ? (
         <GameHud />
       ) : roomView === "closed" ? (
-        <LobbyScreen onStart={startGame} onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined} />
+        <LobbyScreen
+          onStart={(names, mapId) => startGame(names, undefined, mapId)}
+          onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}
+        />
       ) : (
         <OnlineScreen />
       )}

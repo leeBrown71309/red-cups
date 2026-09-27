@@ -1,6 +1,7 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
-import { NORMAL_NODE_IDS } from "./board";
+import { getBoard } from "./board";
+import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel } from "./duel";
@@ -53,6 +54,7 @@ import {
 import type {
   GameState,
   ItemId,
+  MapId,
   NodeId,
   Player,
   PlayerColor,
@@ -62,15 +64,7 @@ import type {
   WheelId,
   WheelOutcomeId,
 } from "./types";
-import {
-  EMPTY_GAME_STATE,
-  FIRST_ROUND,
-  HELL_NODE_ID,
-  INITIAL_RED_CUP_NODE_ID,
-  PLAYER_COLORS,
-  STARTING_CURRENCY,
-  START_NODE_ID,
-} from "./types";
+import { EMPTY_GAME_STATE, FIRST_ROUND, HELL_NODE_ID, PLAYER_COLORS, STARTING_CURRENCY, START_NODE_ID } from "./types";
 
 /**
  * Every change to a game is one serialisable action run through `reduceGame`.
@@ -78,7 +72,7 @@ import {
  * device, which all reduce it the same way.
  */
 export type GameAction =
-  | { type: "startGame"; playerNames: string[]; seed?: number; avatarColors?: PlayerColor[] }
+  | { type: "startGame"; playerNames: string[]; seed?: number; avatarColors?: PlayerColor[]; mapId?: MapId }
   | { type: "resetGame" }
   | { type: "movePlayer"; destination: NodeId; ignoreArrows: boolean }
   | { type: "prepareBoot"; entryId: string }
@@ -132,20 +126,26 @@ export function getSeatPlayerId(seatIndex: number): PlayerId {
   return `p${seatIndex + 1}`;
 }
 
+/** A random map is drawn by the lobby beforehand: the action always names the board. */
 function startGame(
   state: GameState,
   playerNames: string[],
   seed: number | undefined,
   avatarColors: PlayerColor[] | undefined,
+  mapId: MapId | undefined,
 ): GameState {
   if (playerNames.length < 2) return state;
+  const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
   const build = (): GameState => ({
     ...EMPTY_GAME_STATE,
     phase: "playing",
     turnStage: "move",
+    mapId: map.id,
     players: createPlayers(playerNames, avatarColors),
-    redCupNodeId: INITIAL_RED_CUP_NODE_ID,
-    log: [makeLog("La partie commence. La première Red Cup est en case 8.", "event")],
+    redCupNodeId: map.initialCupNodeId,
+    log: [
+      makeLog(`La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`, "event"),
+    ],
   });
   if (seed === undefined) return build();
   const { result, seed: seededRandom } = runWithSeededSource({ rngState: seed >>> 0, nextId: 0 }, build);
@@ -232,7 +232,7 @@ function prepareBoot(state: GameState, entryId: string): GameState {
 
 function buyItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "shop" || !isShopNode(player.position)) return state;
+  if (!player || state.turnStage !== "shop" || !isShopNode(getBoard(state), player.position)) return state;
 
   const price = getItemPrice(itemId, state.bootPrice);
   if (player.currency < price) return state;
@@ -282,8 +282,12 @@ function endTurn(state: GameState): GameState {
   const noLegalMove =
     state.turnStage === "move" &&
     activePlayer !== undefined &&
-    getUniqueLegalDestinations(activePlayer, state.moveDistance, canUseDelinquent(activePlayer, state.round)).length ===
-      0;
+    getUniqueLegalDestinations(
+      getBoard(state),
+      activePlayer,
+      state.moveDistance,
+      canUseDelinquent(activePlayer, state.round),
+    ).length === 0;
   if (!["shop", "turn-end"].includes(state.turnStage) && !noLegalMove) return state;
   const ended: GameState = { ...state, turnStage: "turn-end" };
   return isTableBroke(ended) ? startBlessingRound(ended) : beginNextTurn(ended);
@@ -299,7 +303,7 @@ function spinTileWheel(current: GameState): GameState {
   if (current.turnStage !== "tile-wheel") return current;
   const state = validTileWheels(current);
   const [next, ...rest] = state.pendingTileWheels;
-  const wheelId = next ? getTileWheel(next.nodeId) : null;
+  const wheelId = next ? getTileWheel(getBoard(state), next.nodeId) : null;
   if (!next || !wheelId) return { ...state, turnStage: state.tileWheelResumeStage };
   const queueRest = { ...state, pendingTileWheels: rest };
   return startWheel(queueRest, wheelId, next.playerId, state.tileWheelResumeStage, { origin: "tile" });
@@ -325,12 +329,17 @@ function resolveWheel(state: GameState): GameState {
       pendingChallenge: { playerId: pending.playerId, resumeStage: pending.resumeStage },
       turnStage: "target",
     };
-    return pending.sourceItemId ? itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId) : nextState;
+    return pending.sourceItemId
+      ? itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id)
+      : nextState;
   }
 
   let nextState: GameState = { ...state, pendingWheel: null, turnStage: pending.resumeStage };
   nextState = applyWheelOutcome(nextState, player, pending.wheelId, pending.result.id, pending.result.amount ?? 0);
-  if (pending.sourceItemId) nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId);
+  // The item's user is still the active player: its wheel always resolves within their turn.
+  if (pending.sourceItemId) {
+    nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id);
+  }
   if (nextState.pendingDiscard) return nextState;
   return settleBoard(nextState, pending.resumeStage);
 }
@@ -384,7 +393,12 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
 function repositionBeforeCup(state: GameState, destination: NodeId): GameState {
   const playerId = state.pendingCupRepositionPlayerId;
   const player = findPlayer(state, playerId);
-  if (!playerId || !player || state.pendingCupRevealNodeId === null || !NORMAL_NODE_IDS.includes(destination)) {
+  if (
+    !playerId ||
+    !player ||
+    state.pendingCupRevealNodeId === null ||
+    !getBoard(state).normalNodeIds.includes(destination)
+  ) {
     return state;
   }
 
@@ -436,7 +450,7 @@ function resolveCalmDown(state: GameState, useEffect: boolean): GameState {
 function applyGameAction(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case "startGame":
-      return startGame(state, action.playerNames, action.seed, action.avatarColors);
+      return startGame(state, action.playerNames, action.seed, action.avatarColors, action.mapId);
     case "resetGame":
       return EMPTY_GAME_STATE;
     case "movePlayer":

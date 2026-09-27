@@ -1,16 +1,14 @@
 import * as THREE from "three";
-import { getBoardNode } from "../game/board";
 import type { NodeId } from "../game/types";
-import { START_NODE_ID } from "../game/types";
+import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { SCENE_COLORS } from "../theme/palette";
-import { getRoadSegments, type RoadSegment } from "./board-layout";
+import type { SceneTheme } from "../theme/map-themes";
+import type { BoardLayout, RoadSegment } from "./board-layout";
 import { START_TILE_RADIUS, TILE_RADIUS } from "./models/tile-model";
 import { createRandom, jitterGeometry, type SceneKit } from "./scene-kit";
 
 const STONE_SPACING = 0.62;
 const CHEVRON_SPACING = 1.35;
-const STONE_COLOR = new THREE.Color(SCENE_COLORS.stone);
-const TUNNEL_STONE_COLOR = new THREE.Color(SCENE_COLORS.stoneTunnel);
 const HIGHLIGHT_COLOR = new THREE.Color("#ffd24a");
 
 interface Chevron {
@@ -25,16 +23,11 @@ function edgeKey(first: NodeId, second: NodeId): string {
   return first < second ? `${first}-${second}` : `${second}-${first}`;
 }
 
-function getClearance(nodeId: NodeId, point: THREE.Vector3): number {
-  const node = getBoardNode(nodeId);
-  if (!node || Math.hypot(node.x - point.x, node.z - point.z) > 0.01) return 0.1;
-  return (nodeId === START_NODE_ID ? START_TILE_RADIUS : TILE_RADIUS) + 0.12;
-}
-
 /**
  * Stepping-stone roads between tiles. An arrow tile's forced exit carries
  * animated chevrons on the half of the road next to that tile (the road itself
- * can still be walked in), tunnels carry them all the way; free roads stay plain.
+ * can still be walked in), tunnels and the carousel carry them all the way;
+ * free roads stay plain. Carousel chevrons turn around when the carousel does.
  */
 export class RoadNetwork {
   readonly group = new THREE.Group();
@@ -43,21 +36,29 @@ export class RoadNetwork {
   private readonly stoneBaseColors: THREE.Color[] = [];
   private readonly chevrons: Chevron[] = [];
   private highlightedKeys = new Set<string>();
+  private carouselReversed = false;
 
-  constructor(kit: SceneKit) {
-    const segments = getRoadSegments();
+  constructor(
+    kit: SceneKit,
+    private readonly layout: BoardLayout,
+    private readonly colors: SceneTheme["roads"],
+  ) {
     const random = createRandom(77);
-    const placements: { position: THREE.Vector3; key: string; tunnel: boolean }[] = [];
+    const placements: { position: THREE.Vector3; key: string; color: THREE.Color }[] = [];
+    const stoneColor = new THREE.Color(colors.stone);
+    const tunnelStoneColor = new THREE.Color(colors.tunnelStone);
+    const carouselStoneColor = new THREE.Color(colors.carouselStone);
 
-    for (const segment of segments) {
+    for (const segment of layout.getRoadSegments()) {
       const direction = segment.end.clone().sub(segment.start);
       const length = direction.length();
       direction.normalize();
-      const startClearance = getClearance(segment.edge.from, segment.start);
-      const endClearance = getClearance(segment.edge.to, segment.end);
+      const startClearance = this.getClearance(segment.edge.from, segment.start);
+      const endClearance = this.getClearance(segment.edge.to, segment.end);
       const usable = length - startClearance - endClearance;
       const count = Math.max(1, Math.round(usable / STONE_SPACING));
       const side = new THREE.Vector3(-direction.z, 0, direction.x);
+      const color = segment.tunnel ? tunnelStoneColor : segment.carousel ? carouselStoneColor : stoneColor;
 
       for (let index = 0; index <= count; index += 1) {
         const distance = startClearance + (usable * index) / count;
@@ -65,7 +66,7 @@ export class RoadNetwork {
           .clone()
           .addScaledVector(direction, distance)
           .addScaledVector(side, (random() - 0.5) * 0.12);
-        placements.push({ position, key: edgeKey(segment.edge.from, segment.edge.to), tunnel: segment.tunnel });
+        placements.push({ position, key: edgeKey(segment.edge.from, segment.edge.to), color });
       }
 
       if (segment.directed) this.addChevrons(kit, segment, startClearance, endClearance);
@@ -83,9 +84,8 @@ export class RoadNetwork {
       const size = 0.85 + random() * 0.25;
       matrix.compose(placement.position.setY(0.035), quaternion, new THREE.Vector3(size, 1, size));
       this.stones.setMatrixAt(index, matrix);
-      const color = placement.tunnel ? TUNNEL_STONE_COLOR : STONE_COLOR;
-      this.stoneBaseColors.push(color);
-      this.stones.setColorAt(index, color);
+      this.stoneBaseColors.push(placement.color);
+      this.stones.setColorAt(index, placement.color);
       this.stoneEdgeKeys.push(placement.key);
     });
     this.stones.receiveShadow = true;
@@ -114,6 +114,17 @@ export class RoadNetwork {
     if (this.stones.instanceColor) this.stones.instanceColor.needsUpdate = true;
   }
 
+  /** The carousel changed direction: its chevrons now run the other way. */
+  setCarouselReversed(reversed: boolean): void {
+    if (reversed === this.carouselReversed) return;
+    this.carouselReversed = reversed;
+    for (const chevron of this.chevrons) {
+      if (!chevron.segment.carousel) continue;
+      [chevron.from, chevron.to] = [chevron.to, chevron.from];
+      chevron.holder.rotation.y += Math.PI;
+    }
+  }
+
   update(elapsed: number): void {
     for (const chevron of this.chevrons) {
       const progress = (elapsed * 0.32 + chevron.offset) % 1;
@@ -123,15 +134,23 @@ export class RoadNetwork {
     }
   }
 
+  /** Roads stop at the edge of the tiles they join; tunnel ends and Hell need no room. */
+  private getClearance(nodeId: NodeId, point: THREE.Vector3): number {
+    const node = this.layout.getNode(nodeId);
+    if (!node || node.id === HELL_NODE_ID || Math.hypot(node.x - point.x, node.z - point.z) > 0.01) return 0.1;
+    return (nodeId === START_NODE_ID ? START_TILE_RADIUS : TILE_RADIUS) + 0.12;
+  }
+
   private addChevrons(kit: SceneKit, segment: RoadSegment, startClearance: number, endClearance: number): void {
     const direction = segment.end.clone().sub(segment.start);
     direction.normalize();
     const from = segment.start.clone().addScaledVector(direction, startClearance);
     const roadEnd = segment.end.clone().addScaledVector(direction, -endClearance);
-    const to = segment.tunnel ? roadEnd : from.clone().lerp(roadEnd, 0.55);
+    const fullLength = segment.tunnel || segment.carousel;
+    const to = fullLength ? roadEnd : from.clone().lerp(roadEnd, 0.55);
     const count = Math.max(2, Math.round(from.distanceTo(to) / CHEVRON_SPACING));
     const shapeGeometry = kit.geometry("chevron", () => new THREE.ShapeGeometry(createChevronShape()));
-    const color = segment.tunnel ? SCENE_COLORS.chevronTunnel : "#ff8f3f";
+    const color = segment.tunnel ? this.colors.tunnel : segment.carousel ? this.colors.carousel : this.colors.arrow;
 
     for (let index = 0; index < count; index += 1) {
       const holder = new THREE.Group();

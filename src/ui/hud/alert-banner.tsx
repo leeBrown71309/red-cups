@@ -1,9 +1,8 @@
 import { useEffect } from "react";
 import { useUiStore } from "../../feedback/ui-store";
+import { ALERT_BANNER_MS } from "../../theme/timing";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-
-const ALERT_DURATION_MS = 3_400;
 
 /**
  * Wide ribbon under the players bar for events the whole table must notice:
@@ -15,7 +14,7 @@ export function AlertBannerView() {
 
   useEffect(() => {
     if (!alert) return undefined;
-    const timer = window.setTimeout(() => hideAlert(alert.key), ALERT_DURATION_MS);
+    const timer = window.setTimeout(() => hideAlert(alert.key), ALERT_BANNER_MS);
     return () => window.clearTimeout(timer);
   }, [alert, hideAlert]);
 

@@ -1,5 +1,5 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { NORMAL_NODE_IDS, getPathsOfLength, getShortestPath } from "./board";
+import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, type Board } from "./board";
 import { advanceBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
@@ -75,7 +75,7 @@ export function startWheel(
 export function normalizeResumeStage(state: GameState, stage: TurnStage): TurnStage {
   const active = getActivePlayer(state);
   if (!active || state.phase !== "playing") return stage;
-  if (stage === "shop" && !isShopNode(active.position)) return "turn-end";
+  if (stage === "shop" && !isShopNode(getBoard(state), active.position)) return "turn-end";
   if (stage === "tile-wheel") return state.tileWheelResumeStage;
   return stage;
 }
@@ -89,7 +89,7 @@ export function queueTileWheel(state: GameState, playerId: PlayerId): GameState 
   const player = findPlayer(state, playerId);
   if (!player || state.phase !== "playing") return state;
   const others = state.pendingTileWheels.filter((entry) => entry.playerId !== playerId);
-  if (getTileWheel(player.position) === null) {
+  if (getTileWheel(getBoard(state), player.position) === null) {
     return others.length === state.pendingTileWheels.length ? state : { ...state, pendingTileWheels: others };
   }
   return { ...state, pendingTileWheels: [...others, { playerId, nodeId: player.position }] };
@@ -107,8 +107,10 @@ export function queueWheelsForMovedPlayers(before: GameState, after: GameState):
 
 /** Drops queued wheels whose player has left the tile since, e.g. after a duel or Calme-toi. */
 export function validTileWheels(state: GameState): GameState {
+  const board = getBoard(state);
   const valid = state.pendingTileWheels.filter(
-    (entry) => findPlayer(state, entry.playerId)?.position === entry.nodeId && getTileWheel(entry.nodeId) !== null,
+    (entry) =>
+      findPlayer(state, entry.playerId)?.position === entry.nodeId && getTileWheel(board, entry.nodeId) !== null,
   );
   return valid.length === state.pendingTileWheels.length ? state : { ...state, pendingTileWheels: valid };
 }
@@ -198,14 +200,21 @@ export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameStat
   return addLog(nextState, `${player.name} est envoyé en Enfer.`, "bad");
 }
 
-export function randomNormalNode(excludeNodeId?: NodeId): NodeId {
-  const nodes = NORMAL_NODE_IDS.filter((nodeId) => nodeId !== HELL_NODE_ID && nodeId !== excludeNodeId);
+export function randomNormalNode(board: Board, excludeNodeId?: NodeId): NodeId {
+  const nodes = board.normalNodeIds.filter((nodeId) => nodeId !== excludeNodeId);
   return randomChoice(nodes) ?? START_NODE_ID;
 }
 
-function createCupNode(previousNodeId: NodeId): NodeId {
-  const candidates = NORMAL_NODE_IDS.filter((nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId);
-  return randomChoice(candidates) ?? 1;
+function createCupNode(board: Board, previousNodeId: NodeId): NodeId {
+  const candidates = board.normalNodeIds.filter((nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId);
+  return randomChoice(candidates) ?? START_NODE_ID;
+}
+
+/** Luna Park: every new Red Cup turns the carousel the other way. */
+function flipCarousel(state: GameState): GameState {
+  if (!hasCarousel(getBoard(state))) return state;
+  const flipped: GameState = { ...state, carouselReversed: !state.carouselReversed };
+  return addLog(flipped, "Le carrousel change de sens !", "event");
 }
 
 function applyTrollEffects(state: GameState): GameState {
@@ -220,18 +229,24 @@ function applyTrollEffects(state: GameState): GameState {
   return nextState;
 }
 
-/** Calme-toi: the holder may push back a collector who stands close to the new Cup. */
+/**
+ * Calme-toi: the holder may push back another player who took a Cup and
+ * stands one or two steps from the new one. The holder never pushes back
+ * themselves: the passive is meant to slow the others down.
+ */
 export function addCupCycleEffects(state: GameState, collectorId: PlayerId): GameState {
   const calmDownPlayer = state.players.find((player) => player.passiveId === "calm-down");
   const cupNodeId = state.redCupNodeId;
   const collector = findPlayer(state, collectorId);
   if (!calmDownPlayer || cupNodeId === null || !collector || collector.position === HELL_NODE_ID) return state;
+  if (calmDownPlayer.id === collector.id) return state;
 
-  const distance = getShortestPath(cupNodeId, collector.position, true)?.length ?? Infinity;
+  const board = getBoard(state);
+  const distance = getShortestPath(board, cupNodeId, collector.position, true)?.length ?? Infinity;
   if (distance < 1 || distance >= 3) return state;
 
-  const distanceToCup = (path: NodeId[]) => getShortestPath(cupNodeId, path[path.length - 1], true)?.length ?? 0;
-  const retreatPath = getPathsOfLength(collector.position, 3, true).sort(
+  const distanceToCup = (path: NodeId[]) => getShortestPath(board, cupNodeId, path[path.length - 1], true)?.length ?? 0;
+  const retreatPath = getPathsOfLength(board, collector.position, 3, true).sort(
     (left, right) => distanceToCup(right) - distanceToCup(left),
   )[0];
   const retreatNode = retreatPath?.[retreatPath.length - 1];
@@ -275,7 +290,7 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
     return addLog(nextState, `${player.name} remporte la partie !`, "good");
   }
 
-  const nextCupNodeId = createCupNode(cupNodeId);
+  const nextCupNodeId = createCupNode(getBoard(state), cupNodeId);
   const repositioner = nextState.players.find((candidate) => candidate.passiveId === "new-cup-new-me");
   const resumeStage = state.turnStage === "discard" ? "turn-end" : state.turnStage;
 
@@ -293,6 +308,7 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
 
   nextState = applyTrollEffects(nextState);
   nextState = addLog(nextState, "Une nouvelle Red Cup apparaît sur le plateau.", "event");
+  nextState = flipCarousel(nextState);
   if (!repositioner) nextState = addCupCycleEffects(nextState, playerId);
   return nextState;
 }
@@ -312,10 +328,24 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
   return finishCupCollection(state, playerId, nodeId);
 }
 
-/** Je note: suffering an item's effect adds a copy of that item, sacrificing another one if needed. */
-export function itemCopyForPassive(state: GameState, targetPlayerId: PlayerId, itemId: ItemId): GameState {
+/**
+ * Je note: suffering another player's item adds a copy of that item,
+ * sacrificing another one if needed. `userId` is whoever used the item (or
+ * laid the mud).
+ */
+export function itemCopyForPassive(
+  state: GameState,
+  targetPlayerId: PlayerId,
+  itemId: ItemId,
+  userId: PlayerId | undefined,
+): GameState {
   const target = findPlayer(state, targetPlayerId);
   if (!target || target.passiveId !== "i-take-notes") return state;
+
+  // An item used on oneself would come straight back: Ndoye on yourself every turn, for free.
+  if (userId === targetPlayerId) {
+    return addLog(state, `${target.name} s’est visé lui-même : Je note ne copie pas ${ITEM_CATALOG[itemId].name}.`);
+  }
 
   // Draven hits its own user too: copying it would hand Je note an endless supply.
   if (itemId === "draven") return state;
@@ -352,9 +382,10 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
   const player = findPlayer(state, playerId);
   if (!player || player.passiveId !== "red-light-green-light") return state;
 
+  const board = getBoard(state);
   let nextState = state;
   for (const nodeId of path) {
-    const kind = getNodeKind(nodeId);
+    const kind = getNodeKind(board, nodeId);
     if (kind === "green") nextState = applyCurrencyChange(nextState, playerId, 100);
     if (kind === "red") nextState = applyCurrencyChange(nextState, playerId, -100);
   }
@@ -377,7 +408,7 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
   }
   // A Red Cup on the same tile may already need the only discard slot, so Je note skips the copy there.
   if (nextState.redCupNodeId === nodeId) return nextState;
-  return itemCopyForPassive(nextState, playerId, "mud");
+  return itemCopyForPassive(nextState, playerId, "mud", trap.ownerId);
 }
 
 const MAXIMUM_BOOT_PRICE = 500;

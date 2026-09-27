@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { musicPlayer } from "../audio/music-player";
+import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
-import type { NodeId } from "../game/types";
-import { INITIAL_RED_CUP_NODE_ID } from "../game/types";
+import type { MapId, NodeId } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
 import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves } from "../ui/game-hooks";
+import { useMapChoiceStore } from "../ui/lobby/map-choice-store";
 import { BoardWorld, type BoardView } from "./board-world";
 import type { CameraMode } from "./camera-rig";
 import { waitForDisplayFont } from "./text-sprites";
@@ -27,11 +29,21 @@ export const boardCamera = {
 
 type StageStatus = "loading" | "ready" | "error";
 
+/** Map on screen: the game's board once it starts, the lobby's pick before. */
+function useDisplayedMapId(mode: CameraMode): MapId {
+  const gameMapId = useGameStore((state) => state.mapId);
+  const phase = useGameStore((state) => state.phase);
+  const previewMapId = useMapChoiceStore((state) => state.previewMapId);
+  return mode === "play" && phase !== "setup" ? gameMapId : previewMapId;
+}
+
 export function BoardStage({ mode }: { mode: CameraMode }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [world, setWorld] = useState<BoardWorld | null>(null);
   const [status, setStatus] = useState<StageStatus>("loading");
+  const mapId = useDisplayedMapId(mode);
 
+  // Each map has its own scene: switching maps rebuilds the world from scratch.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return undefined;
@@ -41,7 +53,7 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
     void waitForDisplayFont().then(() => {
       if (cancelled) return;
       try {
-        created = new BoardWorld(container, { onTileSelect: selectDestinationFromBoard });
+        created = new BoardWorld(container, { onTileSelect: selectDestinationFromBoard }, mapId);
         boardCamera.world = created;
         setWorld(created);
         setStatus("ready");
@@ -55,16 +67,20 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
       cancelled = true;
       if (boardCamera.world === created) boardCamera.world = null;
       created?.dispose();
+      setWorld(null);
     };
-  }, []);
+  }, [mapId]);
 
-  const view = useBoardView(mode);
+  // The soundtrack follows the board on screen, in the lobby as in a game.
+  useEffect(() => musicPlayer.setTheme(getBoardMap(mapId).themeId), [mapId]);
+
+  const view = useBoardView(mode, mapId);
   useEffect(() => {
     world?.update(view);
   }, [world, view]);
 
   return (
-    <div className="board-stage" data-status={status}>
+    <div className="board-stage" data-status={status} data-map-theme={getBoardMap(mapId).themeId}>
       <div className="board-stage__canvas" ref={containerRef} aria-label="Plateau de jeu Red Cups en 3D" role="img" />
       {status === "loading" && (
         <div className="board-stage__message">
@@ -107,7 +123,7 @@ function useLaggedProps(): LaggedProps {
   return displayed;
 }
 
-function useBoardView(mode: CameraMode): BoardView {
+function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const game = useGameStore();
   const legalMoves = useLegalMoves();
   const lagged = useLaggedProps();
@@ -120,6 +136,7 @@ function useBoardView(mode: CameraMode): BoardView {
     const playing = mode === "play" && game.phase !== "setup";
     return {
       mode,
+      carouselReversed: playing && game.carouselReversed,
       pawns: playing
         ? game.players.map((player) => ({
             id: player.id,
@@ -129,7 +146,7 @@ function useBoardView(mode: CameraMode): BoardView {
             isSleeping: player.skippedTurns > 0,
           }))
         : [],
-      redCupNodeId: playing ? lagged.redCupNodeId : INITIAL_RED_CUP_NODE_ID,
+      redCupNodeId: playing ? lagged.redCupNodeId : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
       // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
       bulletBill:
@@ -143,5 +160,5 @@ function useBoardView(mode: CameraMode): BoardView {
       followActivePlayer,
       activePlayerId: activePlayer?.id ?? null,
     };
-  }, [game, lagged, legalMoves, previewNodeId, followActivePlayer, mode]);
+  }, [game, lagged, legalMoves, previewNodeId, followActivePlayer, mode, mapId]);
 }

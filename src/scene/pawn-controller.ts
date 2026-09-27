@@ -5,7 +5,7 @@ import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { emitFeedback } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
 import { HOP_MS, TUNNEL_EXTRA_MS } from "../theme/timing";
-import { getNodePosition, getTunnelLayout } from "./board-layout";
+import type { BoardLayout } from "./board-layout";
 import { createPawnVisual, type PawnVisual } from "./models/pawn-model";
 import { TILE_HEIGHT } from "./models/tile-model";
 import { easeInOutCubic, easeOutBack, type SceneKit } from "./scene-kit";
@@ -44,7 +44,6 @@ interface Pawn {
   baseScale: number;
 }
 
-const HELL_FLOOR_Y = 0.14;
 const LANDING_MS = 150;
 
 /**
@@ -57,7 +56,10 @@ export class PawnController {
   private lastMovementSeq = 0;
   private seedCounter = 0;
 
-  constructor(private readonly kit: SceneKit) {}
+  constructor(
+    private readonly kit: SceneKit,
+    private readonly layout: BoardLayout,
+  ) {}
 
   sync(inputs: PawnInput[], movement: PlayerMovement | null): void {
     const inputIds = new Set(inputs.map((input) => input.id));
@@ -67,11 +69,11 @@ export class PawnController {
       this.pawns.delete(id);
     }
 
-    const slots = computeSlots(inputs);
+    const slots = this.computeSlots(inputs);
     const isNewMovement = movement !== null && movement.seq !== this.lastMovementSeq;
 
     for (const input of inputs) {
-      const slot = slots.get(input.id) ?? { position: getNodePosition(input.position), scale: 1 };
+      const slot = slots.get(input.id) ?? { position: this.layout.getNodePosition(input.position), scale: 1 };
       let pawn = this.pawns.get(input.id);
 
       if (!pawn) {
@@ -150,11 +152,11 @@ export class PawnController {
     let previous = from;
     path.forEach((nodeId, index) => {
       const isLast = index === path.length - 1;
-      const target = isLast ? finalSlot : getStandingPoint(nodeId);
-      const edge = findEdge(previous, nodeId);
+      const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
+      const edge = findEdge(this.layout.board, previous, nodeId);
 
       if (edge?.kind === "tunnel") {
-        const tunnel = getTunnelLayout(edge);
+        const tunnel = this.layout.getTunnelLayout(edge);
         pawn.actions.push(
           { type: "hop", to: tunnel.entrance.clone().setY(0.05), duration: HOP_MS },
           { type: "vanish", duration: TUNNEL_EXTRA_MS / 2 },
@@ -268,36 +270,36 @@ export class PawnController {
     sleepLabel.visible = pawn.sleeping && !moving;
     sleepLabel.position.y = 1.25 + Math.sin(elapsed * 1.5 + pawn.phase) * 0.08;
   }
-}
 
-function getStandingPoint(nodeId: NodeId): THREE.Vector3 {
-  const point = getNodePosition(nodeId);
-  point.y = nodeId === HELL_NODE_ID ? HELL_FLOOR_Y : TILE_HEIGHT;
-  return point;
-}
-
-/** Spreads players sharing a tile on a ring so nobody hides behind anyone. */
-function computeSlots(inputs: PawnInput[]): Map<string, { position: THREE.Vector3; scale: number }> {
-  const byNode = new Map<NodeId, PawnInput[]>();
-  for (const input of inputs) {
-    const list = byNode.get(input.position) ?? [];
-    list.push(input);
-    byNode.set(input.position, list);
+  private getStandingPoint(nodeId: NodeId): THREE.Vector3 {
+    const point = this.layout.getNodePosition(nodeId);
+    point.y = nodeId === HELL_NODE_ID ? this.layout.config.hellFloorY : TILE_HEIGHT;
+    return point;
   }
 
-  const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
-  for (const [nodeId, group] of byNode) {
-    const center = getStandingPoint(nodeId);
-    const crowded = group.length > 4;
-    const roomy = nodeId === START_NODE_ID ? 0.22 : 0;
-    const radius = group.length === 1 ? 0 : nodeId === HELL_NODE_ID ? 0.75 : (crowded ? 0.82 : 0.6) + roomy;
-    group.forEach((input, index) => {
-      const angle = (index / group.length) * Math.PI * 2 + Math.PI / 2;
-      slots.set(input.id, {
-        position: center.clone().add(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius * 0.85)),
-        scale: crowded ? 0.8 : 1,
+  /** Spreads players sharing a tile on a ring so nobody hides behind anyone. */
+  private computeSlots(inputs: PawnInput[]): Map<string, { position: THREE.Vector3; scale: number }> {
+    const byNode = new Map<NodeId, PawnInput[]>();
+    for (const input of inputs) {
+      const list = byNode.get(input.position) ?? [];
+      list.push(input);
+      byNode.set(input.position, list);
+    }
+
+    const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
+    for (const [nodeId, group] of byNode) {
+      const center = this.getStandingPoint(nodeId);
+      const crowded = group.length > 4;
+      const roomy = nodeId === START_NODE_ID ? 0.22 : 0;
+      const radius = group.length === 1 ? 0 : nodeId === HELL_NODE_ID ? 0.75 : (crowded ? 0.82 : 0.6) + roomy;
+      group.forEach((input, index) => {
+        const angle = (index / group.length) * Math.PI * 2 + Math.PI / 2;
+        slots.set(input.id, {
+          position: center.clone().add(new THREE.Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius * 0.85)),
+          scale: crowded ? 0.8 : 1,
+        });
       });
-    });
+    }
+    return slots;
   }
-  return slots;
 }

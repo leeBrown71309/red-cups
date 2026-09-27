@@ -4,8 +4,11 @@ import { addOutline, jitterGeometry, type SceneKit } from "../scene-kit";
 import { createLabelSprite, DISPLAY_FONT } from "../text-sprites";
 import type { AnimatedProp } from "./props-model";
 
-/** Little market booth that sits next to every blue shop tile. */
-export function createShopStall(kit: SceneKit): THREE.Group {
+/**
+ * Little market booth that sits next to every blue shop tile. The night fair
+ * paints its awning in its own colours; the blue front keeps saying "shop".
+ */
+export function createShopStall(kit: SceneKit, awning: string = TILE_COLORS.shop.top): THREE.Group {
   const stall = new THREE.Group();
   const wood = kit.flat(SCENE_COLORS.wood);
 
@@ -40,7 +43,7 @@ export function createShopStall(kit: SceneKit): THREE.Group {
   for (let index = 0; index < stripes; index += 1) {
     const stripe = new THREE.Mesh(
       kit.geometry("stall-stripe", () => new THREE.BoxGeometry(stripeWidth, 0.06, 0.8)),
-      kit.flat(index % 2 === 0 ? TILE_COLORS.shop.top : SCENE_COLORS.awningStripe),
+      kit.flat(index % 2 === 0 ? awning : SCENE_COLORS.awningStripe),
     );
     stripe.position.set(-0.68 + stripeWidth * (index + 0.5), 1.28, 0.02);
     stripe.rotation.x = 0.32;
@@ -171,7 +174,8 @@ export function createHellPit(kit: SceneKit): AnimatedProp {
   };
 }
 
-function paintHellFace(canvas: HTMLCanvasElement, elapsed: number): void {
+/** The grinning purple lava face of Hell, repainted over time for a lazy blink. */
+export function paintHellFace(canvas: HTMLCanvasElement, elapsed: number): void {
   const context = canvas.getContext("2d");
   if (!context) return;
   const size = canvas.width;
@@ -264,7 +268,10 @@ export function createTunnelPortal(kit: SceneKit, facing: 1 | -1, signText: stri
   };
 }
 
-function createSwirlTexture(): THREE.CanvasTexture {
+/** Glowing spiral of a tunnel mouth: cyan for the classic tunnel, green for the ghost train. */
+export function createSwirlTexture(
+  colors: [string, string, string] = ["rgba(180, 250, 255, 1)", "rgba(60, 180, 240, 0.7)", "rgba(30, 60, 120, 0)"],
+): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 128;
   canvas.height = 128;
@@ -272,9 +279,9 @@ function createSwirlTexture(): THREE.CanvasTexture {
   if (context) {
     const center = 64;
     const gradient = context.createRadialGradient(center, center, 4, center, center, 64);
-    gradient.addColorStop(0, "rgba(180, 250, 255, 1)");
-    gradient.addColorStop(0.6, "rgba(60, 180, 240, 0.7)");
-    gradient.addColorStop(1, "rgba(30, 60, 120, 0)");
+    gradient.addColorStop(0, colors[0]);
+    gradient.addColorStop(0.6, colors[1]);
+    gradient.addColorStop(1, colors[2]);
     context.fillStyle = gradient;
     context.fillRect(0, 0, 128, 128);
     context.strokeStyle = "rgba(255, 255, 255, 0.85)";

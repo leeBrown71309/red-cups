@@ -1,4 +1,4 @@
-import { NORMAL_NODE_IDS, earnsStartBonus, getNeighbors } from "../board";
+import { earnsStartBonus, getBoard, getNeighbors, hasCarousel } from "../board";
 import { ITEM_ORDER } from "../catalog";
 import { countItemCopies, countRedCups, getInventoryCapacity, getTileWheel, isShopNode } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -44,13 +44,11 @@ const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
 /** What an arrival on a tile can open; moves without arrival must lead to neither. */
 const ARRIVAL_STAGES: TurnStage[] = ["tile-wheel", "shop"];
 
-const ALL_NODE_IDS = [...NORMAL_NODE_IDS, HELL_NODE_ID];
-
 function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   const found: RuleViolation[] = [];
   const name = player.name;
 
-  if (!ALL_NODE_IDS.includes(player.position)) {
+  if (!getBoard(state).nodes.some((node) => node.id === player.position)) {
     found.push(violation("position-valid", `${name} is on unknown tile ${player.position}`));
   }
   if (player.inventory.length > getInventoryCapacity(player)) {
@@ -101,11 +99,11 @@ export function checkState(state: GameState): RuleViolation[] {
     const inHell = active.position === HELL_NODE_ID;
     if (state.turnStage === "hell" && !inHell) found.push(violation("hell-stage", `${active.name} is not in Hell`));
     if (state.turnStage === "move" && inHell) found.push(violation("move-stage", `${active.name} walks from Hell`));
-    if (state.turnStage === "shop" && !isShopNode(active.position)) {
+    if (state.turnStage === "shop" && !isShopNode(getBoard(state), active.position)) {
       found.push(violation("shop-stage", `${active.name} shops on tile ${active.position}`));
     }
     const nextWheel = state.pendingTileWheels[0];
-    if (state.turnStage === "tile-wheel" && (!nextWheel || getTileWheel(nextWheel.nodeId) === null)) {
+    if (state.turnStage === "tile-wheel" && (!nextWheel || getTileWheel(getBoard(state), nextWheel.nodeId) === null)) {
       found.push(violation("tile-wheel-stage", "tile-wheel stage without a green or red tile to spin"));
     }
     if (RESTING_STAGES.includes(state.turnStage) && state.turnStage !== "tile-wheel") {
@@ -132,7 +130,7 @@ export function checkState(state: GameState): RuleViolation[] {
 
   const bullet = state.bulletBill;
   const bulletAway = bullet?.status === "waiting" && bullet.position !== START_NODE_ID;
-  if (bullet && (!NORMAL_NODE_IDS.includes(bullet.position) || bulletAway)) {
+  if (bullet && (!getBoard(state).normalNodeIds.includes(bullet.position) || bulletAway)) {
     found.push(violation("bullet-tile", `Bullet Bill ${bullet.status} on tile ${bullet.position}`));
   }
 
@@ -173,7 +171,7 @@ export function checkState(state: GameState): RuleViolation[] {
   if (state.bootPrice < 100 || state.bootPrice > 500 || state.bootPrice % 50 !== 0) {
     found.push(violation("boot-price", `boot costs ${state.bootPrice}`));
   }
-  if (state.mudTraps.some((trap) => !NORMAL_NODE_IDS.includes(trap.nodeId))) {
+  if (state.mudTraps.some((trap) => !getBoard(state).normalNodeIds.includes(trap.nodeId))) {
     found.push(violation("mud-tile", "mud lies outside the walkable tiles"));
   }
 
@@ -213,9 +211,11 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   if (rebel && previous.round <= FIRST_ROUND && movement.from === START_NODE_ID) {
     found.push(violation("delinquent-first-round", `${mover.name} broke out of the start on the first round`));
   }
+  // The walk follows the board as it stood before the move: a Cup picked up on arrival may flip the carousel.
+  const board = getBoard(previous);
   let from = movement.from;
   for (const step of movement.path) {
-    const allowed = getNeighbors(from, rebel && mover.passiveId === "delinquent");
+    const allowed = getNeighbors(board, from, rebel && mover.passiveId === "delinquent");
     if (!allowed.includes(step)) {
       found.push(violation("move-follows-roads", `${mover.name} went ${from} → ${step} against the board`));
     }
@@ -227,7 +227,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     found.push(violation("move-lands", `${mover.name} should stand on ${destination}, not ${moved.position}`));
   }
 
-  const passedStart = earnsStartBonus(movement.from, movement.path);
+  const passedStart = earnsStartBonus(board, movement.from, movement.path);
   const gotBonus = logs.some((text) => text.includes("passe par le départ"));
   if (passedStart && mover.passiveId !== "im-cups" && !gotBonus) {
     found.push(violation("start-bonus", `${mover.name} crossed the start without the 200 coins`));
@@ -238,9 +238,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
 
   const interrupted = ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
-    const expected: TurnStage = isShopNode(destination)
+    const expected: TurnStage = isShopNode(board, destination)
       ? "shop"
-      : getTileWheel(destination)
+      : getTileWheel(board, destination)
         ? "tile-wheel"
         : "turn-end";
     if (next.turnStage !== expected) {
@@ -306,7 +306,7 @@ function checkTileWheelSpin(
 ): void {
   if (previous.turnStage === "tile-wheel" && next.pendingWheel) {
     const spinner = findPlayer(previous, next.pendingWheel.playerId);
-    const expected = spinner ? getTileWheel(spinner.position) : null;
+    const expected = spinner ? getTileWheel(getBoard(previous), spinner.position) : null;
     if (next.pendingWheel.wheelId !== expected) {
       found.push(
         violation("tile-wheel-color", `tile ${spinner?.position} spun the ${next.pendingWheel.wheelId} wheel`),
@@ -320,7 +320,9 @@ function checkTileWheelSpin(
   const exempt = playersMovedWithoutArrival(previous, appliedItem);
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
-    if (!before || before.position === player.position || getTileWheel(player.position) === null) continue;
+    if (!before || before.position === player.position || getTileWheel(getBoard(next), player.position) === null) {
+      continue;
+    }
     const queued = next.pendingTileWheels.some(
       (entry) => entry.playerId === player.id && entry.nodeId === player.position,
     );
@@ -400,6 +402,12 @@ function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleVio
 }
 
 function checkCupRelocation(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  if (next.mapId !== previous.mapId) found.push(violation("map-fixed", `the board changed to ${next.mapId}`));
+  const newCup = next.redCupCycle > previous.redCupCycle;
+  const flipped = next.carouselReversed !== previous.carouselReversed;
+  if (flipped !== (newCup && hasCarousel(getBoard(previous)))) {
+    found.push(violation("carousel-flip", `carousel flipped: ${String(flipped)}, new Red Cup: ${String(newCup)}`));
+  }
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
     if (!before) continue;
@@ -431,8 +439,8 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   if (!user || !userAfter) return;
   const label = `${user.name} used ${item.itemId}`;
 
-  const copiesItBack = user.passiveId === "i-take-notes" && target?.id === user.id;
-  if (!copiesItBack && countItemCopies(userAfter, item.itemId) !== countItemCopies(user, item.itemId) - 1) {
+  // Je note never copies an item its holder used on themselves: the bag always loses it.
+  if (countItemCopies(userAfter, item.itemId) !== countItemCopies(user, item.itemId) - 1) {
     found.push(violation("item-consumed", `${label} but the bag did not lose it`));
   }
 

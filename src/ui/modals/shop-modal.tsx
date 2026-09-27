@@ -9,6 +9,7 @@ import { getPurchaseStatus } from "../display/item-availability";
 import { useActivePlayer } from "../game-hooks";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
+import { DetailCarousel } from "../components/detail-carousel";
 
 interface ShopModalProps {
   onClose: () => void;
@@ -83,9 +84,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
           <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
           <strong className="shop-detail__name">{selected.name}</strong>
           <p>{selected.description}</p>
-          {selectedId === "boot" && (
-            <small className="shop-detail__note">Son prix monte de 50 à chaque tour de table (max 500).</small>
-          )}
+          <DetailCarousel key={selectedId} details={selected.details} label={selected.name} />
           <button
             type="button"
             className="btn btn--gold btn--block"

@@ -105,6 +105,11 @@ limitée à deux projets par compte.
 - **Sens de circulation** : la sortie imposée d’une case fléchée porte des chevrons orange animés, sur la moitié de
   route qui part de cette case (on peut y entrer par cette route, mais on doit en sortir par là). Les routes libres
   n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
+- **Luna Park** (seconde carte) : la même boîte de jeu, la nuit. Pavés bleu nuit, cases à bord néon, guirlandes
+  d’ampoules, grande roue et chapiteau au fond, lampadaires, ballons et confettis. L’Enfer est un manège maudit dont
+  les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte
+  décrit ses cases et routes dans `src/game/maps/`, sa mise en scène dans `src/scene/map-layouts.ts` et ses couleurs
+  dans `src/theme/map-themes.ts`.
 - **Personnages** : petits blobs chibi aux grands yeux, une couleur et un accessoire par siège (chapeau de fête, pousse,
   nœud, antenne, cornes, oreilles de chat, bonnet, auréole) pour rester reconnaissables même sans les couleurs.
 - **Interface** : papier crème, contours encre prune épais, boutons « bonbon » qui s’enfoncent, typographies Fredoka

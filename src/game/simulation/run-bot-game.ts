@@ -1,6 +1,7 @@
 import { PASSIVE_ORDER } from "../catalog";
+import { MAP_ORDER } from "../maps/map-registry";
 import { useGameStore } from "../store";
-import type { PassiveId, Player, TurnStage } from "../types";
+import type { MapId, PassiveId, Player, TurnStage } from "../types";
 import { createSeededRandom } from "../../utils/seeded-random";
 import { chooseBotAction } from "./bot-player";
 import { checkState, checkTransition, type RuleViolation } from "./rule-invariants";
@@ -14,6 +15,8 @@ import { checkState, checkTransition, type RuleViolation } from "./rule-invarian
 export interface BotGameOptions {
   seed: number;
   playerCount: number;
+  /** Board to play on; by default the seed picks one, so campaigns cover every map. */
+  mapId?: MapId;
   /** Forces passives on the first seats, e.g. to stress one passive. */
   passives?: PassiveId[];
   /** Overrides everybody's starting coins, e.g. 0 to open with a Tour de Bénédiction. */
@@ -31,6 +34,7 @@ export interface SeededViolation extends RuleViolation {
 export interface BotGameReport {
   seed: number;
   playerCount: number;
+  mapId: MapId;
   steps: number;
   rounds: number;
   finished: boolean;
@@ -64,12 +68,19 @@ function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
   });
 }
 
+/** Seeds alternate between the maps, so every campaign plays all of them. */
+function mapForSeed(seed: number): MapId {
+  return MAP_ORDER[Math.abs(seed) % MAP_ORDER.length];
+}
+
 export function runBotGame(options: BotGameOptions): BotGameReport {
   const botRandom = createSeededRandom(options.seed * 7_919 + 17);
   const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
+  const mapId = options.mapId ?? mapForSeed(options.seed);
   const report: BotGameReport = {
     seed: options.seed,
     playerCount: options.playerCount,
+    mapId,
     steps: 0,
     rounds: 0,
     finished: false,
@@ -90,7 +101,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
   try {
     store.getState().resetGame();
     const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
-    store.getState().startGame(botNames, options.seed);
+    store.getState().startGame(botNames, options.seed, mapId);
     if (options.passives) store.setState((state) => ({ players: assignPassives(state.players, options.passives!) }));
     const { startingCurrency } = options;
     if (startingCurrency !== undefined) {

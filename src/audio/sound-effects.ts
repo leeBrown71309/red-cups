@@ -319,6 +319,16 @@ export const soundEffects = {
     }
   },
 
+  /** Luna Park: the carousel changes direction, a wobbly fairground organ run up then down. */
+  carouselFlip(): void {
+    arpeggio([NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6, NOTE.G5, NOTE.E5, NOTE.C5], 0.07, {
+      type: "square",
+      gain: 0.06,
+      length: 0.12,
+    });
+    audioEngine.tone({ type: "sine", frequency: 220, frequencyEnd: 330, start: at(0.1), duration: 0.45, gain: 0.07 });
+  },
+
   reveal(): void {
     audioEngine.tone({ type: "triangle", frequency: NOTE.D5, duration: 0.1, gain: 0.1 });
     audioEngine.tone({ type: "triangle", frequency: NOTE.F5, start: at(0.08), duration: 0.18, gain: 0.1 });

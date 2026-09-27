@@ -89,8 +89,37 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
 - Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
 - Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
-- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus.
+- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 5 → 0 paie.
 - Délinquant (400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
+
+### 3.2 bis Seconde carte : Luna Park (patch 0.1.3)
+
+Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origine. Le départ reste la case 0 et l’Enfer la case 11 sur toutes les cartes.
+
+- **Cases** : 0 départ ; carrousel 1 verte, 2 rouge, 3 verte, 4 rouge autour de l’Enfer (11, au centre) ; 5 boutique (SO), 6 verte (O), 7 rouge (NO), 8 boutique (N, première Red Cup), 9 neutre (NE), 10 verte (E), 12 boutique (SE).
+- **Carrousel** : 1 → 2 → 3 → 4 → 1 à sens unique ; **le sens s’inverse à chaque nouvelle Red Cup** (pas pour la Cup gagnante).
+- **Rayons** libres : 0–1, 2–10, 3–8, 4–7. **Tour extérieur** : 0–12, 12–10, 10–9, 9–8, 8–7, 7–6, 6–5, 5–0.
+- **Flèches** : 0 → 1 ou 12 ; 5 → 0 (seule entrée qui paie les 200 du départ) ; 8 → 3.
+- **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
+- **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
+- Intérêt de jeu : un tour complet fait 6 pas dans un sens du manège, 8 dans l’autre ; la première Cup est à 4 pas par l’est comme par le manège ; la case 5 n’est accessible que par 6 (goulet pour la Boue) ; chaque case du carrousel est un carrefour.
+
+| Case | Sorties (sens 1 → 2) | Sorties (sens inversé) |
+| ---- | -------------------- | ---------------------- |
+| 0    | 1, 12                | 1, 12                  |
+| 1    | 0, 2                 | 0, 4                   |
+| 2    | 3, 10                | 1, 10                  |
+| 3    | 4, 8                 | 2, 8                   |
+| 4    | 1, 7                 | 3, 7                   |
+| 5    | 0                    | 0                      |
+| 6    | 5, 7                 | 5, 7                   |
+| 7    | 4, 6, 8, 12 (train)  | 4, 6, 8, 12 (train)    |
+| 8    | 3                    | 3                      |
+| 9    | 8, 10                | 8, 10                  |
+| 10   | 2, 9, 12             | 2, 9, 12               |
+| 12   | 0, 10                | 0, 10                  |
+
+**Choix de la carte** : après la liste des joueurs, une seconde étape du salon propose chaque carte avec son plan, ou « Aléatoire » (la carte est tirée au lancement). En ligne, seul l’hôte choisit ; les autres découvrent la carte au lancement. L’aide « Comment jouer » montre la carte en cours et sa légende.
 
 ### 3.3 Red Cups
 
@@ -174,7 +203,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Botte | Permet de se déplacer de deux cases au lieu d’une ; à utiliser avant le déplacement. Son prix augmente comme décrit plus haut. |
 | Boue | Se pose sur la case de l’utilisateur, avant son action : il peut ensuite se déplacer (ou utiliser un autre objet) dans le même tour. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
-| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases, sauf lorsqu’une cible est proche (une case). Il retire 200 pièces à sa victime et l’étourdit pendant un tour. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
+| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases : une cible à deux cases ou moins est touchée (patch 0.1.3). Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
 | Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
@@ -197,8 +226,8 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Penta | Ajoute un emplacement à l’inventaire. |
 | Troll | À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
 | Je suis Cups | Le joueur ne reçoit pas le bonus de 200 pièces lié au départ. |
-| Je note | Quand le joueur subit l’effet d’un objet, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
-| Calme-toi | Quand un joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases. Le MVP affiche cette décision avant de poursuivre le tour. |
+| Je note | Quand le joueur subit l’effet d’un objet utilisé par un autre joueur, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Depuis le patch 0.1.3, un objet utilisé sur soi-même (Ndoye, Hollow Purple, Middle Finger) ou sa propre Boue ne donne pas de copie. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
+| Calme-toi | Quand un autre joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases, vers la case la plus éloignée de la nouvelle Cup. Depuis le patch 0.1.3, il n’est jamais proposé contre son propre détenteur. Le MVP affiche cette décision avant de poursuivre le tour. |
 
 ## 9. Enfer, roues et duels
 
@@ -206,9 +235,9 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 
 - La case 11 représente l’Enfer.
 - Un joueur en Enfer ne suit pas le déplacement normal. À son tour, il tourne la roue de l’Enfer jusqu’à sa libération.
-- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 ; le perdant y reste.
+- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 avec le bonus de 200 pièces du départ (sauf **Je suis Cups**, patch 0.1.3) ; le perdant y reste.
 - Certains effets spéciaux peuvent aussi faire sortir de l’Enfer. La Bouteille d’eau en est un exemple ; une roue positive peut en devenir un autre.
-- Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 et le perdant reste en Enfer.
+- Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 avec le bonus du départ et le perdant reste en Enfer.
 - **Peine maximale (règle confirmée par l’auteur)** : un joueur ne reste jamais plus de **5 de ses tours** en Enfer. Si, à la fin de son 5ᵉ tour, il ne s’est pas échappé (roue, objet, passif, duel), il sort en case 0 et paie **500 pièces**. Comme toute sortie de l’Enfer, il touche le bonus de 200 pièces du départ (sauf **Je suis Cups**) : la roue de l’Enfer peut lui avoir coûté bien plus. Le bonus est versé avant le dû, soit −300 pièces au total. Il rejoue normalement au tour suivant.
   - Les tours sautés en Enfer comptent dans les 5 tours.
   - Le compteur repart à zéro à chaque nouvel envoi en Enfer. Un joueur déjà en Enfer (Draven, par exemple) garde son compteur.
@@ -306,6 +335,16 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
 
 ## 13. Historique des versions
+
+### 0.1.3 — septembre 2026
+
+- **Nouvelle carte Luna Park** : fête foraine de nuit avec un carrousel à sens unique autour de l’Enfer, qui s’inverse à chaque nouvelle Red Cup, et un train fantôme 7 → 12 (voir 3.2 bis).
+- **Choix de la carte** : une étape du salon après la liste des joueurs, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit.
+- **Comment jouer** : l’onglet Plateau suit la carte choisie ; les objets et les passifs détaillent toutes leurs conditions.
+- **Je note** : plus de copie d’un objet utilisé sur soi-même, ni de sa propre Boue.
+- **Calme-toi** : jamais proposé à son détenteur contre lui-même.
+- **Duel** : le gagnant reçoit les 200 pièces du départ, comme toute sortie de l’Enfer.
+- **Bullet Bill** : une cible à deux cases est touchée d’une seule charge.
 
 ### 0.1.1 — septembre 2026
 

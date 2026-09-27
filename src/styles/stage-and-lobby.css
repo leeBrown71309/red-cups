@@ -419,3 +419,134 @@
     display: grid;
   }
 }
+
+/* ---------- Map choice (lobby step 2) ---------- */
+.map-picker {
+  display: grid;
+  gap: 8px;
+  min-height: 0;
+  padding: 2px 4px 4px 2px;
+  overflow-y: auto;
+}
+
+.map-option {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 8px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 16px;
+  background: var(--white);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--ease-out);
+}
+
+.map-option:hover {
+  transform: translateY(-1px);
+}
+
+.map-option:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.map-option.is-selected {
+  border-color: var(--ink);
+  box-shadow:
+    0 3px 0 var(--ink),
+    0 0 0 3px var(--gold);
+}
+
+.map-option__preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.map-option__preview .board-map {
+  border-radius: 10px;
+}
+
+.map-option__preview--random {
+  border: 2px dashed var(--paper-edge);
+  background: var(--cream-2);
+  color: var(--ink-soft);
+}
+
+.map-option__text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.map-option__text strong {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.map-option__text small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.map-option__highlights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 5px;
+  margin-top: 2px;
+}
+
+.map-option__highlights span {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--cream-3);
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.lobby__step-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+/* Short landscape phones: smaller plans, no feature chips, so the start button stays visible. */
+@media (max-height: 520px) {
+  .map-option {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 10px;
+    padding: 5px 8px 5px 5px;
+  }
+
+  .map-option__highlights {
+    display: none;
+  }
+}
+
+/* Night fair behind the 3D board: a deep blue sky, a moon and a few stars. */
+.board-stage[data-map-theme="night-fair"] {
+  background:
+    radial-gradient(circle at 84% 14%, #fdf6d8 0 2.2%, rgba(253, 246, 216, 0.25) 2.6%, transparent 7%),
+    radial-gradient(1.5px 1.5px at 12% 18%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 28% 8%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 46% 16%, #ffd166 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 63% 6%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 72% 22%, #ffffff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 92% 30%, #3fe0ff 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 6% 36%, #ff9fcd 50%, transparent 51%),
+    radial-gradient(130% 90% at 50% 0%, #2a2f6b 0%, #1b1f3b 55%, #0d1024 100%);
+}
+
+.board-stage[data-map-theme="night-fair"] .board-stage__message {
+  color: var(--white);
+}

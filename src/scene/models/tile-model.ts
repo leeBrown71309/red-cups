@@ -30,7 +30,12 @@ export interface TileVisual {
 
 const SEGMENTS = 10;
 
-export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
+export interface TileStyle {
+  /** Night maps: a glowing edge and a lit top so the tile colour reads in the dark. */
+  neon?: boolean;
+}
+
+export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyle = {}): TileVisual {
   const radius = node.kind === "start" ? START_TILE_RADIUS : TILE_RADIUS;
   const colors = TILE_COLORS[node.kind];
   const group = new THREE.Group();
@@ -50,12 +55,22 @@ export function createTileVisual(node: BoardNode, kit: SceneKit): TileVisual {
 
   const top = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.9, radius * 0.97, TILE_HEIGHT * 0.28, SEGMENTS),
-    kit.flat(colors.top),
+    style.neon ? kit.flat(colors.top, { emissive: colors.top, emissiveIntensity: 0.35 }) : kit.flat(colors.top),
   );
   top.position.y = TILE_HEIGHT * 0.86;
   top.receiveShadow = true;
   lift.add(top);
   addOutline(base, kit, 1.035);
+
+  if (style.neon) {
+    const glowEdge = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 1.04, 0.055, 4, SEGMENTS * 3),
+      kit.unlit(colors.top),
+    );
+    glowEdge.rotation.x = Math.PI / 2;
+    glowEdge.position.y = TILE_HEIGHT * 0.72;
+    lift.add(glowEdge);
+  }
 
   const decalCanvas = document.createElement("canvas");
   decalCanvas.width = 256;
