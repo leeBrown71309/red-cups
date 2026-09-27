@@ -140,8 +140,9 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
     if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
-  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed) {
-    // The next player's turn opens with their thaw at Banquise, which may owe a wheel first.
+  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed && !next.pendingDuel?.ghost) {
+    // The next player's turn opens with their thaw at Banquise, which may owe a wheel first,
+    // or with the Luna Park ghost riding onto somebody.
     found.push(violation("abandon-passes-turn", `after ${leaver.name} left the stage is ${next.turnStage}`));
   }
 }

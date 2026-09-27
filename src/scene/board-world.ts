@@ -9,6 +9,7 @@ import { BoardLayout } from "./board-layout";
 import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
+import { GhostActor, type GhostView } from "./ghost-actor";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
@@ -33,6 +34,10 @@ export interface BoardView {
   bulletBill: BulletView | null;
   /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
   bulletFlightSeq: number | null;
+  /** Luna Park: the ghost of the carousel; null on the other maps and outside a game. */
+  ghost: GhostView | null;
+  /** Sequence of the ghost's last deed, so the scene holds it in place until the deed is replayed. */
+  ghostEventSeq: number | null;
   /** Destination → path from `pathOrigin`, for every legal choice. */
   legalPaths: Map<NodeId, NodeId[]>;
   pathOrigin: NodeId | null;
@@ -45,6 +50,8 @@ export interface BoardView {
 
 export interface BoardWorldCallbacks {
   onTileSelect: (nodeId: NodeId, pointerType: string) => void;
+  /** Luna Park: the ghost was clicked, to look at its loot. */
+  onGhostSelect: () => void;
 }
 
 /** Awning colour of the shop booths; the toy box keeps the shop blue. */
@@ -79,6 +86,8 @@ export class BoardWorld {
   private readonly animated: AnimatedProp[] = [];
   private readonly redCup: AnimatedProp;
   private readonly bullet: BulletBillActor;
+  /** Only on maps a ghost haunts. */
+  private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
@@ -114,7 +123,9 @@ export class BoardWorld {
     this.roads = new RoadNetwork(this.kit, this.layout, this.theme.roads);
     this.scene.add(this.roads.group);
 
-    this.pawns = new PawnController(this.kit, this.layout);
+    this.pawns = new PawnController(this.kit, this.layout, {
+      onGhostSlap: (pawnId) => this.ghost?.fling(pawnId) ?? null,
+    });
     this.scene.add(this.pawns.group);
 
     this.redCup = createRedCup(this.kit);
@@ -123,6 +134,13 @@ export class BoardWorld {
 
     this.bullet = new BulletBillActor(this.kit, this.effects, this.layout);
     this.scene.add(this.bullet.group);
+
+    if (this.layout.map.ghostTiles) {
+      this.ghost = new GhostActor(this.kit, this.effects, this.layout, this.pawns, (strength, durationMs) =>
+        this.rig.shakeFor(strength, durationMs),
+      );
+      this.scene.add(this.ghost.group);
+    }
 
     this.scene.add(this.effects.group);
 
@@ -166,6 +184,7 @@ export class BoardWorld {
 
     this.syncMud(view.mudNodeIds);
     this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
+    this.ghost?.sync(view.ghost, view.ghostEventSeq);
     this.refreshCoveredTiles(view);
   }
 
@@ -413,6 +432,7 @@ export class BoardWorld {
     }
 
     this.bullet.update(elapsed, delta);
+    this.ghost?.update(elapsed, delta);
 
     this.renderer.render(this.scene, this.rig.camera);
   };
@@ -439,13 +459,24 @@ export class BoardWorld {
     this.rig.resize(width, height);
   }
 
-  private pickNode(event: PointerEvent): NodeId | null {
+  private aimRaycaster(event: PointerEvent): void {
     const rect = this.renderer.domElement.getBoundingClientRect();
     this.pointer.set(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(this.pointer, this.rig.camera);
+  }
+
+  /** The ghost floats above its tile, so when the pointer is on it, it wins over the tiles. */
+  private pickGhost(event: PointerEvent): boolean {
+    if (!this.ghost) return false;
+    this.aimRaycaster(event);
+    return this.ghost.hitDistance(this.raycaster) !== null;
+  }
+
+  private pickNode(event: PointerEvent): NodeId | null {
+    this.aimRaycaster(event);
     const pickMeshes = [...this.tiles.values()].map((tile) => tile.pickMesh);
     const hit = this.raycaster.intersectObjects(pickMeshes, false)[0];
     const nodeId = hit?.object.userData.nodeId;
@@ -463,6 +494,10 @@ export class BoardWorld {
     const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
     if (moved > TAP_DISTANCE_PX || performance.now() - start.time > TAP_DURATION_MS) return;
 
+    if (this.pickGhost(event)) {
+      this.callbacks.onGhostSelect();
+      return;
+    }
     const nodeId = this.pickNode(event);
     if (nodeId !== null && this.view?.legalPaths.has(nodeId)) {
       this.callbacks.onTileSelect(nodeId, event.pointerType);
@@ -471,9 +506,10 @@ export class BoardWorld {
 
   private readonly handlePointerMove = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || event.buttons !== 0) return;
-    const nodeId = this.pickNode(event);
+    const onGhost = this.pickGhost(event);
+    const nodeId = onGhost ? null : this.pickNode(event);
     const hovered = nodeId !== null && this.view?.legalPaths.has(nodeId) ? nodeId : null;
-    this.renderer.domElement.style.cursor = hovered !== null ? "pointer" : "";
+    this.renderer.domElement.style.cursor = onGhost || hovered !== null ? "pointer" : "";
     if (hovered === this.hoveredNodeId) return;
     this.hoveredNodeId = hovered;
     this.refreshHighlights();
@@ -544,6 +580,24 @@ export class BoardWorld {
         this.effects.spawnConfetti(hell);
         return;
       }
+      case "ghost-appeared":
+        this.ghost?.appeared(event.nodeId);
+        return;
+      case "ghost-moved":
+        this.ghost?.moved(event.to);
+        return;
+      case "ghost-attack":
+        this.ghost?.attacked(event.playerId);
+        return;
+      case "ghost-vanished":
+        this.ghost?.vanished();
+        return;
+      case "ghost-flung":
+        this.ghost?.flung();
+        return;
+      case "ghost-stole":
+        this.ghost?.stole(event.playerId);
+        return;
       case "player-left": {
         const position = this.pawns.getPawnPosition(event.playerId);
         if (position) this.effects.spawnPoof(position, "#ffffff");

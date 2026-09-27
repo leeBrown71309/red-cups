@@ -30,7 +30,7 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
 | Duel en Enfer | Quand deux joueurs se trouvent en Enfer, un duel est déclenché. Le gagnant retourne en case 0 ; le perdant reste en Enfer. |
-| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux et vote des autres joueurs. |
+| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux, vote des autres joueurs et Basket. |
 | État client | React, Three.js et Zustand. Pas de serveur multijoueur dans le MVP. |
 
 ## 3. Plateau et déplacements
@@ -102,6 +102,13 @@ Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origin
 - **Flèches** : 0 → 1 ou 12 ; 5 → 0 (seule entrée qui paie les 200 du départ) ; 8 → 3.
 - **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
 - **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
+- **Le fantôme** (patch 0.1.3) hante les cases du carrousel 1 à 4 :
+  - il apparaît au tour de table 2 ou 3, sur une case du carrousel libre si possible, puis avance d’une case **dans le sens du manège** à chaque changement de tour : on le voit venir, on peut le chasser ou l’éviter ;
+  - s’il arrive sur un joueur, ou si un joueur s’arrête sur sa case (en marchant, téléporté ou tiré), un **duel contre le fantôme** commence avant la roue de la case. Il affronte chaque joueur de sa case une fois par arrêt, le joueur actif d’abord ;
+  - le mini-jeu est tiré au sort comme un duel ordinaire (pile ou face, pierre-feuille-ciseaux, vote de la table, Basket). Le moteur tire la main du fantôme, ses tirs au Basket et, dès le début du duel, la pénalité et la récompense : tout est identique sur chaque appareil en ligne ;
+  - **fantôme vainqueur** : une pénalité parmi celles qui s’appliquent, au hasard : il **gifle le joueur et l’emporte en Enfer**, il **vole 300 pièces** (au plus ce que le joueur possède) ou il **vole un objet** au hasard (jamais une Red Cup). Pièces et objets volés vont dans son **butin**. Il reste sur sa case jusqu’à son prochain déplacement ;
+  - **joueur vainqueur** : il reprend **un seul** morceau du butin, tiré au hasard : un objet, ou **200 pièces** du tas de pièces (le reste attend le suivant). Butin vide : **+300 pièces**. Un objet repris dans un sac plein oblige à jeter un objet ; un objet qu’il ne pourrait pas garder (troisième exemplaire, seconde Gomme) n’est pas tiré. Le fantôme **disparaît 3 tours de table**, puis réapparaît et reprend son cycle ;
+  - un clic sur le fantôme ouvre son butin. Le butin survit à ses disparitions.
 - Intérêt de jeu : un tour complet fait 6 pas dans un sens du manège, 8 dans l’autre ; la première Cup est à 4 pas par l’est comme par le manège ; la case 5 n’est accessible que par 6 (goulet pour la Boue) ; chaque case du carrousel est un carrefour.
 
 | Case | Sorties (sens 1 → 2) | Sorties (sens inversé) |
@@ -130,7 +137,7 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 - **Tombée de glace** : si la glissade tirée file vers la case de la Red Cup, la glace a 80 % de chances de tomber sur le joueur. Il reste alors pris au milieu de la route, sans rien atteindre, et son tour se termine. Au début de son tour suivant, il brise la glace et arrive sur la case visée (Red Cup, Boue, roue ; pas de boutique), puis joue normalement. Déplacé entre-temps (Corde, échange, Enfer…), sa glissade est perdue.
 - **Blizzard** : une troisième case glissante est tirée au lancement, puis déplacée au début de chaque tour de table impair (3, 5, 7…). Elle peut tomber sur n’importe quelle case qui a au moins deux routes, départ compris, sauf l’Enfer, les glaces 3 et 7, la case de la Red Cup et la glace qu’elle remplace. Un départ gelé ne paie pas les 200 pièces. Une Red Cup n’apparaît jamais sur la glace.
 
-**Choix de la carte** : après la liste des joueurs, une seconde étape du salon propose « Aléatoire » (toujours en tête, la carte est tirée au lancement) puis chaque carte avec son plan. En ligne, seul l’hôte choisit ; les autres découvrent la carte au lancement. L’aide « Comment jouer » montre uniquement la carte jouée et sa légende. Chaque carte a sa propre musique.
+**Choix de la carte** : après la liste des joueurs, une seconde étape du salon présente les cartes en carrousel (flèches, balayage ou touches ←/→) : « Aléatoire » (toujours en tête, la carte est tirée au lancement) puis chaque carte avec son plan. La carte affichée est la carte choisie. En partie locale, la **revanche** rouvre ce carrousel, positionné sur la carte qui vient d’être jouée : on peut rejouer au même endroit ou changer de carte. En ligne, seul l’hôte choisit ; les autres découvrent la carte au lancement. L’aide « Comment jouer » montre uniquement la carte jouée et sa légende. Chaque carte a sa propre musique : dans le carrousel, on entend celle de la carte affichée ; sur « Aléatoire » et dans tous les autres menus, on entend la musique de base du jeu.
 
 ### 3.3 Red Cups
 
@@ -262,6 +269,8 @@ Le système tire uniformément un mode disponible :
 1. **Pile ou face** : vainqueur tiré à 50/50.
 2. **Pierre-feuille-ciseaux** : choix des deux duellistes, égalité rejouée.
 3. **Vote** : les duellistes ne votent pas ; les autres joueurs choisissent un vainqueur. Une égalité est départagée par pile ou face.
+4. **Basket** (patch 0.1.3, sur toutes les cartes) : un panier, une balle, 15 secondes pour marquer le plus de paniers. Le chrono ne part qu’après « Commencer le mini-jeu ». On tire quand le curseur de la jauge passe dans la zone verte ; la jauge accélère vers la fin. Entre deux joueurs, chacun a ses 15 secondes, l’un après l’autre ; contre le fantôme, il tire en même temps. Égalité : pile ou face. En ligne, les autres regardent les tirs en direct ; seul le score final, envoyé par l’appareil du tireur, compte (plafonné à 30).
+   - Le fantôme n’est pas une machine : sa forme du jour (40 à 70 % de réussite), ses séries chaudes ou froides, ses hésitations et son excès de confiance après 4 paniers d’affilée lui font marquer environ 6 paniers, de 0 à 12 selon les manches.
 
 Si aucun joueur extérieur n’est disponible pour voter, le mode vote est retiré du tirage. Dans le MVP sur un seul écran, l’hôte entre les choix et votes. Les entrées de pierre-feuille-ciseaux sont masquées successivement avant révélation.
 
@@ -351,8 +360,10 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 
 - **Nouvelle carte Luna Park** : fête foraine de nuit avec un carrousel à sens unique autour de l’Enfer, qui s’inverse à chaque nouvelle Red Cup, et un train fantôme 7 → 12 (voir 3.2 bis). Une bannière annonce le changement de sens ; boutique et roues attendent sa fin.
 - **Nouvelle carte Banquise** : lac gelé en miroir où l’on glisse au hasard sur la glace, tombée de glace sur la route de la Red Cup, blizzard qui déplace une troisième glace tous les deux tours, crevasse de l’Enfer, neige et aurore boréale (voir 3.2 ter).
-- **Musique** : une ambiance par carte (valse de fête foraine pour Luna Park, boîte à musique polaire pour Banquise).
-- **Choix de la carte** : une étape du salon après la liste des joueurs, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit.
+- **Fantôme de Luna Park** : il hante le carrousel en suivant le manège, défie les joueurs qu’il croise, vole de l’argent ou des objets qu’il garde en butin, ou emporte sa victime en Enfer ; le battre rend un morceau du butin ou 300 pièces (voir 3.2 bis).
+- **Nouveau mini-jeu Basket** : 15 secondes pour marquer le plus de paniers, dans tous les duels et sur toutes les cartes (voir 9.2).
+- **Musique** : une ambiance par carte (valse de fête foraine pour Luna Park, boîte à musique polaire pour Banquise), chacune avec sa version sombre quand le joueur actif est en Enfer ou pendant un duel ; celle du coffre à jouets est plus sombre qu’avant.
+- **Choix de la carte** : une étape du salon après la liste des joueurs, en carrousel, avec un aperçu de chaque carte ou un tirage aléatoire ; en ligne, l’hôte choisit. La revanche propose le même carrousel, sur la carte qui vient d’être jouée.
 - **Comment jouer** : l’onglet Plateau montre la carte jouée, seule la légende défile ; les objets et les passifs détaillent toutes leurs conditions, une par une, avec des flèches.
 - **Je note** : plus de copie d’un objet utilisé sur soi-même, ni de sa propre Boue.
 - **Calme-toi** : jamais proposé à son détenteur contre lui-même.

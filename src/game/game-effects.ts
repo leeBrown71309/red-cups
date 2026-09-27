@@ -2,6 +2,8 @@ import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, isBlizzardRound } from "./ice";
 import { advanceBulletBill } from "./bullet-bill";
+import { createDuel, getDuelModes } from "./duel-setup";
+import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
@@ -50,6 +52,7 @@ const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
   "coin-flip": "pile ou face",
   "rock-paper-scissors": "pierre-feuille-ciseaux",
   "player-vote": "vote",
+  basket: "Basket",
 };
 
 /** Draws the wheel result now; the UI only animates towards it. */
@@ -130,26 +133,11 @@ export function startDuel(
   if (!playerOne || !playerTwo || playerOneId === playerTwoId) return state;
 
   const otherPlayers = state.players.filter((player) => player.id !== playerOneId && player.id !== playerTwoId);
-  const availableModes: DuelMode[] = ["coin-flip", "rock-paper-scissors"];
-  if (otherPlayers.length > 0) availableModes.push("player-vote");
-  const mode = randomChoice(availableModes) ?? "coin-flip";
-  const coinWinnerId = mode === "coin-flip" ? randomChoice([playerOneId, playerTwoId]) : undefined;
+  const mode = randomChoice(getDuelModes(otherPlayers.length > 0)) ?? "coin-flip";
 
   const nextState: GameState = {
     ...state,
-    pendingDuel: {
-      playerOneId,
-      playerTwoId,
-      mode,
-      coinWinnerId,
-      resumeStage,
-      rpsChoices: {},
-      rpsTiedRound: null,
-      rpsTies: 0,
-      votes: {},
-      voteTieBroken: false,
-      winnerId: null,
-    },
+    pendingDuel: createDuel(playerOneId, playerTwoId, mode, resumeStage),
     turnStage: "duel",
     duelResumeStage: resumeStage,
   };
@@ -173,7 +161,8 @@ function countHellTurnStartedThere(state: GameState, resumeStage: TurnStage): Ga
 
 /**
  * Resolves what the table still owes before play goes on: first a duel if two
- * players are in Hell (only one may suffer there), then the queued tile wheels.
+ * players are in Hell (only one may suffer there), then the Luna Park ghost
+ * meeting a player on its tile, then the queued tile wheels.
  */
 export function settleBoard(current: GameState, resumeStage: TurnStage): GameState {
   const state = countHellTurnStartedThere(current, resumeStage);
@@ -190,6 +179,8 @@ export function settleBoard(current: GameState, resumeStage: TurnStage): GameSta
   const stage = normalizeResumeStage(state, resumeStage);
   const hellPlayers = state.players.filter((player) => player.position === HELL_NODE_ID);
   if (hellPlayers.length >= 2) return startDuel(state, hellPlayers[0].id, hellPlayers[1].id, stage);
+  const ghostOpponent = findGhostOpponent(state);
+  if (ghostOpponent) return startGhostDuel(state, ghostOpponent.id, stage);
 
   const withWheels = validTileWheels(state);
   if (withWheels.pendingTileWheels.length > 0) {
@@ -558,7 +549,14 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
     pendingCupCollectorId: null,
     pendingCalmDown: null,
   };
-  return thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
+  nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
+  return rideGhost(nextState);
+}
+
+/** Luna Park: the ghost rides on at every turn change, and may land on somebody right away. */
+function rideGhost(state: GameState): GameState {
+  if (!state.ghost || state.phase !== "playing" || !["move", "hell"].includes(state.turnStage)) return state;
+  return settleBoard(advanceGhost(state), state.turnStage);
 }
 
 /**

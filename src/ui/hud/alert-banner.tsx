@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useUiStore } from "../../feedback/ui-store";
 import { ALERT_BANNER_MS } from "../../theme/timing";
+import { GhostAvatar } from "../components/ghost-avatar";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 
@@ -26,6 +27,8 @@ export function AlertBannerView() {
         <span className="alert-banner__icon" aria-hidden="true">
           {alert.tone === "danger" ? (
             <ItemIcon itemId="bullet-bill" size={46} />
+          ) : alert.tone === "ghost" ? (
+            <GhostAvatar size={50} />
           ) : (
             <UiIcon name={alert.tone === "blizzard" ? "flag" : "sparkle"} size={34} />
           )}

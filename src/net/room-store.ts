@@ -27,6 +27,7 @@ import {
   prepareLocalAction,
   type RoomWire,
 } from "./room-protocol";
+import { attachBasketLive, handleBasketWire, type BasketWire } from "./basket-live";
 import { ensureSession, getSupabase } from "./supabase-client";
 import {
   attachVoice,
@@ -242,6 +243,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     channel.on("broadcast", { event: "room" }, ({ payload }) => enqueue(() => handleWire(payload as RoomWire)));
     // Voice signalling skips the game queue: a call must not wait behind a resync.
     channel.on("broadcast", { event: "voice" }, ({ payload }) => void handleVoiceWire(payload as VoiceWire));
+    // Live Basket shots are only for the show: they skip the game queue too.
+    channel.on("broadcast", { event: "basket" }, ({ payload }) => handleBasketWire(payload as BasketWire));
+    attachBasketLive((wire) => void channel?.send({ type: "broadcast", event: "basket", payload: wire }));
     channel.on("presence", { event: "sync" }, () => {
       const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
@@ -277,6 +281,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
   const disconnect = async () => {
     setActionRelay(null);
     detachVoice();
+    attachBasketLive(null);
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
     if (channel) await getSupabase().removeChannel(channel);

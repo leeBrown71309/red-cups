@@ -5,7 +5,15 @@ import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
 import type { MapId } from "../../game/types";
-import { HELL_TURN_LIMIT, HELL_EXIT_TOLL, START_BONUS } from "../../game/types";
+import {
+  GHOST_COOLDOWN_ROUNDS,
+  GHOST_EMPTY_LOOT_REWARD,
+  GHOST_LOOT_COINS,
+  GHOST_STEAL_COINS,
+  HELL_EXIT_TOLL,
+  HELL_TURN_LIMIT,
+  START_BONUS,
+} from "../../game/types";
 import { BoardMap } from "../components/board-map";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
@@ -47,6 +55,8 @@ function getTurnSteps(mapId: MapId): string[] {
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
     "En Enfer, à chaque tour, tu tournes sa roue ou tu utilises un objet. Deux joueurs en Enfer = duel : " +
       `le gagnant repart du Départ avec ${START_BONUS} pièces.`,
+    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table ou Basket. " +
+      "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
     `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
     "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
@@ -70,6 +80,16 @@ function getTurnSteps(mapId: MapId): string[] {
     steps.push(
       `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
         "Délinquant peut le prendre à contresens.",
+    );
+  }
+  if (board.map.ghostTiles) {
+    steps.push(
+      `Le fantôme : il hante les cases ${board.map.ghostTiles.join(", ")} du carrousel et avance d’une case dans le ` +
+        "sens du manège à chaque fin de tour. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel.",
+      `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
+        `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
+        `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,
+      "Clique sur le fantôme pour voir son butin.",
     );
   }
   return steps;

@@ -5,7 +5,8 @@ import { UiIcon } from "../icons/ui-icon";
 interface ModalShellProps {
   title: ReactNode;
   eyebrow?: ReactNode;
-  tone?: "cream" | "grape" | "sky" | "gold" | "cup";
+  /** "night": the Luna Park ghost's duels, set apart from every other dialog. */
+  tone?: "cream" | "grape" | "sky" | "gold" | "cup" | "night";
   size?: "small" | "medium" | "large";
   onClose?: () => void;
   footer?: ReactNode;

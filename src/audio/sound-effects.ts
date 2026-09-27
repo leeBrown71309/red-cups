@@ -369,6 +369,177 @@ export const soundEffects = {
     audioEngine.tone({ type: "sine", frequency: 220, frequencyEnd: 330, start: at(0.1), duration: 0.45, gain: 0.07 });
   },
 
+  /** Luna Park: the ghost rises out of the ground, a wavering wail over a low rumble. */
+  ghostAppear(): void {
+    // Two voices a little out of tune beat against each other: the wail wavers like a theremin.
+    for (const detune of [0, 38]) {
+      audioEngine.tone({
+        type: "sine",
+        frequency: 240,
+        frequencyEnd: 660,
+        duration: 1.3,
+        attack: 0.25,
+        release: 0.5,
+        gain: 0.06,
+        detune,
+      });
+    }
+    audioEngine.tone({
+      type: "triangle",
+      frequency: 880,
+      frequencyEnd: 1_240,
+      start: at(0.35),
+      duration: 0.9,
+      attack: 0.2,
+      release: 0.5,
+      gain: 0.02,
+      detune: -25,
+    });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 52,
+      frequencyEnd: 38,
+      duration: 1.4,
+      attack: 0.1,
+      gain: 0.1,
+      filterFrequency: 260,
+    });
+    audioEngine.noise({
+      duration: 1.2,
+      gain: 0.05,
+      filterType: "lowpass",
+      filterFrequency: 420,
+      filterFrequencyEnd: 90,
+    });
+  },
+
+  /** Luna Park: the ghost glides to the next carousel tile. */
+  ghostWhoosh(delay = 0): void {
+    audioEngine.noise({
+      start: at(delay),
+      duration: 0.6,
+      gain: 0.07,
+      filterFrequency: 380,
+      filterFrequencyEnd: 1_900,
+      q: 1.4,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 520,
+      frequencyEnd: 330,
+      start: at(delay),
+      duration: 0.55,
+      attack: 0.15,
+      gain: 0.025,
+      detune: 30,
+    });
+  },
+
+  /** Luna Park: the ghost's creepy cackle, a descending, wobbling "ha-ha-ha". */
+  ghostLaugh(delay = 0): void {
+    [640, 590, 540, 480, 420].forEach((frequency, index) => {
+      const start = at(delay + index * 0.15);
+      for (const detune of [0, 45]) {
+        audioEngine.tone({
+          type: "sawtooth",
+          frequency,
+          frequencyEnd: frequency * 0.86,
+          start,
+          duration: 0.12,
+          attack: 0.015,
+          release: 0.06,
+          gain: 0.035,
+          filterFrequency: 1_500,
+          detune,
+        });
+      }
+      audioEngine.noise({ start, duration: 0.1, gain: 0.025, filterFrequency: 1_300, q: 2 });
+    });
+  },
+
+  /** Luna Park: the ghost's hand lands, a sharp crack over a thump. */
+  ghostSlap(delay = 0): void {
+    audioEngine.noise({ start: at(delay), duration: 0.07, gain: 0.2, filterType: "highpass", filterFrequency: 1_800 });
+    audioEngine.noise({ start: at(delay), duration: 0.13, gain: 0.09, filterFrequency: 900, q: 1.2 });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 190,
+      frequencyEnd: 60,
+      start: at(delay),
+      duration: 0.15,
+      gain: 0.18,
+    });
+  },
+
+  /** Luna Park: beaten, the ghost dissolves in a shimmer that sinks away. */
+  ghostVanish(): void {
+    arpeggio([2_093, 1_760, 1_480, 1_245, 1_047, 880], 0.08, { type: "sine", gain: 0.035, length: 0.25 });
+    audioEngine.noise({ duration: 1, gain: 0.05, filterFrequency: 4_500, filterFrequencyEnd: 700, q: 3 });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 660,
+      frequencyEnd: 180,
+      duration: 1,
+      attack: 0.05,
+      release: 0.4,
+      gain: 0.04,
+      detune: 35,
+    });
+  },
+
+  /** Basket: the soft whoosh of a throw. */
+  basketShoot(): void {
+    audioEngine.noise({ duration: 0.2, gain: 0.06, filterFrequency: 700, filterFrequencyEnd: 2_400, q: 1.2 });
+    audioEngine.tone({ type: "sine", frequency: 300, frequencyEnd: 520, duration: 0.12, gain: 0.04 });
+  },
+
+  /** Basket: nothing but net. */
+  basketSwish(): void {
+    audioEngine.noise({ duration: 0.26, gain: 0.08, filterFrequency: 5_200, filterFrequencyEnd: 2_300, q: 0.8 });
+    audioEngine.noise({
+      start: at(0.06),
+      duration: 0.2,
+      gain: 0.04,
+      filterFrequency: 3_800,
+      filterFrequencyEnd: 1_600,
+      q: 0.9,
+    });
+  },
+
+  /** Basket: the ball clanks off the rim. */
+  basketRim(): void {
+    // Inharmonic partials, like struck metal.
+    [
+      [520, 0.06],
+      [1_310, 0.04],
+      [2_150, 0.025],
+      [3_400, 0.015],
+    ].forEach(([frequency, gain]) => {
+      audioEngine.tone({ type: "sine", frequency, duration: 0.32, gain, release: 0.28 });
+    });
+    audioEngine.noise({ duration: 0.04, gain: 0.08, filterType: "highpass", filterFrequency: 2_500 });
+  },
+
+  /** Basket: time is up. */
+  basketBuzzer(): void {
+    for (const frequency of [220, 233]) {
+      audioEngine.tone({
+        type: "sawtooth",
+        frequency,
+        duration: 0.8,
+        attack: 0.01,
+        release: 0.08,
+        gain: 0.045,
+        filterFrequency: 1_600,
+      });
+    }
+  },
+
+  /** Basket: one tick of the countdown. */
+  basketTick(): void {
+    audioEngine.tone({ type: "triangle", frequency: 1_250, frequencyEnd: 950, duration: 0.05, gain: 0.07 });
+  },
+
   reveal(): void {
     audioEngine.tone({ type: "triangle", frequency: NOTE.D5, duration: 0.1, gain: 0.1 });
     audioEngine.tone({ type: "triangle", frequency: NOTE.F5, start: at(0.08), duration: 0.18, gain: 0.1 });

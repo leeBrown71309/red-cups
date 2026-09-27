@@ -788,6 +788,17 @@
     linear-gradient(135deg, #7fc8ee, #34507a);
 }
 
+/* Luna Park: the ghost shows up, or pounces on a player. */
+.alert-banner--ghost {
+  background:
+    radial-gradient(circle at 12% 50%, rgba(199, 125, 255, 0.55), transparent 45%),
+    linear-gradient(135deg, #1b1f3b, #3b1d5f);
+}
+
+.alert-banner--ghost .alert-banner__icon {
+  background: #27305f;
+}
+
 /* Luna Park: the carousel changes direction. */
 .alert-banner--carousel {
   background:

@@ -1,11 +1,12 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { getBoard } from "./board";
+import { createGhost } from "./ghost";
 import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
-import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel } from "./duel";
+import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { runWithSeededSource } from "./engine-random";
 import {
   addCupCycleEffects,
@@ -93,6 +94,8 @@ export type GameAction =
   | { type: "pickDuelHand"; playerId: PlayerId; choice: RpsChoice }
   | { type: "castDuelVote"; voterId: PlayerId; candidateId: PlayerId }
   | { type: "resolveDuel"; winnerId: PlayerId }
+  | { type: "startBasketRound"; playerId: PlayerId }
+  | { type: "submitBasketScore"; playerId: PlayerId; score: number }
   | { type: "discardInventoryEntry"; entryId: string }
   | { type: "repositionBeforeCup"; destination: NodeId }
   | { type: "resolveCalmDown"; useEffect: boolean };
@@ -153,7 +156,10 @@ function startGame(
       ],
     };
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
-    return map.blizzardEveryRounds === undefined ? opening : { ...opening, iceTileNodeId: pickBlizzardTile(opening) };
+    const withIce =
+      map.blizzardEveryRounds === undefined ? opening : { ...opening, iceTileNodeId: pickBlizzardTile(opening) };
+    // Luna Park's ghost waits a round or two before haunting the carousel.
+    return { ...withIce, ghost: createGhost(withIce) };
   };
   if (seed === undefined) return build();
   const { result, seed: seededRandom } = runWithSeededSource({ rngState: seed >>> 0, nextId: 0 }, build);
@@ -391,6 +397,14 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
     const copiedItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, copiedItem));
     nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`, "event");
+  } else if (pending.reason === "loot" && pending.itemId) {
+    const lootItem = pending.itemId;
+    nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, lootItem));
+    nextState = addLog(
+      nextState,
+      `${player.name} reprend ${ITEM_CATALOG[lootItem].name} dans le butin du fantôme.`,
+      "good",
+    );
   }
 
   const waitsForDecision = ["reposition", "passive-choice"].includes(nextState.turnStage);
@@ -499,6 +513,10 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
       return castDuelVote(state, action.voterId, action.candidateId);
     case "resolveDuel":
       return resolveDuel(state, action.winnerId);
+    case "startBasketRound":
+      return startBasketRound(state, action.playerId);
+    case "submitBasketScore":
+      return submitBasketScore(state, action.playerId, action.score);
     case "discardInventoryEntry":
       return discardInventoryEntry(state, action.entryId);
     case "repositionBeforeCup":

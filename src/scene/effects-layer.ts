@@ -13,6 +13,7 @@ interface TransientEffect {
 const CONFETTI_COLORS = ["#e8453c", "#ffc94d", "#5cc46a", "#4fa5f2", "#ff8fc7", "#ffffff"];
 const FIRE_COLORS = ["#fff1a8", "#ffd166", "#ff9f43", "#ff5e3a", "#e8453c"];
 const SMOKE_COLOR = "#4a3d45";
+const GHOST_MIST_COLORS = ["#b77bff", "#7dffc8", "#8a4dff", "#c9fff0"];
 
 /** Short-lived juice: floating coin numbers, confetti bursts, poofs and explosions. */
 export class EffectsLayer {
@@ -260,6 +261,124 @@ export class EffectsLayer {
           z,
         );
         material.opacity = 0.85 * Math.sin(progress * Math.PI);
+      });
+    }
+  }
+
+  /** Luna Park: the ghost's violet and green mist, swirling up as it rises from or melts into the ground. */
+  spawnGhostMist(position: THREE.Vector3, amount = 16): void {
+    for (let index = 0; index < amount; index += 1) {
+      const material = additive(GHOST_MIST_COLORS[index % GHOST_MIST_COLORS.length], 0.7);
+      const puff = new THREE.Mesh(this.poofGeometry, material);
+      const angle = (index / amount) * Math.PI * 2 + Math.random() * 0.4;
+      const reach = 0.6 + Math.random() * 0.7;
+      const rise = 0.8 + Math.random() * 1.4;
+      const size = 1.4 + Math.random() * 1.6;
+      const swirl = 1.6 + Math.random() * 1.2;
+      this.push(puff, 1.1 + Math.random() * 0.5, (progress) => {
+        const eased = 1 - (1 - progress) ** 2;
+        const turn = angle + eased * swirl;
+        puff.position.set(
+          position.x + Math.cos(turn) * reach * eased,
+          position.y + 0.2 + rise * eased,
+          position.z + Math.sin(turn) * reach * eased,
+        );
+        puff.scale.setScalar(size * (0.4 + eased));
+        material.opacity = 0.7 * (1 - progress) * Math.min(1, progress * 8);
+      });
+    }
+  }
+
+  /** Luna Park: one wisp of the trail the ghost leaves as it flies. */
+  spawnGhostWisp(position: THREE.Vector3): void {
+    const material = additive(GHOST_MIST_COLORS[Math.floor(Math.random() * GHOST_MIST_COLORS.length)], 0.5);
+    const wisp = new THREE.Mesh(this.poofGeometry, material);
+    const origin = position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.4, 0, (Math.random() - 0.5) * 0.4));
+    this.push(wisp, 0.7, (progress) => {
+      wisp.position.copy(origin).setY(origin.y + progress * 0.35);
+      wisp.scale.setScalar(1.6 * (1 - progress * 0.6));
+      material.opacity = 0.5 * (1 - progress);
+    });
+  }
+
+  /** Luna Park: the ghost's slap lands, a white flash, a ring and a big "PAF !". */
+  spawnSlapImpact(position: THREE.Vector3): void {
+    const flashMaterial = additive("#ffffff", 1);
+    const flash = new THREE.Mesh(this.flashGeometry, flashMaterial);
+    flash.position.copy(position);
+    this.push(flash, 0.22, (progress) => {
+      flash.scale.setScalar(0.15 + easeOutBack(progress) * 0.55);
+      flashMaterial.opacity = 1 - progress;
+    });
+
+    const ringMaterial = additive("#c9a2ff", 0.9);
+    const ring = new THREE.Mesh(this.shockwaveGeometry, ringMaterial);
+    ring.position.copy(position);
+    ring.lookAt(position.x, position.y, position.z + 1);
+    this.push(ring, 0.4, (progress) => {
+      ring.scale.setScalar(0.2 + (1 - (1 - progress) ** 3) * 1.2);
+      ringMaterial.opacity = 0.9 * (1 - progress);
+    });
+
+    for (let index = 0; index < 8; index += 1) {
+      const material = additive(index % 2 === 0 ? "#ffffff" : "#ffd166", 1);
+      const streak = new THREE.Mesh(this.streakGeometry, material);
+      const angle = (index / 8) * Math.PI * 2;
+      streak.rotation.z = angle;
+      this.push(streak, 0.3, (progress) => {
+        const reach = 0.25 + progress * 0.7;
+        streak.position.set(
+          position.x + Math.cos(angle) * reach,
+          position.y + Math.sin(angle) * reach,
+          position.z + 0.1,
+        );
+        streak.scale.set(0.5 * (1 - progress), 1.4, 1);
+        material.opacity = 1 - progress;
+      });
+    }
+
+    const label = createLabelSprite("PAF !", {
+      color: "#ffffff",
+      stroke: "#5b1d8f",
+      fontSize: 96,
+      worldHeight: 0.8,
+    });
+    (label.material as THREE.SpriteMaterial).depthTest = false;
+    label.renderOrder = 11;
+    const labelStart = position.clone().add(new THREE.Vector3(0.3, 0.7, 0));
+    const labelScale = label.scale.clone();
+    this.push(label, 1.1, (progress) => {
+      label.position.copy(labelStart).setY(labelStart.y + progress * 0.5);
+      const pop = progress < 0.15 ? Math.max(0.01, easeOutBack(progress / 0.15)) : 1;
+      label.scale.set(labelScale.x * pop, labelScale.y * pop, 1);
+      label.material.rotation = -0.2;
+      label.material.opacity = progress > 0.65 ? 1 - (progress - 0.65) / 0.35 : 1;
+    });
+  }
+
+  /**
+   * Luna Park: gold sparkles torn out of a player and sucked into the ghost's
+   * sack. `target` is read every frame, so the loot follows a ghost on the move.
+   */
+  spawnLootSuck(from: THREE.Vector3, target: () => THREE.Vector3): void {
+    for (let index = 0; index < 14; index += 1) {
+      const material = additive(index % 3 === 0 ? "#ffffff" : "#ffd166", 1);
+      const sparkle = new THREE.Mesh(this.debrisGeometry, material);
+      const start = from.clone().add(new THREE.Vector3(0, 0.6 + Math.random() * 0.4, 0));
+      const bulge = randomHemisphereDirection(0.3).multiplyScalar(0.8 + Math.random() * 0.6);
+      const delay = index * 0.035;
+      const lifetime = 0.75 + delay;
+      const spin = 6 + Math.random() * 6;
+      sparkle.scale.setScalar(0.001);
+      this.push(sparkle, lifetime, (progress) => {
+        const time = Math.max(0, (progress * lifetime - delay) / 0.75);
+        if (time === 0) return;
+        const eased = time * time;
+        const end = target();
+        sparkle.position.lerpVectors(start, end, eased).addScaledVector(bulge, Math.sin(time * Math.PI));
+        sparkle.rotation.set(time * spin, time * spin * 0.7, 0);
+        sparkle.scale.setScalar(Math.max(0.001, 0.9 * (1 - eased * 0.7)));
+        material.opacity = time > 0.85 ? (1 - time) / 0.15 : 1;
       });
     }
   }

@@ -88,6 +88,8 @@ function duelState(mode: PendingDuel["mode"], playerCount = 2): GameState {
     votes: {},
     voteTieBroken: false,
     winnerId: null,
+    basket: mode === "basket" ? { id: "b1", shooterId: null, scores: {}, ghostShots: [], tieBroken: false } : null,
+    ghost: null,
   };
   return { ...start, turnStage: "duel", pendingDuel };
 }

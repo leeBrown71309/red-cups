@@ -10,8 +10,10 @@ import {
   HELL_TURN_LIMIT,
   NO_THANKS_COOLDOWN_ROUNDS,
   RED_CUP_GOAL,
+  GHOST_ID,
   START_NODE_ID,
 } from "../types";
+import { getBoardMap } from "../maps/map-registry";
 import { checkAbandon, checkBlessing, checkBulletBill, checkMudReward } from "./event-invariants";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
@@ -197,6 +199,7 @@ export function checkState(state: GameState): RuleViolation[] {
     }
   }
 
+  checkGhost(state, found);
   return found;
 }
 
@@ -214,6 +217,10 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
   if (movement.thawed) {
     checkThaw(previous, movement, found);
+    return;
+  }
+  if (movement.flungByGhost) {
+    checkGhostFling(previous, next, movement, found);
     return;
   }
   // The walk itself is exactly the move's distance; anything after it was slid on ice.
@@ -292,6 +299,71 @@ function checkSlide(previous: GameState, next: GameState, movement: PlayerMoveme
     found.push(violation("ice-fall-cup", `ice fell on a slide towards ${to}, not the Red Cup`));
   }
   if (!isIce(board, stuckOn)) found.push(violation("ice-fall-on-ice", `stuck on tile ${stuckOn}, which is not ice`));
+}
+
+/** Luna Park: only a ghost that won a duel carries its opponent off to Hell, from the ghost's own tile. */
+function checkGhostFling(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+  const duel = previous.pendingDuel;
+  const wonByGhost = duel?.ghost?.penalty.kind === "hell" && duel.winnerId === GHOST_ID;
+  if (!wonByGhost || duel.playerOneId !== movement.playerId || previous.ghost?.nodeId !== movement.from) {
+    found.push(violation("ghost-fling", `the ghost carried ${movement.playerId} to Hell without winning a duel`));
+  }
+  if (findPlayer(next, movement.playerId)?.position !== HELL_NODE_ID) {
+    found.push(violation("ghost-fling-hell", `${movement.playerId} was flung but is not in Hell`));
+  }
+}
+
+/** Luna Park: the ghost stays on the carousel tiles, keeps real loot and never duels a player twice in a row. */
+function checkGhost(state: GameState, found: RuleViolation[]): void {
+  const ghost = state.ghost;
+  const tiles = getBoardMap(state.mapId).ghostTiles;
+  if (!tiles) {
+    if (ghost) found.push(violation("ghost-map", `a ghost haunts ${state.mapId}`));
+    return;
+  }
+  if (state.phase === "playing" && !ghost) found.push(violation("ghost-exists", "Luna Park lost its ghost"));
+  if (!ghost) return;
+  if (ghost.nodeId !== null && !tiles.includes(ghost.nodeId)) {
+    found.push(violation("ghost-tile", `the ghost stands on tile ${ghost.nodeId}, off the carousel`));
+  }
+  if (ghost.loot.coins < 0) found.push(violation("ghost-loot", `the ghost holds ${ghost.loot.coins} coins`));
+  const duel = state.pendingDuel;
+  if (duel?.ghost && (duel.playerTwoId !== GHOST_ID || ghost.nodeId === null)) {
+    found.push(violation("ghost-duel", "a duel against the ghost without the ghost on the board"));
+  }
+  if (duel && duel.playerTwoId === GHOST_ID && !duel.ghost) {
+    found.push(violation("ghost-stakes", "the ghost duels with nothing at stake"));
+  }
+}
+
+/** Luna Park: beaten, the ghost leaves; the loot only grows by what it stole and shrinks by what it gave back. */
+function checkGhostDuelResult(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const duel = previous.pendingDuel;
+  if (!duel?.ghost || next.pendingDuel === duel || !previous.ghost || !next.ghost) return;
+  if (next.pendingDuel?.playerOneId === duel.playerOneId && next.pendingDuel.ghost) return;
+  const lootItems = (state: GameState) => state.ghost?.loot.items.length ?? 0;
+  if (duel.winnerId === duel.playerOneId) {
+    if (next.ghost.nodeId !== null && next.lastGhostEvent?.kind !== "appear") {
+      found.push(violation("ghost-vanish", "the ghost stayed on the board after losing"));
+    }
+    const { reward } = duel.ghost;
+    const coinsBack = reward.kind === "coins" && reward.fromLoot ? reward.amount : 0;
+    const itemsBack = reward.kind === "item" ? 1 : 0;
+    if (
+      next.ghost.loot.coins !== previous.ghost.loot.coins - coinsBack ||
+      lootItems(next) !== lootItems(previous) - itemsBack
+    ) {
+      found.push(violation("ghost-reward", "the loot changed by something else than the reward"));
+    }
+  } else if (duel.winnerId === GHOST_ID) {
+    const grown = next.ghost.loot.coins - previous.ghost.loot.coins + (lootItems(next) - lootItems(previous));
+    if (duel.ghost.penalty.kind === "hell" && grown !== 0) {
+      found.push(violation("ghost-penalty", "the ghost took loot along with the trip to Hell"));
+    }
+    if (duel.ghost.penalty.kind !== "hell" && grown < 0) {
+      found.push(violation("ghost-penalty", "the ghost's loot shrank after it won"));
+    }
+  }
 }
 
 /** Banquise: breaking free finishes exactly the slide that was put on hold. */
@@ -613,5 +685,6 @@ export function checkTransition(previous: GameState, next: GameState, appliedIte
   checkBlessing(previous, next, found);
   checkAbandon(previous, next, found);
   checkMudReward(previous, next, found);
+  checkGhostDuelResult(previous, next, found);
   return found;
 }

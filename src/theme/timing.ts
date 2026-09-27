@@ -15,6 +15,13 @@ export const GLIDE_MS = 440;
 export const FREEZE_MS = 1_100;
 export const SHATTER_MS = 450;
 
+/** Luna Park: the ghost winds up and slaps its victim. */
+export const GHOST_SLAP_MS = 650;
+/** Luna Park: when, within the slap, the ghost's hand lands; the scene and the sound meet there. */
+export const GHOST_SLAP_IMPACT_MS = 430;
+/** Luna Park: the ghost carries its victim through the air down into Hell. */
+export const GHOST_CARRY_MS = 1_300;
+
 /** Pause after a Red Cup pickup before modals open, so the celebration reads. */
 export const CUP_CELEBRATION_MS = 900;
 
@@ -47,6 +54,7 @@ export function estimateMovementMs(
   movement: Pick<PlayerMovement, "from" | "path"> & Partial<PlayerMovement>,
 ): number {
   if (movement.thawed) return SHATTER_MS + GLIDE_MS;
+  if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
   const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
   let previous = movement.from;

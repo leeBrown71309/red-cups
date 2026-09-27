@@ -42,6 +42,10 @@ interface GameActions {
   pickDuelHand: (playerId: PlayerId, choice: RpsChoice) => void;
   castDuelVote: (voterId: PlayerId, candidateId: PlayerId) => void;
   resolveDuel: (winnerId: PlayerId) => void;
+  /** Basket: the duellist's 15 seconds start. */
+  startBasketRound: (playerId: PlayerId) => void;
+  /** Basket: the duellist's baskets once the time is up. */
+  submitBasketScore: (playerId: PlayerId, score: number) => void;
   discardInventoryEntry: (entryId: string) => void;
   repositionBeforeCup: (destination: NodeId) => void;
   resolveCalmDown: (useEffect: boolean) => void;
@@ -105,6 +109,8 @@ export const useGameStore = create<GameStore>()(
       pickDuelHand: (playerId, choice) => dispatch({ type: "pickDuelHand", playerId, choice }),
       castDuelVote: (voterId, candidateId) => dispatch({ type: "castDuelVote", voterId, candidateId }),
       resolveDuel: (winnerId) => dispatch({ type: "resolveDuel", winnerId }),
+      startBasketRound: (playerId) => dispatch({ type: "startBasketRound", playerId }),
+      submitBasketScore: (playerId, score) => dispatch({ type: "submitBasketScore", playerId, score }),
       discardInventoryEntry: (entryId) => dispatch({ type: "discardInventoryEntry", entryId }),
       repositionBeforeCup: (destination) => dispatch({ type: "repositionBeforeCup", destination }),
       resolveCalmDown: (useEffect) => dispatch({ type: "resolveCalmDown", useEffect }),

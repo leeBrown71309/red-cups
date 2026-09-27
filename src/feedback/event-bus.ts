@@ -34,7 +34,19 @@ export type FeedbackEvent =
   | { type: "pawn-slide" }
   | { type: "ice-shatter"; playerId: PlayerId }
   | { type: "ice-fall"; playerId: PlayerId; from: NodeId; to: NodeId; hit: boolean }
-  | { type: "blizzard"; from: NodeId | null; to: NodeId | null };
+  | { type: "blizzard"; from: NodeId | null; to: NodeId | null }
+  /** Luna Park: the ghost shows up on a carousel tile. */
+  | { type: "ghost-appeared"; nodeId: NodeId }
+  /** Luna Park: the ghost rides one carousel tile on. */
+  | { type: "ghost-moved"; from: NodeId; to: NodeId }
+  /** Luna Park: the ghost pounces on a player: a duel follows. */
+  | { type: "ghost-attack"; playerId: PlayerId; nodeId: NodeId }
+  /** Luna Park: beaten, the ghost fades away for a few rounds. */
+  | { type: "ghost-vanished"; nodeId: NodeId | null }
+  /** Luna Park: the ghost slaps a player and carries them off to Hell. */
+  | { type: "ghost-flung"; playerId: PlayerId; from: NodeId }
+  /** Luna Park: the ghost won and took coins or an item. */
+  | { type: "ghost-stole"; playerId: PlayerId };
 
 type Listener = (event: FeedbackEvent) => void;
 

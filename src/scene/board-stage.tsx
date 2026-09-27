@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { musicPlayer } from "../audio/music-player";
 import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import type { MapId, NodeId } from "../game/types";
@@ -29,6 +28,10 @@ export const boardCamera = {
 
 type StageStatus = "loading" | "ready" | "error";
 
+function openGhostLoot(): void {
+  useUiStore.getState().setGhostLootOpen(true);
+}
+
 /** Map on screen: the game's board once it starts, the lobby's pick before. */
 function useDisplayedMapId(mode: CameraMode): MapId {
   const gameMapId = useGameStore((state) => state.mapId);
@@ -53,7 +56,11 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
     void waitForDisplayFont().then(() => {
       if (cancelled) return;
       try {
-        created = new BoardWorld(container, { onTileSelect: selectDestinationFromBoard }, mapId);
+        created = new BoardWorld(
+          container,
+          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot },
+          mapId,
+        );
         boardCamera.world = created;
         setWorld(created);
         setStatus("ready");
@@ -70,9 +77,6 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
       setWorld(null);
     };
   }, [mapId]);
-
-  // The soundtrack follows the board on screen, in the lobby as in a game.
-  useEffect(() => musicPlayer.setTheme(getBoardMap(mapId).themeId), [mapId]);
 
   const view = useBoardView(mode, mapId);
   useEffect(() => {
@@ -160,6 +164,12 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       bulletBill:
         playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,
       bulletFlightSeq: playing ? (game.lastBulletFlight?.seq ?? null) : null,
+      // Not lagged either: the ghost actor holds its place until its deed has been replayed.
+      ghost:
+        playing && game.ghost
+          ? { nodeId: game.ghost.nodeId, lootCount: (game.ghost.loot.coins > 0 ? 1 : 0) + game.ghost.loot.items.length }
+          : null,
+      ghostEventSeq: playing ? (game.lastGhostEvent?.seq ?? null) : null,
       legalPaths: playing ? legalMoves.paths : new Map(),
       pathOrigin: legalMoves.origin,
       markerColor: decider?.color ?? "#ffffff",

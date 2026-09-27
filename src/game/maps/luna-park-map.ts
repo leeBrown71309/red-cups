@@ -12,7 +12,9 @@ import type { BoardMap } from "./map-types";
  *   without shortening the loop: entering 0 from 12 pays nothing;
  * - tile 5 can only be reached from 6, a choke point for mud;
  * - the first Cup waits on 8, four steps away both through the east and
- *   through the carousel.
+ *   through the carousel;
+ * - a ghost haunts the carousel tiles, riding one tile on at every turn
+ *   change; meeting it means a duel for its loot (see `src/game/ghost.ts`).
  */
 export const LUNA_PARK_MAP: BoardMap = {
   id: "luna-park",
@@ -22,6 +24,7 @@ export const LUNA_PARK_MAP: BoardMap = {
     "Carrousel à sens unique qui s’inverse à chaque Red Cup",
     "Quatre carrefours autour de l’Enfer",
     "Train fantôme 7 → 12 d’un coin à l’autre",
+    "Un fantôme voleur hante le carrousel",
   ],
   themeId: "night-fair",
   tunnelStyle: "portals",
@@ -64,6 +67,7 @@ export const LUNA_PARK_MAP: BoardMap = {
     { from: 7, to: 12, kind: "tunnel" },
   ],
   initialCupNodeId: 8,
+  ghostTiles: [1, 2, 3, 4],
   roadLegend: [
     {
       style: "arrow",
@@ -75,7 +79,9 @@ export const LUNA_PARK_MAP: BoardMap = {
     {
       style: "carousel",
       title: "Carrousel 1 · 2 · 3 · 4",
-      description: "À sens unique autour de l’Enfer. Il change de sens à chaque nouvelle Red Cup.",
+      description:
+        "À sens unique autour de l’Enfer, il change de sens à chaque nouvelle Red Cup. Un fantôme voleur y rôde " +
+        "en suivant le manège.",
     },
     {
       style: "tunnel",
