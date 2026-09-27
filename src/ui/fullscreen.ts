@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { create } from "zustand";
 
 /**
  * Fullscreen helpers. Browsers only grant fullscreen from a user gesture, so
@@ -23,6 +24,36 @@ export function isStandaloneApp(): boolean {
   const iosStandalone = (navigator as Navigator & { standalone?: boolean }).standalone === true;
   return iosStandalone || window.matchMedia("(display-mode: fullscreen), (display-mode: standalone)").matches;
 }
+
+export function isTouchDevice(): boolean {
+  return window.matchMedia("(pointer: coarse) and (hover: none)").matches;
+}
+
+/**
+ * The browser an iPhone runs, for the "add to home screen" steps. Every iOS
+ * browser is WebKit underneath, so none of them can hide its bars: only the
+ * home screen icon opens the game without them.
+ */
+export type HomeScreenBrowser = "safari" | "chrome" | "other-ios" | "other";
+
+export function detectHomeScreenBrowser(): HomeScreenBrowser {
+  const agent = navigator.userAgent;
+  if (!/iPhone|iPod/.test(agent)) return "other";
+  if (/CriOS/.test(agent)) return "chrome";
+  if (/FxiOS|EdgiOS|OPiOS/.test(agent)) return "other-ios";
+  return "safari";
+}
+
+interface InstallGuideState {
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}
+
+/** The "add to home screen" guide, reopened on demand where fullscreen is out of reach. */
+export const useInstallGuide = create<InstallGuideState>()((set) => ({
+  open: false,
+  setOpen: (open) => set({ open }),
+}));
 
 export async function enterGameFullscreen(): Promise<boolean> {
   const root = document.documentElement as FullscreenElement;
@@ -64,4 +95,21 @@ export function useFullscreenState(): boolean {
   }, []);
 
   return active;
+}
+
+/**
+ * One control for every "fullscreen" button: it toggles real fullscreen where
+ * the browser allows it, and opens the home screen guide where it does not.
+ * Unavailable once launched from the home screen, where there is nothing to hide.
+ */
+export function useFullscreenToggle(): { available: boolean; active: boolean; toggle: () => void } {
+  const active = useFullscreenState();
+  const openGuide = useInstallGuide((state) => state.setOpen);
+  const [available] = useState(() => !isStandaloneApp());
+  const toggle = () => {
+    if (!isFullscreenSupported()) openGuide(true);
+    else if (active) exitGameFullscreen();
+    else void enterGameFullscreen();
+  };
+  return { available, active, toggle };
 }

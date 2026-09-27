@@ -1,11 +1,13 @@
 import { useAudioSettings } from "../../audio/audio-settings";
 import { useRoomStore } from "../../net/room-store";
 import { setVoiceMuted, useVoiceStore } from "../../net/voice";
+import { VOICE_CHAT_ENABLED } from "../../net/voice-feature";
 import { UiIcon } from "../icons/ui-icon";
 
-/** Voice chat only exists at an online table, in its lobby or during its game. */
+/** Voice chat only exists at an online table, in its lobby or during its game, and while the feature is on. */
 function useAtOnlineTable(): boolean {
-  return useRoomStore((state) => state.view === "lobby" || state.view === "playing");
+  const atTable = useRoomStore((state) => state.view === "lobby" || state.view === "playing");
+  return VOICE_CHAT_ENABLED && atTable;
 }
 
 /** The setting, as a row of the audio settings: on, the device joins the call of every room. */
@@ -76,7 +78,7 @@ export function VoiceBadge({ userId }: { userId: string | null }) {
   const myMuted = useVoiceStore((state) => state.muted);
   const linked = useVoiceStore((state) => (userId ? state.links[userId] === "connected" : false));
   const talking = useVoiceStore((state) => (userId ? state.talking[userId] === true : false));
-  if (!active || !userId) return null;
+  if (!VOICE_CHAT_ENABLED || !active || !userId) return null;
 
   const isMe = userId === myUserId;
   if (!isMe && !(member && linked)) return null;

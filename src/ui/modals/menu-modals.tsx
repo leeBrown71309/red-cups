@@ -6,7 +6,7 @@ import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { AudioSliders } from "../components/audio-controls";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
-import { enterGameFullscreen, exitGameFullscreen, isFullscreenSupported, useFullscreenState } from "../fullscreen";
+import { useFullscreenToggle } from "../fullscreen";
 import { UiIcon } from "../icons/ui-icon";
 import { PlayerPickList } from "./decision-modals";
 
@@ -24,8 +24,7 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }:
   const [confirmQuit, setConfirmQuit] = useState(false);
   // Online, quitting leaves the room and abandons the game, so the others play on.
   const quit = () => (isOnline ? void leaveRoom() : resetGame());
-  const fullscreenActive = useFullscreenState();
-  const toggleFullscreen = () => (fullscreenActive ? exitGameFullscreen() : void enterGameFullscreen());
+  const fullscreen = useFullscreenToggle();
 
   return (
     <ModalShell title="Pause" eyebrow="Red Cups" size="small" onClose={onClose} className="pause-menu">
@@ -39,10 +38,10 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }:
         <button type="button" className="btn btn--cream btn--block" onClick={onOpenJournal}>
           <UiIcon name="journal" size={20} /> Journal de la partie
         </button>
-        {isFullscreenSupported() && (
-          <button type="button" className="btn btn--cream btn--block" onClick={toggleFullscreen}>
-            <UiIcon name={fullscreenActive ? "shrink" : "expand"} size={20} />
-            {fullscreenActive ? "Quitter le plein écran" : "Plein écran"}
+        {fullscreen.available && (
+          <button type="button" className="btn btn--cream btn--block" onClick={fullscreen.toggle}>
+            <UiIcon name={fullscreen.active ? "shrink" : "expand"} size={20} />
+            {fullscreen.active ? "Quitter le plein écran" : "Plein écran"}
           </button>
         )}
         <button type="button" className="btn btn--cream btn--block" onClick={onOpenAbandon}>

@@ -8,6 +8,8 @@ html,
 body,
 #root {
   height: 100%;
+  /* The height really visible, iOS browser bars included; 100% stays as the fallback. */
+  height: 100dvh;
   margin: 0;
 }
 

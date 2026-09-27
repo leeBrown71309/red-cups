@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { useAudioSettings } from "../audio/audio-settings";
 import { useUiStore } from "../feedback/ui-store";
+import { VOICE_CHAT_ENABLED } from "./voice-feature";
 
 /**
  * Voice chat of an online room: every device holds one WebRTC link to every
@@ -136,6 +137,7 @@ export function describeMicError(error: unknown): string {
 export function attachVoice(next: VoiceLink): void {
   detachVoice();
   link = next;
+  if (!VOICE_CHAT_ENABLED) return;
   unsubscribeSetting = useAudioSettings.subscribe((state, previous) => {
     if (state.voiceEnabled === previous.voiceEnabled) return;
     if (state.voiceEnabled) void startVoice();
@@ -145,7 +147,8 @@ export function attachVoice(next: VoiceLink): void {
 
 /** Called once the channel is joined. */
 export function joinVoiceIfEnabled(): void {
-  if (useAudioSettings.getState().voiceEnabled) void startVoice();
+  // A setting saved while the feature was live must not open the mic now that it is hidden.
+  if (VOICE_CHAT_ENABLED && useAudioSettings.getState().voiceEnabled) void startVoice();
 }
 
 /** Leaving the room: hang up and forget everything about it. */
