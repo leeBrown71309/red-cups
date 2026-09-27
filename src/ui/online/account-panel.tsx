@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAccountStore } from "../../net/account-store";
+import { ModalShell } from "../components/modal-shell";
 import { UiIcon } from "../icons/ui-icon";
 import { GameHistoryModal } from "./game-history";
 import { ONLINE_NAME_MAX_LENGTH } from "./online-name";
@@ -16,6 +17,7 @@ export function AccountPanel() {
   const signInWithGoogle = useAccountStore((state) => state.signInWithGoogle);
   const signOut = useAccountStore((state) => state.signOut);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   if (kind !== "google") {
     return (
@@ -45,7 +47,7 @@ export function AccountPanel() {
         <button
           type="button"
           className="icon-button icon-button--small"
-          onClick={signOut}
+          onClick={() => setConfirmSignOut(true)}
           disabled={busy}
           aria-label="Se déconnecter"
           title="Se déconnecter"
@@ -58,6 +60,35 @@ export function AccountPanel() {
         <UiIcon name="journal" size={18} /> Mes parties
       </button>
       {historyOpen && <GameHistoryModal onClose={() => setHistoryOpen(false)} />}
+      {confirmSignOut && (
+        <ModalShell
+          title="Se déconnecter ?"
+          eyebrow="Compte Google"
+          size="small"
+          onClose={() => setConfirmSignOut(false)}
+        >
+          <p className="modal-lead">
+            Tu joueras en invité sur cet appareil. Ton nom de profil et l’historique de tes parties restent sur ton
+            compte : reconnecte-toi pour les retrouver.
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="btn btn--cream" onClick={() => setConfirmSignOut(false)} data-autofocus>
+              Annuler
+            </button>
+            <button
+              type="button"
+              className="btn btn--grape"
+              disabled={busy}
+              onClick={() => {
+                setConfirmSignOut(false);
+                void signOut();
+              }}
+            >
+              <UiIcon name="logout" size={18} /> Se déconnecter
+            </button>
+          </div>
+        </ModalShell>
+      )}
     </section>
   );
 }
