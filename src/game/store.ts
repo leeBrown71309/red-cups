@@ -24,7 +24,8 @@ interface GameActions {
   prepareBoot: (entryId: string) => void;
   buyItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
-  useItem: (entryId: string, targetPlayerId?: PlayerId) => void;
+  /** `count`: Tomates thrown at once from their stack. */
+  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number) => void;
   /** A Non merci holder cancels the declared action, or null lets it happen. */
   resolveReaction: (reactorId: PlayerId | null) => void;
   /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
@@ -93,7 +94,7 @@ export const useGameStore = create<GameStore>()(
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
-      useItem: (entryId, targetPlayerId) => dispatch({ type: "useItem", entryId, targetPlayerId }),
+      useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
       spinHellWheel: () => dispatch({ type: "spinHellWheel" }),

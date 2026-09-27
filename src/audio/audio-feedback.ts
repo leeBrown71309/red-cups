@@ -1,7 +1,13 @@
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { useGameStore } from "../game/store";
 import type { GameState } from "../game/types";
-import { GHOST_SLAP_IMPACT_MS, GHOST_SLAP_MS } from "../theme/timing";
+import {
+  GHOST_SLAP_IMPACT_MS,
+  GHOST_SLAP_MS,
+  GHOST_TELEPORT_MS,
+  TOMATO_FLIGHT_MS,
+  TOMATO_VOLLEY_GAP_MS,
+} from "../theme/timing";
 import { audioEngine } from "./audio-engine";
 import { getMusicMood } from "./music-mood";
 import { musicPlayer } from "./music-player";
@@ -47,6 +53,14 @@ export function startAudioFeedback(): () => void {
       case "ice-shatter":
         soundEffects.iceShatter();
         break;
+      case "tomato-thrown": {
+        for (let index = 0; index < event.count; index += 1) {
+          soundEffects.tomatoThrow(TOMATO_FLIGHT_MS / 1000, (index * TOMATO_VOLLEY_GAP_MS) / 1000);
+        }
+        const lastLanding = (TOMATO_FLIGHT_MS + (event.count - 1) * TOMATO_VOLLEY_GAP_MS) / 1000;
+        if (event.stunned) soundEffects.tomatoKnockOut(lastLanding);
+        break;
+      }
       case "pawn-tunnel":
       case "teleport":
         soundEffects.tunnel();
@@ -101,6 +115,10 @@ export function startAudioFeedback(): () => void {
         break;
       case "ghost-moved":
         soundEffects.ghostWhoosh();
+        break;
+      case "ghost-teleported":
+        soundEffects.ghostVanish();
+        soundEffects.ghostWhoosh(GHOST_TELEPORT_MS / 2_000);
         break;
       case "ghost-attack":
       case "ghost-stole":

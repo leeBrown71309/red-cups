@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { getInventoryCapacity } from "../../game/rules";
+import { getEntryUnits } from "../../game/state-utils";
 import { useGameStore } from "../../game/store";
 import type { InventoryEntry, Player } from "../../game/types";
 import { getItemAvailability } from "../display/item-availability";
@@ -74,6 +75,7 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
               aria-label={isCup ? "Red Cup" : ITEM_CATALOG[entry.itemId].name}
             >
               {isCup ? <RedCupIcon size={34} /> : <ItemIcon itemId={entry.itemId} size={34} />}
+              {!isCup && getEntryUnits(entry) > 1 && <span className="bag-slot__count">×{getEntryUnits(entry)}</span>}
             </button>
           );
         })}
@@ -126,7 +128,10 @@ function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
       <div className="item-card__head">
         <ItemIcon itemId={entry.itemId} size={44} />
         <div>
-          <strong>{item.name}</strong>
+          <strong>
+            {item.name}
+            {getEntryUnits(entry) > 1 && ` ×${getEntryUnits(entry)}`}
+          </strong>
           {item.target === "player" && <span className="item-card__tag">Cible un joueur</span>}
         </div>
       </div>

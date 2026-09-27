@@ -433,6 +433,27 @@
     background-color 160ms ease;
 }
 
+/* A stack of Tomates in one slot: how many are left. */
+.bag-slot {
+  position: relative;
+}
+
+.bag-slot__count {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  min-width: 24px;
+  padding: 1px 5px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cup);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .bag-slot:hover {
   transform: translateY(-2px);
 }

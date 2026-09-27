@@ -10,6 +10,8 @@ export interface ItemDefinition {
   /** Every condition of the effect, for How to play. */
   details: string[];
   target: "self" | "player" | "none" | "special";
+  /** Stackable items pile up to this many in a single bag slot, and only one slot may hold them. */
+  stackLimit?: number;
   /** Only meaningful for player-targeted items. */
   canTargetSelf?: boolean;
 }
@@ -179,6 +181,22 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     ],
     target: "self",
   },
+  tomato: {
+    id: "tomato",
+    name: "Tomate",
+    price: 10,
+    symbol: "✺",
+    description: "Lance-la sur un joueur, pour rire : 2 chances sur 100 de l’assommer un tour.",
+    details: [
+      "Elle se lance avant ton action et ne compte pas comme une : choisis ta cible puis combien en lancer d’un coup.",
+      "Sur n’importe quel autre joueur, même en Enfer, et même depuis l’Enfer. Jamais sur toi.",
+      "2 chances sur 100 que la cible soit assommée : elle passe son prochain tour. Sinon, juste une tomate écrasée.",
+      "Jusqu’à 5 Tomates dans une seule place du sac ; on ne peut pas en remplir une seconde.",
+      "Trop petite pour Non merci, qui ne peut pas l’annuler. Je note en récupère une à chaque tomate reçue.",
+    ],
+    target: "player",
+    stackLimit: 5,
+  },
 };
 
 export const ITEM_ORDER: ItemId[] = [
@@ -187,6 +205,7 @@ export const ITEM_ORDER: ItemId[] = [
   "rope",
   "boot",
   "mud",
+  "tomato",
   "eraser",
   "bullet-bill",
   "middle-finger",

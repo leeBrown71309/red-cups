@@ -37,14 +37,18 @@ export type FeedbackEvent =
   | { type: "blizzard"; from: NodeId | null; to: NodeId | null }
   /** Luna Park: the ghost shows up on a carousel tile. */
   | { type: "ghost-appeared"; nodeId: NodeId }
-  /** Luna Park: the ghost rides one carousel tile on. */
-  | { type: "ghost-moved"; from: NodeId; to: NodeId }
+  /** Luna Park: the ghost drifts one to three tiles along the roads, whichever way they run. */
+  | { type: "ghost-moved"; from: NodeId; to: NodeId; path: NodeId[] }
+  /** Luna Park: the ghost vanishes and reappears somewhere else on the board. */
+  | { type: "ghost-teleported"; from: NodeId; to: NodeId }
   /** Luna Park: the ghost pounces on a player: a duel follows. */
   | { type: "ghost-attack"; playerId: PlayerId; nodeId: NodeId }
   /** Luna Park: beaten, the ghost fades away for a few rounds. */
   | { type: "ghost-vanished"; nodeId: NodeId | null }
   /** Luna Park: the ghost slaps a player and carries them off to Hell. */
   | { type: "ghost-flung"; playerId: PlayerId; from: NodeId }
+  /** A volley of Tomates flies from one player to another; `stunned` when one knocked the target out. */
+  | { type: "tomato-thrown"; throwerId: PlayerId; targetId: PlayerId; count: number; stunned: boolean }
   /** Luna Park: the ghost won and took coins or an item. */
   | { type: "ghost-stole"; playerId: PlayerId };
 

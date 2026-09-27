@@ -105,7 +105,10 @@ function collectGhostEvents(state: GameState, previous: GameState): FeedbackEven
   if (deed && deed.seq !== previous.lastGhostEvent?.seq && previous.phase === "playing") {
     if (deed.kind === "appear" && deed.to !== null) events.push({ type: "ghost-appeared", nodeId: deed.to });
     if (deed.kind === "move" && deed.from !== null && deed.to !== null) {
-      events.push({ type: "ghost-moved", from: deed.from, to: deed.to });
+      events.push({ type: "ghost-moved", from: deed.from, to: deed.to, path: deed.path ?? [deed.to] });
+    }
+    if (deed.kind === "teleport" && deed.from !== null && deed.to !== null) {
+      events.push({ type: "ghost-teleported", from: deed.from, to: deed.to });
     }
     if (deed.kind === "vanish") events.push({ type: "ghost-vanished", nodeId: deed.from });
     if (deed.kind === "fling" && deed.playerId && deed.from !== null) {
@@ -226,6 +229,16 @@ function collectEvents(
     events.push({ type: "ice-fall", playerId, from, to, hit });
   }
   events.push(...collectGhostEvents(state, previous));
+  const tomato = state.lastTomatoThrow;
+  if (tomato && tomato.seq !== previous.lastTomatoThrow?.seq) {
+    events.push({
+      type: "tomato-thrown",
+      throwerId: tomato.throwerId,
+      targetId: tomato.targetId,
+      count: tomato.count ?? 1,
+      stunned: tomato.stunned,
+    });
+  }
   if (state.carouselReversed !== previous.carouselReversed && previous.phase === "playing") {
     events.push({ type: "carousel-flipped", reversed: state.carouselReversed });
   }

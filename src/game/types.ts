@@ -16,6 +16,8 @@ export const FIRST_ROUND = 1;
 /** Rounds Non merci needs to recharge after cancelling an action. */
 export const NO_THANKS_COOLDOWN_ROUNDS = 3;
 export const BULLET_BILL_DAMAGE = 200;
+/** Tomate: chance that a hit knocks the target out, who then skips their next turn. */
+export const TOMATO_STUN_CHANCE = 0.02;
 /** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
 export const ICE_FALL_CHANCE = 0.8;
 /** After this many of their own turns in Hell, a player is released at the start, for a toll. */
@@ -33,6 +35,12 @@ export const GHOST_LOOT_COINS = 200;
 export const GHOST_EMPTY_LOOT_REWARD = 300;
 /** Luna Park: rounds the ghost stays away after being beaten. */
 export const GHOST_COOLDOWN_ROUNDS = 3;
+/** Luna Park: chance that the ghost vanishes and reappears far away instead of drifting along the roads. */
+export const GHOST_TELEPORT_CHANCE = 0.25;
+/** Luna Park: most tiles the ghost drifts in one go; at least one. */
+export const GHOST_MAX_DRIFT_STEPS = 3;
+/** Luna Park: a teleport takes the ghost at least this many roads away, when the board allows. */
+export const GHOST_TELEPORT_MIN_DISTANCE = 3;
 /** Basket: length of each duellist's shooting time. */
 export const BASKET_DURATION_MS = 15_000;
 /** Basket: no score above this is believed (a shot takes well over half a second). */
@@ -66,7 +74,8 @@ export type ItemId =
   | "monopoly-man"
   | "water-bottle"
   | "helmet"
-  | "draven";
+  | "draven"
+  | "tomato";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -84,7 +93,10 @@ export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
 export type RpsChoice = "rock" | "paper" | "scissors";
 
-export type InventoryEntry = { id: string; kind: "red-cup" } | { id: string; kind: "item"; itemId: ItemId };
+export type InventoryEntry =
+  | { id: string; kind: "red-cup" }
+  /** `count`: how many a stackable item (the Tomate) piles up in this one slot; absent means one. */
+  | { id: string; kind: "item"; itemId: ItemId; count?: number };
 
 export interface Player {
   id: PlayerId;
@@ -322,6 +334,17 @@ export interface PlayerMovement {
   flungByGhost?: boolean;
 }
 
+/** Last volley of Tomates, kept so the scene can replay every throw and splat. */
+export interface TomatoThrow {
+  seq: number;
+  throwerId: PlayerId;
+  targetId: PlayerId;
+  /** Tomates thrown in one go, from one stack. */
+  count: number;
+  /** Knocked out by at least one of them: one skipped turn, however many hit. */
+  stunned: boolean;
+}
+
 /** Banquise: a player stuck in fallen ice, halfway between two tiles. */
 export interface FrozenSlide {
   playerId: PlayerId;
@@ -352,7 +375,7 @@ export interface GhostLoot {
   items: { id: string; itemId: ItemId }[];
 }
 
-/** Luna Park: the ghost haunting the carousel tiles, following the ride. */
+/** Luna Park: the ghost haunting the whole board, road rules or not. */
 export interface GhostState {
   /** Null while it is away, beaten or not appeared yet. */
   nodeId: NodeId | null;
@@ -366,9 +389,12 @@ export interface GhostState {
 /** Luna Park: the ghost's last deed, kept so the scene can replay it. */
 export interface GhostEvent {
   seq: number;
-  kind: "appear" | "move" | "vanish" | "fling";
+  /** "move": drifted along the roads; "teleport": vanished and reappeared elsewhere. */
+  kind: "appear" | "move" | "teleport" | "vanish" | "fling";
   from: NodeId | null;
   to: NodeId | null;
+  /** "move": every tile drifted through, `to` last. */
+  path?: NodeId[];
   /** "fling": the player the ghost carried to Hell. */
   playerId?: PlayerId;
 }
@@ -428,6 +454,7 @@ export interface GameState {
   /** Luna Park: the ghost of the carousel; null on the other maps. */
   ghost: GhostState | null;
   lastGhostEvent: GhostEvent | null;
+  lastTomatoThrow: TomatoThrow | null;
   /** Tour de Bénédiction: players who still have to spin the wheel of fortune, in turn order. */
   blessingQueue: PlayerId[];
   /** Players who left before the end, kept for the final standings. */
@@ -478,6 +505,7 @@ export const EMPTY_GAME_STATE: GameState = {
   lastIceFall: null,
   ghost: null,
   lastGhostEvent: null,
+  lastTomatoThrow: null,
   blessingQueue: [],
   abandonedPlayers: [],
   bootPrice: 100,

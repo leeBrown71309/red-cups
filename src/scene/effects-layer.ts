@@ -28,6 +28,8 @@ export class EffectsLayer {
   private readonly iceShardGeometry = new THREE.ConeGeometry(0.08, 0.3, 4);
   private readonly iceChunkGeometry = new THREE.IcosahedronGeometry(0.28, 0);
   private readonly streakGeometry = new THREE.PlaneGeometry(0.9, 0.05);
+  private readonly tomatoGeometry = new THREE.SphereGeometry(0.2, 14, 10);
+  private readonly tomatoLeafGeometry = new THREE.ConeGeometry(0.12, 0.08, 5);
 
   spawnFloatingText(position: THREE.Vector3, text: string, color: string): void {
     const sprite = createLabelSprite(text, { color, stroke: SCENE_COLORS.ink, fontSize: 72, worldHeight: 0.62 });
@@ -383,6 +385,69 @@ export class EffectsLayer {
     }
   }
 
+  /**
+   * A Tomate lobbed in a high arc from `from` to `to`, spinning, then a red
+   * splat: a flattened blob and a spray of juice. `onLand` runs at impact.
+   */
+  spawnTomatoThrow(from: THREE.Vector3, to: THREE.Vector3, flightSeconds: number, onLand: () => void): void {
+    // A volley is timed from outside: a Tomate due after the board was rebuilt is simply dropped.
+    if (this.disposed) return;
+    const tomato = new THREE.Group();
+    const fruit = new THREE.Mesh(
+      this.tomatoGeometry,
+      new THREE.MeshStandardMaterial({ color: "#e8453c", roughness: 0.35 }),
+    );
+    fruit.scale.set(1, 0.85, 1);
+    const leaf = new THREE.Mesh(
+      this.tomatoLeafGeometry,
+      new THREE.MeshStandardMaterial({ color: "#5cc46a", flatShading: true }),
+    );
+    leaf.position.y = 0.17;
+    tomato.add(fruit, leaf);
+    const start = from.clone().add(new THREE.Vector3(0, 1.1, 0));
+    const end = to.clone().add(new THREE.Vector3(0, 0.9, 0));
+    const apex = Math.max(start.y, end.y) + 1.6 + start.distanceTo(end) * 0.12;
+    let landed = false;
+    this.push(tomato, flightSeconds, (progress) => {
+      tomato.position.lerpVectors(start, end, progress);
+      // A parabola through the apex: up fast, then dropping onto the target.
+      const lift = 4 * progress * (1 - progress);
+      tomato.position.y = start.y + (end.y - start.y) * progress + lift * (apex - Math.max(start.y, end.y));
+      tomato.rotation.set(progress * 9, progress * 5, 0);
+      if (progress >= 1 && !landed) {
+        landed = true;
+        this.spawnTomatoSplat(end);
+        onLand();
+      }
+    });
+  }
+
+  private spawnTomatoSplat(position: THREE.Vector3): void {
+    const blobMaterial = new THREE.MeshStandardMaterial({ color: "#d63a31", roughness: 0.4, transparent: true });
+    const blob = new THREE.Mesh(this.tomatoGeometry, blobMaterial);
+    blob.position.copy(position);
+    this.push(blob, 0.7, (progress) => {
+      const squash = Math.min(1, progress * 5);
+      blob.scale.set(1 + squash * 1.2, Math.max(0.15, 1 - squash * 0.85), 1 + squash * 1.2);
+      blobMaterial.opacity = progress > 0.5 ? 1 - (progress - 0.5) / 0.5 : 1;
+    });
+    for (let index = 0; index < 14; index += 1) {
+      const material = new THREE.MeshBasicMaterial({
+        color: index % 3 === 0 ? "#ffd166" : "#e8453c",
+        transparent: true,
+      });
+      const drop = new THREE.Mesh(this.poofGeometry, material);
+      const velocity = randomHemisphereDirection(0.2).multiplyScalar(2 + Math.random() * 2.5);
+      drop.position.copy(position);
+      drop.scale.setScalar(0.35 + Math.random() * 0.35);
+      this.push(drop, 0.7 + Math.random() * 0.25, (progress, deltaSeconds) => {
+        velocity.y -= 10 * deltaSeconds;
+        drop.position.addScaledVector(velocity, deltaSeconds);
+        material.opacity = progress > 0.55 ? 1 - (progress - 0.55) / 0.45 : 1;
+      });
+    }
+  }
+
   update(deltaSeconds: number): void {
     for (let index = this.effects.length - 1; index >= 0; index -= 1) {
       const effect = this.effects[index];
@@ -409,6 +474,8 @@ export class EffectsLayer {
     this.iceShardGeometry.dispose();
     this.iceChunkGeometry.dispose();
     this.streakGeometry.dispose();
+    this.tomatoGeometry.dispose();
+    this.tomatoLeafGeometry.dispose();
   }
 
   private push(

@@ -239,6 +239,49 @@ export const soundEffects = {
     audioEngine.tone({ type: "sine", frequency: 500, frequencyEnd: 1_100, duration: 0.3, gain: 0.06 });
   },
 
+  /** A Tomate lobbed across the board, then squashed on its target. */
+  tomatoThrow(flightSeconds: number, delay = 0): void {
+    audioEngine.noise({
+      start: at(delay),
+      duration: 0.28,
+      gain: 0.07,
+      filterFrequency: 900,
+      filterFrequencyEnd: 2_600,
+      q: 3,
+    });
+    audioEngine.noise({
+      start: at(delay + flightSeconds),
+      duration: 0.22,
+      gain: 0.2,
+      filterType: "lowpass",
+      filterFrequency: 1_400,
+      filterFrequencyEnd: 220,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 220,
+      frequencyEnd: 90,
+      start: at(delay + flightSeconds),
+      duration: 0.16,
+      gain: 0.12,
+    });
+  },
+
+  /** The rare Tomate that knocks its target out: a cartoon bonk and a few dizzy chirps. */
+  tomatoKnockOut(delay: number): void {
+    audioEngine.tone({
+      type: "square",
+      frequency: 190,
+      frequencyEnd: 120,
+      start: at(delay),
+      duration: 0.14,
+      gain: 0.08,
+    });
+    [1_318, 1_568, 1_318, 1_760].forEach((frequency, index) => {
+      audioEngine.tone({ type: "sine", frequency, start: at(delay + 0.18 + index * 0.09), duration: 0.08, gain: 0.04 });
+    });
+  },
+
   mudSplat(): void {
     audioEngine.noise({
       duration: 0.3,

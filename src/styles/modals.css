@@ -598,6 +598,42 @@
   font-size: 0.7rem;
 }
 
+/* How many Tomates of the stack fly at once. */
+.volley-picker {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+
+.volley-picker__option {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 62px;
+  padding: 8px 10px;
+  border: var(--border);
+  border-radius: var(--radius-m);
+  background: var(--white);
+  box-shadow: var(--shadow-chunky);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 700;
+  transition: transform 140ms var(--ease-bounce);
+}
+
+.volley-picker__option:hover {
+  transform: translateY(-2px);
+}
+
+.volley-picker__option.is-selected {
+  background: var(--cup-light);
+  box-shadow:
+    0 3px 0 var(--ink),
+    0 0 0 3px var(--cup);
+}
+
 .target-modal__item,
 .discard-incoming {
   display: flex;

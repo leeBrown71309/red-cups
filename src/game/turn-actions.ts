@@ -1,4 +1,4 @@
-import { createEngineId } from "./engine-random";
+import { createEngineId, drawEngineRandom } from "./engine-random";
 import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
 import { drawSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
@@ -22,12 +22,19 @@ import {
   findPlayer,
   getActivePlayer,
   getItemEntry,
-  removeInventoryEntry,
+  getEntryUnits,
+  spendItemEntry,
   placeInHell,
   updatePlayer,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
-import { CANCELLED_ITEM_IS_CONSUMED, DELINQUENT_COST, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS } from "./types";
+import {
+  CANCELLED_ITEM_IS_CONSUMED,
+  DELINQUENT_COST,
+  HELL_NODE_ID,
+  NO_THANKS_COOLDOWN_ROUNDS,
+  TOMATO_STUN_CHANCE,
+} from "./types";
 
 /**
  * The two actions a player can take on their turn — moving or using an item —
@@ -143,6 +150,8 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
 export interface ItemPlan {
   itemId: ItemId;
   target?: Player;
+  /** Tomates thrown in one go; one for every other item. */
+  count: number;
 }
 
 /** Items that are not "used" as an action: they react or trigger on their own. */
@@ -157,11 +166,26 @@ const PREPARATION_ITEMS: ItemId[] = ["mud"];
 /** Pulled by the Corde or swapped by the Monopoly Man: moved, but nobody spins a wheel for it. */
 const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
 
+/**
+ * Thrown before the turn's action and as often as the stack allows, without
+ * using the action up or going through Non merci: the Tomate is only for fun.
+ */
+const THROWN_ITEMS: ItemId[] = ["tomato"];
+
 function isPreparationItem(itemId: ItemId): boolean {
   return PREPARATION_ITEMS.includes(itemId);
 }
 
-export function planItemUse(state: GameState, entryId: string, targetPlayerId?: PlayerId): ItemPlan | null {
+export function isThrownItem(itemId: ItemId): boolean {
+  return THROWN_ITEMS.includes(itemId);
+}
+
+export function planItemUse(
+  state: GameState,
+  entryId: string,
+  targetPlayerId?: PlayerId,
+  requestedCount = 1,
+): ItemPlan | null {
   const player = getActivePlayer(state);
   if (!player || state.phase !== "playing") return null;
 
@@ -174,24 +198,31 @@ export function planItemUse(state: GameState, entryId: string, targetPlayerId?: 
   // Nobody walks into Hell, so mud placed there could never be stepped on.
   if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
 
+  // Only a stack can be thrown several at a time, and never more than it holds.
+  const entry = player.inventory.find((candidate) => candidate.id === entryId);
+  const count = isThrownItem(itemId) && entry ? requestedCount : 1;
+  if (!Number.isInteger(count) || count < 1 || (entry && count > getEntryUnits(entry))) return null;
+
   const definition = ITEM_CATALOG[itemId];
-  if (definition.target !== "player") return { itemId };
+  if (definition.target !== "player") return { itemId, count };
 
   const target = findPlayer(state, targetPlayerId);
   if (!target) return null;
   if (target.id === player.id && !definition.canTargetSelf) return null;
-  return { itemId, target };
+  return { itemId, target, count };
 }
 
 export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan): GameState {
   const player = getActivePlayer(state);
   if (!player) return state;
-  const { itemId, target } = plan;
+  const { itemId, target, count } = plan;
 
-  let nextState = updatePlayer(state, player.id, (currentPlayer) => removeInventoryEntry(currentPlayer, entryId));
-  nextState = isPreparationItem(itemId)
-    ? { ...nextState, mudPlacedThisTurn: true }
-    : { ...nextState, turnActionTaken: true, turnStage: "turn-end" };
+  let nextState = state;
+  for (let spent = 0; spent < count; spent += 1) {
+    nextState = updatePlayer(nextState, player.id, (currentPlayer) => spendItemEntry(currentPlayer, entryId));
+  }
+  if (isPreparationItem(itemId)) nextState = { ...nextState, mudPlacedThisTurn: true };
+  else if (!isThrownItem(itemId)) nextState = { ...nextState, turnActionTaken: true, turnStage: "turn-end" };
 
   switch (itemId) {
     case "ndoye":
@@ -258,6 +289,15 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
     }
 
+    case "tomato":
+      if (!target) return state;
+      nextState = throwTomatoes(nextState, player, target, count);
+      // Je note keeps one per Tomate received, until its stack is full or it has to make room first.
+      for (let copied = 0; copied < count && !nextState.pendingDiscard; copied += 1) {
+        nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      }
+      break;
+
     case "draven": {
       nextState = {
         ...nextState,
@@ -275,6 +315,36 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   // Teleported onto a green or red tile, the wheel spins all the same; a pull or a swap never earns one.
   if (!MOVES_WITHOUT_ARRIVAL.includes(itemId)) nextState = queueWheelsForMovedPlayers(state, nextState);
   return settleBoard(nextState, nextState.turnStage);
+}
+
+/**
+ * A volley of Tomates in the face, for fun. Each one has its own small chance
+ * to knock the target out; knocked out once or several times, it is a single
+ * skipped turn.
+ */
+function throwTomatoes(state: GameState, thrower: Player, target: Player, count: number): GameState {
+  let stunned = false;
+  for (let thrown = 0; thrown < count; thrown += 1) {
+    if (drawEngineRandom() < TOMATO_STUN_CHANCE) stunned = true;
+  }
+  const volley = count === 1 ? "une Tomate" : `${count} Tomates`;
+  let nextState: GameState = {
+    ...state,
+    lastTomatoThrow: {
+      seq: (state.lastTomatoThrow?.seq ?? 0) + 1,
+      throwerId: thrower.id,
+      targetId: target.id,
+      count,
+      stunned,
+    },
+  };
+  if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
+  nextState = updatePlayer(nextState, target.id, (current) => ({ ...current, skippedTurns: current.skippedTurns + 1 }));
+  return addLog(
+    nextState,
+    `${thrower.name} lance ${volley} sur ${target.name}, qui est assommé : il passera son prochain tour !`,
+    "bad",
+  );
 }
 
 /** Corde pulls the target onto the user's tile; Baraqué only moves half the way. */
@@ -327,7 +397,7 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   }));
   const { action } = pending;
   if (action.type === "item" && CANCELLED_ITEM_IS_CONSUMED) {
-    nextState = updatePlayer(nextState, actor.id, (player) => removeInventoryEntry(player, action.entryId));
+    nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
   }
 
   // A cancelled mud is lost, but it was never the turn's action: the actor still gets to play.

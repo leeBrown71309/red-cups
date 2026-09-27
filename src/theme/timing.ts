@@ -15,6 +15,16 @@ export const GLIDE_MS = 440;
 export const FREEZE_MS = 1_100;
 export const SHATTER_MS = 450;
 
+/** A Tomate's flight from the thrower to the target. */
+export const TOMATO_FLIGHT_MS = 560;
+/** Between two Tomates of a volley: a quick rapid fire. */
+export const TOMATO_VOLLEY_GAP_MS = 150;
+
+/** Luna Park: the ghost drifting from one tile to the next. */
+export const GHOST_DRIFT_STEP_MS = 620;
+/** Luna Park: the ghost fading out on one tile and back in on another. */
+export const GHOST_TELEPORT_MS = 1_400;
+
 /** Luna Park: the ghost winds up and slaps its victim. */
 export const GHOST_SLAP_MS = 650;
 /** Luna Park: when, within the slap, the ghost's hand lands; the scene and the sound meet there. */

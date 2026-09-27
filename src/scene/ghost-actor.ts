@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import type { NodeId } from "../game/types";
 import { HELL_NODE_ID } from "../game/types";
-import { GHOST_CARRY_MS, GHOST_SLAP_IMPACT_MS, GHOST_SLAP_MS } from "../theme/timing";
+import {
+  GHOST_CARRY_MS,
+  GHOST_DRIFT_STEP_MS,
+  GHOST_SLAP_IMPACT_MS,
+  GHOST_SLAP_MS,
+  GHOST_TELEPORT_MS,
+} from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
 import type { EffectsLayer } from "./effects-layer";
 import { createGhostModel, type GhostVisual } from "./models/ghost-model";
@@ -23,7 +29,9 @@ export interface PawnLocator {
 
 type GhostAction =
   | { type: "appear"; nodeId: NodeId }
-  | { type: "move"; to: NodeId }
+  /** Drifts through every tile of `path`, one after the other. */
+  | { type: "move"; path: NodeId[] }
+  | { type: "teleport"; to: NodeId }
   | { type: "attack"; playerId: string }
   | { type: "vanish" }
   | { type: "stole"; playerId: string }
@@ -31,9 +39,9 @@ type GhostAction =
   | { type: "fling"; playerId: string; slapPoint: THREE.Vector3; forward: THREE.Vector3 }
   | { type: "return" };
 
-const ACTION_SECONDS: Record<GhostAction["type"], number> = {
+const ACTION_SECONDS: Record<Exclude<GhostAction["type"], "move">, number> = {
   appear: 1.4,
-  move: 0.95,
+  teleport: GHOST_TELEPORT_MS / 1_000,
   attack: 1.25,
   vanish: 1.25,
   stole: 1.1,
@@ -41,6 +49,12 @@ const ACTION_SECONDS: Record<GhostAction["type"], number> = {
   fling: (GHOST_SLAP_MS + GHOST_CARRY_MS) / 1_000,
   return: 0.85,
 };
+
+function getActionSeconds(action: GhostAction): number {
+  return action.type === "move"
+    ? (GHOST_DRIFT_STEP_MS / 1_000) * Math.max(1, action.path.length)
+    : ACTION_SECONDS[action.type];
+}
 
 /**
  * The ghost floats on the left edge of its tile, clear of the painted number
@@ -128,10 +142,17 @@ export class GhostActor {
     this.actions.push({ type: "appear", nodeId });
   }
 
-  moved(to: NodeId): void {
+  moved(path: NodeId[]): void {
     this.markPlayed();
+    const to = path[path.length - 1];
+    if (to === undefined) return;
     // Its appearance was missed (say, a reconnection): it shows up where it went.
-    this.actions.push(this.projectedNode() === null ? { type: "appear", nodeId: to } : { type: "move", to });
+    this.actions.push(this.projectedNode() === null ? { type: "appear", nodeId: to } : { type: "move", path });
+  }
+
+  teleported(to: NodeId): void {
+    this.markPlayed();
+    this.actions.push(this.projectedNode() === null ? { type: "appear", nodeId: to } : { type: "teleport", to });
   }
 
   attacked(playerId: string): void {
@@ -214,7 +235,8 @@ export class GhostActor {
     let nodeId = this.shownNode;
     for (const action of this.actions) {
       if (action.type === "appear") nodeId = action.nodeId;
-      if (action.type === "move") nodeId = action.to;
+      if (action.type === "move") nodeId = action.path[action.path.length - 1] ?? nodeId;
+      if (action.type === "teleport") nodeId = action.to;
       if (action.type === "vanish") nodeId = null;
     }
     return nodeId;
@@ -226,7 +248,8 @@ export class GhostActor {
     if (target === this.shownNode) return;
     if (this.shownNode === null && target !== null) this.actions.push({ type: "appear", nodeId: target });
     else if (target === null) this.actions.push({ type: "vanish" });
-    else this.actions.push({ type: "move", to: target });
+    // Whatever road it took is lost: it simply turns up where it is.
+    else this.actions.push({ type: "teleport", to: target });
   }
 
   private snapTo(nodeId: NodeId | null): void {
@@ -258,7 +281,7 @@ export class GhostActor {
   private play(action: GhostAction, delta: number): void {
     if (this.actionElapsed === 0) this.beginAction(action);
     this.actionElapsed += delta;
-    const duration = ACTION_SECONDS[action.type];
+    const duration = getActionSeconds(action);
     const progress = Math.min(1, this.actionElapsed / duration);
 
     switch (action.type) {
@@ -266,7 +289,10 @@ export class GhostActor {
         this.playAppear(progress);
         break;
       case "move":
-        this.playMove(action.to, progress, delta);
+        this.playMove(action.path, progress, delta);
+        break;
+      case "teleport":
+        this.playTeleport(action.to, progress, delta);
         break;
       case "attack":
         this.playAttack(progress, delta);
@@ -310,6 +336,7 @@ export class GhostActor {
         this.actionTarget = this.pawns.getPawnPosition(action.playerId);
         break;
       case "vanish":
+      case "teleport":
         this.effects.spawnGhostMist(position.clone(), 18);
         break;
       case "stole": {
@@ -329,7 +356,11 @@ export class GhostActor {
         this.presence = 1;
         break;
       case "move":
+        this.shownNode = action.path[action.path.length - 1] ?? this.shownNode;
+        break;
+      case "teleport":
         this.shownNode = action.to;
+        this.presence = 1;
         break;
       case "vanish":
         this.shownNode = null;
@@ -360,20 +391,63 @@ export class GhostActor {
     if (progress < 0.6) this.trail(position, 0.01);
   }
 
-  /** Glides round the carousel to the next tile, leaning into the ride, leaving wisps behind. */
-  private playMove(to: NodeId, progress: number, delta: number): void {
+  /**
+   * Drifts from tile to tile along the path, a little hop over each road,
+   * leaning forward and leaving wisps behind; it floats over arrows and
+   * one-way roads alike.
+   */
+  private playMove(path: NodeId[], progress: number, delta: number): void {
     const pose = this.visual.pose;
-    const target = this.restingPoint(to);
     const position = this.visual.figure.position;
-    this.pointOnRing(this.actionStart, target, easeInOutCubic(progress), position);
-    position.y += Math.sin(progress * Math.PI) * MOVE_ARC_HEIGHT;
-    const ahead = this.pointOnRing(this.actionStart, target, easeInOutCubic(Math.min(1, progress + 0.05)));
-    this.turnTowards(progress < 0.9 ? ahead : null, delta, 10);
-    pose.lean = Math.sin(progress * Math.PI) * 0.45;
-    pose.armsUp = Math.sin(progress * Math.PI) * 0.35;
+    const steps = Math.max(1, path.length);
+    const segment = Math.min(steps - 1, Math.floor(progress * steps));
+    const local = clamp01(progress * steps - segment);
+    const from = segment === 0 ? this.actionStart : this.restingPoint(path[segment - 1]);
+    const to = this.restingPoint(path[segment] ?? path[path.length - 1]);
+    position.lerpVectors(from, to, easeInOutCubic(local));
+    position.y += Math.sin(local * Math.PI) * MOVE_ARC_HEIGHT;
+    this.turnTowards(progress < 0.95 ? to : null, delta, 10);
+    pose.lean = Math.sin(local * Math.PI) * 0.45;
+    pose.armsUp = Math.sin(local * Math.PI) * 0.35;
     pose.mouth = Math.sin(progress * Math.PI) * 0.4;
     pose.flutter = 3;
     this.trail(position, delta);
+  }
+
+  /**
+   * A ghost's shortcut: spins and melts into mist on its tile, then wells up
+   * out of another burst of mist, far away, as if it had never left.
+   */
+  private playTeleport(to: NodeId, progress: number, delta: number): void {
+    const pose = this.visual.pose;
+    const position = this.visual.figure.position;
+    if (progress < 0.5) {
+      const out = easeInOutCubic(progress / 0.5);
+      position.copy(this.actionStart).setY(this.actionStart.y + out * 0.7);
+      this.yaw += delta * (4 + out * 16);
+      pose.stretch = 1 + out * 1.6;
+      pose.opacity = 1 - out;
+      pose.armsUp = 1;
+      pose.mouth = 1;
+      pose.flutter = 4;
+      this.trail(position, delta);
+      return;
+    }
+    const rest = this.restingPoint(to);
+    if (this.shownNode !== to) {
+      // Halfway: it is gone from here and wells up over there.
+      this.shownNode = to;
+      this.effects.spawnGhostMist(rest.clone(), 20);
+    }
+    const back = easeOutBack(clamp01((progress - 0.5) / 0.5));
+    position.copy(rest).setY(rest.y - APPEAR_DEPTH * 0.6 * (1 - Math.min(1, back)));
+    this.visual.figure.scale.setScalar(Math.max(0.001, 0.5 + 0.5 * Math.min(1, back)));
+    this.yaw = (1 - easeInOutCubic((progress - 0.5) / 0.5)) * Math.PI * 2;
+    pose.opacity = clamp01((progress - 0.5) * 3);
+    pose.armsUp = Math.sin((progress - 0.5) * 2 * Math.PI);
+    pose.mouth = 0.6;
+    pose.glare = 1;
+    pose.flutter = 3;
   }
 
   /** Rears up screeching, eyes flaring, lunges at its victim, then drifts back to its place. */
@@ -519,30 +593,6 @@ export class GhostActor {
     pose.mouth = 0.3 * (1 - progress);
     pose.flutter = 3;
     this.trail(position, delta);
-  }
-
-  /** Point `amount` of the way from `from` to `to`, round Hell like the carousel rides. */
-  private pointOnRing(
-    from: THREE.Vector3,
-    to: THREE.Vector3,
-    amount: number,
-    out = new THREE.Vector3(),
-  ): THREE.Vector3 {
-    const center = this.hellCenter;
-    const fromAngle = Math.atan2(from.z - center.z, from.x - center.x);
-    const toAngle = Math.atan2(to.z - center.z, to.x - center.x);
-    const turn = Math.atan2(Math.sin(toAngle - fromAngle), Math.cos(toAngle - fromAngle));
-    const angle = fromAngle + turn * amount;
-    const radius = THREE.MathUtils.lerp(
-      Math.hypot(from.x - center.x, from.z - center.z),
-      Math.hypot(to.x - center.x, to.z - center.z),
-      amount,
-    );
-    return out.set(
-      center.x + Math.cos(angle) * radius,
-      THREE.MathUtils.lerp(from.y, to.y, amount),
-      center.z + Math.sin(angle) * radius,
-    );
   }
 
   /** Turns to face `point`, or back towards the table (+Z) when there is none. */
