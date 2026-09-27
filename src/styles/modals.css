@@ -1161,6 +1161,11 @@
   font-size: 0.82rem;
 }
 
+.victory__error {
+  color: var(--cup-deep);
+  font-weight: 700;
+}
+
 .standings {
   display: grid;
   gap: 6px;

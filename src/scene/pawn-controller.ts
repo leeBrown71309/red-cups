@@ -28,6 +28,8 @@ export interface PawnInput {
   isSleeping: boolean;
   /** Banquise: stuck in fallen ice halfway from `position` to this tile. */
   frozenTo?: NodeId;
+  /** Banquise: frozen solid on its tile by the penguins' snowballs. */
+  snowFrozen?: boolean;
 }
 
 type PawnAction =
@@ -112,7 +114,7 @@ export class PawnController {
       if (!pawn) {
         pawn = this.createPawn(input, slot.position);
         // A restored game shows a frozen pawn in its ice straight away.
-        if (input.frozenTo !== undefined) pawn.iceBlock.scale.setScalar(1);
+        if (input.frozenTo !== undefined || input.snowFrozen) pawn.iceBlock.scale.setScalar(1);
         this.pawns.set(input.id, pawn);
       } else if (isNewMovement && movement?.playerId === input.id && pawn.logicalNode === movement.from) {
         this.queueWalk(pawn, movement, slot.position);
@@ -122,9 +124,12 @@ export class PawnController {
         pawn.actions.push({ type: "slide", to: slot.position, duration: 260 });
       }
 
-      // Moved out of the ice by something else (Corde, swap…): the block is gone.
+      // Out of the ice (moved by a Corde or a swap, or thawed after a lost turn): the block bursts.
       const iceQueued = pawn.actions.some((action) => action.type === "freeze" || action.type === "shatter");
-      if (input.frozenTo === undefined && !iceQueued) pawn.iceBlock.scale.setScalar(0.001);
+      const iceHeld = input.frozenTo !== undefined || input.snowFrozen === true;
+      if (!iceHeld && !iceQueued && pawn.iceBlock.scale.x > 0.5) {
+        pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
+      }
 
       pawn.logicalNode = input.position;
       pawn.active = input.isActive;
@@ -156,6 +161,12 @@ export class PawnController {
       nearest = pawn.visual.root.position;
     }
     return nearest ? nearest.clone() : null;
+  }
+
+  /** Banquise: the third snowball lands and the ice closes around the pawn where it stands. */
+  freezeSolid(id: string): void {
+    const pawn = this.pawns.get(id);
+    if (pawn && pawn.iceBlock.scale.x < 0.5) pawn.actions.push({ type: "freeze", duration: FREEZE_MS });
   }
 
   /** Blown into the air by Bullet Bill: a cartwheel on the spot. */

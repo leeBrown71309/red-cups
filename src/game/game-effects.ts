@@ -4,6 +4,7 @@ import { blowBlizzard, isBlizzardRound } from "./ice";
 import { advanceBulletBill } from "./bullet-bill";
 import { createDuel, getDuelModes } from "./duel-setup";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
+import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
@@ -490,7 +491,8 @@ export function beginNextTurn(state: GameState): GameState {
  */
 export function passTurnFrom(state: GameState, fromIndex: number): GameState {
   if (state.players.length === 0) return state;
-  let nextState = resetHellCountdowns(state);
+  // Banquise: the turn that ends draws a snowball, before the next player is found (a freeze skips them).
+  let nextState = throwSnowball(resetHellCountdowns(state));
   const seatCount = nextState.players.length;
   let nextIndex = fromIndex;
   let nextRound = state.round;
@@ -519,6 +521,7 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
       skippedTurns: player.skippedTurns - 1,
     }));
     nextState = addLog(nextState, `${nextPlayer.name} passe son tour.`, "bad");
+    nextState = thawSnowFrozen(nextState, nextPlayer.id);
     // A turn skipped in Hell still counts towards the sentence.
     nextState = serveHellTurn(nextState, nextPlayer.id);
     if (hasServedHellSentence(nextState, nextPlayer.id)) {

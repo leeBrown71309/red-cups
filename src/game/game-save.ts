@@ -6,7 +6,7 @@ import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 10;
+export const GAME_SAVE_VERSION = 11;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -69,7 +69,8 @@ type SaveRecord = Record<string, unknown>;
  * Version 7 (patch 0.1.3) added the board choice: older games were classic.
  * Version 8 added the Banquise ice: temporary tile, frozen players, blizzards.
  * Version 9 added the Basket duel and the Luna Park ghost, which a game saved
- * before shows a round later. Version 10 added the Tomate's last throw.
+ * before shows a round later. Version 10 added the Tomate's last throw,
+ * version 11 the Banquise snowballs.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -85,6 +86,9 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     ghost: save.ghost ?? (save.mapId === "luna-park" ? createAbsentGhost(Number(save.round) || FIRST_ROUND) : null),
     lastGhostEvent: save.lastGhostEvent ?? null,
     lastTomatoThrow: save.lastTomatoThrow ?? null,
+    snowballHits: save.snowballHits ?? {},
+    snowFrozenPlayerIds: save.snowFrozenPlayerIds ?? [],
+    lastSnowball: save.lastSnowball ?? null,
     seededRandom: save.seededRandom ?? null,
     pendingDuel: duel
       ? {

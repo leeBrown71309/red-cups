@@ -19,6 +19,11 @@ export function VictoryModal() {
   const startGame = useGameStore((state) => state.startGame);
   const resetGame = useGameStore((state) => state.resetGame);
   const leaveRoom = useRoomStore((state) => state.leave);
+  const rematchRoom = useRoomStore((state) => state.rematch);
+  const isHost = useRoomStore((state) => state.myUserId !== null && state.myUserId === state.hostId);
+  const seatedCount = useRoomStore((state) => state.players.filter((player) => !player.absent).length);
+  const roomBusy = useRoomStore((state) => state.busy);
+  const roomError = useRoomStore((state) => state.error);
   const isOnline = useLocalPlayerId() !== null;
   const [pickingMap, setPickingMap] = useState(false);
   // The rematch offers the board just played first; any other map, or a draw, is one arrow away.
@@ -26,14 +31,18 @@ export function VictoryModal() {
   const winner = players.find((player) => player.id === winnerId);
   if (!winner) return null;
 
-  // A rematch replays the same local table; online, everybody goes back to the menu.
-  const canRematch = !isOnline && players.length >= 2;
-  const startRematch = () =>
-    startGame(
-      players.map((player) => player.name),
-      undefined,
-      resolveMapChoice(rematchChoice),
-    );
+  // A rematch replays the same table. Online, the host starts it for whoever is still in the room.
+  const canRematch = isOnline ? isHost && seatedCount >= 2 : players.length >= 2;
+  const startRematch = () => {
+    const nextMapId = resolveMapChoice(rematchChoice);
+    if (isOnline) void rematchRoom(nextMapId);
+    else
+      startGame(
+        players.map((player) => player.name),
+        undefined,
+        nextMapId,
+      );
+  };
 
   return (
     <div className="modal-layer victory" role="dialog" aria-modal="true" aria-labelledby="victory-title">
@@ -50,13 +59,18 @@ export function VictoryModal() {
             Sur quelle carte ?
           </h2>
           <MapCarousel value={rematchChoice} onChange={setRematchChoice} compact />
-          <p className="victory__map-note">{describeMapChoice(rematchChoice)}</p>
+          <p className="victory__map-note">
+            {isOnline
+              ? `${describeMapChoice(rematchChoice)} Tous ceux encore dans le salon rejouent.`
+              : describeMapChoice(rematchChoice)}
+          </p>
+          {isOnline && roomError && <p className="victory__map-note victory__error">{roomError}</p>}
           <div className="modal-actions">
             <button type="button" className="btn btn--cream" onClick={() => setPickingMap(false)}>
               ← Retour
             </button>
-            <button type="button" className="btn btn--cup" onClick={startRematch} data-autofocus>
-              <UiIcon name="play" size={20} /> Rejouer
+            <button type="button" className="btn btn--cup" onClick={startRematch} disabled={roomBusy} data-autofocus>
+              <UiIcon name="play" size={20} /> {roomBusy ? "Lancement…" : "Rejouer"}
             </button>
           </div>
         </section>
@@ -73,6 +87,9 @@ export function VictoryModal() {
             {winner.name} gagne la partie !
           </h2>
           <StandingsList state={{ players, abandonedPlayers, winnerId }} />
+          {isOnline && !isHost && (
+            <p className="victory__map-note">Reste dans le salon : l’hôte peut lancer une revanche.</p>
+          )}
           <div className="modal-actions">
             <button
               type="button"

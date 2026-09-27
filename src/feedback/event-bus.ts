@@ -47,6 +47,8 @@ export type FeedbackEvent =
   | { type: "ghost-vanished"; nodeId: NodeId | null }
   /** Luna Park: the ghost slaps a player and carries them off to Hell. */
   | { type: "ghost-flung"; playerId: PlayerId; from: NodeId }
+  /** Banquise: a penguin throws a snowball at a player; the third hit freezes them. */
+  | { type: "snowball-thrown"; targetId: PlayerId; hit: boolean; frozen: boolean }
   /** A volley of Tomates flies from one player to another; `stunned` when one knocked the target out. */
   | { type: "tomato-thrown"; throwerId: PlayerId; targetId: PlayerId; count: number; stunned: boolean }
   /** Luna Park: the ghost won and took coins or an item. */

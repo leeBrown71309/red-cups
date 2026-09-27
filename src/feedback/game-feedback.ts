@@ -229,6 +229,10 @@ function collectEvents(
     events.push({ type: "ice-fall", playerId, from, to, hit });
   }
   events.push(...collectGhostEvents(state, previous));
+  const snowball = state.lastSnowball;
+  if (snowball && snowball.seq !== previous.lastSnowball?.seq) {
+    events.push({ type: "snowball-thrown", targetId: snowball.targetId, hit: snowball.hit, frozen: snowball.frozen });
+  }
   const tomato = state.lastTomatoThrow;
   if (tomato && tomato.seq !== previous.lastTomatoThrow?.seq) {
     events.push({

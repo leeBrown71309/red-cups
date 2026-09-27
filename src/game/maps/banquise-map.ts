@@ -13,6 +13,8 @@ import type { BoardMap } from "./map-types";
  *   4 → 0 is the only road that pays the start bonus;
  * - a blizzard lays a third, temporary ice tile every two rounds, anywhere on
  *   the board, the start included;
+ * - once a Red Cup was taken, the penguins throw a snowball at somebody at
+ *   every turn change: three hits and the target freezes, losing a turn;
  * - Hell is a crevasse in the ice, just behind the lake.
  */
 export const BANQUISE_MAP: BoardMap = {
@@ -23,6 +25,7 @@ export const BANQUISE_MAP: BoardMap = {
     "Glace : on glisse au hasard vers une autre route",
     "Tombée de glace sur la route de la Red Cup",
     "Blizzard : une glace de plus, déplacée tous les 2 tours",
+    "Boules de neige des pingouins après la 1ʳᵉ Red Cup",
   ],
   themeId: "polar",
   tunnelStyle: "portals",
@@ -70,6 +73,7 @@ export const BANQUISE_MAP: BoardMap = {
   ],
   initialCupNodeId: 8,
   blizzardEveryRounds: 2,
+  snowballs: true,
   roadLegend: [
     {
       style: "ice",

@@ -32,10 +32,16 @@ const PINE_SPOTS: { x: number; z: number; scale: number }[] = [
  * snowy pines framing the back and sides, snowmen, an igloo, waddling
  * penguins and falling snow. Tall props stay behind or beside the board.
  */
-export function createPolarScenery(kit: SceneKit, layout: BoardLayout): AnimatedProp {
+/** The scenery, and the penguins that throw snowballs once a Red Cup was taken. */
+export interface PolarScenery extends AnimatedProp {
+  penguins: THREE.Object3D[];
+}
+
+export function createPolarScenery(kit: SceneKit, layout: BoardLayout): PolarScenery {
   const group = new THREE.Group();
   const animated: AnimatedProp[] = [];
   const random = createRandom(4_711);
+  const penguins: THREE.Object3D[] = [];
 
   group.add(createFrozenLake(kit));
 
@@ -75,6 +81,7 @@ export function createPolarScenery(kit: SceneKit, layout: BoardLayout): Animated
     const penguin = createPenguin(kit, path.from, path.to, index * 1.7);
     group.add(penguin.group);
     animated.push(penguin);
+    penguins.push(penguin.group);
   });
 
   const snowfall = createSnowfall(layout);
@@ -85,6 +92,7 @@ export function createPolarScenery(kit: SceneKit, layout: BoardLayout): Animated
 
   return {
     group,
+    penguins,
     update: (elapsed, delta) => {
       for (const prop of animated) prop.update(elapsed, delta);
     },

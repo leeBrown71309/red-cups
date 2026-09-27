@@ -381,6 +381,32 @@ begin
 end;
 $$;
 
+-- A rematch, by the host only, once the game is over. The players still at
+-- the table play again: whoever left is gone already, and whoever has been
+-- quiet for more than SEAT_TIMEOUT (75 seconds, see above) is let go, so the
+-- new game never waits on an empty seat. The room then goes through the very
+-- same kickoff as from the lobby, every check of `open_room` included; the
+-- whole call is one transaction, so a refused kickoff leaves the room over.
+create or replace function public.rematch_room(p_code text, p_state jsonb, p_seat_order jsonb)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.rooms where code = p_code and host_id = auth.uid() and status = 'over') then
+    raise exception 'Seul l''hôte peut lancer la revanche' using errcode = '42501';
+  end if;
+
+  delete from public.room_players
+   where room_code = p_code and user_id <> auth.uid() and last_seen < now() - interval '75 seconds';
+  -- Seats are handed out again from the new order; clearing them first avoids two rows sharing one mid-update.
+  update public.room_players set seat = null where room_code = p_code;
+  update public.rooms set status = 'lobby', updated_at = now() where code = p_code;
+  perform public.open_room(p_code, p_state, p_seat_order);
+end;
+$$;
+
 -- One action's worth of progress, written by the device that played it
 -- *before* it tells anyone. Compare-and-set on `version` makes this the one
 -- place where simultaneous moves (two duellists picking a hand at once) are
@@ -576,6 +602,7 @@ begin
     'public.leave_room(text)',
     'public.shuffle_room(text)',
     'public.open_room(text, jsonb, jsonb)',
+    'public.rematch_room(text, jsonb, jsonb)',
     'public.advance_room(text, jsonb, integer)',
     'public.get_my_profile()',
     'public.save_profile(text)',

@@ -404,19 +404,49 @@ export class EffectsLayer {
     );
     leaf.position.y = 0.17;
     tomato.add(fruit, leaf);
-    const start = from.clone().add(new THREE.Vector3(0, 1.1, 0));
     const end = to.clone().add(new THREE.Vector3(0, 0.9, 0));
+    this.lob(tomato, from.clone().add(new THREE.Vector3(0, 1.1, 0)), end, flightSeconds, () => {
+      this.spawnTomatoSplat(end);
+      onLand();
+    });
+  }
+
+  /**
+   * Banquise: a penguin's snowball, lobbed from `from` onto `to`, bursting in
+   * a puff of powder snow. A miss is aimed beside the target by the caller.
+   */
+  spawnSnowballThrow(from: THREE.Vector3, to: THREE.Vector3, flightSeconds: number, onLand: () => void): void {
+    if (this.disposed) return;
+    const ball = new THREE.Mesh(
+      this.tomatoGeometry,
+      new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9, flatShading: true }),
+    );
+    ball.scale.setScalar(0.85);
+    const end = to.clone().add(new THREE.Vector3(0, 0.8, 0));
+    this.lob(ball, from.clone().add(new THREE.Vector3(0, 0.75, 0)), end, flightSeconds, () => {
+      this.spawnPoof(end.clone().setY(end.y - 0.5), "#ffffff");
+      onLand();
+    });
+  }
+
+  /** Something thrown in a high arc, spinning, calling `onLand` once it gets there. */
+  private lob(
+    projectile: THREE.Object3D,
+    start: THREE.Vector3,
+    end: THREE.Vector3,
+    flightSeconds: number,
+    onLand: () => void,
+  ): void {
     const apex = Math.max(start.y, end.y) + 1.6 + start.distanceTo(end) * 0.12;
     let landed = false;
-    this.push(tomato, flightSeconds, (progress) => {
-      tomato.position.lerpVectors(start, end, progress);
+    this.push(projectile, flightSeconds, (progress) => {
+      projectile.position.lerpVectors(start, end, progress);
       // A parabola through the apex: up fast, then dropping onto the target.
       const lift = 4 * progress * (1 - progress);
-      tomato.position.y = start.y + (end.y - start.y) * progress + lift * (apex - Math.max(start.y, end.y));
-      tomato.rotation.set(progress * 9, progress * 5, 0);
+      projectile.position.y = start.y + (end.y - start.y) * progress + lift * (apex - Math.max(start.y, end.y));
+      projectile.rotation.set(progress * 9, progress * 5, 0);
       if (progress >= 1 && !landed) {
         landed = true;
-        this.spawnTomatoSplat(end);
         onLand();
       }
     });

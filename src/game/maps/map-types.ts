@@ -34,6 +34,8 @@ export interface BoardMap {
   initialCupNodeId: NodeId;
   /** Banquise: a blizzard moves the temporary ice tile at the start of every this many rounds. */
   blizzardEveryRounds?: number;
+  /** Banquise: once a Red Cup was taken, the penguins throw snowballs (see `src/game/snowballs.ts`). */
+  snowballs?: boolean;
   /** Luna Park: a ghost roams the whole board (see `src/game/ghost.ts`). */
   haunted?: boolean;
   roadLegend: RoadLegendEntry[];

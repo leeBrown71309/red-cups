@@ -14,6 +14,7 @@ import {
   fetchRoom,
   leaveRoom,
   openRoom,
+  rematchRoom,
   shuffleRoom,
   touchSeat,
   type RoomPlayer,
@@ -77,6 +78,8 @@ interface RoomState {
   shuffleOrder: () => Promise<void>;
   /** Host only: opens the room's game on the given map. */
   startGame: (mapId: MapId) => Promise<void>;
+  /** Host only, once the game is over: a new game for whoever is still at the table. */
+  rematch: (mapId: MapId) => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
   clearError: () => void;
@@ -133,8 +136,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
       seatOrder: room.seatOrder,
       version: room.version,
     });
-    // A finished game is never come back to: a reload must not bring its room back.
+    // A finished game is never come back to: a reload must not bring its room back, unless a rematch reopens it.
     if (room.status === "over") rememberRoom(null);
+    else rememberRoom(room.code);
     if (room.status !== "lobby" && room.state) {
       useGameStore.getState().adoptGame(room.state);
       set({ view: "playing" });
@@ -415,6 +419,27 @@ export const useRoomStore = create<RoomState>((set, get) => {
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
         const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
         await openRoom(code, state, seatOrder);
+        await resync();
+        broadcast({ kind: "start" });
+      }),
+
+    rematch: (mapId) =>
+      run(async () => {
+        const { code, myUserId, hostId } = get();
+        if (!code || myUserId !== hostId) return;
+        const room = await fetchRoom(code);
+        if (!room || room.status !== "over") throw new Error("La revanche n’est plus possible.");
+        // Same turn order as the game just played, without whoever left or went quiet.
+        const rank = (userId: string) => {
+          const seat = room.seatOrder.indexOf(userId);
+          return seat < 0 ? room.seatOrder.length : seat;
+        };
+        const players = room.players
+          .filter((player) => !player.absent || player.userId === myUserId)
+          .sort((left, right) => rank(left.userId) - rank(right.userId));
+        if (players.length < 2) throw new Error("Il faut au moins deux joueurs encore à table.");
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
+        await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
       }),

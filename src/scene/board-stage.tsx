@@ -155,6 +155,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
               isActive: game.phase === "playing" && player.id === activePlayer?.id,
               isSleeping: player.skippedTurns > 0,
               ...(frozen ? { frozenTo: frozen.to } : {}),
+              ...(game.snowFrozenPlayerIds.includes(player.id) ? { snowFrozen: true } : {}),
             };
           })
         : [],

@@ -267,6 +267,18 @@ export const soundEffects = {
     });
   },
 
+  /** Banquise: a snowball whistles through the air and bursts into powder. */
+  snowballThrow(flightSeconds: number): void {
+    audioEngine.noise({ duration: 0.3, gain: 0.05, filterFrequency: 1_800, filterFrequencyEnd: 3_800, q: 4 });
+    audioEngine.noise({
+      start: at(flightSeconds),
+      duration: 0.25,
+      gain: 0.14,
+      filterType: "highpass",
+      filterFrequency: 1_200,
+    });
+  },
+
   /** The rare Tomate that knocks its target out: a cartoon bonk and a few dizzy chirps. */
   tomatoKnockOut(delay: number): void {
     audioEngine.tone({
