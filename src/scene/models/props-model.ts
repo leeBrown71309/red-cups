@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { SCENE_COLORS } from "../../theme/palette";
-import { addOutline, jitterGeometry, type SceneKit } from "../scene-kit";
+import { addOutline, easeOutBack, jitterGeometry, type SceneKit } from "../scene-kit";
 
 export interface AnimatedProp {
   group: THREE.Group;
@@ -88,28 +88,61 @@ export function createRedCup(kit: SceneKit): AnimatedProp {
   };
 }
 
+const MUD_POP_SECONDS = 0.35;
+
+/**
+ * A thick splat of mud, laid on top of a tile (its origin is the tile's top).
+ * The ink contour and the wet, darker heart keep it readable on every tile
+ * colour, by day or under the night fair's lights.
+ */
 export function createMudPuddle(kit: SceneKit): AnimatedProp {
   const group = new THREE.Group();
+  const splat = new THREE.Group();
+  group.add(splat);
+
   const puddle = new THREE.Mesh(
-    kit.geometry("mud-puddle", () => jitterGeometry(new THREE.CylinderGeometry(0.5, 0.56, 0.07, 9), 0.06, 7)),
-    kit.glossy(SCENE_COLORS.mud),
+    kit.geometry("mud-puddle", () => jitterGeometry(new THREE.CylinderGeometry(0.42, 0.48, 0.1, 10), 0.05, 7)),
+    kit.flat(SCENE_COLORS.mud),
   );
-  puddle.position.y = 0.38;
+  puddle.position.y = 0.05;
+  puddle.castShadow = true;
   puddle.receiveShadow = true;
-  group.add(puddle);
+  addOutline(puddle, kit, 1.08);
+  splat.add(puddle);
+
+  const wet = new THREE.Mesh(
+    kit.geometry("mud-wet", () => jitterGeometry(new THREE.CylinderGeometry(0.28, 0.3, 0.02, 9), 0.04, 11)),
+    kit.glossy(SCENE_COLORS.mudWet),
+  );
+  wet.position.y = 0.105;
+  splat.add(wet);
+
+  const dropGeometry = kit.geometry("mud-drop", () => new THREE.IcosahedronGeometry(0.06, 0));
+  [0.4, 1.9, 3.3, 4.8].forEach((angle, index) => {
+    const drop = new THREE.Mesh(dropGeometry, kit.flat(SCENE_COLORS.mud));
+    drop.position.set(Math.cos(angle) * 0.5, 0.03, Math.sin(angle) * 0.5);
+    drop.scale.setScalar(index % 2 === 0 ? 1 : 0.7);
+    addOutline(drop, kit, 1.2);
+    splat.add(drop);
+  });
 
   const bubbles: THREE.Mesh[] = [];
-  const bubbleGeometry = kit.geometry("mud-bubble", () => new THREE.IcosahedronGeometry(0.07, 0));
+  const bubbleGeometry = kit.geometry("mud-bubble", () => new THREE.IcosahedronGeometry(0.065, 0));
   for (let index = 0; index < 3; index += 1) {
-    const bubble = new THREE.Mesh(bubbleGeometry, kit.glossy("#a8734f"));
-    bubble.position.set(Math.cos(index * 2.1) * 0.24, 0.42, Math.sin(index * 2.1) * 0.24);
+    const bubble = new THREE.Mesh(bubbleGeometry, kit.glossy(SCENE_COLORS.mudBubble));
+    bubble.position.set(Math.cos(index * 2.1) * 0.15, 0.13, Math.sin(index * 2.1) * 0.15);
     bubbles.push(bubble);
-    group.add(bubble);
+    splat.add(bubble);
   }
+
+  let age = 0;
+  splat.scale.setScalar(0.001);
 
   return {
     group,
-    update: (elapsed) => {
+    update: (elapsed, delta) => {
+      age += delta;
+      splat.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
       bubbles.forEach((bubble, index) => {
         const cycle = (elapsed * 0.8 + index * 0.33) % 1;
         bubble.scale.setScalar(cycle < 0.85 ? cycle : 0);

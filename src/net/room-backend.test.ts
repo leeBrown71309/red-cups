@@ -523,8 +523,11 @@ describe("history of simulated accounts, with bots playing whole games", () => {
       [secondGame, second, 1],
     ] as const) {
       expect(getWinnerName(game)).toBe(winnerOf(table.final));
-      const won = table.final.winnerId === `p${seat + 1}`;
-      expect(getOutcome(game).kind).toBe(won ? "won" : "placed");
+      const playerId = `p${seat + 1}`;
+      const won = table.final.winnerId === playerId;
+      // Bots sometimes leave a table on their own, so the outcome is read from the board they ended on.
+      const left = table.final.abandonedPlayers.some((player) => player.id === playerId);
+      expect(getOutcome(game).kind).toBe(won ? "won" : left ? "abandoned" : "placed");
     }
     expect(getOutcome(leftGame)).toEqual({ kind: "abandoned" });
     expect(getWinnerName(leftGame)).toBe("Malik");

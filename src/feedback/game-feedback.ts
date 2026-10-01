@@ -154,12 +154,22 @@ function collectEvents(
   }
   newLogEntries.reverse().forEach((entry) => events.push({ type: "log", entry }));
 
+  const previousActive = previous.players.find((player) => player.id === activePlayer?.id);
+  const boughtItem =
+    state.turnStage === "shop" &&
+    previous.turnStage === "shop" &&
+    activePlayer !== undefined &&
+    previousActive !== undefined &&
+    (activePlayer.inventory.length > previousActive.inventory.length ||
+      (state.bulletBill !== null && previous.bulletBill === null));
+
   for (const player of state.players) {
     const before = previous.players.find((candidate) => candidate.id === player.id);
     if (!before) continue;
 
     const delta = player.currency - before.currency;
-    if (delta !== 0) events.push({ type: "currency", playerId: player.id, delta });
+    const purchase = boughtItem && player.id === activePlayer?.id && delta < 0;
+    if (delta !== 0) events.push({ type: "currency", playerId: player.id, delta, purchase });
 
     if (countRedCups(player) > countRedCups(before)) {
       events.push({ type: "cup-collected", playerId: player.id, nodeId: player.position });
@@ -182,14 +192,6 @@ function collectEvents(
     events.push({ type: "shop-opened", playerId: activePlayer.id });
   }
 
-  const previousActive = previous.players.find((player) => player.id === activePlayer?.id);
-  const boughtItem =
-    state.turnStage === "shop" &&
-    previous.turnStage === "shop" &&
-    activePlayer !== undefined &&
-    previousActive !== undefined &&
-    (activePlayer.inventory.length > previousActive.inventory.length ||
-      (state.bulletBill !== null && previous.bulletBill === null));
   if (boughtItem && activePlayer) events.push({ type: "purchase", playerId: activePlayer.id });
 
   const cancelled = newLogEntries.some((entry) => entry.text.includes("utilise Non merci"));

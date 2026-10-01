@@ -20,6 +20,8 @@ export interface TileVisual {
   group: THREE.Group;
   radius: number;
   topY: number;
+  /** Rises with the tile when it is highlighted: props laid on the tile go here, at `topY`. */
+  surface: THREE.Group;
   pickMesh: THREE.Mesh;
   setHighlight: (highlight: TileHighlight) => void;
   /** Pawns or props hide the painted number: a badge on the tile's edge keeps it readable. */
@@ -146,6 +148,7 @@ export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyl
     group,
     radius,
     topY: TILE_HEIGHT,
+    surface: lift,
     pickMesh,
     repaintDecal,
     setHighlight: (next) => {

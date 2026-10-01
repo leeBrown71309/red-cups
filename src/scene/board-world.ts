@@ -64,6 +64,8 @@ const STALL_AWNINGS: Partial<Record<MapThemeId, string>> = {
 const TAP_DISTANCE_PX = 9;
 const BLIZZARD_FOG_SECONDS = 2.6;
 const TAP_DURATION_MS = 650;
+/** Where mud sits on a tile, from its centre. */
+const MUD_OFFSET = new THREE.Vector3(0.36, 0, 0.3);
 
 /**
  * Owns the Three.js scene of one map. React feeds it a serialisable
@@ -374,28 +376,33 @@ export class BoardWorld {
     this.scene.add(prop.group);
   }
 
+  /**
+   * Mud sits on the tile's top, in its front-right quarter: in view of the
+   * camera, clear of the number badge (front-left) and of a lone pawn (centre).
+   */
   private syncMud(nodeIds: NodeId[]): void {
     const wanted = new Set(nodeIds);
     for (const [nodeId, puddle] of this.mudPuddles) {
       if (wanted.has(nodeId)) continue;
-      this.scene.remove(puddle.group);
+      puddle.group.removeFromParent();
       this.mudPuddles.delete(nodeId);
     }
     for (const nodeId of wanted) {
-      if (this.mudPuddles.has(nodeId)) continue;
+      const tile = this.tiles.get(nodeId);
+      if (this.mudPuddles.has(nodeId) || !tile) continue;
       const puddle = createMudPuddle(this.kit);
-      puddle.group.position.copy(this.layout.getNodePosition(nodeId)).add(new THREE.Vector3(-0.45, -0.02, 0.4));
-      this.scene.add(puddle.group);
+      puddle.group.position.set(MUD_OFFSET.x, tile.topY, MUD_OFFSET.z);
+      tile.surface.add(puddle.group);
       this.mudPuddles.set(nodeId, puddle);
     }
   }
 
   /**
-   * Tiles whose painted number is hidden by pawns or the floating Red Cup show it on a badge.
+   * Tiles whose painted number is hidden by pawns, mud or the floating Red Cup show it on a badge.
    * Bullet Bill hovers behind the number, so it never hides it.
    */
   private refreshCoveredTiles(view: BoardView): void {
-    const covered = new Set<NodeId>(view.pawns.map((pawn) => pawn.position));
+    const covered = new Set<NodeId>([...view.pawns.map((pawn) => pawn.position), ...view.mudNodeIds]);
     if (view.redCupNodeId !== null) covered.add(view.redCupNodeId);
     for (const [nodeId, tile] of this.tiles) tile.setCovered(covered.has(nodeId));
   }
@@ -557,8 +564,12 @@ export class BoardWorld {
         if (position) this.effects.spawnPoof(position, event.type === "hell-entered" ? "#c9a2ff" : "#ffffff");
         return;
       }
+      case "mud-placed":
       case "mud-triggered":
-        this.effects.spawnPoof(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT), SCENE_COLORS.mud);
+        this.effects.spawnPoof(
+          this.layout.getNodePosition(event.nodeId).add(MUD_OFFSET).setY(TILE_HEIGHT),
+          SCENE_COLORS.mud,
+        );
         return;
       case "bullet-flight": {
         this.bullet.launch(event.flight);

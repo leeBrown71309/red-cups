@@ -66,17 +66,17 @@ describe("Luna Park board", () => {
     0: [1, 12],
     1: [0, 2],
     2: [3, 10],
-    3: [4, 8],
+    3: [4, 5],
     4: [1, 7],
-    5: [0],
-    6: [5, 7],
-    7: [4, 6, 8, 12],
-    8: [3],
-    9: [8, 10],
+    5: [3],
+    6: [7, 8],
+    7: [4, 5, 6, 12],
+    8: [0],
+    9: [5, 10],
     10: [2, 9, 12],
     12: [0, 10],
   };
-  const EXITS_REVERSED: Record<number, number[]> = { ...EXITS_FORWARD, 1: [0, 4], 2: [1, 10], 3: [2, 8], 4: [3, 7] };
+  const EXITS_REVERSED: Record<number, number[]> = { ...EXITS_FORWARD, 1: [0, 4], 2: [1, 10], 3: [2, 5], 4: [3, 7] };
 
   it.each(Object.entries(EXITS_FORWARD))("leaves tile %s towards %j while the carousel turns 1 → 2", (id, exits) => {
     expect(sorted(getNeighbors(board, Number(id)))).toEqual(exits);
@@ -89,12 +89,12 @@ describe("Luna Park board", () => {
   it("lets Délinquant ride the carousel and the ghost train backwards", () => {
     expect(sorted(getNeighbors(board, 1, true))).toEqual([0, 2, 4]);
     expect(sorted(getNeighbors(board, 12, true))).toEqual([0, 7, 10]);
-    expect(sorted(getNeighbors(board, 8, true))).toEqual([3, 7, 9]);
+    expect(sorted(getNeighbors(board, 5, true))).toEqual([3, 7, 9]);
   });
 
-  it("pays the start bonus only when entering the start from 5", () => {
-    expect(earnsStartBonus(board, 5, [0])).toBe(true);
-    expect(earnsStartBonus(board, 6, [5, 0])).toBe(true);
+  it("pays the start bonus only when entering the start from 8", () => {
+    expect(earnsStartBonus(board, 8, [0])).toBe(true);
+    expect(earnsStartBonus(board, 6, [8, 0])).toBe(true);
     expect(earnsStartBonus(board, 12, [0])).toBe(false);
     expect(earnsStartBonus(board, 1, [0])).toBe(false);
     expect(earnsStartBonus(board, 7, [12, 0])).toBe(false);
@@ -102,16 +102,20 @@ describe("Luna Park board", () => {
 
   it("makes the loop six steps one way round and eight the other", () => {
     const loopLength = (current: Board) => {
-      const toFive = getShortestPath(current, START_NODE_ID, 5, false);
-      return (toFive?.length ?? 99) + 1;
+      const toEight = getShortestPath(current, START_NODE_ID, 8, false);
+      return (toEight?.length ?? 99) + 1;
     };
     expect(loopLength(reversed)).toBe(6);
     expect(loopLength(board)).toBe(8);
   });
 
-  it("keeps the first Cup four steps away both ways round", () => {
-    expect(getShortestPath(board, START_NODE_ID, 8, false)).toHaveLength(4);
-    expect(getShortestPath(reversed, START_NODE_ID, 8, false)).toHaveLength(4);
+  it("puts the first Cup on the farthest tile: seven steps at first, five once the carousel flips", () => {
+    expect(getShortestPath(board, START_NODE_ID, 8, false)).toHaveLength(7);
+    expect(getShortestPath(reversed, START_NODE_ID, 8, false)).toHaveLength(5);
+    const distances = board.normalNodeIds.map(
+      (nodeId) => getShortestPath(board, START_NODE_ID, nodeId, false)?.length ?? 0,
+    );
+    expect(Math.max(...distances)).toBe(7);
   });
 });
 
@@ -214,7 +218,7 @@ describe("a game at Luna Park", () => {
 
   it("flips the carousel when a new Red Cup appears", () => {
     startTable("luna-park", ["built-like-a-tank", "troll"]);
-    editPlayer(0, { position: 3 });
+    editPlayer(0, { position: 6 });
     store().movePlayer(8);
 
     expect(store().players[0].inventory.filter((entry) => entry.kind === "red-cup")).toHaveLength(1);

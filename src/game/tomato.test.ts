@@ -133,6 +133,22 @@ describe("the Tomate", () => {
     expect(countItemUnits(state.players[1], "tomato")).toBe(5);
   });
 
+  it("never asks a full bag to make room for a sixth Tomate", () => {
+    const others: InventoryEntry[] = ["ndoye", "boot", "rope"].map((itemId, index) => ({
+      id: `bo-${index}`,
+      kind: "item",
+      itemId: itemId as "ndoye",
+    }));
+    let state = editPlayer(startTable(), 0, { inventory: [tomatoes(2)] });
+    state = editPlayer(state, 1, {
+      passiveId: "i-take-notes",
+      inventory: [...others, { ...tomatoes(4), id: "bo-tomatoes" }],
+    });
+    state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2", count: 2 });
+    expect(state.pendingDiscard).toBeNull();
+    expect(state.players[1].inventory).toEqual([...others, { ...tomatoes(5), id: "bo-tomatoes" }]);
+  });
+
   it("hands Je note one Tomate per hit, on its stack", () => {
     let state = editPlayer(startTable(), 0, { inventory: [tomatoes(2)] });
     state = editPlayer(state, 1, { passiveId: "i-take-notes", inventory: [{ ...tomatoes(1), id: "bo-tomatoes" }] });

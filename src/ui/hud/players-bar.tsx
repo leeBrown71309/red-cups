@@ -11,7 +11,6 @@ import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { DetailCarousel } from "../components/detail-carousel";
 
 export function getAvatarExpression(player: Player): AvatarExpression {
   if (player.skippedTurns > 0) return "sleepy";
@@ -193,7 +192,6 @@ function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnch
         <span className="eyebrow">Passif</span>
         <strong>{passive.name}</strong>
         <p>{passive.description}</p>
-        <DetailCarousel key={passive.id} details={passive.details} label={passive.name} />
         {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
       </div>
       <div className="player-details__bag">

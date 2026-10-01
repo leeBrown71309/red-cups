@@ -21,7 +21,6 @@ import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { useMapChoiceStore } from "../lobby/map-choice-store";
-import { DetailCarousel } from "../components/detail-carousel";
 
 type HelpTab = "board" | "turn" | "items" | "passives";
 
@@ -209,8 +208,6 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                   {itemId === "boot" ? "dès " : ""}
                   {formatCurrency(item.price)}
                 </span>
-                {/* Full card width: squeezed beside the icon and the price, the rules wrapped every other word. */}
-                <DetailCarousel details={item.details} label={item.name} />
               </li>
             );
           })}
@@ -225,7 +222,6 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               <li key={passiveId}>
                 <strong>{passive.name}</strong>
                 <p>{passive.description}</p>
-                <DetailCarousel details={passive.details} label={passive.name} />
               </li>
             );
           })}

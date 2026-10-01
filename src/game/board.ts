@@ -127,7 +127,7 @@ export function getStartBonusNodeIds(board: Board): NodeId[] {
 /**
  * The 200 coins of the start reward completing the loop, so they are only paid
  * when a step enters the start along an arrow pointing at it (8 → 0 on the
- * classic board, 5 → 0 at Luna Park, 4 → 0 at Banquise). Stepping back into it against its own
+ * classic board and at Luna Park, 4 → 0 at Banquise). Stepping back into it against its own
  * arrows (4 → 0 on the classic board) would otherwise let a player farm the
  * bonus by bouncing 4 ↔ 0.
  */

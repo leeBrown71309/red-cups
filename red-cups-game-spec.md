@@ -89,41 +89,41 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
 - Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
 - Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
-- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 5 → 0 paie.
+- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 8 → 0 paie.
 - Délinquant (400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
 
 ### 3.2 bis Seconde carte : Luna Park (patch 0.1.3)
 
 Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origine. Le départ reste la case 0 et l’Enfer la case 11 sur toutes les cartes.
 
-- **Cases** : 0 départ ; carrousel 1 verte, 2 rouge, 3 verte, 4 rouge autour de l’Enfer (11, au centre) ; 5 boutique (SO), 6 verte (O), 7 rouge (NO), 8 boutique (N, première Red Cup), 9 neutre (NE), 10 verte (E), 12 boutique (SE).
+- **Cases** : 0 départ ; carrousel 1 verte, 2 rouge, 3 verte, 4 rouge autour de l’Enfer (11, au centre) ; 8 boutique (SO, première Red Cup), 6 verte (O), 7 rouge (NO), 5 boutique (N), 9 neutre (NE), 10 verte (E), 12 boutique (SE).
 - **Carrousel** : 1 → 2 → 3 → 4 → 1 à sens unique ; **le sens s’inverse à chaque nouvelle Red Cup** (pas pour la Cup gagnante).
-- **Rayons** libres : 0–1, 2–10, 3–8, 4–7. **Tour extérieur** : 0–12, 12–10, 10–9, 9–8, 8–7, 7–6, 6–5, 5–0.
-- **Flèches** : 0 → 1 ou 12 ; 5 → 0 (seule entrée qui paie les 200 du départ) ; 8 → 3.
+- **Rayons** libres : 0–1, 2–10, 3–5, 4–7. **Tour extérieur** : 0–12, 12–10, 10–9, 9–5, 5–7, 7–6, 6–8, 8–0.
+- **Flèches** : 0 → 1 ou 12 ; 8 → 0 (seule entrée qui paie les 200 du départ) ; 5 → 3.
 - **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
 - **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
 - **Le fantôme** (patch 0.1.3) hante **tout le plateau**, sauf l’Enfer, sans respecter les routes :
   - il apparaît au tour de table 2 ou 3, sur une case libre si possible ;
-  - à chaque changement de tour, trois fois sur quatre il **glisse de 1 à 3 cases** le long des routes, dans n’importe quel sens (flèches, sens uniques, carrousel et train fantôme ne le retiennent pas), en choisissant sa route au hasard à chaque carrefour et sans revenir en arrière sauf en cul-de-sac ; une fois sur quatre il **se téléporte** : il disparaît et réapparaît sur une case éloignée, à 3 routes au moins quand c’est possible ;
+  - à chaque changement de tour, trois fois sur quatre il **glisse de 1 à 3 cases** le long des routes, dans n’importe quel sens (flèches, sens uniques, carrousel et train fantôme ne le retiennent pas), en choisissant sa route au hasard à chaque carrefour et sans revenir en arrière sauf en cul-de-sac ; sa glissade **s’arrête sur la première case occupée** par un joueur (patch 0.1.4) ; une fois sur quatre il **se téléporte** : il disparaît et réapparaît sur une case éloignée, à 3 routes au moins quand c’est possible ;
   - s’il arrive sur un joueur, ou si un joueur s’arrête sur sa case (en marchant, téléporté ou tiré), un **duel contre le fantôme** commence avant la roue de la case. Il affronte chaque joueur de sa case une fois par arrêt, le joueur actif d’abord. Il **n’affronte jamais un joueur en Enfer**, et il épargne celui qui en sort pour atterrir sur sa case (Bouteille d’eau, Monopoly Man, New Cup, New Me…) jusqu’à son prochain déplacement ;
   - le mini-jeu est tiré au sort comme un duel ordinaire (pile ou face, pierre-feuille-ciseaux, vote de la table, Basket). Le moteur tire la main du fantôme, ses tirs au Basket et, dès le début du duel, la pénalité et la récompense : tout est identique sur chaque appareil en ligne ;
   - **fantôme vainqueur** : une pénalité parmi celles qui s’appliquent, au hasard : il **gifle le joueur et l’emporte en Enfer**, il **vole 300 pièces** (au plus ce que le joueur possède) ou il **vole un objet** au hasard (jamais une Red Cup). Pièces et objets volés vont dans son **butin**. Il reste sur sa case jusqu’à son prochain déplacement ;
   - **joueur vainqueur** : il reprend **un seul** morceau du butin, tiré au hasard : un objet, ou **200 pièces** du tas de pièces (le reste attend le suivant). Butin vide : **+300 pièces**. Un objet repris dans un sac plein oblige à jeter un objet ; un objet qu’il ne pourrait pas garder (troisième exemplaire, seconde Gomme) n’est pas tiré. Le fantôme **disparaît 3 tours de table**, puis réapparaît et reprend son cycle ;
   - un clic sur le fantôme ouvre son butin. Le butin survit à ses disparitions.
-- Intérêt de jeu : un tour complet fait 6 pas dans un sens du manège, 8 dans l’autre ; la première Cup est à 4 pas par l’est comme par le manège ; la case 5 n’est accessible que par 6 (goulet pour la Boue) ; chaque case du carrousel est un carrefour.
+- Intérêt de jeu : un tour complet fait 6 pas dans un sens du manège, 8 dans l’autre ; la première Cup est sur la case la plus éloignée du départ, à 7 pas (5 une fois le manège inversé), et la case 8 n’est accessible que par 6 (goulet pour la Boue) ; chaque case du carrousel est un carrefour.
 
 | Case | Sorties (sens 1 → 2) | Sorties (sens inversé) |
 | ---- | -------------------- | ---------------------- |
 | 0    | 1, 12                | 1, 12                  |
 | 1    | 0, 2                 | 0, 4                   |
 | 2    | 3, 10                | 1, 10                  |
-| 3    | 4, 8                 | 2, 8                   |
+| 3    | 4, 5                 | 2, 5                   |
 | 4    | 1, 7                 | 3, 7                   |
-| 5    | 0                    | 0                      |
-| 6    | 5, 7                 | 5, 7                   |
-| 7    | 4, 6, 8, 12 (train)  | 4, 6, 8, 12 (train)    |
-| 8    | 3                    | 3                      |
-| 9    | 8, 10                | 8, 10                  |
+| 5    | 3                    | 3                      |
+| 6    | 7, 8                 | 7, 8                   |
+| 7    | 4, 5, 6, 12 (train)  | 4, 5, 6, 12 (train)    |
+| 8    | 0                    | 0                      |
+| 9    | 5, 10                | 5, 10                  |
 | 10   | 2, 9, 12             | 2, 9, 12               |
 | 12   | 0, 10                | 0, 10                  |
 
@@ -359,6 +359,16 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
 
 ## 13. Historique des versions
+
+### 0.1.4 — en préparation
+
+Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans `plans/patch-0.1.4-rework.md`.
+
+- **Fantôme** : sa glissade s’arrête sur la première case occupée par un joueur ; il ne passe plus sur un pion sans l’affronter.
+- **Luna Park** : les cases 5 et 8 sont échangées. La première Red Cup (case 8) est sur la case la plus éloignée du départ, dans le goulet accessible seulement par 6 ; seule l’entrée 8 → 0 paie le bonus du départ.
+- **Boue** : plus épaisse, cernée d’encre, posée sur le dessus de la case (elle monte avec la case surlignée) ; la pastille du numéro s’affiche sur une case boueuse.
+- **Son d’achat** : une caisse enregistreuse, sans le son de perte d’argent.
+- **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 
 ### 0.1.3 — septembre 2026
 

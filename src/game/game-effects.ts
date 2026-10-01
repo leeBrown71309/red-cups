@@ -8,7 +8,7 @@ import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import {
   canAddItem,
-  countItemCopies,
+  canReceiveItem,
   countRedCups,
   getInventoryCapacity,
   getNodeKind,
@@ -361,19 +361,17 @@ export function itemCopyForPassive(
   // Draven hits its own user too: copying it would hand Je note an endless supply.
   if (itemId === "draven") return state;
 
-  // The no-stacking rule wins over Je note: never a third copy, never a second Gomme.
-  const copies = countItemCopies(target, itemId);
-  if (copies >= 2 || (itemId === "eraser" && copies >= 1)) {
-    return addLog(state, `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`);
-  }
-
   if (canAddItem(target, itemId)) {
     const nextState = updatePlayer(state, targetPlayerId, (player) => appendItem(player, itemId));
     return addLog(nextState, `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`, "event");
   }
 
-  const discardable = target.inventory.some((entry) => entry.kind === "item");
-  if (!discardable) return state;
+  // The no-stacking rule wins over Je note: never a third copy, a second Gomme or a sixth Tomate.
+  if (!canReceiveItem(target, itemId)) {
+    const onlyCups = !target.inventory.some((entry) => entry.kind === "item");
+    if (onlyCups) return state;
+    return addLog(state, `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`);
+  }
 
   return {
     ...state,

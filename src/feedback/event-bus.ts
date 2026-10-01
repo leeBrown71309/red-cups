@@ -6,7 +6,8 @@ import type { BulletFlight, GameLogEntry, NodeId, PlayerId } from "../game/types
  */
 export type FeedbackEvent =
   | { type: "turn-start"; playerId: PlayerId }
-  | { type: "currency"; playerId: PlayerId; delta: number }
+  /** `purchase` marks the price paid in the shop, which has its own sound. */
+  | { type: "currency"; playerId: PlayerId; delta: number; purchase: boolean }
   | { type: "cup-collected"; playerId: PlayerId; nodeId: NodeId }
   | { type: "cup-spawned"; nodeId: NodeId }
   | { type: "shop-opened"; playerId: PlayerId }

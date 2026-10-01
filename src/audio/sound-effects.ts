@@ -166,10 +166,40 @@ export const soundEffects = {
     });
   },
 
+  /**
+   * A cash register: a key clacks, the drawer rolls out with its coins, then
+   * the bell rings. Spending in the shop is a reward, so it must not sound
+   * like the coins lost to a wheel.
+   */
   purchase(): void {
-    audioEngine.noise({ duration: 0.08, gain: 0.12, filterType: "highpass", filterFrequency: 3_000 });
-    audioEngine.tone({ type: "sine", frequency: 2_637, start: at(0.06), duration: 0.35, gain: 0.08, release: 0.3 });
-    audioEngine.tone({ type: "sine", frequency: 3_136, start: at(0.1), duration: 0.4, gain: 0.06, release: 0.35 });
+    audioEngine.noise({ duration: 0.035, gain: 0.14, filterFrequency: 1_800, q: 1.2 });
+    audioEngine.tone({ type: "triangle", frequency: 190, frequencyEnd: 90, duration: 0.07, gain: 0.12 });
+    audioEngine.noise({
+      start: at(0.07),
+      duration: 0.16,
+      gain: 0.06,
+      filterFrequency: 1_200,
+      filterFrequencyEnd: 2_600,
+      q: 2,
+    });
+    [0.1, 0.14, 0.18].forEach((offset, index) => {
+      audioEngine.tone({
+        type: "square",
+        frequency: 3_400 + index * 420,
+        start: at(offset),
+        duration: 0.03,
+        gain: 0.025,
+        filterFrequency: 6_000,
+      });
+    });
+    audioEngine.noise({ start: at(0.24), duration: 0.05, gain: 0.07, filterType: "highpass", filterFrequency: 4_000 });
+    [
+      { frequency: NOTE.E6 * 2, gain: 0.1 },
+      { frequency: NOTE.E6 * 2 * 2.76, gain: 0.025 },
+      { frequency: NOTE.E6, gain: 0.04 },
+    ].forEach(({ frequency, gain }) => {
+      audioEngine.tone({ type: "sine", frequency, start: at(0.24), duration: 0.9, gain, release: 0.85 });
+    });
   },
 
   wheelTick(speed: number): void {

@@ -71,6 +71,8 @@ export function startAudioFeedback(): () => void {
         soundEffects.tunnel();
         break;
       case "currency": {
+        // The shop's price is heard as the cash register of the purchase event.
+        if (event.purchase) break;
         const now = performance.now();
         if (now - lastCoinSound < COIN_SOUND_COOLDOWN_MS) break;
         lastCoinSound = now;

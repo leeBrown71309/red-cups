@@ -46,6 +46,20 @@ export function canAddItem(player: Player, itemId: ItemId): boolean {
   return itemCount < 2;
 }
 
+/**
+ * Whether an item handed to the player (Je note, the ghost's loot) can end up
+ * in the bag, once an ordinary item is thrown away to make room. The copy
+ * limits hold whatever is thrown away, and so does a stack of Tomates: a
+ * discard frees a slot, not a place in the stack.
+ */
+export function canReceiveItem(player: Player, itemId: ItemId): boolean {
+  if (canAddItem(player, itemId)) return true;
+  const copies = countItemCopies(player, itemId);
+  if (ITEM_CATALOG[itemId].stackLimit && copies > 0) return false;
+  if (copies >= 2 || (itemId === "eraser" && copies >= 1)) return false;
+  return player.inventory.some((entry) => entry.kind === "item");
+}
+
 export function getLegalMoveOptions(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
   if (player.position === HELL_NODE_ID || distance < 1) return [];
 
