@@ -20,6 +20,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - Branche `patch_0.1.4`, créée depuis `origin/main` (5531f78).
 - Les lots se font dans l'ordre ci-dessous, un commit atomique par lot. En attendant les réponses de l'auteur, les choix par défaut des questions ouvertes s'appliquent.
 - [x] **Lot 1** fait (voir le bilan dans sa section).
+- [x] **Lot 2** fait.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -148,6 +149,14 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - Retirer les chevrons des routes fléchées, mais les **garder** pour le tunnel 7→1, le train fantôme et le carrousel : là, c'est la route qui a un sens.
 - **Plan 2D** (`ui/components/board-map.tsx:20-38, 160-177`, utilisé par l'aide et le carrousel des cartes) : remplacer les `ArrowHead` le long de la route par une flèche accrochée au bord du cercle de la case, dessinée après les cases.
 - **Légende** : `help-modal.tsx` `ROAD_SWATCH_CLASSES` (35-41) et la pastille « ››› » (172) ; textes `roadLegend` des 3 cartes (`maps/*.ts`).
+
+### Bilan du lot 2
+
+- **3D** : flèche en relief de la couleur de la case, avec contour encre (`scene/models/tile-arrow-model.ts`). Elle a une légère poussée animée vers sa sortie et monte avec la case. Sa longueur s'adapte à la route, pour ne jamais toucher la case suivante.
+- **Plan 2D** : dans l'aide et le choix de carte, la flèche sort du cercle de la case.
+- **Légende** : l'entrée s'appelle « Case fléchée », avec une pastille dessinée.
+- **Chevrons** : retirés des routes fléchées ; le tunnel, le train fantôme et le carrousel gardent les leurs.
+- La couleur `roads.arrow` des thèmes, devenue inutile, est supprimée.
 
 ## Lot 3 — Boutique et roues (données)
 

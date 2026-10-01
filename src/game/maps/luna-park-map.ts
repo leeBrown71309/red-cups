@@ -71,9 +71,9 @@ export const LUNA_PARK_MAP: BoardMap = {
   roadLegend: [
     {
       style: "arrow",
-      title: "Sortie fléchée",
+      title: "Case fléchée",
       description:
-        "Sur les cases 0, 5 et 8, tu dois sortir par la flèche. On peut y entrer par n’importe quelle route.",
+        "La flèche sort de la case : arrêté sur 0, 5 ou 8, tu repars par la route qu’elle montre. On peut y entrer par n’importe quelle route.",
     },
     { style: "road", title: "Chemin libre", description: "Praticable dans les deux sens." },
     {

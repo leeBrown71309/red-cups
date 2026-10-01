@@ -102,9 +102,10 @@ limitée à deux projets par compte.
 - **Plateau** : diorama low poly posé dans un plateau-jouet crème, comme un vrai jeu de société. Cases facettées aux
   couleurs du jeu original (bleu boutique, rouge, vert, gris, départ doré), chemins en pas japonais, arbres et buissons
   en icosaèdres, étang, Enfer en cratère violet qui sourit (clin d’œil au smiley de la case 11).
-- **Sens de circulation** : la sortie imposée d’une case fléchée porte des chevrons orange animés, sur la moitié de
-  route qui part de cette case (on peut y entrer par cette route, mais on doit en sortir par là). Les routes libres
-  n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
+- **Sens de circulation** : comme sur le plateau original, une case fléchée porte sa flèche sur elle : une flèche en
+  relief, de la couleur de la case, sort de son bord vers la route par laquelle on doit la quitter (on peut y entrer
+  par n’importe quelle route). Les routes restent nues ; seuls le tunnel 7 → 1, qui passe par des arches dans le
+  rebord, et le carrousel de Luna Park portent des chevrons, car c’est la route elle-même qui a un sens.
 - **Luna Park** (seconde carte) : la même boîte de jeu, la nuit. Pavés bleu nuit, cases à bord néon, guirlandes
   d’ampoules, grande roue et chapiteau au fond, lampadaires, ballons et confettis. L’Enfer est un manège maudit dont
   les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte

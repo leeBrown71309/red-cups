@@ -16,7 +16,7 @@ import {
   SNOWBALL_HITS_TO_FREEZE,
   START_BONUS,
 } from "../../game/types";
-import { BoardMap } from "../components/board-map";
+import { BoardMap, TileArrowSwatch } from "../components/board-map";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
@@ -31,8 +31,7 @@ const TABS: { id: HelpTab; label: string }[] = [
   { id: "passives", label: "Passifs" },
 ];
 
-const ROAD_SWATCH_CLASSES: Record<RoadLegendEntry["style"], string> = {
-  arrow: "legend-road legend-road--oneway",
+const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, string> = {
   road: "legend-road",
   tunnel: "legend-road legend-road--tunnel",
   carousel: "legend-road legend-road--carousel",
@@ -167,9 +166,13 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <ul className="legend-list legend-list--roads">
               {shownMap.roadLegend.map((entry) => (
                 <li key={entry.title}>
-                  <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
-                    {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
-                  </span>
+                  {entry.style === "arrow" ? (
+                    <TileArrowSwatch />
+                  ) : (
+                    <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
+                      {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
+                    </span>
+                  )}
                   <span>
                     <strong>{entry.title}</strong>
                     <small>{entry.description}</small>

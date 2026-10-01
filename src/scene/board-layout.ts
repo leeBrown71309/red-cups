@@ -17,7 +17,10 @@ export interface RoadSegment {
   edge: BoardEdge;
   start: THREE.Vector3;
   end: THREE.Vector3;
-  /** Direction of travel for one-way roads, from start to end. */
+  /**
+   * A road that runs one way, from start to end: a tunnel or the carousel.
+   * An arrow tile's forced exit is not one: the arrow is drawn on its tile.
+   */
   directed: boolean;
   tunnel: boolean;
   /** Carousel roads flip their direction during the game. */
@@ -110,7 +113,7 @@ export class BoardLayout {
       const end = this.getNodePosition(edge.to);
       const tunnel = edge.kind === "tunnel";
       const carousel = edge.kind === "carousel";
-      const directed = edge.arrow === true || tunnel || carousel;
+      const directed = tunnel || carousel;
 
       if (tunnel) {
         const layout = this.getTunnelLayout(edge);

@@ -368,6 +368,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Luna Park** : les cases 5 et 8 sont échangées. La première Red Cup (case 8) est sur la case la plus éloignée du départ, dans le goulet accessible seulement par 6 ; seule l’entrée 8 → 0 paie le bonus du départ.
 - **Boue** : plus épaisse, cernée d’encre, posée sur le dessus de la case (elle monte avec la case surlignée) ; la pastille du numéro s’affiche sur une case boueuse.
 - **Son d’achat** : une caisse enregistreuse, sans le son de perte d’argent.
+- **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 
 ### 0.1.3 — septembre 2026

@@ -830,6 +830,13 @@
   line-height: 1;
 }
 
+/* An arrow tile, drawn like the plan's tiles: the arrow grows out of the tile. */
+.legend-arrow-tile {
+  flex: none;
+  width: 46px;
+  height: 22px;
+}
+
 .legend-road--tunnel {
   background: #b7c4d8;
   color: #1592c0;

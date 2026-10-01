@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { BoardEdge, MapId, NodeId, PlayerMovement } from "../game/types";
+import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import type { MapThemeId } from "../game/maps/map-types";
@@ -16,8 +16,9 @@ import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-sce
 import { createIceCrevasse } from "./models/polar-landmarks-model";
 import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
 import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
+import { createTileArrow } from "./models/tile-arrow-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
-import { TILE_HEIGHT, createTileVisual, type TileVisual } from "./models/tile-model";
+import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
 import { SceneKit, easeOutBack } from "./scene-kit";
@@ -92,6 +93,8 @@ export class BoardWorld {
   /** Only on maps a ghost haunts. */
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
+  /** The arrows of the arrow tiles, which ride on their tile. */
+  private readonly tileArrows: AnimatedProp[] = [];
   /** Banquise: the penguins of the scenery, who throw the snowballs. */
   private penguins: THREE.Object3D[] = [];
   private readonly raycaster = new THREE.Raycaster();
@@ -320,6 +323,7 @@ export class BoardWorld {
       const tile = createTileVisual(node, this.kit, { neon: this.theme.neonTiles });
       this.tiles.set(node.id, tile);
       this.scene.add(tile.group);
+      this.addTileArrows(node, tile);
 
       const stallPlacement = layout.config.shopStalls[node.id];
       if (node.kind === "shop" && stallPlacement) {
@@ -340,6 +344,32 @@ export class BoardWorld {
 
     for (const edge of layout.board.edges) {
       if (edge.kind === "tunnel") this.addTunnelEnds(edge);
+    }
+  }
+
+  /**
+   * Every forced exit of a tile sticks out of its rim as an arrow, pointing at
+   * the road it must be left by. Short roads get shorter arrows, so an arrow
+   * never touches the next tile.
+   */
+  private addTileArrows(node: BoardNode, tile: TileVisual): void {
+    for (const edge of this.layout.board.edges) {
+      if (!edge.arrow || edge.from !== node.id) continue;
+      const target = this.layout.getNode(edge.to);
+      if (!target) continue;
+      const offset = new THREE.Vector3(target.x - node.x, 0, target.z - node.z);
+      const targetRadius = target.kind === "start" ? START_TILE_RADIUS : TILE_RADIUS;
+      const gap = offset.length() - tile.radius - targetRadius;
+      const reach = THREE.MathUtils.clamp(gap * 0.55, 0.4, 0.85);
+      const arrow = createTileArrow(this.kit, {
+        node,
+        radius: tile.radius,
+        direction: offset.normalize(),
+        reach,
+        neon: this.theme.neonTiles,
+      });
+      tile.surface.add(arrow.group);
+      this.tileArrows.push(arrow);
     }
   }
 
@@ -437,6 +467,7 @@ export class BoardWorld {
     this.effects.update(delta);
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
+    for (const arrow of this.tileArrows) arrow.update(elapsed, delta);
     for (const tile of this.tiles.values()) tile.update(elapsed, delta);
 
     if (this.redCup.group.visible) {
