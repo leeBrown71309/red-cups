@@ -1,16 +1,13 @@
 import { getBoard, getShortestPath } from "./board";
 import { addLog, applyCurrencyChange, updatePlayer } from "./state-utils";
 import type { BulletFlight, GameState, NodeId, Player } from "./types";
-import { BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "./types";
+import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /**
  * Bullet Bill belongs to nobody. It lands on the start as soon as it is
  * bought, so the whole table sees it coming, then charges the nearest player
  * at the start of every round, from the next one on.
  */
-
-/** Tiles covered per charge: a target one or two tiles away is hit, a farther one is only approached. */
-const CHARGE_STEPS = 2;
 
 export function launchBulletBill(state: GameState): GameState {
   return {
@@ -50,8 +47,8 @@ function chargeNearestPlayer(state: GameState): GameState {
   const target = findNearestTarget(state, bullet.position);
   if (!target) return state;
 
-  // A closer target ends the charge early; one standing on Bullet Bill's own tile is hit without it moving.
-  const path = target.path.slice(0, CHARGE_STEPS);
+  // One tile per charge: a target next to it is hit, one standing on its own tile is hit without it moving.
+  const path = target.path.slice(0, BULLET_BILL_CHARGE_STEPS);
   const position = path[path.length - 1] ?? bullet.position;
   const hit = position === target.player.position;
   const flight: BulletFlight = {

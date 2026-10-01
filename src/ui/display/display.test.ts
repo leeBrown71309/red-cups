@@ -18,6 +18,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: 1,
+    previousNodeId: null,
     ...overrides,
   };
 }

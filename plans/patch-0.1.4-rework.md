@@ -18,9 +18,11 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 ## État
 
 - Branche `patch_0.1.4`, créée depuis `origin/main` (5531f78).
-- Les lots se font dans l'ordre ci-dessous, un commit atomique par lot. En attendant les réponses de l'auteur, les choix par défaut des questions ouvertes s'appliquent.
-- [x] **Lot 1** fait (voir le bilan dans sa section).
-- [x] **Lot 2** fait.
+- Les lots se font dans l'ordre ci-dessous, un commit par lot, fait après ta validation.
+- L'auteur a répondu aux 20 questions (voir « Réponses de l'auteur » à la fin). Les lots ci-dessous en tiennent compte.
+- [x] **Lot 1** fait et commité (voir le bilan dans sa section).
+- [x] **Lot 2** fait et commité.
+- [x] **Lot 3** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -168,15 +170,15 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - **Roues** (`WHEEL_RESULTS`, `catalog.ts:362-392`), 8 secteurs de même poids :
   - **Bonheur** :
     - gardés : +100, +200, +300, +400, `spin-misfortune` ;
-    - **`advance-one`** (nouveau) : le joueur choisit une case voisine légale ;
+    - **`advance-one`** (nouveau) : le joueur choisit une case voisine légale ; la case d'arrivée donne sa roue et sa boutique (Q2) ;
     - `free-item` : objet ≤ 400, 5 Tomates si c'est la Tomate ;
     - **`go-to-start`** (nouveau) : case 0 et +200, sort aussi de l'Enfer ;
     - retirés : +500 et `escape`.
   - **Malheur** :
     - gardés : −200, −400, `spin-fortune`, `go-to-hell`, `skip-turn` ;
     - **−300** (nouveau) ;
-    - **`go-back`** (nouveau) : retour à la case d'où l'on vient ;
-    - `lose-item` : jamais une Red Cup ;
+    - **`go-back`** (nouveau) : retour à la case d'où l'on vient, qui donne sa roue et sa boutique (Q2) ;
+    - `lose-item` : jamais une Red Cup ; sac sans objet : −200 pièces (Q3) ;
     - retirés : −100 et `nothing`.
   - **Enfer** : inchangée.
 - **Moteur** :
@@ -185,6 +187,27 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - Nouveau champ **`Player.previousNodeId`** pour `go-back`. `lastMovement` est global et sert à l'animation.
   - `advance-one` : étape de choix de case, sur le modèle du repositionnement.
 - **UI** : `OUTCOME_SHORT_LABELS`, `POSITIVE_OUTCOMES` et `getWheelSegments` (`game-display.ts:26-100`), `CHAINED_WHEEL_ACTIONS` (`wheel-modal.tsx:28`), `display.test.ts`.
+
+### Bilan du lot 3
+
+- **Prix** : Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200. La Botte plafonne à 400.
+- **Constantes** : elles sont maintenant partagées dans `types.ts` (`MAXIMUM_BOOT_PRICE`, `BOOT_PRICE_STEP`, `BULLET_BILL_CHARGE_STEPS`, `FREE_TOMATOES`), et le vérificateur les utilise au lieu de valeurs écrites en dur.
+- **Bullet Bill** : une case par charge.
+- **Roues du bonheur et du malheur** : refaites en 8 secteurs égaux ; la roue de l'Enfer ne change pas (un sac vide y coûte toujours 100 pièces). Les nouvelles issues :
+  - **Avance d'une case** : nouvelle étape `advance` et action `advanceOneTile`. C'est le joueur de la roue qui choisit, actif ou non. C'est un pas à pied : Red light et bonus du départ comptent, et la roue, la boutique, la Boue et la Red Cup de la case d'arrivée s'appliquent.
+  - **Retourne d'où tu viens** : grâce au nouveau champ `Player.previousNodeId`, enregistré après chaque action qui déplace un joueur. Jamais d'aller-retour en Enfer.
+  - **Va au Départ** : +200, même depuis l'Enfer.
+  - **−300**.
+  - **Objet gratuit** : liste explicite `FREE_ITEM_POOL` ; la Tomate arrive en pile de 5.
+- **Boutique** : elle s'ouvre seulement pour le joueur actif dont le tour était fini (`getWheelArrivalStage`).
+- **Sauvegardes** : version 12. Les anciennes parties sont mises à niveau, car le changement est additif.
+- **Vérificateur** : 4 faux positifs mis au jour par les nouvelles trajectoires sont corrigés :
+  - victime de la Boue identifiée par le journal ;
+  - roue de case pendant une Bénédiction ;
+  - roue suivie d'un changement de tour ;
+  - Bullet Bill qui charge deux fois quand tous les joueurs passent leur tour.
+- **Tests** : nouveau fichier `wheel-outcomes.test.ts` (18 tests).
+- **Aide** : textes à jour (roues, Bullet Bill, et le fantôme qui s'arrête sur le premier joueur).
 
 ## Lot 4 — Système d'énergie (refonte du tour)
 
@@ -199,7 +222,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - **Déplacement** : il faut au moins 1 point ; il consomme tout et termine le tour.
   - **Botte** : coûte 1 et réserve 1 pour le déplacement, donc il faut 2 points. Une seule par tour (garde existante `moveDistance === 1`).
   - **Enfer** : la roue de l'Enfer tient lieu de déplacement (au moins 1 point, consomme tout).
-  - **`endTurn`** (`game-actions.ts:302`) est permis depuis `move`/`hell` quand l'énergie ne suffit plus, ou après avoir utilisé au moins un objet (voir Q1).
+  - **`endTurn`** (`game-actions.ts:302`) est permis depuis `move`/`hell` quand l'énergie ne suffit plus, ou après avoir utilisé au moins un objet (Q1). En ligne, un tour qui expire sans aucune action coûte une chance (lot 9).
   - `NON_ACTION_ITEMS` et `PREPARATION_ITEMS` (`turn-actions.ts:158-173`) sont remplacés par l'énergie. On garde « une Boue par tour ».
   - La boutique ne coûte rien. Un objet acheté s'utilise au tour suivant.
 - **UI** :
@@ -215,7 +238,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - **Renommés** (les identifiants anglais changent aussi, logique inchangée) : Délinquant → **Corrupteur** (`corrupter`), Troll → **Goblin** (`goblin`).
 - **Baraqué** : la demi-Corde reste. Contre le Monopoly Man, il garde son immunité jusqu'au bras de fer du lot 11.
 - **New Cup, New Me** : à chaque nouvelle Cup, avant son apparition, choix entre « Départ +200 » et « Rester ». Réutilise l'étape `reposition` (`finishCupCollection`, `game-effects.ts:304-318` ; `repositionBeforeCup`, `game-actions.ts:424-458`).
-- **Red light, Green light** : 2 déclenchements par cycle de Red Cup (voir Q5). Compteur par joueur remis à zéro à chaque nouvelle Cup, dans `addRedGreenBonuses` (`game-effects.ts:392-404`).
+- **Red light, Green light** : **deux de chaque** par cycle de Red Cup (Q5) : au plus 2 gains de 100 sur les cases vertes et 2 pertes de 100 sur les rouges. Deux compteurs par joueur, remis à zéro à chaque nouvelle Cup, dans `addRedGreenBonuses` (`game-effects.ts`).
 - **Non merci** : refonte du flux (`openReactionWindow` et `getNoThanksReactors`, `turn-actions.ts:370-412`).
   - Il ne se déclenche que si l'action **vise son détenteur** : objet à cible unique, roue qui doit l'affecter (tuile, Ndoye…), impact de Bullet Bill.
   - Il n'annule plus les déplacements.
@@ -291,7 +314,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - **Portail** (300 pièces, 2 d'énergie) :
     - nouvel état `hellPortals` ;
     - case aléatoire, ni l'Enfer, ni le départ, ni la Cup ;
-    - dure 2 tours de table ou jusqu'à ce qu'un joueur s'y arrête ;
+    - dure 2 tours de table ou jusqu'à ce qu'un joueur s'y arrête, **le diable compris** (Q18) ;
     - nouveau modèle 3D.
   - **Toucher d'Enfer** (400, automatique) : dans le sac. Vérifié dans `settleBoard` : tout joueur assommé ou privé de tour sur la case du diable part en Enfer. Consommé à l'usage.
   - **Black Cup** (400, 3 d'énergie) :
@@ -299,10 +322,12 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
     - nouvel état `blackCup` ;
     - un autre joueur qui arrive en Enfer la ramasse.
   - **Sentence** (400, 2 d'énergie) : tous les autres joueurs à 0 pièce ou moins partent en Enfer.
-  - **Doomsday** (666, 3 d'énergie) : pendant 1 tour de table, s'arrêter sur n'importe quelle case lance la roue du malheur. Nouvel état `doomsdayUntilRound` ; c'est `getTileWheel` qui le prend en compte (`rules.ts:103`).
+  - **Doomsday** (666, 3 d'énergie) : pendant 1 tour de table, **toutes les cases sans exception** (départ et boutiques compris) deviennent des roues du malheur. Le départ ne paie pas les 200 pièces et la boutique ne s'ouvre pas (Q17). Nouvel état `doomsdayUntilRound`, pris en compte par `getTileWheel` (`rules.ts:103`), `earnsStartBonus` et l'étape d'arrivée.
 - **L'Ange-Gardien** :
   - **Disponibilité** : seulement à 4 joueurs ou plus.
   - **Protégé** : tiré après le draft parmi les non-malfaiteurs ; les malfaiteurs sont le Diable, le Voleur, le Goblin et le Corrupteur. S'il n'y en a aucun, l'Ange devient Lambda (Q13).
+  - **Public** : tout le monde sait qui est le protégé, qui porte un **halo** au-dessus de son pion (modèle 3D, Q13).
+  - **Protégé qui abandonne ou déclare forfait** : l'Ange prend sa place et récupère son passif, son sac, ses Red Cups et ses pièces, mais il commence **en Enfer** (Q13). La sortie de jeu générale (`removePlayer`, lot 9) appelle cette règle.
   - **Victoire** : co-victoire avec son protégé.
   - **Interdits** : ne ramasse pas la Cup.
   - **Enfer** : il n'y va jamais ; à la place, il saute son prochain tour.
@@ -312,7 +337,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - **Ciblage** : il ne peut viser que son protégé.
   - **Boue** : il perd son prochain tour.
   - **Boutique restreinte** : ni Ndoye, ni Hollow Purple, ni Boue, ni Tomate, ni Bullet Bill, ni Middle Finger, ni Draven, ni Casque.
-  - **Bouclier** (500, hors tour) : bloque automatiquement la 1ʳᵉ attaque visant le protégé (Q14).
+  - **Bouclier** (500, hors tour) : **au choix de l'Ange** (Q14). Quand un objet néfaste vise le protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque ou laisse passer.
 - **Barre des joueurs** : lien Ange → protégé et compteur du diable (« Enfer 5/14 »).
 
 ## Lot 9 — Chrono de tour en ligne (45 s, 3 chances, forfait)
@@ -330,10 +355,10 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - Les autres appareils attendent 2 s de plus, et le compare-and-set (`advance_room`) ne laisse passer qu'une écriture.
 - **Effets** :
   - si `turnActed` : fin du tour ; les décisions en cours du joueur sont fermées par défaut (roue tournée, boutique fermée, objet à jeter tiré au hasard) ;
-  - sinon : une chance perdue (`idleStrikes`) et fin du tour ;
+  - sinon : une chance perdue (`idleStrikes`) et fin du tour. Un tour passé sans rien faire compte de la même façon (Q1) ;
   - à 2 chances perdues : bannière d'alerte au début de son tour suivant ;
   - à 3 : **forfait**.
-- **Forfait** : `removePlayer(state, id, "forfeit")`, généralisé depuis `abandon.ts`. Il accepte toutes les étapes, vide toutes les décisions en attente (y compris `pendingDuel`), révèle une Cup cachée par New Cup et nettoie Boue, fantôme et neige.
+- **Forfait** : `removePlayer(state, id, "forfeit")`, généralisé depuis `abandon.ts`. Il accepte toutes les étapes, vide toutes les décisions en attente (y compris `pendingDuel`), révèle une Cup cachée par New Cup et nettoie Boue, fantôme et neige. Si le joueur qui part était protégé par un Ange-Gardien, l'Ange reprend sa place (Q13, lot 8).
   - Corrige aussi un trou existant : quitter pendant une décision bloque la partie (`room-store.leave`).
 - **Décisions des autres** : une échéance avec choix par défaut (réaction, vote, pierre-feuille-ciseaux, Basket, Calme-toi, objet à jeter, pari), pour qu'un appareil parti ne bloque plus la partie.
 - **UI** : anneau de chrono (`top-bar.tsx` / dock), chances perdues dans `players-bar.tsx`, alerte dans `alert-banner.tsx`. **Rien en local** (le doc ne parle que du jeu en ligne).
@@ -355,8 +380,8 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - **Clôture automatique** : dès que tout le monde a choisi.
 - **Ensuite** : `createPlayers` applique les effets des passifs (pièces, places, énergie), tire le protégé de l'Ange et annonce le Diable.
 - **Compte à rebours de 5 s** : purement visuel, via `boardBusyUntil` (`feedback/ui-store.ts:101`) sur le modèle de l'intro de 950 ms (`game-feedback.ts:54`). Écran « La partie commence dans 5… ».
-- **Local** : passage de l'écran, « Passe l'écran à X » puis « Je suis X » (modèle de `duel-modal.tsx:300-316`), cartes cachées, chrono de 60 s commun (Q15).
-- **En ligne** : chacun voit ses cartes sur son appareil, les autres voient « X a choisi ✓ ». L'échéance vient de l'horloge partagée du lot 9.
+- **Local** : passage de l'écran, « Passe l'écran à X » puis « Je suis X » (modèle de `duel-modal.tsx:300-316`), cartes cachées, **sans chrono** : chacun choisit à son rythme (Q15).
+- **En ligne** : chacun voit ses cartes sur son appareil, les autres voient « X a choisi ✓ ». Le chrono de 60 s ne vaut qu'en ligne ; son échéance vient de l'horloge partagée du lot 9.
 - **À brancher** :
   - `App.tsx:51-62` ;
   - garde `phase !== "playing"` (`action-permissions.ts:15`) ;
@@ -368,7 +393,8 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 
 - **Bras de fer (Baraqué contre Monopoly Man)** :
   - déclenché dans la branche Monopoly Man (`turn-actions.ts:264-280`) ;
-  - nouvel état `pendingArmWrestle` : 10 s d'appuis simultanés ;
+  - nouvel état `pendingArmWrestle` : **10 s au plus** d'appuis simultanés ; la partie s'arrête plus tôt si la barre atteint un bout (Q20) ;
+  - **égalité** (Q20) : s'il y a au moins une case entre eux, l'attaquant avance d'une case vers le Baraqué et le Baraqué recule d'une case ; sur deux cases voisines, seul le Baraqué recule d'une case. Ces pas suivent le plus court chemin entre eux ;
   - chaque appareil envoie `submitArmTaps` (plafonné) ; le moteur compare les appuis × multiplicateur (Baraqué ×1,2) ;
   - barre en direct via un nouvel évènement de canal `arm`, sur le modèle de `net/basket-live.ts` ;
   - en local : deux zones d'appui (gauche et droite) ou les touches A et L ;
@@ -394,28 +420,32 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 
 ---
 
-## Questions ouvertes pour l'auteur (choix par défaut proposés)
+## Réponses de l'auteur aux 20 questions
 
-1. **Passer son tour** : peut-on finir son tour sans se déplacer ni rien utiliser ? Par défaut : non. On peut finir sans bouger seulement après avoir utilisé au moins un objet, ou si l'énergie ne suffit plus.
-2. **Avancez d'une case / Retournez d'où vous venez** : la case d'arrivée déclenche-t-elle roue et boutique ? Par défaut : Boue, Red Cup et fantôme oui ; roue et boutique non, pour éviter les chaînes.
-3. **« Perdez un item »** avec un sac vide : par défaut, rien (avant : −100).
-4. **Roue du bonheur** : poids égaux entre les 8 secteurs ? Par défaut : oui, pour les deux roues.
-5. **Red light, Green light** : « deux fois par tour de Red Cup » veut-il dire 2 déclenchements au total (vert ou rouge), ou 2 de chaque ? Par défaut : 2 au total.
-6. **Non merci sur une roue** : avant ou après le résultat ? Par défaut : après le résultat, comme la Gomme. Contre Draven, il protège seulement son détenteur. « Tous les 5 tours » veut dire 5 tours de table.
-7. **Double or nothing** : quelles sommes ? Par défaut : tous les gains et pertes, sauf les dépenses volontaires (achats, Corrupteur, vol).
-8. **Voleur** : quels objets perd-il en cas d'échec ? Par défaut : les plus chers d'abord, jusqu'à 1,5 × la valeur ; le reste en pièces ; aucun remboursement de l'excédent.
-9. **Voleur** : une seule tentative par visite de boutique ? Par défaut : oui.
-10. **Diable qui sort de l'Enfer** : vers quelle case, et avec le bonus ? Par défaut : case 0, sans les 200 pièces.
-11. **Boutique du diable** : où ? Par défaut : sur les cases bleues, en plus de la boutique normale. « Aucun item en double » s'applique à tous ses objets.
-12. **Roller** : si aucun chemin ne fait exactement N cases sans boucle ? Par défaut : il va le plus loin possible.
-13. **Ange-Gardien sans protégé possible** après le draft : par défaut, il devient Lambda. Le protégé est-il public ? Par défaut : oui. Que se passe-t-il si le protégé abandonne ? Par défaut : un nouveau protégé est tiré.
-14. **Bouclier** : automatique ou au choix de l'Ange ? Par défaut : automatique, sur la 1ʳᵉ attaque. Une « attaque » est un objet néfaste qui vise le protégé.
-15. **Draft en local** : 60 s communes pour tous les joueurs, à tour de rôle, c'est court à 8. Par défaut : 60 s par joueur en local.
-16. **Black Cup** : un joueur déjà en Enfer la ramasse-t-il tout de suite ? Par défaut : non, seulement un joueur qui y arrive ensuite.
-17. **Doomsday** : départ et boutiques compris ? Et la boutique s'ouvre-t-elle après la roue ? Par défaut : toutes les cases sauf l'Enfer, et la boutique s'ouvre après la roue.
-18. **Portail** : se déclenche-t-il en passant dessus ou seulement en s'y arrêtant ? Par défaut : en s'y arrêtant. Le diable ne le déclenche pas.
-19. **Chance aveugle** : peut-on le viser pour rien (l'objet est perdu), ou est-il absent des cibles ? Par défaut : absent des cibles.
-20. **Bras de fer** : durée et égalité ? Par défaut : 10 s ; en cas d'égalité, l'attaquant gagne.
+Les réponses sont reçues. Le « Lot » indique où chacune s'applique.
+
+| # | Sujet | Réponse | Lot |
+|---|---|---|---|
+| 1 | Passer son tour | Choix par défaut : pas de fin de tour sans déplacement ni objet, sauf énergie insuffisante. En plus, un tour joué sans rien faire est pénalisé comme l'inactivité : une chance perdue. | 4, 9 |
+| 2 | Avance d'une case / Retourne d'où tu viens | La roue **et** la boutique de la case d'arrivée se déclenchent. | 3 ✔ |
+| 3 | « Perds un objet » avec un sac vide | −200 pièces. | 3 ✔ |
+| 4 | Poids des roues | Par défaut : 8 secteurs égaux. | 3 ✔ |
+| 5 | Red light, Green light | **Deux de chaque** par cycle de Red Cup : 2 gains sur cases vertes et 2 pertes sur cases rouges au plus. | 5 |
+| 6 | Non merci sur une roue | Par défaut : après le résultat, comme la Gomme. Contre Draven, il ne protège que son détenteur. Recharge de 5 tours de table. | 5 |
+| 7 | Double or nothing | Par défaut : tous les gains et pertes, sauf les dépenses volontaires (achats, Corrupteur, vol). | 7 |
+| 8 | Voleur pris | Par défaut : il perd ses objets les plus chers d'abord, jusqu'à 1,5 × la valeur, puis le reste en pièces, sans remboursement de l'excédent. | 7 |
+| 9 | Voleur | Par défaut : une tentative par visite de boutique. | 7 |
+| 10 | Diable qui sort de l'Enfer | Par défaut : vers la case 0, sans les 200 pièces. | 8 |
+| 11 | Boutique du diable | Par défaut : sur les cases bleues, en plus de la boutique normale. Aucun de ses objets en double. | 8 |
+| 12 | Roller sans chemin de N cases | Par défaut : il va le plus loin possible. | 6 |
+| 13 | Ange-Gardien | Sans protégé possible : il devient Lambda. Le protégé est **public**, avec un **halo** au-dessus de lui. Si le protégé abandonne, l'Ange **prend sa place** : passif, sac, Red Cups et pièces, mais il commence **en Enfer**. | 8, 9 |
+| 14 | Bouclier | **Au choix de l'Ange**, dans une fenêtre de réaction. | 8 |
+| 15 | Draft en local | **Pas de chrono en local.** | 10 |
+| 16 | Black Cup | Par défaut : seul un joueur qui arrive en Enfer après coup la ramasse. | 8 |
+| 17 | Doomsday | Toutes les cases **sans exception** deviennent des roues du malheur. Le départ ne donne pas les 200 pièces et la boutique ne s'ouvre pas. | 8 |
+| 18 | Portail | Il se déclenche quand on s'y arrête, **le diable compris**. | 8 |
+| 19 | Chance aveugle | Par défaut : il n'apparaît pas dans les cibles. | 7 |
+| 20 | Bras de fer | 10 secondes au plus. Égalité : s'il y a au moins une case entre eux, l'attaquant avance d'une case et le Baraqué recule d'une case ; sur deux cases voisines, seul le Baraqué recule d'une case. | 11 |
 
 ---
 

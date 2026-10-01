@@ -58,7 +58,8 @@ describe("Red Cups game store", () => {
 
     const state = useGameStore.getState();
     const activePlayer = state.players[0];
-    expect(activePlayer.currency).toBe(1_600);
+    // Botte 100 + Ndoye 250.
+    expect(activePlayer.currency).toBe(1_650);
     expect(activePlayer.inventory.filter((entry) => entry.kind === "item")).toHaveLength(2);
     expect(state.turnStage).toBe("shop");
   });
@@ -72,7 +73,8 @@ describe("Red Cups game store", () => {
     useGameStore.getState().resolveWheel();
 
     const state = useGameStore.getState();
-    expect(state.players[1].currency).toBe(1_900);
+    // The first wedge of misfortune: −200.
+    expect(state.players[1].currency).toBe(1_800);
     expect(state.turnStage).toBe("turn-end");
     expect(state.pendingWheel).toBeNull();
   });

@@ -2,6 +2,7 @@ import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
+import { getForwardTiles } from "../game-actions";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
@@ -215,6 +216,13 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "reposition": {
       const nodeId = pick(getBoard(store).normalNodeIds, random)!;
       return { label: "reposition", perform: (current) => current.repositionBeforeCup(nodeId) };
+    }
+
+    case "advance": {
+      const walker = findPlayer(store, store.pendingAdvance?.playerId);
+      const nodeId = walker ? pick(getForwardTiles(store, walker), random) : undefined;
+      if (nodeId === undefined) return null;
+      return { label: "advance", perform: (current) => current.advanceOneTile(nodeId) };
     }
 
     case "passive-choice": {

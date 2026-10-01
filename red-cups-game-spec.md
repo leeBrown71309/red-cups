@@ -86,6 +86,7 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - Lorsqu’un joueur **termine son déplacement** sur une case verte ou rouge, il tourne la roue correspondante (bonheur ou malheur). Simplement passer dessus avec la Botte ne déclenche pas de roue.
 - Ordre de résolution à l’arrivée : Boue, puis Red Cup (avec ses passifs), puis la roue de la case.
 - Être téléporté par la Bouteille d’eau ou reculé par Calme-toi déclenche aussi la roue de la case d’arrivée.
+- **Patch 0.1.4** : être déplacé par une roue (« Avance d’une case », « Retourne d’où tu viens », « Va au Départ ») compte comme une arrivée complète. On tourne la roue de la case, on prend sa Boue et sa Red Cup, on affronte le fantôme, et la boutique s’ouvre si c’est la fin du tour du joueur actif. « Avance d’une case » est un pas à pied, flèches comprises : il compte pour Red light, Green light et le bonus du départ. « Retourne d’où tu viens » ramène sur la case occupée avant le dernier déplacement subi ou joué, jamais en Enfer ni hors de l’Enfer.
 - **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
 - Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
 - Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
@@ -194,25 +195,25 @@ Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l�
 
 ## 6. Boutique et prix de départ
 
-Les prix ci-dessous sont relevés visuellement sur la slide de la boutique. Ils sont configurés séparément pour pouvoir être ajustés.
+Prix rééquilibrés par l’auteur au patch 0.1.4. Ils sont configurés séparément pour pouvoir être ajustés.
 
-| Objet | Prix initial |
+| Objet | Prix |
 | --- | ---: |
-| Ndoye | 300 |
+| Ndoye | 250 |
 | Hollow Purple | 600 |
-| Corde | 500 |
-| Botte | 100 |
+| Corde | 400 |
+| Botte | de 100 à 400 |
 | Boue | 200 |
 | Tomate | 10 |
-| Gomme | 350 |
-| Bullet Bill | 500 |
+| Gomme | 200 |
+| Bullet Bill | 550 |
 | Middle Finger | 400 |
-| Monopoly Man | 550 |
+| Monopoly Man | 600 |
 | Bouteille d’eau | 600 |
-| Casque | 400 |
+| Casque | 200 |
 | Draven | 700 |
 
-Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table après son premier achat, jusqu’au plafond de 500 pièces. L’affichage et le moment exact de cette hausse sont configurés dans les règles de partie.
+Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table après son premier achat, jusqu’au plafond de 400 pièces (500 avant le patch 0.1.4). L’affichage et le moment exact de cette hausse sont configurés dans les règles de partie.
 
 ## 7. Objets
 
@@ -224,7 +225,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Botte | Permet de se déplacer de deux cases au lieu d’une ; à utiliser avant le déplacement. Son prix augmente comme décrit plus haut. |
 | Boue | Se pose sur la case de l’utilisateur, avant son action : il peut ensuite se déplacer (ou utiliser un autre objet) dans le même tour. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
-| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance de deux cases : une cible à deux cases ou moins est touchée (patch 0.1.3). Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
+| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance d’une seule case par charge (patch 0.1.4) : seule une cible sur la case voisine, ou sur sa propre case, est touchée. Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
 | Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
@@ -278,33 +279,33 @@ Le système tire uniformément un mode disponible :
 
 Si aucun joueur extérieur n’est disponible pour voter, le mode vote est retiré du tirage. Dans le MVP sur un seul écran, l’hôte entre les choix et votes. Les entrées de pierre-feuille-ciseaux sont masquées successivement avant révélation.
 
-### 9.3 Roues provisoires pour le MVP
+### 9.3 Roues (patch 0.1.4)
 
-Ces résultats servent de configuration initiale et ne prétendent pas reproduire la roue d’origine. Les valeurs et poids pourront être remplacés sans modifier le moteur de jeu.
+Les roues du bonheur et du malheur suivent la liste de l’auteur, en huit secteurs de poids égal. Les valeurs et poids restent configurables sans modifier le moteur de jeu (`WHEEL_RESULTS`).
 
-**Roue du malheur — huit secteurs de poids égal :**
+**Roue du malheur :**
 
-1. −100 pièces.
-2. −200 pièces.
+1. −200 pièces.
+2. −300 pièces.
 3. −400 pièces.
-4. Abandonner un objet ordinaire aléatoire ; s’il n’y en a aucun, perdre 100 pièces.
-5. Passer le prochain tour.
-6. Être envoyé en Enfer.
-7. Tourner la roue du bonheur.
-8. Aucun effet.
+4. Retourner d’où l’on vient (voir 3.2).
+5. Tourner la roue du bonheur.
+6. Perdre un objet au hasard, jamais une Red Cup ; un sac sans objet coûte 200 pièces à la place.
+7. Être envoyé en Enfer.
+8. Passer le prochain tour.
 
-**Roue du bonheur / paradis — nom provisoire, dix secteurs pondérés :**
+**Roue du bonheur :**
 
-1–2. +100 pièces.
-3–4. +200 pièces.
-5. +300 pièces.
-6. +400 pièces.
-7. +500 pièces.
-8. Objet gratuit tiré parmi ceux coûtant au plus 300 pièces. Si l’inventaire est plein, gagner 200 pièces à la place.
-9. Tourner la roue du malheur (patch 0.1.1).
-10. Libération de l’Enfer vers la case 0 si le joueur y est ; sinon +500 pièces.
+1. +100 pièces.
+2. +200 pièces.
+3. +300 pièces.
+4. +400 pièces.
+5. Avancer d’une case, au choix du joueur (voir 3.2).
+6. Tourner la roue du malheur.
+7. Objet gratuit tiré parmi ceux qui coûtent 400 pièces ou moins (Ndoye, Corde, Botte, Boue, Tomate, Gomme, Middle Finger, Casque). La Tomate arrive en pile de 5. Sac plein : 200 pièces à la place.
+8. Aller au Départ et gagner 200 pièces, même depuis l’Enfer.
 
-Ce tableau initial garde une sortie rare de l’Enfer sur une roue positive. Les résultats restent configurables.
+Les déplacements donnés par une roue peuvent mener à une autre roue : c’est voulu (réponse de l’auteur, patch 0.1.4).
 
 **Roue de l’Enfer — neuf secteurs provisoires :**
 
@@ -369,6 +370,9 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Boue** : plus épaisse, cernée d’encre, posée sur le dessus de la case (elle monte avec la case surlignée) ; la pastille du numéro s’affiche sur une case boueuse.
 - **Son d’achat** : une caisse enregistreuse, sans le son de perte d’argent.
 - **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
+- **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
+- **Bullet Bill** : une seule case par charge.
+- **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 
 ### 0.1.3 — septembre 2026

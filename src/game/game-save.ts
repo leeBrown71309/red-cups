@@ -6,7 +6,7 @@ import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 11;
+export const GAME_SAVE_VERSION = 12;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -70,7 +70,8 @@ type SaveRecord = Record<string, unknown>;
  * Version 8 added the Banquise ice: temporary tile, frozen players, blizzards.
  * Version 9 added the Basket duel and the Luna Park ghost, which a game saved
  * before shows a round later. Version 10 added the Tomate's last throw,
- * version 11 the Banquise snowballs.
+ * version 11 the Banquise snowballs. Version 12 (patch 0.1.4) added each
+ * player's previous tile and the step forward of the wheel of fortune.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -108,10 +109,12 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],
     winReason: save.winReason ?? null,
+    pendingAdvance: save.pendingAdvance ?? null,
     players: players.map(({ noThanksUsedCycle: _replaced, ...player }) => ({
       ...player,
       hellTurns: player.hellTurns ?? 0,
       noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
+      previousNodeId: player.previousNodeId ?? null,
     })),
   };
 }

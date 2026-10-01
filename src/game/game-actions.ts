@@ -1,18 +1,21 @@
 import { abandonPlayer } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
-import { getBoard } from "./board";
+import { earnsStartBonus, getBoard } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
 import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { launchBulletBill } from "./bullet-bill";
-import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "./catalog";
+import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { runWithSeededSource } from "./engine-random";
 import {
   addCupCycleEffects,
+  addRedGreenBonuses,
   addStartBonus,
+  arriveOnTile,
   beginNextTurn,
   finishCupCollection,
+  getWheelArrivalStage,
   itemCopyForPassive,
   normalizeResumeStage,
   queueTileWheel,
@@ -68,7 +71,15 @@ import type {
   WheelId,
   WheelOutcomeId,
 } from "./types";
-import { EMPTY_GAME_STATE, FIRST_ROUND, HELL_NODE_ID, PLAYER_COLORS, STARTING_CURRENCY, START_NODE_ID } from "./types";
+import {
+  EMPTY_GAME_STATE,
+  FIRST_ROUND,
+  FREE_TOMATOES,
+  HELL_NODE_ID,
+  PLAYER_COLORS,
+  STARTING_CURRENCY,
+  START_NODE_ID,
+} from "./types";
 
 /**
  * Every change to a game is one serialisable action run through `reduceGame`.
@@ -101,6 +112,7 @@ export type GameAction =
   | { type: "submitBasketScore"; playerId: PlayerId; score: number }
   | { type: "discardInventoryEntry"; entryId: string }
   | { type: "repositionBeforeCup"; destination: NodeId }
+  | { type: "advanceOneTile"; destination: NodeId }
   | { type: "resolveCalmDown"; useEffect: boolean };
 
 export type GameActionType = GameAction["type"];
@@ -122,6 +134,7 @@ function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | unde
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
+    previousNodeId: null,
   }));
 }
 
@@ -175,28 +188,57 @@ const CHAINED_WHEELS: Partial<Record<WheelOutcomeId, WheelId>> = {
   "spin-misfortune": "misfortune",
 };
 
+/** Wheel of fortune: what a full bag gets instead of the free item. */
+const FULL_BAG_FREE_ITEM_COINS = 200;
+
+/**
+ * Wheel of fortune: one item of the pool the bag can take, drawn at random.
+ * A Tomate comes as a whole stack, as much of it as fits.
+ */
+function giveFreeItem(state: GameState, player: Player): GameState {
+  const freeItem = randomChoice(FREE_ITEM_POOL.filter((itemId) => canAddItem(player, itemId)));
+  if (!freeItem) return applyCurrencyChange(state, player.id, FULL_BAG_FREE_ITEM_COINS);
+
+  const wanted = freeItem === "tomato" ? FREE_TOMATOES : 1;
+  let nextState = state;
+  let given = 0;
+  while (given < wanted && canAddItem(findPlayer(nextState, player.id) ?? player, freeItem)) {
+    nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, freeItem));
+    given += 1;
+  }
+  const gift = freeItem === "tomato" && given > 1 ? `${given} Tomates` : ITEM_CATALOG[freeItem].name;
+  return addLog(nextState, `${player.name} reçoit ${gift} gratuitement.`, "good");
+}
+
+/** Tiles a player may step forward onto: one step along the roads, arrows obeyed; none from Hell. */
+export function getForwardTiles(state: GameState, player: Player): NodeId[] {
+  if (player.position === HELL_NODE_ID) return [];
+  return getUniqueLegalDestinations(getBoard(state), player, 1, false);
+}
+
 /** Applies one wheel outcome to its player; chained and interactive outcomes are handled by the caller. */
 function applyWheelOutcome(
   state: GameState,
   player: Player,
   wheelId: WheelId,
-  outcomeId: string,
+  outcomeId: WheelOutcomeId,
   amount: number,
 ): GameState {
   switch (outcomeId) {
     case "lose-100":
     case "lose-200":
+    case "lose-300":
     case "lose-400":
       return applyCurrencyChange(state, player.id, -amount);
     case "gain-100":
     case "gain-200":
     case "gain-300":
     case "gain-400":
-    case "gain-500":
       return applyCurrencyChange(state, player.id, amount);
     case "lose-item": {
       const entry = randomChoice(player.inventory.filter((candidate) => candidate.kind === "item"));
-      if (!entry) return applyCurrencyChange(state, player.id, -100);
+      // Never a Red Cup; an empty bag pays the wheel's amount in coins instead.
+      if (!entry) return applyCurrencyChange(state, player.id, -amount);
       const nextState = updatePlayer(state, player.id, (current) => spendItemEntry(current, entry.id));
       return addLog(nextState, `${player.name} perd un objet.`, "bad");
     }
@@ -211,23 +253,78 @@ function applyWheelOutcome(
     case "go-to-hell":
       return sendPlayerToHell(state, player.id);
     case "escape": {
-      if (wheelId === "fortune" && player.position !== HELL_NODE_ID)
-        return applyCurrencyChange(state, player.id, amount);
+      if (wheelId !== "hell" || player.position !== HELL_NODE_ID)
+        return addLog(state, "La roue ne produit aucun effet.");
       const freed = updatePlayer(state, player.id, (current) => ({ ...current, position: START_NODE_ID }));
       return addStartBonus(addLog(freed, `${player.name} sort de l’Enfer et revient en case 0.`, "good"), player.id);
     }
-    case "free-item": {
-      const options = ITEM_ORDER.filter(
-        (itemId) => itemId !== "bullet-bill" && ITEM_CATALOG[itemId].price <= 300 && canAddItem(player, itemId),
+    case "go-to-start": {
+      const fromHell = player.position === HELL_NODE_ID;
+      let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: START_NODE_ID }));
+      nextState = addLog(
+        nextState,
+        fromHell ? `${player.name} sort de l’Enfer et file au Départ.` : `${player.name} file au Départ.`,
+        "good",
       );
-      const freeItem = randomChoice(options);
-      if (!freeItem) return applyCurrencyChange(state, player.id, 200);
-      const nextState = updatePlayer(state, player.id, (current) => appendItem(current, freeItem));
-      return addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[freeItem].name} gratuitement.`, "good");
+      nextState = addStartBonus(nextState, player.id);
+      return arriveOnTile(nextState, player.id);
     }
+    case "go-back": {
+      const back = player.previousNodeId;
+      // Hell is never somewhere to go back to, and a bad wheel does not let a player out of it.
+      if (player.position === HELL_NODE_ID || back === null || back === HELL_NODE_ID || back === player.position) {
+        return addLog(state, `${player.name} n’a nulle part où retourner.`);
+      }
+      let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: back }));
+      nextState = addLog(nextState, `${player.name} retourne en case ${back}.`, "bad");
+      nextState = { ...nextState, turnStage: getWheelArrivalStage(nextState, player.id, state.turnStage) };
+      return arriveOnTile(nextState, player.id);
+    }
+    case "advance-one":
+      if (getForwardTiles(state, player).length === 0)
+        return addLog(state, `${player.name} n’a aucune case où avancer.`);
+      return { ...state, turnStage: "advance", pendingAdvance: { playerId: player.id, resumeStage: state.turnStage } };
+    case "free-item":
+      return giveFreeItem(state, player);
     default:
       return addLog(state, "La roue ne produit aucun effet.");
   }
+}
+
+/**
+ * Wheel of fortune, « Avance d’une case »: a one-tile walk, arrows obeyed.
+ * The tile walked onto counts for Red light, Green light and the start bonus,
+ * and is reached like the end of any walk: its wheel, its shop, its mud and
+ * its Red Cup.
+ */
+function advanceOneTile(state: GameState, destination: NodeId): GameState {
+  const pending = state.pendingAdvance;
+  const player = findPlayer(state, pending?.playerId);
+  if (!pending || !player || state.turnStage !== "advance") return state;
+  if (!getForwardTiles(state, player).includes(destination)) return state;
+
+  let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: destination }));
+  const resumeStage = getWheelArrivalStage(nextState, player.id, pending.resumeStage);
+  nextState = { ...nextState, pendingAdvance: null, turnStage: resumeStage };
+  nextState = {
+    ...nextState,
+    lastMovement: {
+      seq: (state.lastMovement?.seq ?? 0) + 1,
+      playerId: player.id,
+      from: player.position,
+      path: [destination],
+    },
+  };
+  nextState = addLog(nextState, `${player.name} avance en case ${destination}.`, "good");
+  nextState = addRedGreenBonuses(nextState, player.id, [destination]);
+  if (earnsStartBonus(getBoard(state), player.position, [destination])) {
+    nextState = addStartBonus(nextState, player.id);
+  }
+  nextState = arriveOnTile(nextState, player.id);
+
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, resumeStage);
 }
 
 function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean): GameState {
@@ -364,7 +461,8 @@ function resolveWheel(state: GameState): GameState {
     nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id);
   }
   if (nextState.pendingDiscard) return nextState;
-  return settleBoard(nextState, pending.resumeStage);
+  // A wheel that moved its player onto a blue tile has opened its shop in place of the stage it came from.
+  return settleBoard(nextState, nextState.turnStage);
 }
 
 function cancelWheel(state: GameState): GameState {
@@ -478,12 +576,27 @@ function resolveCalmDown(state: GameState, useEffect: boolean): GameState {
   return settleBoard(nextState, pending.resumeStage);
 }
 
+/**
+ * Remembers, for every player an action moved, the tile they stood on before:
+ * after a walk, a pull, a swap or a teleport alike (« Retourne d’où tu viens »).
+ */
+function recordPreviousTiles(before: GameState, after: GameState): GameState {
+  let moved = false;
+  const players = after.players.map((player) => {
+    const previous = findPlayer(before, player.id);
+    if (!previous || previous.position === player.position) return player;
+    moved = true;
+    return { ...player, previousNodeId: previous.position };
+  });
+  return moved ? { ...after, players } : after;
+}
+
 /** Runs one action; the Luna Park ghost first spares whoever stands in Hell before it. */
 function applyGameAction(state: GameState, action: GameAction): GameState {
   const prepared = spareHellPlayers(state);
   const result = dispatchGameAction(prepared, action);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
-  return result === prepared ? state : result;
+  return result === prepared ? state : recordPreviousTiles(prepared, result);
 }
 
 function dispatchGameAction(state: GameState, action: GameAction): GameState {
@@ -538,6 +651,8 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return discardInventoryEntry(state, action.entryId);
     case "repositionBeforeCup":
       return repositionBeforeCup(state, action.destination);
+    case "advanceOneTile":
+      return advanceOneTile(state, action.destination);
     case "resolveCalmDown":
       return resolveCalmDown(state, action.useEffect);
   }

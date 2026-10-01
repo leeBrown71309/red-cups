@@ -89,6 +89,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <MoveContent player={player} />;
     case "reposition":
       return <RepositionContent />;
+    case "advance":
+      return <AdvanceContent />;
     case "hell": {
       const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
       const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
@@ -316,6 +318,38 @@ function RepositionContent() {
           <UiIcon name="check" size={20} /> Case {previewNodeId}
         </button>
       )}
+    </DockPrompt>
+  );
+}
+
+/** Wheel of fortune: the spinner picks the tile they step forward onto. */
+function AdvanceContent() {
+  const walkerId = useGameStore((state) => state.pendingAdvance?.playerId);
+  const players = useGameStore((state) => state.players);
+  const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
+  const legalMoves = useLegalMoves();
+  const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
+  const walker = players.find((player) => player.id === walkerId);
+
+  return (
+    <DockPrompt
+      title={`${walker?.name ?? "Joueur"}, avance d’une case`}
+      hint="Choisis la case voisine : sa roue, sa boutique, sa Boue et sa Red Cup t’y attendent."
+    >
+      <div className="destination-chips" role="group" aria-label="Cases où avancer">
+        {destinations.map((nodeId) => (
+          <button
+            key={nodeId}
+            type="button"
+            className="destination-chip"
+            onClick={() => commitDestination(nodeId)}
+            onPointerEnter={() => setHoveredChipNodeId(nodeId)}
+            onPointerLeave={() => setHoveredChipNodeId(null)}
+          >
+            <UiIcon name="arrowRight" size={16} /> {nodeId}
+          </button>
+        ))}
+      </div>
     </DockPrompt>
   );
 }

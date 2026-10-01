@@ -16,6 +16,14 @@ export const FIRST_ROUND = 1;
 /** Rounds Non merci needs to recharge after cancelling an action. */
 export const NO_THANKS_COOLDOWN_ROUNDS = 3;
 export const BULLET_BILL_DAMAGE = 200;
+/** Tiles Bullet Bill covers per charge: only a target on the next tile is hit (patch 0.1.4). */
+export const BULLET_BILL_CHARGE_STEPS = 1;
+/** The Botte starts at this price, and gets dearer each round after its first purchase, up to the maximum. */
+export const BOOT_STARTING_PRICE = 100;
+export const BOOT_PRICE_STEP = 50;
+export const MAXIMUM_BOOT_PRICE = 400;
+/** Wheel of fortune: a free Tomate comes as a whole stack of this many. */
+export const FREE_TOMATOES = 5;
 /** Tomate: chance that a hit knocks the target out, who then skips their next turn. */
 export const TOMATO_STUN_CHANCE = 0.02;
 /** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
@@ -115,6 +123,8 @@ export interface Player {
   noThanksReadyRound: number;
   /** Own turns spent in Hell since the last trip there, skipped ones included. */
   hellTurns: number;
+  /** Tile the player stood on before they were last moved, for « Retourne d’où tu viens ». */
+  previousNodeId: NodeId | null;
 }
 
 export interface BoardNode {
@@ -156,6 +166,8 @@ export type TurnStage =
   | "discard"
   | "target"
   | "reposition"
+  /** Wheel of fortune: the player picks the tile they step forward onto. */
+  | "advance"
   | "passive-choice"
   | "blessing"
   | "finished";
@@ -163,19 +175,21 @@ export type TurnStage =
 export type WheelOutcomeId =
   | "lose-100"
   | "lose-200"
+  | "lose-300"
   | "lose-400"
   | "lose-item"
   | "skip-turn"
   | "go-to-hell"
+  | "go-back"
   | "spin-fortune"
   | "spin-misfortune"
-  | "nothing"
   | "gain-100"
   | "gain-200"
   | "gain-300"
   | "gain-400"
-  | "gain-500"
+  | "advance-one"
   | "free-item"
+  | "go-to-start"
   | "challenge"
   | "escape"
   | "hell-skip";
@@ -279,6 +293,12 @@ export interface PendingDiscard {
 }
 
 export interface PendingChallenge {
+  playerId: PlayerId;
+  resumeStage: TurnStage;
+}
+
+/** Wheel of fortune: a player owes a step onto a tile of their choice. */
+export interface PendingAdvance {
   playerId: PlayerId;
   resumeStage: TurnStage;
 }
@@ -447,6 +467,7 @@ export interface GameState {
   pendingCupRepositionResumeStage: TurnStage | null;
   pendingCupCollectorId: PlayerId | null;
   pendingCalmDown: PendingCalmDown | null;
+  pendingAdvance: PendingAdvance | null;
   pendingReaction: PendingReaction | null;
   /** Tile wheels still to spin, in arrival order; filled by walks and teleports alike. */
   pendingTileWheels: PendingTileWheel[];
@@ -510,6 +531,7 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingCupRepositionResumeStage: null,
   pendingCupCollectorId: null,
   pendingCalmDown: null,
+  pendingAdvance: null,
   pendingReaction: null,
   pendingTileWheels: [],
   tileWheelResumeStage: "turn-end",
@@ -529,7 +551,7 @@ export const EMPTY_GAME_STATE: GameState = {
   lastSnowball: null,
   blessingQueue: [],
   abandonedPlayers: [],
-  bootPrice: 100,
+  bootPrice: BOOT_STARTING_PRICE,
   bootFirstPurchased: false,
   bootLastPriceRound: 0,
   moveDistance: 1,

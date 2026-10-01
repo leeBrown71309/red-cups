@@ -28,8 +28,10 @@ import {
 } from "./state-utils";
 import type { DuelMode, GameState, ItemId, NodeId, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
 import {
+  BOOT_PRICE_STEP,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
+  MAXIMUM_BOOT_PRICE,
   HELL_TURN_LIMIT,
   MUD_OWNER_REWARD,
   MUD_PENALTY,
@@ -173,7 +175,8 @@ export function settleBoard(current: GameState, resumeStage: TurnStage): GameSta
     state.pendingDiscard ||
     state.pendingCalmDown ||
     state.pendingChallenge ||
-    state.pendingCupRepositionPlayerId
+    state.pendingCupRepositionPlayerId ||
+    state.pendingAdvance
   ) {
     return state;
   }
@@ -401,6 +404,34 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
   return nextState;
 }
 
+/**
+ * Reaching a tile because a wheel said so (« Avance d’une case », « Retourne
+ * d’où tu viens », « Va au Départ ») is an arrival, like the end of a walk:
+ * the tile's wheel is queued, its mud and Red Cup apply, and the ghost meets
+ * the player when the board settles. The shop opens through the stage given
+ * by `getWheelArrivalStage`.
+ */
+export function arriveOnTile(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
+  let nextState = queueTileWheel(state, playerId);
+  nextState = triggerMud(nextState, playerId, player.position);
+  if (nextState.redCupNodeId !== player.position) return nextState;
+  return collectCupOrRequestDiscard(nextState, playerId, player.position);
+}
+
+/**
+ * Where play goes on once a wheel moved `playerId` onto their tile: the active
+ * player whose turn was over shops on a blue tile; anything else carries on.
+ */
+export function getWheelArrivalStage(state: GameState, playerId: PlayerId, resumeStage: TurnStage): TurnStage {
+  const player = findPlayer(state, playerId);
+  const isActive = getActivePlayer(state)?.id === playerId;
+  const onShop = player !== undefined && isShopNode(getBoard(state), player.position);
+  return isActive && onShop && resumeStage === "turn-end" ? "shop" : resumeStage;
+}
+
 export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const trap = state.mudTraps.find((candidate) => candidate.nodeId === nodeId);
   const player = findPlayer(state, playerId);
@@ -419,9 +450,6 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
   if (nextState.redCupNodeId === nodeId) return nextState;
   return itemCopyForPassive(nextState, playerId, "mud", trap.ownerId);
 }
-
-const MAXIMUM_BOOT_PRICE = 500;
-const BOOT_PRICE_STEP = 50;
 
 /**
  * Bad luck on the Hell wheel must not bench a player for the whole game: after
@@ -549,6 +577,7 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
     pendingCupRepositionResumeStage: null,
     pendingCupCollectorId: null,
     pendingCalmDown: null,
+    pendingAdvance: null,
   };
   nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);

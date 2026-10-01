@@ -127,12 +127,13 @@ export function getItemPrice(itemId: ItemId, bootPrice: number): number {
 
 /**
  * Player who must act right now: usually the active one, except for New Cup,
- * New Me, a tile wheel owed by someone who was teleported or pushed there,
- * and the next spinner of a Tour de Bénédiction.
+ * New Me, a step forward won on a wheel, a tile wheel owed by someone who was
+ * teleported or pushed there, and the next spinner of a Tour de Bénédiction.
  */
 export function getDecidingPlayer(state: GameState): Player | undefined {
   const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
     reposition: state.pendingCupRepositionPlayerId,
+    advance: state.pendingAdvance?.playerId,
     "tile-wheel": state.pendingTileWheels[0]?.playerId,
     blessing: state.blessingQueue[0],
   };

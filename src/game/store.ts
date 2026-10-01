@@ -49,6 +49,8 @@ interface GameActions {
   submitBasketScore: (playerId: PlayerId, score: number) => void;
   discardInventoryEntry: (entryId: string) => void;
   repositionBeforeCup: (destination: NodeId) => void;
+  /** Wheel of fortune: the step forward onto a neighbouring tile. */
+  advanceOneTile: (destination: NodeId) => void;
   resolveCalmDown: (useEffect: boolean) => void;
 }
 
@@ -114,6 +116,7 @@ export const useGameStore = create<GameStore>()(
       submitBasketScore: (playerId, score) => dispatch({ type: "submitBasketScore", playerId, score }),
       discardInventoryEntry: (entryId) => dispatch({ type: "discardInventoryEntry", entryId }),
       repositionBeforeCup: (destination) => dispatch({ type: "repositionBeforeCup", destination }),
+      advanceOneTile: (destination) => dispatch({ type: "advanceOneTile", destination }),
       resolveCalmDown: (useEffect) => dispatch({ type: "resolveCalmDown", useEffect }),
     };
   }, createGameSaveOptions<GameStore>()),

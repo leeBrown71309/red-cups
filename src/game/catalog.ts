@@ -18,7 +18,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   ndoye: {
     id: "ndoye",
     name: "Ndoye",
-    price: 300,
+    price: 250,
     symbol: "◉",
     description: "Fait tourner la roue du malheur à un joueur, toi compris.",
     target: "player",
@@ -36,7 +36,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   rope: {
     id: "rope",
     name: "Corde",
-    price: 500,
+    price: 400,
     symbol: "↝",
     description: "Attire un autre joueur sur ta case, sans roue ni boutique pour lui.",
     target: "player",
@@ -60,7 +60,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   eraser: {
     id: "eraser",
     name: "Gomme",
-    price: 350,
+    price: 200,
     symbol: "⌫",
     description: "Annule le résultat d’une roue tournée pour toi, bon ou mauvais.",
     target: "special",
@@ -68,7 +68,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   "bullet-bill": {
     id: "bullet-bill",
     name: "Bullet Bill",
-    price: 500,
+    price: 550,
     symbol: "➤",
     description:
       "Attend au départ, puis fonce sur le joueur le plus proche à chaque tour de table : sa victime perd 200 pièces et un tour.",
@@ -86,7 +86,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   "monopoly-man": {
     id: "monopoly-man",
     name: "Monopoly Man",
-    price: 550,
+    price: 600,
     symbol: "⇄",
     description: "Échange ta position avec celle d’un autre joueur, sans roue ni boutique.",
     target: "player",
@@ -102,7 +102,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   helmet: {
     id: "helmet",
     name: "Casque",
-    price: 400,
+    price: 200,
     symbol: "⬡",
     description: "S’active tout seul pour éviter un solde négatif.",
     target: "special",
@@ -141,6 +141,13 @@ export const ITEM_ORDER: ItemId[] = [
   "helmet",
   "draven",
 ];
+
+/**
+ * Wheel of fortune: the items of 400 coins or less at the shop, one of which
+ * is given away. Listed by hand so a price change never alters the draw
+ * unnoticed (a test checks every price stays within the limit).
+ */
+export const FREE_ITEM_POOL: ItemId[] = ["ndoye", "rope", "boot", "mud", "tomato", "eraser", "middle-finger", "helmet"];
 
 export interface PassiveDefinition {
   id: PassiveId;
@@ -237,30 +244,37 @@ export interface WeightedWheelResult {
 // Starter tables are intentionally data-driven so playtest feedback can rebalance them.
 export const WHEEL_RESULTS: Record<WheelId, WeightedWheelResult[]> = {
   misfortune: [
-    { wheelId: "misfortune", id: "lose-100", label: "−100 pièces", amount: 100, weight: 1 },
     { wheelId: "misfortune", id: "lose-200", label: "−200 pièces", amount: 200, weight: 1 },
+    { wheelId: "misfortune", id: "lose-300", label: "−300 pièces", amount: 300, weight: 1 },
     { wheelId: "misfortune", id: "lose-400", label: "−400 pièces", amount: 400, weight: 1 },
-    { wheelId: "misfortune", id: "lose-item", label: "Perds un objet (sinon −100 pièces)", weight: 1 },
-    { wheelId: "misfortune", id: "skip-turn", label: "Passe ton prochain tour", weight: 1 },
-    { wheelId: "misfortune", id: "go-to-hell", label: "Direction l’Enfer", weight: 1 },
+    { wheelId: "misfortune", id: "go-back", label: "Retourne d’où tu viens", weight: 1 },
     { wheelId: "misfortune", id: "spin-fortune", label: "Tourne la roue du bonheur", weight: 1 },
-    { wheelId: "misfortune", id: "nothing", label: "Rien ne se passe", weight: 1 },
+    {
+      wheelId: "misfortune",
+      id: "lose-item",
+      label: "Perds un objet au hasard (sinon −200 pièces)",
+      amount: 200,
+      weight: 1,
+    },
+    { wheelId: "misfortune", id: "go-to-hell", label: "Direction l’Enfer", weight: 1 },
+    { wheelId: "misfortune", id: "skip-turn", label: "Passe ton prochain tour", weight: 1 },
   ],
   fortune: [
-    { wheelId: "fortune", id: "gain-100", label: "+100 pièces", amount: 100, weight: 2 },
-    { wheelId: "fortune", id: "gain-200", label: "+200 pièces", amount: 200, weight: 2 },
+    { wheelId: "fortune", id: "gain-100", label: "+100 pièces", amount: 100, weight: 1 },
+    { wheelId: "fortune", id: "gain-200", label: "+200 pièces", amount: 200, weight: 1 },
     { wheelId: "fortune", id: "gain-300", label: "+300 pièces", amount: 300, weight: 1 },
     { wheelId: "fortune", id: "gain-400", label: "+400 pièces", amount: 400, weight: 1 },
-    { wheelId: "fortune", id: "gain-500", label: "+500 pièces", amount: 500, weight: 1 },
-    { wheelId: "fortune", id: "free-item", label: "Objet gratuit : Ndoye, Botte ou Boue", weight: 1 },
+    { wheelId: "fortune", id: "advance-one", label: "Avance d’une case", weight: 1 },
     { wheelId: "fortune", id: "spin-misfortune", label: "Tourne la roue du malheur", weight: 1 },
-    { wheelId: "fortune", id: "escape", label: "Libération de l’Enfer (+200) ou +500 pièces", amount: 500, weight: 1 },
+    { wheelId: "fortune", id: "free-item", label: "Objet gratuit à 400 pièces ou moins", weight: 1 },
+    { wheelId: "fortune", id: "go-to-start", label: "Va au Départ et gagne 200 pièces", weight: 1 },
   ],
+  // The wheel of Hell is unchanged by patch 0.1.4: an empty bag pays 100 coins for the lost item, not 200.
   hell: [
     { wheelId: "hell", id: "lose-100", label: "−100 pièces", amount: 100, weight: 2 },
     { wheelId: "hell", id: "lose-200", label: "−200 pièces", amount: 200, weight: 1 },
     { wheelId: "hell", id: "lose-400", label: "−400 pièces", amount: 400, weight: 1 },
-    { wheelId: "hell", id: "lose-item", label: "Perds un objet (sinon −100 pièces)", weight: 1 },
+    { wheelId: "hell", id: "lose-item", label: "Perds un objet (sinon −100 pièces)", amount: 100, weight: 1 },
     { wheelId: "hell", id: "hell-skip", label: "Tu sautes ton prochain tour", weight: 1 },
     { wheelId: "hell", id: "challenge", label: "Choisis un joueur à affronter", weight: 1 },
     { wheelId: "hell", id: "escape", label: "Libération : retour case 0 avec +200", weight: 2 },

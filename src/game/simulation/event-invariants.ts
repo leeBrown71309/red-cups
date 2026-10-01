@@ -2,7 +2,7 @@ import { isTableBroke } from "../blessing";
 import { getBoard, getNeighbors } from "../board";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
-import { BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
+import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
 /**
@@ -10,7 +10,7 @@ import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolatio
  * players leaving and mud paying whoever laid it.
  */
 
-/** Bullet Bill lands on the start when bought, then charges one or two tiles at the start of each round. */
+/** Bullet Bill lands on the start when bought, then charges one tile at the start of each round. */
 export function checkBulletBill(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (!previous.bulletBill && next.bulletBill) {
     const { status, position, spawnRound } = next.bulletBill;
@@ -29,10 +29,15 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   }
   if (!flew || !flight) return;
 
-  if (!bullet || flight.from !== bullet.position) {
+  // When every seat skips, several rounds start within one action and Bullet Bill charges at each of
+  // them: only the first charge leaves from where it stood before the action.
+  const charges = flight.seq - (previous.lastBulletFlight?.seq ?? 0);
+  if (!bullet || (charges === 1 && flight.from !== bullet.position)) {
     found.push(violation("bullet-flight-start", `Bullet Bill took off from ${flight.from}`));
   }
-  if (flight.path.length > 2) found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  if (flight.path.length > BULLET_BILL_CHARGE_STEPS) {
+    found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  }
   const board = getBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
@@ -152,8 +157,9 @@ export function checkMudReward(previous: GameState, next: GameState, found: Rule
   const triggered = previous.mudTraps.filter((trap) => !next.mudTraps.some((candidate) => candidate.id === trap.id));
   if (triggered.length === 0) return;
 
-  const victimId = next.lastMovement?.playerId;
   const logs = newLogTexts(previous, next);
+  // Walked into or sent there by a wheel: whoever the log shows falling in, not only the last walker.
+  const victimId = previous.players.find((player) => logs.includes(`${player.name} tombe dans la Boue.`))?.id;
   for (const trap of triggered) {
     const owner = findPlayer(previous, trap.ownerId);
     if (!owner) continue;

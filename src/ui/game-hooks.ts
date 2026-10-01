@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { getBoard } from "../game/board";
+import { getForwardTiles } from "../game/game-actions";
 import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
 import { canUseDelinquent, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
@@ -33,6 +34,13 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
     return { origin: null, paths };
   }
 
+  // Wheel of fortune: the spinner, active or not, steps onto a neighbouring tile.
+  const walker = state.players.find((player) => player.id === state.pendingAdvance?.playerId);
+  if (state.turnStage === "advance" && walker) {
+    for (const nodeId of getForwardTiles(state, walker)) paths.set(nodeId, [nodeId]);
+    return { origin: walker.position, paths };
+  }
+
   if (state.turnStage !== "move") return { origin: null, paths };
   const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer, state.round);
   for (const path of getLegalMoveOptions(getBoard(state), activePlayer, state.moveDistance, canIgnoreArrows)) {
@@ -60,7 +68,7 @@ export function useLegalMoves(): LegalMoves {
   );
 }
 
-/** Commits a move (or a New Cup, New Me repositioning) to the chosen tile. */
+/** Commits a move (or a New Cup, New Me repositioning, or a step won on a wheel) to the chosen tile. */
 export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
@@ -74,6 +82,10 @@ export function commitDestination(nodeId: NodeId): void {
   ui.setHoveredChipNodeId(null);
   if (game.turnStage === "reposition") {
     game.repositionBeforeCup(nodeId);
+    return;
+  }
+  if (game.turnStage === "advance") {
+    game.advanceOneTile(nodeId);
     return;
   }
   game.movePlayer(nodeId, ui.ignoreArrows);

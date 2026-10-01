@@ -59,6 +59,7 @@ describe("bot campaign", () => {
       "discard",
       "target",
       "reposition",
+      "advance",
       "passive-choice",
     ];
     expect(expectedStages.filter((stage) => !stages[stage])).toEqual([]);

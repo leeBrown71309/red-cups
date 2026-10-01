@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ITEM_CATALOG } from "./catalog";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
 import { BULLET_BILL_DAMAGE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
@@ -45,24 +46,24 @@ describe("Bullet Bill", () => {
     buyBulletBill();
 
     expect(store().bulletBill).toEqual({ status: "waiting", position: 0, spawnRound: 2 });
-    expect(store().players[0].currency).toBe(STARTING_CURRENCY - 500);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY - ITEM_CATALOG["bullet-bill"].price);
   });
 
   it("wakes up and charges the nearest player at the start of the next round", () => {
     startTable(["built-like-a-tank", "troll"]);
     buyBulletBill();
-    // Both players three tiles away: the first seat is chased, two tiles at a time.
+    // Both players three tiles away: the first seat is chased, one tile at a time.
     editPlayer(0, { position: 6 });
     editPlayer(1, { position: 1 });
     playUntilRound(2);
 
-    expect(store().bulletBill).toEqual(expect.objectContaining({ status: "active", position: 3 }));
+    expect(store().bulletBill).toEqual(expect.objectContaining({ status: "active", position: 4 }));
     expect(store().lastBulletFlight).toEqual(
-      expect.objectContaining({ from: 0, path: [4, 3], targetId: store().players[0].id, victimId: null }),
+      expect.objectContaining({ from: 0, path: [4], targetId: store().players[0].id, victimId: null }),
     );
   });
 
-  it("hits a player two tiles away in a single charge", () => {
+  it("only closes in on a player two tiles away: one tile per charge", () => {
     startTable(["built-like-a-tank", "troll"]);
     // Tile 9 is two tiles from the start (0 → 4 → 9), tile 6 three.
     editPlayer(0, { position: 6 });
@@ -74,10 +75,10 @@ describe("Bullet Bill", () => {
     });
     store().endTurn();
 
-    const victim = store().players[1];
-    expect(store().lastBulletFlight).toEqual(expect.objectContaining({ from: 0, path: [4, 9], victimId: victim.id }));
-    expect(store().bulletBill).toBeNull();
-    expect(victim.currency).toBe(STARTING_CURRENCY - BULLET_BILL_DAMAGE);
+    const target = store().players[1];
+    expect(store().lastBulletFlight).toEqual(expect.objectContaining({ from: 0, path: [4], victimId: null }));
+    expect(store().bulletBill).toEqual(expect.objectContaining({ position: 4 }));
+    expect(target.currency).toBe(STARTING_CURRENCY);
   });
 
   it("records the hit so the board can play the explosion", () => {

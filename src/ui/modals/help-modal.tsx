@@ -45,8 +45,9 @@ function getTurnSteps(mapId: MapId): string[] {
   const steps = [
     "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
     "La Botte se prépare et la Boue se pose avant de bouger : elles ne comptent pas comme ton action.",
-    "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté ou reculé, ça compte ; " +
-      "tiré par la Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
+    "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté, reculé ou déplacé " +
+      "par une roue (« Avance d’une case », « Retourne d’où tu viens »), ça compte, boutique comprise ; tiré par la " +
+      "Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
     "Sur une case bleue, la boutique s’ouvre : achète tant que ton solde et ton sac le permettent. " +
       "Deux exemplaires au plus d’un même objet, une seule Gomme.",
     "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places, 5 avec Penta) ; " +
@@ -61,8 +62,8 @@ function getTurnSteps(mapId: MapId): string[] {
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
     "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
       "puis attend 3 tours de table.",
-    "Bullet Bill attend au départ dès son achat, puis fonce de 2 cases vers le joueur le plus proche à chaque " +
-      "tour de table : −200 pièces et un tour passé pour sa victime.",
+    "Bullet Bill attend au départ dès son achat, puis avance d’une case vers le joueur le plus proche à chaque " +
+      "tour de table. Celui qu’il atteint perd 200 pièces et passe son prochain tour.",
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
     "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
   ];
@@ -92,8 +93,8 @@ function getTurnSteps(mapId: MapId): string[] {
   if (board.map.haunted) {
     steps.push(
       "Le fantôme rôde sur tout le plateau, sans respecter les routes : à chaque fin de tour, il glisse de 1 à " +
-        `${GHOST_MAX_DRIFT_STEPS} cases, ou disparaît pour réapparaître au loin. S’il tombe sur toi, ou si tu ` +
-        "t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
+        `${GHOST_MAX_DRIFT_STEPS} cases, en s’arrêtant sur le premier joueur qu’il croise, ou disparaît pour ` +
+        "réapparaître au loin. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
       `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
         `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
         `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,

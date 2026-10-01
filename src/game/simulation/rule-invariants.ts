@@ -11,6 +11,8 @@ import {
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameState, ItemId, NodeId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
+  BOOT_STARTING_PRICE,
+  BOOT_PRICE_STEP,
   CURRENCY_RESET_THRESHOLD,
   FIRST_ROUND,
   HELL_NODE_ID,
@@ -19,6 +21,7 @@ import {
   RED_CUP_GOAL,
   GHOST_ID,
   GHOST_MAX_DRIFT_STEPS,
+  MAXIMUM_BOOT_PRICE,
   SNOWBALL_HITS_TO_FREEZE,
   START_NODE_ID,
 } from "../types";
@@ -40,6 +43,7 @@ const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
   target: "pendingChallenge",
   "passive-choice": "pendingCalmDown",
   reposition: "pendingCupRepositionPlayerId",
+  advance: "pendingAdvance",
   reaction: "pendingReaction",
 };
 
@@ -105,6 +109,10 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   for (const [stage, key] of Object.entries(STAGES_WITH_PENDING) as [TurnStage, keyof GameState][]) {
+    // Je note may ask for a discard right after the wheel granted a step forward, which then waits for it.
+    const stepAwaitsDiscard =
+      key === "pendingAdvance" && state.turnStage === "discard" && state.pendingDiscard?.resumeStage === "advance";
+    if (stepAwaitsDiscard) continue;
     const hasPending = state[key] !== null && state[key] !== undefined;
     if ((state.turnStage === stage) !== hasPending) {
       found.push(violation("stage-matches-pending", `stage ${state.turnStage} but ${key} is ${String(hasPending)}`));
@@ -138,7 +146,9 @@ export function checkState(state: GameState): RuleViolation[] {
     if (state.turnStage === "blessing" && state.blessingQueue.length === 0) {
       found.push(violation("blessing-stage", "Tour de Bénédiction with nobody left to spin"));
     }
-    if (state.blessingQueue.length > 0 && NORMAL_PLAY_STAGES.includes(state.turnStage)) {
+    // A blessing wheel that moved its spinner onto a green or red tile owes that tile's wheel first.
+    const blessingTileWheel = state.turnStage === "tile-wheel" && state.tileWheelResumeStage === "blessing";
+    if (state.blessingQueue.length > 0 && NORMAL_PLAY_STAGES.includes(state.turnStage) && !blessingTileWheel) {
       found.push(violation("blessing-unfinished", `play resumed with ${state.blessingQueue.length} blessing(s) owed`));
     }
     if (state.blessingQueue.some((playerId) => !findPlayer(state, playerId))) {
@@ -186,7 +196,8 @@ export function checkState(state: GameState): RuleViolation[] {
     found.push(violation("forfeit-last-player", `a forfeit win with ${state.players.length} players left`));
   }
 
-  if (state.bootPrice < 100 || state.bootPrice > 500 || state.bootPrice % 50 !== 0) {
+  const bootPriceStep = (state.bootPrice - BOOT_STARTING_PRICE) % BOOT_PRICE_STEP;
+  if (state.bootPrice < BOOT_STARTING_PRICE || state.bootPrice > MAXIMUM_BOOT_PRICE || bootPriceStep !== 0) {
     found.push(violation("boot-price", `boot costs ${state.bootPrice}`));
   }
   const board = getBoard(state);
@@ -237,14 +248,17 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     checkGhostFling(previous, next, movement, found);
     return;
   }
+  // A step forward won on the wheel of fortune: one tile, arrows obeyed, never a slide.
+  const stepForward = previous.turnStage === "advance";
   // The walk itself is exactly the move's distance; anything after it was slid on ice.
   const walkedLength = movement.slideStart ?? movement.path.length;
-  if (walkedLength !== previous.moveDistance) {
+  const expectedLength = stepForward ? 1 : previous.moveDistance;
+  if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
   }
   checkSlide(previous, next, movement, found);
 
-  const rebel = logs.some((text) => text.includes("Délinquant"));
+  const rebel = !stepForward && logs.some((text) => text.includes("Délinquant"));
   if (rebel && previous.round <= FIRST_ROUND && movement.from === START_NODE_ID) {
     found.push(violation("delinquent-first-round", `${mover.name} broke out of the start on the first round`));
   }
@@ -273,7 +287,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     found.push(violation("start-bonus-undue", `${mover.name} got the start bonus without earning it`));
   }
 
+  // A step forward goes back to whatever the wheel interrupted; the tile wheel checks cover its arrival.
   const interrupted =
+    stepForward ||
     movement.interruptedTo !== undefined ||
     ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
@@ -444,22 +460,26 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   const wheel = previous.pendingWheel;
   if (!wheel || next.pendingWheel?.id === wheel.id || previous.turnStage !== "wheel-result") return;
   if (newLogTexts(previous, next).some((text) => text.includes("Gomme"))) return;
-  // The last wheel of a Tour de Bénédiction can open the next round, where Bullet Bill may strike too.
-  if (next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;
+  // The last wheel of a Tour de Bénédiction passes the turn: the Hell toll, skipped turns used up and
+  // Bullet Bill's charge then blur what the wheel itself did.
+  if (turnChanged(previous, next) || next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;
 
   const before = findPlayer(previous, wheel.playerId);
   const after = findPlayer(next, wheel.playerId);
   if (!before || !after) return;
   const amount = wheel.result.amount ?? 0;
+  const emptyBag = !before.inventory.some((entry) => entry.kind === "item");
   const moneyOutcomes: Record<string, number> = {
     "lose-100": -amount,
     "lose-200": -amount,
+    "lose-300": -amount,
     "lose-400": -amount,
     "gain-100": amount,
     "gain-200": amount,
     "gain-300": amount,
     "gain-400": amount,
-    "gain-500": amount,
+    // An empty bag pays the wheel's amount instead of an item.
+    ...(emptyBag ? { "lose-item": -amount } : {}),
   };
   const delta = moneyOutcomes[wheel.result.id];
   if (delta !== undefined && after.currency !== expectedBalance(before, delta)) {
@@ -475,6 +495,15 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   }
   if (wheel.result.id === "escape" && before.position === HELL_NODE_ID && after.position !== START_NODE_ID) {
     found.push(violation("wheel-escape", `${before.name} escaped Hell to tile ${after.position} instead of 0`));
+  }
+  if (wheel.result.id === "go-to-start" && after.position !== START_NODE_ID) {
+    found.push(violation("wheel-start", `${before.name} was sent to the start but stands on ${after.position}`));
+  }
+  const back = before.previousNodeId;
+  const canGoBack = before.position !== HELL_NODE_ID && back !== null && back !== HELL_NODE_ID;
+  const expectedBack = canGoBack ? back : before.position;
+  if (wheel.result.id === "go-back" && after.position !== expectedBack) {
+    found.push(violation("wheel-back", `${before.name} went back to ${after.position}, not ${expectedBack}`));
   }
 }
 
