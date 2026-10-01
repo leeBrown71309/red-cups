@@ -199,6 +199,16 @@ export function RedCupIcon({ size, className }: IconProps) {
   );
 }
 
+/** One point of energy: a toy lightning bolt, blue by default so it never reads as a coin. */
+export function EnergyIcon({ size, className, fill = "#62c7ff" }: IconProps & { fill?: string }) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M37 5 L13 36 H29 L25 59 L51 26 H34 L37 5 Z" fill={fill} {...OUTLINE} />
+      <path d="M33 14 L21 31" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
+    </IconFrame>
+  );
+}
+
 export function CoinIcon({ size, className }: IconProps) {
   return (
     <IconFrame size={size} className={className}>

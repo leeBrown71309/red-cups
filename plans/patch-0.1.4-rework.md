@@ -23,6 +23,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 1** fait et commité (voir le bilan dans sa section).
 - [x] **Lot 2** fait et commité.
 - [x] **Lot 3** fait et commité.
+- [x] **Lot 4** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -231,6 +232,40 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - motif « Pas assez d'énergie » (`item-availability.ts:34`) et bouton « Terminer le tour » ;
   - étapes du tour dans l'aide (`help-modal.tsx` `getTurnSteps`).
 - **Bots et invariants** : les bots utilisent d'abord leurs objets, puis se déplacent. Mettre à jour `checkItemEffect`, `checkMovement` et `skipped-player-plays`. Nouveau test `energy.test.ts`.
+
+### Bilan du lot 4
+
+- **Moteur** : nouveau module `game/energy.ts`.
+  - `BASE_ENERGY = 3` et `MOVE_MINIMUM_ENERGY = 1` ; `energyCost` sur chaque objet du catalogue, aux valeurs du doc.
+  - `GameState.energyLeft`, remis au maximum à chaque début de tour (`getEnergyCapacity`, prêt pour Red Bull au lot 6).
+  - `turnActionTaken` veut maintenant dire « a fait quelque chose ce tour » : objet, Botte, déplacement ou roue de l’Enfer. Le chrono du lot 9 s’en servira.
+- **Règles** :
+  - un objet coûte son énergie et laisse le tour continuer, dans l’étape où il était (`move` ou `hell`) ; la roue du Ndoye reprend là aussi ;
+  - le déplacement et la roue de l’Enfer demandent 1 point et prennent le reste ;
+  - Botte : 1 point, plus 1 gardé pour le déplacement, une par tour ;
+  - `endTurn` avant de bouger : seulement après un objet, sans assez d’énergie ou sans route (Q1, `canEndTurn`) ;
+  - Non merci : un objet annulé coûte son énergie et le tour continue ; un déplacement annulé termine le tour ;
+  - la boutique ne coûte rien ; un objet acheté sert au tour suivant.
+- **Choix à valider : Bullet Bill.** Le doc lui donne 2 d’énergie, ce qui n’a de sens que s’il s’utilise pendant le tour : la boutique s’ouvre après le déplacement, quand l’énergie est à 0. Il va donc **dans le sac** à l’achat et se **lance depuis le sac** (2 points), s’il n’y en a pas déjà un sur le plateau.
+- **Enfer** : envoyé en Enfer pendant son propre tour (Ndoye sur soi, par exemple), un joueur à qui il reste de l’énergie peut tourner la roue tout de suite ; ce tour compte dans sa peine.
+- **Interface** :
+  - jauge d’énergie (éclair et cases) dans le dock, sous le solde ;
+  - écran « Plus d’énergie » et bouton « Fin du tour » quand c’est permis ;
+  - la roue de l’Enfer est grisée sans énergie ;
+  - coût en énergie sur chaque objet de la boutique (avec « Utilisable dès ton prochain tour »), du sac et de l’aide ;
+  - motifs « Pas assez d’énergie… » dans le sac ;
+  - étapes du tour de l’aide réécrites ;
+  - le son « objet utilisé » joue à chaque objet, plus seulement au premier du tour.
+- **Tes retours** :
+  - Bullet Bill dans le sac et le tour en Enfer : validés tels quels.
+  - **Tomates** : une pile compte comme un objet. On peut en avoir plusieurs (deux au plus, la règle des deux exemplaires), mais on ne lance que d’une seule pile par tour (`thrownStackId`). Une Tomate gratuite de la roue arrive en nouvelle pile de 5 quand le sac a la place. Je note peut commencer une seconde pile, quitte à jeter un objet.
+  - **Fiche joueur** : nouvelle ligne « Énergie », avec la jauge restante pour le joueur actif et la jauge pleine (« à son prochain tour ») pour les autres.
+  - **Couleurs** : la jauge est bleue pleine, orange à 2 points, rouge au dernier, l’éclair suit la couleur.
+- **Sauvegardes** : version 13 ; une partie sauvegardée avant reprend avec une jauge pleine.
+- **Bots et vérificateur** :
+  - les bots utilisent leurs objets puis bougent, finissent parfois leur tour sans bouger après un objet, et lancent Bullet Bill depuis le sac ;
+  - nouveau `simulation/energy-invariants.ts` : jauge pleine en début de tour, coût exact de chaque objet, déplacement et roue de l’Enfer qui prennent tout, pas de fin de tour sans raison, énergie jamais en hausse en cours de tour.
+- **Tests** : nouveau `energy.test.ts` (13 tests) ; les tests existants suivent les nouvelles règles.
 
 ## Lot 5 — Passifs existants
 

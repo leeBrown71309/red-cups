@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
+import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useRoomStore } from "../../net/room-store";
+import { EnergyGauge } from "../components/energy-meter";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
 import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
@@ -142,6 +144,29 @@ export function PlayersBar() {
   );
 }
 
+/** The gauge left this turn for the active player; the others refill it when their turn comes. */
+function EnergyStat({ player }: { player: Player }) {
+  const playing = useGameStore(
+    (state) => state.phase === "playing" && state.players[state.activePlayerIndex]?.id === player.id,
+  );
+  const energyLeft = useGameStore((state) => state.energyLeft);
+  const capacity = getEnergyCapacity(player);
+  const shown = playing ? energyLeft : capacity;
+
+  return (
+    <div className="player-details__stat player-details__stat--wide">
+      <span className="eyebrow">Énergie</span>
+      <span className="player-details__stat-value">
+        <EnergyGauge left={shown} capacity={capacity} large />
+        <strong>
+          {shown}/{capacity}
+        </strong>
+        <small>{playing ? "ce tour" : "à son prochain tour"}</small>
+      </span>
+    </div>
+  );
+}
+
 function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
   const round = useGameStore((state) => state.round);
   const passive = PASSIVE_CATALOG[player.passiveId];
@@ -187,6 +212,7 @@ function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnch
             <strong>{formatCurrency(player.currency)}</strong>
           </span>
         </div>
+        <EnergyStat player={player} />
       </div>
       <div className="player-details__passive">
         <span className="eyebrow">Passif</span>

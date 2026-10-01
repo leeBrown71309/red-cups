@@ -4,6 +4,7 @@ import { WHEEL_RESULTS } from "../../game/catalog";
 import { EMPTY_GAME_STATE, type GameState, type Player, type WheelId } from "../../game/types";
 import { GLIDE_MS, HOP_MS, TUNNEL_EXTRA_MS, WOBBLE_MS, estimateMovementMs } from "../../theme/timing";
 import { WHEEL_THEMES, getWheelSegments } from "./game-display";
+import { getEnergyTone } from "../components/energy-meter";
 import { getItemAvailability, getPurchaseStatus } from "./item-availability";
 
 function makePlayer(overrides: Partial<Player> = {}): Player {
@@ -26,6 +27,12 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
 function makeState(player: Player, overrides: Partial<GameState> = {}): GameState {
   return { ...EMPTY_GAME_STATE, phase: "playing", turnStage: "move", players: [player], ...overrides };
 }
+
+describe("energy gauge", () => {
+  it("is blue while full, orange at two points, red at the last one", () => {
+    expect([3, 2, 1, 0].map(getEnergyTone)).toEqual(["full", "mid", "low", "empty"]);
+  });
+});
 
 describe("wheel segments", () => {
   it.each<WheelId>(["misfortune", "fortune", "hell"])("gives every %s outcome one wedge per weight", (wheelId) => {
@@ -82,6 +89,29 @@ describe("shop and bag explanations", () => {
 
     const withEraser = makePlayer({ inventory: [{ id: "gum", kind: "item", itemId: "eraser" }] });
     expect(getPurchaseStatus("eraser", makeState(withEraser), withEraser).reason).toBe("Une seule Gomme");
+  });
+
+  it("lets a turn throw Tomates from a single stack", () => {
+    const player = makePlayer({
+      inventory: [
+        { id: "first", kind: "item", itemId: "tomato", count: 3 },
+        { id: "second", kind: "item", itemId: "tomato", count: 5 },
+      ],
+    });
+    const state = makeState(player, { thrownStackId: "first" });
+    expect(getItemAvailability("tomato", state, player, "first").usable).toBe(true);
+    expect(getItemAvailability("tomato", state, player, "second")).toMatchObject({
+      usable: false,
+      reason: "Une seule pile de Tomates par tour.",
+    });
+    expect(getPurchaseStatus("tomato", state, player).canBuy).toBe(true);
+    const twoFull = makePlayer({
+      inventory: [
+        { id: "first", kind: "item", itemId: "tomato", count: 5 },
+        { id: "second", kind: "item", itemId: "tomato", count: 5 },
+      ],
+    });
+    expect(getPurchaseStatus("tomato", makeState(twoFull), twoFull).reason).toBe("Max 2 piles");
   });
 
   it("only offers the water bottle in Hell", () => {

@@ -4,10 +4,18 @@ import { earnsStartBonus, getBoard } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
 import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
-import { launchBulletBill } from "./bullet-bill";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
-import { runWithSeededSource } from "./engine-random";
+import { createEngineId, runWithSeededSource } from "./engine-random";
+import {
+  canAffordItem,
+  canAffordMove,
+  canEndTurn,
+  getEnergyCapacity,
+  getItemEnergyCost,
+  spendAllEnergy,
+  spendEnergy,
+} from "./energy";
 import {
   addCupCycleEffects,
   addRedGreenBonuses,
@@ -27,7 +35,7 @@ import {
 } from "./game-effects";
 import {
   canAddItem,
-  canUseDelinquent,
+  canStartNewSlot,
   getItemPrice,
   getTileWheel,
   getUniqueLegalDestinations,
@@ -157,12 +165,14 @@ function startGame(
   if (playerNames.length < 2) return state;
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
   const build = (): GameState => {
+    const players = createPlayers(playerNames, avatarColors);
     const opening: GameState = {
       ...EMPTY_GAME_STATE,
       phase: "playing",
       turnStage: "move",
       mapId: map.id,
-      players: createPlayers(playerNames, avatarColors),
+      players,
+      energyLeft: getEnergyCapacity(players[0]),
       redCupNodeId: map.initialCupNodeId,
       log: [
         makeLog(
@@ -193,11 +203,21 @@ const FULL_BAG_FREE_ITEM_COINS = 200;
 
 /**
  * Wheel of fortune: one item of the pool the bag can take, drawn at random.
- * A Tomate comes as a whole stack, as much of it as fits.
+ * A Tomate comes as a whole new stack, the stack being one item; with no slot
+ * for it, the started stacks fill up instead.
  */
 function giveFreeItem(state: GameState, player: Player): GameState {
   const freeItem = randomChoice(FREE_ITEM_POOL.filter((itemId) => canAddItem(player, itemId)));
   if (!freeItem) return applyCurrencyChange(state, player.id, FULL_BAG_FREE_ITEM_COINS);
+
+  if (freeItem === "tomato" && canStartNewSlot(player, freeItem)) {
+    const stack = { id: createEngineId(), kind: "item" as const, itemId: freeItem, count: FREE_TOMATOES };
+    const nextState = updatePlayer(state, player.id, (current) => ({
+      ...current,
+      inventory: [...current.inventory, stack],
+    }));
+    return addLog(nextState, `${player.name} reçoit ${FREE_TOMATOES} Tomates gratuitement.`, "good");
+  }
 
   const wanted = freeItem === "tomato" ? FREE_TOMATOES : 1;
   let nextState = state;
@@ -334,13 +354,14 @@ function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean
   return waiting ?? applyMove(state, destination, plan);
 }
 
+/** One Botte per turn: it costs a point and keeps another for the two-tile move. */
 function prepareBoot(state: GameState, entryId: string): GameState {
   const player = getActivePlayer(state);
   if (!player || state.turnStage !== "move" || state.moveDistance !== 1) return state;
-  if (getItemEntry(player, entryId) !== "boot") return state;
+  if (getItemEntry(player, entryId) !== "boot" || !canAffordItem(state, "boot")) return state;
 
   let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
-  nextState = { ...nextState, moveDistance: 2 };
+  nextState = { ...spendEnergy(nextState, getItemEnergyCost("boot")), moveDistance: 2 };
   return addLog(nextState, `${player.name} prépare la Botte pour un déplacement de deux cases.`, "event");
 }
 
@@ -348,20 +369,10 @@ function buyItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
   if (!player || state.turnStage !== "shop" || !isShopNode(getBoard(state), player.position)) return state;
 
+  // Shopping costs no energy: what is bought is used from the next turn on, Bullet Bill included.
   const price = getItemPrice(itemId, state.bootPrice);
-  if (player.currency < price) return state;
+  if (player.currency < price || !canAddItem(player, itemId)) return state;
 
-  if (itemId === "bullet-bill") {
-    if (state.bulletBill) return state;
-    const nextState = launchBulletBill(applyCurrencyChange(state, player.id, -price));
-    return addLog(
-      nextState,
-      `${player.name} achète Bullet Bill pour ${price} pièces : il attend au départ et fonce au prochain tour.`,
-      "event",
-    );
-  }
-
-  if (!canAddItem(player, itemId)) return state;
   let nextState = applyCurrencyChange(state, player.id, -price);
   nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
   if (itemId === "boot" && !state.bootFirstPurchased) {
@@ -397,26 +408,18 @@ function resolveReaction(state: GameState, reactorId: PlayerId | null): GameStat
 }
 
 function endTurn(state: GameState): GameState {
-  if (state.phase !== "playing") return state;
-  const activePlayer = getActivePlayer(state);
-  const noLegalMove =
-    state.turnStage === "move" &&
-    activePlayer !== undefined &&
-    getUniqueLegalDestinations(
-      getBoard(state),
-      activePlayer,
-      state.moveDistance,
-      canUseDelinquent(activePlayer, state.round),
-    ).length === 0;
-  if (!["shop", "turn-end"].includes(state.turnStage) && !noLegalMove) return state;
+  if (!canEndTurn(state)) return state;
   const ended: GameState = { ...state, turnStage: "turn-end" };
   return isTableBroke(ended) ? startBlessingRound(ended) : beginNextTurn(ended);
 }
 
+/** In Hell the wheel stands for the move: it takes the energy left and ends the turn. */
 function spinHellWheel(state: GameState): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "hell" || player.position !== HELL_NODE_ID) return state;
-  return startWheel(state, "hell", player.id, "turn-end", { origin: "hell" });
+  if (!player || state.turnStage !== "hell" || player.position !== HELL_NODE_ID || !canAffordMove(state)) {
+    return state;
+  }
+  return startWheel(spendAllEnergy(state), "hell", player.id, "turn-end", { origin: "hell" });
 }
 
 function spinTileWheel(current: GameState): GameState {

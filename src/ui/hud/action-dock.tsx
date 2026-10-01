@@ -1,12 +1,14 @@
 import type { CSSProperties, ReactNode } from "react";
 import { resolveBoard } from "../../game/board";
 import { PASSIVE_CATALOG } from "../../game/catalog";
+import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { getTileWheel } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { DELINQUENT_COST, HELL_EXIT_TOLL, HELL_TURN_LIMIT } from "../../game/types";
+import { DELINQUENT_COST, HELL_EXIT_TOLL, HELL_TURN_LIMIT, MOVE_MINIMUM_ENERGY } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
+import { EnergyGauge } from "../components/energy-meter";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { getDelinquentHint } from "../display/item-availability";
@@ -25,6 +27,7 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
   const turnStage = useGameStore((state) => state.turnStage);
   const phase = useGameStore((state) => state.phase);
   const decider = useDecidingPlayer();
+  const energyLeft = useGameStore((state) => state.energyLeft);
   const canAct = useCanActFor([decider?.id]);
   if (!activePlayer || !decider || phase !== "playing") return null;
 
@@ -47,6 +50,9 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
             <CoinIcon size={15} />
             {formatCurrency(decider.currency)}
           </span>
+          {decider.id === activePlayer.id && (
+            <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
+          )}
         </div>
       </div>
       <div className="action-dock__content">
@@ -72,9 +78,25 @@ function DockPrompt({ title, hint, children }: { title: string; hint?: ReactNode
   );
 }
 
+/** Offered before moving once an item was used, or when the gauge is too low to move. */
+function EndTurnButton({ primary = false }: { primary?: boolean }) {
+  const endTurn = useGameStore((state) => state.endTurn);
+  const allowed = useGameStore(canEndTurn);
+  if (!allowed) return null;
+  return (
+    <button
+      type="button"
+      className={`btn ${primary ? "btn--cup btn--pulse" : "btn--cream"}`}
+      onClick={endTurn}
+      data-autofocus={primary || undefined}
+    >
+      Fin du tour <UiIcon name="arrowRight" size={20} />
+    </button>
+  );
+}
+
 function StageContent({ player, stage, onOpenShop }: { player: Player; stage: string; onOpenShop: () => void }) {
   const endTurn = useGameStore((state) => state.endTurn);
-  const spinHellWheel = useGameStore((state) => state.spinHellWheel);
   const spinTileWheel = useGameStore((state) => state.spinTileWheel);
   const tileWheels = useGameStore((state) => state.pendingTileWheels);
   const players = useGameStore((state) => state.players);
@@ -91,27 +113,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <RepositionContent />;
     case "advance":
       return <AdvanceContent />;
-    case "hell": {
-      const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
-      const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
-      const countdown = lastTurn
-        ? `Dernier tour : sans évasion, tu sors en case 0 contre ${HELL_EXIT_TOLL} pièces.`
-        : `Tour ${player.hellTurns}/${HELL_TURN_LIMIT} : au bout de ${HELL_TURN_LIMIT}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
-      return (
-        <DockPrompt
-          title="Bienvenue en Enfer…"
-          hint={`${
-            hasBottle
-              ? "Tourne la roue, ou bois ta Bouteille d’eau depuis ton sac."
-              : "Tourne la roue pour tenter de t’échapper."
-          } ${countdown}`}
-        >
-          <button type="button" className="btn btn--grape" onClick={spinHellWheel}>
-            <UiIcon name="flame" size={20} /> Tourner la roue
-          </button>
-        </DockPrompt>
-      );
-    }
+    case "hell":
+      return <HellContent player={player} />;
     case "tile-wheel": {
       const spinner = players.find((candidate) => candidate.id === tileWheels[0]?.playerId) ?? player;
       const fortune = getTileWheel(resolveBoard(mapId), spinner.position) === "fortune";
@@ -217,10 +220,36 @@ function BlessingContent() {
   );
 }
 
+/** In Hell the wheel stands for the move: it needs a point and takes the rest. */
+function HellContent({ player }: { player: Player }) {
+  const spinHellWheel = useGameStore((state) => state.spinHellWheel);
+  const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
+  const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
+  const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
+  const countdown = lastTurn
+    ? `Dernier tour : sans évasion, tu sors en case 0 contre ${HELL_EXIT_TOLL} pièces.`
+    : `Tour ${player.hellTurns}/${HELL_TURN_LIMIT} : au bout de ${HELL_TURN_LIMIT}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
+  const advice = tired
+    ? "Plus d’énergie pour la roue : elle t’attend au prochain tour."
+    : hasBottle
+      ? "Tourne la roue, ou bois ta Bouteille d’eau depuis ton sac."
+      : "Utilise tes objets d’abord si tu veux, puis tourne la roue pour tenter de t’échapper.";
+
+  return (
+    <DockPrompt title="Bienvenue en Enfer…" hint={`${advice} ${countdown}`}>
+      <button type="button" className="btn btn--grape" onClick={spinHellWheel} disabled={tired}>
+        <UiIcon name="flame" size={20} /> Tourner la roue
+      </button>
+      <EndTurnButton primary={tired} />
+    </DockPrompt>
+  );
+}
+
 function MoveContent({ player }: { player: Player }) {
   const moveDistance = useGameStore((state) => state.moveDistance);
   const round = useGameStore((state) => state.round);
   const mudPlaced = useGameStore((state) => state.mudPlacedThisTurn);
+  const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const endTurn = useGameStore((state) => state.endTurn);
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
@@ -231,6 +260,14 @@ function MoveContent({ player }: { player: Player }) {
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
   const isDelinquent = player.passiveId === "delinquent";
   const delinquentHint = getDelinquentHint(player, round);
+
+  if (tired) {
+    return (
+      <DockPrompt title="Plus d’énergie" hint="Tes objets ont pris toute ton énergie : ton tour s’arrête là.">
+        <EndTurnButton primary />
+      </DockPrompt>
+    );
+  }
 
   if (destinations.length === 0) {
     return (
@@ -252,8 +289,8 @@ function MoveContent({ player }: { player: Player }) {
     previewNodeId !== null
       ? "Touche à nouveau la case ou confirme."
       : mudPlaced
-        ? "Boue posée ! Déplace-toi maintenant, ou utilise un autre objet."
-        : "Touche une case surlignée, ou utilise un objet à la place.";
+        ? "Boue posée ! Utilise un autre objet, ou déplace-toi pour finir ton tour."
+        : "Utilise d’abord tes objets si tu veux, puis touche une case : le déplacement finit ton tour.";
 
   return (
     <DockPrompt title={title} hint={hint}>
@@ -282,6 +319,7 @@ function MoveContent({ player }: { player: Player }) {
           ))}
         </div>
       )}
+      {previewNodeId === null && <EndTurnButton />}
       {isDelinquent && (
         <button
           type="button"

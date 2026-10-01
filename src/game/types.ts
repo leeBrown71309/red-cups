@@ -24,6 +24,10 @@ export const BOOT_PRICE_STEP = 50;
 export const MAXIMUM_BOOT_PRICE = 400;
 /** Wheel of fortune: a free Tomate comes as a whole stack of this many. */
 export const FREE_TOMATOES = 5;
+/** Energy every turn opens with (patch 0.1.4): items cost some, the move uses up the rest. */
+export const BASE_ENERGY = 3;
+/** The move, or the Hell wheel that stands for it, needs at least this much energy. */
+export const MOVE_MINIMUM_ENERGY = 1;
 /** Tomate: chance that a hit knocks the target out, who then skips their next turn. */
 export const TOMATO_STUN_CHANCE = 0.02;
 /** Banquise: chance that ice falls on a player sliding towards the Red Cup. */
@@ -475,8 +479,10 @@ export interface GameState {
   tileWheelResumeStage: TurnStage;
   duelResumeStage: TurnStage;
   mudTraps: MudTrap[];
-  /** Mud does not use up the turn's action, but only one can be laid per turn. */
+  /** Only one mud can be laid per turn. */
   mudPlacedThisTurn: boolean;
+  /** Tomates: the stack the active player throws from this turn; another stack waits for the next turn. */
+  thrownStackId: string | null;
   bulletBill: BulletBillState | null;
   lastBulletFlight: BulletFlight | null;
   /** Banquise: the temporary ice tile brought by the last blizzard. */
@@ -502,6 +508,12 @@ export interface GameState {
   bootFirstPurchased: boolean;
   bootLastPriceRound: number;
   moveDistance: number;
+  /** Energy the active player has left this turn: items cost some, the move or the Hell wheel the rest. */
+  energyLeft: number;
+  /**
+   * The active player did something this turn: an item, the Botte, a move or
+   * the Hell wheel. Only then may they end the turn without moving.
+   */
   turnActionTaken: boolean;
   winnerId: PlayerId | null;
   winReason: WinReason | null;
@@ -537,6 +549,7 @@ export const EMPTY_GAME_STATE: GameState = {
   tileWheelResumeStage: "turn-end",
   mudTraps: [],
   mudPlacedThisTurn: false,
+  thrownStackId: null,
   bulletBill: null,
   lastBulletFlight: null,
   iceTileNodeId: null,
@@ -555,6 +568,7 @@ export const EMPTY_GAME_STATE: GameState = {
   bootFirstPurchased: false,
   bootLastPriceRound: 0,
   moveDistance: 1,
+  energyLeft: BASE_ENERGY,
   turnActionTaken: false,
   duelResumeStage: "turn-end",
   winnerId: null,

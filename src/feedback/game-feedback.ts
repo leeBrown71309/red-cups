@@ -1,7 +1,8 @@
 import { getBoard } from "../game/board";
-import { countRedCups } from "../game/rules";
+import { ITEM_ORDER } from "../game/catalog";
+import { countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
-import type { BulletFlight, GameState } from "../game/types";
+import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
 import { GHOST_ID, HELL_NODE_ID } from "../game/types";
 import {
   ALERT_BANNER_MS,
@@ -16,6 +17,14 @@ import { useUiStore } from "./ui-store";
 
 /** Lets the camera fly from the lobby orbit to the board before the first turn banner. */
 const GAME_INTRO_MS = 950;
+
+/** Items whose use already has its own feedback: the mud splash and the Tomate's throw. */
+const ITEMS_WITH_OWN_FEEDBACK: ItemId[] = ["mud", "tomato"];
+
+/** The item a player's bag lost between two states, if any. */
+function findSpentItem(before: Player, after: Player): ItemId | null {
+  return ITEM_ORDER.find((itemId) => countItemUnits(after, itemId) < countItemUnits(before, itemId)) ?? null;
+}
 
 /**
  * Turns raw state transitions into presentation events. Events caused by a
@@ -160,8 +169,7 @@ function collectEvents(
     previous.turnStage === "shop" &&
     activePlayer !== undefined &&
     previousActive !== undefined &&
-    (activePlayer.inventory.length > previousActive.inventory.length ||
-      (state.bulletBill !== null && previous.bulletBill === null));
+    activePlayer.inventory.length > previousActive.inventory.length;
 
   for (const player of state.players) {
     const before = previous.players.find((candidate) => candidate.id === player.id);
@@ -198,11 +206,13 @@ function collectEvents(
   if (state.pendingReaction && !previous.pendingReaction) events.push({ type: "reaction-opened" });
   if (cancelled) events.push({ type: "action-cancelled" });
 
+  // Several items may be used in one turn: each one shows by the bag it left.
+  const spentItem = activePlayer && previousActive ? findSpentItem(previousActive, activePlayer) : null;
   const usedItem =
     !walkerId &&
     !cancelled &&
-    state.turnActionTaken &&
-    !previous.turnActionTaken &&
+    spentItem !== null &&
+    !ITEMS_WITH_OWN_FEEDBACK.includes(spentItem) &&
     ["move", "hell", "reaction"].includes(previous.turnStage);
   if (usedItem) events.push({ type: "item-used" });
 

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ITEM_CATALOG } from "./catalog";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
-import { BULLET_BILL_DAMAGE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
+import { BASE_ENERGY, BULLET_BILL_DAMAGE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
 
 /** Patch 0.1.1: Bullet Bill, the Tour de Bénédiction and players leaving a game. */
 
@@ -35,23 +35,38 @@ afterEach(() => {
 });
 
 describe("Bullet Bill", () => {
-  function buyBulletBill(): void {
+  /** The first player launches it from the bag, on their turn. */
+  function launchBulletBill(entryId = "bill-1"): void {
+    editPlayer(0, { inventory: [{ id: entryId, kind: "item", itemId: "bullet-bill" }] });
+    store().useItem(entryId);
+  }
+
+  it("goes into the bag when bought: nothing flies yet", () => {
+    startTable(["built-like-a-tank", "troll"]);
     editPlayer(0, { position: 8 });
     useGameStore.setState({ turnStage: "shop" });
     store().buyItem("bullet-bill");
-  }
 
-  it("waits on the start as soon as it is bought", () => {
-    startTable(["built-like-a-tank", "troll"]);
-    buyBulletBill();
-
-    expect(store().bulletBill).toEqual({ status: "waiting", position: 0, spawnRound: 2 });
+    expect(store().bulletBill).toBeNull();
+    expect(store().players[0].inventory).toEqual([expect.objectContaining({ itemId: "bullet-bill" })]);
     expect(store().players[0].currency).toBe(STARTING_CURRENCY - ITEM_CATALOG["bullet-bill"].price);
+  });
+
+  it("waits on the start once launched, for 2 energy, and flies alone", () => {
+    startTable(["built-like-a-tank", "troll"]);
+    launchBulletBill();
+    expect(store().bulletBill).toEqual({ status: "waiting", position: 0, spawnRound: 2 });
+    expect(store()).toMatchObject({ turnStage: "move", energyLeft: BASE_ENERGY - 2 });
+
+    useGameStore.setState({ energyLeft: BASE_ENERGY });
+    launchBulletBill("bill-2");
+    expect(store().players[0].inventory).toHaveLength(1);
+    expect(store().energyLeft).toBe(BASE_ENERGY);
   });
 
   it("wakes up and charges the nearest player at the start of the next round", () => {
     startTable(["built-like-a-tank", "troll"]);
-    buyBulletBill();
+    launchBulletBill();
     // Both players three tiles away: the first seat is chased, one tile at a time.
     editPlayer(0, { position: 6 });
     editPlayer(1, { position: 1 });

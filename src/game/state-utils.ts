@@ -56,10 +56,18 @@ export function getEntryUnits(entry: InventoryEntry): number {
 }
 
 /** Adds one item; a stackable one joins its stack when there is one (callers check the stack's limit). */
+/** A stack of this item that still has room, if the bag holds one; never for an item that does not stack. */
+export function findStackWithRoom(player: Player, itemId: ItemId): InventoryEntry | undefined {
+  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
+  if (!stackLimit) return undefined;
+  return player.inventory.find(
+    (entry) => entry.kind === "item" && entry.itemId === itemId && getEntryUnits(entry) < stackLimit,
+  );
+}
+
+/** Adds one item: onto a stack that has room, otherwise into a slot of its own. */
 export function appendItem(player: Player, itemId: ItemId): Player {
-  const stack = ITEM_CATALOG[itemId].stackLimit
-    ? player.inventory.find((entry) => entry.kind === "item" && entry.itemId === itemId)
-    : undefined;
+  const stack = findStackWithRoom(player, itemId);
   if (stack) {
     return {
       ...player,

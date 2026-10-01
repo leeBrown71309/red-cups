@@ -8,7 +8,7 @@ import {
   getTileWheel,
   isShopNode,
 } from "../rules";
-import { findPlayer, getActivePlayer } from "../state-utils";
+import { findPlayer, getActivePlayer, getEntryUnits } from "../state-utils";
 import type { GameState, ItemId, NodeId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
   BOOT_STARTING_PRICE,
@@ -26,6 +26,7 @@ import {
   START_NODE_ID,
 } from "../types";
 import { getBoardMap } from "../maps/map-registry";
+import { checkEnergy, checkEnergyRange } from "./energy-invariants";
 import { checkAbandon, checkBlessing, checkBulletBill, checkMudReward } from "./event-invariants";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
@@ -72,18 +73,17 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   if (countRedCups(player) > RED_CUP_GOAL) {
     found.push(violation("cup-limit", `${name} holds ${countRedCups(player)} Red Cups`));
   }
-  for (const itemId of ITEM_ORDER) {
-    const copies = countItemCopies(player, itemId);
-    const stackLimit = ITEM_CATALOG[itemId].stackLimit;
-    if (stackLimit && copies > 1) found.push(violation("one-stack", `${name} fills ${copies} slots with ${itemId}`));
-    if (stackLimit && countItemUnits(player, itemId) > stackLimit) {
-      found.push(violation("stack-limit", `${name} piles ${countItemUnits(player, itemId)} × ${itemId}`));
+  for (const entry of player.inventory) {
+    const stackLimit = entry.kind === "item" ? (ITEM_CATALOG[entry.itemId].stackLimit ?? 1) : 1;
+    if (getEntryUnits(entry) > stackLimit) {
+      found.push(violation("stack-limit", `${name} piles ${getEntryUnits(entry)} in one slot`));
     }
+  }
+  for (const itemId of ITEM_ORDER) {
+    // A stack counts as one copy: two stacks of Tomates at most.
+    const copies = countItemCopies(player, itemId);
     if (copies > 2) found.push(violation("no-third-copy", `${name} has ${copies} × ${itemId}`));
     if (itemId === "eraser" && copies > 1) found.push(violation("single-eraser", `${name} has ${copies} Gommes`));
-    if (itemId === "bullet-bill" && copies > 0) {
-      found.push(violation("bullet-not-owned", `${name} keeps Bullet Bill in the bag`));
-    }
   }
   if (player.currency <= CURRENCY_RESET_THRESHOLD) {
     found.push(violation("negative-reset", `${name} sits at ${player.currency} coins`));
@@ -225,6 +225,7 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   checkGhost(state, found);
+  checkEnergyRange(state, found);
   return found;
 }
 
@@ -621,9 +622,8 @@ function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleVio
     if (actorAfter.position !== actorBefore.position) {
       found.push(violation("no-thanks-cancels", `${actorBefore.name} still moved after Non merci`));
     }
-    // Mud is laid before the turn's action: cancelling it leaves the actor their turn.
-    const cancelledMud = pending.action.type === "item" && pending.action.itemId === "mud";
-    const expectedStage = cancelledMud ? pending.resumeStage : "turn-end";
+    // A cancelled item leaves the actor their turn; a cancelled move ends it.
+    const expectedStage = pending.action.type === "item" ? pending.resumeStage : "turn-end";
     if (next.turnStage !== expectedStage) {
       found.push(violation("no-thanks-ends-action", `after Non merci the stage is ${next.turnStage}`));
     }
@@ -655,6 +655,8 @@ function checkCupRelocation(previous: GameState, next: GameState, found: RuleVio
 /** Item use the checker should verify, when the runner knows which item was applied. */
 export interface AppliedItem {
   itemId: ItemId;
+  /** Bag slot it came from, when known: Tomates are thrown from a single stack per turn. */
+  entryId?: string;
   userId: PlayerId;
   targetPlayerId?: PlayerId;
   /** Tomates thrown at once. */
@@ -709,11 +711,14 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     case "tomato": {
       // Je note may have its holder make room for the copied Tomate first.
       const copyDiscard = next.turnStage === "discard" && next.pendingDiscard?.itemId === "tomato";
-      const stageChanged = next.turnStage !== previous.turnStage && !copyDiscard;
-      if (stageChanged || next.turnActionTaken !== previous.turnActionTaken) {
+      if (next.turnStage !== previous.turnStage && !copyDiscard) {
         found.push(
           violation("tomato-keeps-turn", `${label}: the turn went from ${previous.turnStage} to ${next.turnStage}`),
         );
+      }
+      const otherStack = previous.thrownStackId !== null && previous.thrownStackId !== item.entryId;
+      if (item.entryId && (otherStack || next.thrownStackId !== item.entryId)) {
+        found.push(violation("tomato-one-stack", `${label} from a second stack this turn`));
       }
       const stunned = next.lastTomatoThrow?.stunned === true;
       const skipped = (targetAfter?.skippedTurns ?? 0) - (target?.skippedTurns ?? 0);
@@ -741,7 +746,7 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
         found.push(violation("mud", `${label}: no mud on tile ${user.position}`));
       }
       const stageBefore = previous.pendingReaction?.resumeStage ?? previous.turnStage;
-      if (next.turnStage !== stageBefore || next.turnActionTaken !== previous.turnActionTaken) {
+      if (next.turnStage !== stageBefore) {
         found.push(violation("mud-keeps-turn", `${label}: the turn went from ${stageBefore} to ${next.turnStage}`));
       }
       if (!next.mudPlacedThisTurn) found.push(violation("mud-once-per-turn", `${label}: the turn forgot the mud`));
@@ -804,5 +809,6 @@ export function checkTransition(previous: GameState, next: GameState, appliedIte
   checkGhostDuelResult(previous, next, found);
   checkGhostMove(previous, next, found);
   checkSnowballs(previous, next, found);
+  checkEnergy(previous, next, found, itemApplied);
   return found;
 }

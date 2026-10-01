@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { ITEM_CATALOG, ITEM_ORDER } from "../../game/catalog";
+import { ITEM_CATALOG, ITEM_ORDER, type ItemDefinition } from "../../game/catalog";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
+import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency } from "../display/game-display";
 import { getPurchaseStatus } from "../display/item-availability";
 import { useActivePlayer } from "../game-hooks";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
+
+/** When, and for how much energy, a bought item can be used. */
+function describeEnergyUse(item: ItemDefinition): string {
+  if (item.energyCost === 0 && item.target === "special") return "Agit tout seul, sans énergie.";
+  const cost = item.energyCost === 0 ? "sans énergie" : `pour ${formatEnergyCost(item.energyCost)}`;
+  return `Utilisable dès ton prochain tour, ${cost}.`;
+}
 
 interface ShopModalProps {
   onClose: () => void;
@@ -69,9 +77,12 @@ export function ShopModal({ onClose }: ShopModalProps) {
                 >
                   <ItemIcon itemId={itemId} size={40} />
                   <span className="shop-item__name">{ITEM_CATALOG[itemId].name}</span>
-                  <span className="price-chip">
-                    <CoinIcon size={14} />
-                    {formatCurrency(status.price)}
+                  <span className="shop-item__chips">
+                    <span className="price-chip">
+                      <CoinIcon size={14} />
+                      {formatCurrency(status.price)}
+                    </span>
+                    <EnergyCost cost={ITEM_CATALOG[itemId].energyCost} />
                   </span>
                 </button>
               </li>
@@ -83,6 +94,9 @@ export function ShopModal({ onClose }: ShopModalProps) {
           <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
           <strong className="shop-detail__name">{selected.name}</strong>
           <p>{selected.description}</p>
+          <span className="shop-detail__energy">
+            <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
+          </span>
           <button
             type="button"
             className="btn btn--gold btn--block"

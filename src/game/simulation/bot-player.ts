@@ -2,6 +2,7 @@ import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
+import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -48,7 +49,13 @@ function useItemAction(store: GameStore, option: ItemOption): BotAction {
   return {
     label: `use:${option.entry.itemId}`,
     perform: (current) => current.useItem(option.entry.id, option.targetId, option.count),
-    item: { itemId: option.entry.itemId, userId, targetPlayerId: option.targetId, count: option.count },
+    item: {
+      itemId: option.entry.itemId,
+      entryId: option.entry.id,
+      userId,
+      targetPlayerId: option.targetId,
+      count: option.count,
+    },
   };
 }
 
@@ -68,17 +75,27 @@ function listUsableItems(store: GameStore): ItemOption[] {
   });
 }
 
+/** Now and then a turn ends after an item, without moving. */
+const EARLY_END_CHANCE = 0.05;
+
+function endTurnAction(label: string): BotAction {
+  return { label, perform: (current) => current.endTurn() };
+}
+
+/** Items first, while the energy lasts; then the move, which takes what is left and ends the turn. */
 function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   const player = getActivePlayer(store);
   if (!player) return null;
 
   const boot = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "boot");
-  if (boot && store.moveDistance === 1 && random() < 0.2) {
+  if (boot && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
     return { label: "prepare-boot", perform: (current) => current.prepareBoot(boot.id) };
   }
 
   const items = listUsableItems(store);
-  if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
+  if (items.length > 0 && random() < 0.35) return useItemAction(store, pick(items, random)!);
+  if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
+  if (store.turnActionTaken && random() < EARLY_END_CHANCE) return endTurnAction("end-turn-early");
 
   const board = getBoard(store);
   const regular = getUniqueLegalDestinations(board, player, store.moveDistance, false);
@@ -94,7 +111,7 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (regular.length === 0) {
     const option = pick(items, random);
     if (option) return useItemAction(store, option);
-    return { label: "end-turn-stuck", perform: (current) => current.endTurn() };
+    return endTurnAction("end-turn-stuck");
   }
 
   const chaseCup = random() < 0.55;
@@ -107,15 +124,14 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
 function chooseShopping(store: GameStore, random: Random): BotAction {
   const player = getActivePlayer(store);
   const affordable = player
-    ? ITEM_ORDER.filter((itemId) => {
-        if (player.currency < getItemPrice(itemId, store.bootPrice)) return false;
-        return itemId === "bullet-bill" ? store.bulletBill === null : canAddItem(player, itemId);
-      })
+    ? ITEM_ORDER.filter(
+        (itemId) => player.currency >= getItemPrice(itemId, store.bootPrice) && canAddItem(player, itemId),
+      )
     : [];
 
   const itemId = pick(affordable, random);
   if (itemId && random() < 0.55) return { label: `buy:${itemId}`, perform: (current) => current.buyItem(itemId) };
-  return { label: "end-turn", perform: (current) => current.endTurn() };
+  return endTurnAction("end-turn");
 }
 
 /** Rare enough that most games still end on three Red Cups. */
@@ -171,6 +187,8 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "hell": {
       const items = listUsableItems(store);
       if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
+      if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
+      if (canEndTurn(store) && random() < EARLY_END_CHANCE) return endTurnAction("end-turn-early");
       return { label: "spin-hell", perform: (current) => current.spinHellWheel() };
     }
 
@@ -184,7 +202,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return { label: "spin-blessing", perform: (current) => current.spinBlessingWheel() };
 
     case "turn-end":
-      return { label: "end-turn", perform: (current) => current.endTurn() };
+      return endTurnAction("end-turn");
 
     case "wheel-result": {
       const target = findPlayer(store, store.pendingWheel?.playerId);

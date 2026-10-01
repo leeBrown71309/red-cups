@@ -1,7 +1,10 @@
 import { ITEM_CATALOG } from "../../game/catalog";
-import { countItemUnits, getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
+import { canAffordItem, getItemEnergyCost } from "../../game/energy";
+import { getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
+import { findStackWithRoom } from "../../game/state-utils";
 import type { GameState, ItemId, Player } from "../../game/types";
 import { DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
+import { formatEnergyCost } from "../components/energy-meter";
 
 const DELINQUENT_HINTS: Record<Exclude<DelinquentBlocker, "not-delinquent">, { short: string; full: string }> = {
   "too-poor": {
@@ -30,8 +33,24 @@ export interface ItemAvailability {
   reason?: string;
 }
 
-/** Mirrors the store guards so the HUD can explain, not just disable. */
-export function getItemAvailability(itemId: ItemId, state: GameState, player: Player): ItemAvailability {
+/** Why the gauge cannot pay for an item; a prepared Botte keeps a point for the move. */
+function getEnergyReason(itemId: ItemId, state: GameState): string {
+  const cost = formatEnergyCost(getItemEnergyCost(itemId));
+  if (itemId === "boot") return "Il faut 2 points d’énergie : 1 pour la Botte, 1 gardé pour bouger.";
+  if (state.moveDistance > 1) return `Pas assez d’énergie : ${cost}, et la Botte garde 1 point pour bouger.`;
+  return `Pas assez d’énergie : il faut ${cost}, il t’en reste ${state.energyLeft}.`;
+}
+
+/**
+ * Mirrors the store guards so the HUD can explain, not just disable. `entryId`
+ * names the bag slot, which matters for a stack of Tomates.
+ */
+export function getItemAvailability(
+  itemId: ItemId,
+  state: GameState,
+  player: Player,
+  entryId?: string,
+): ItemAvailability {
   const isActive = state.players[state.activePlayerIndex]?.id === player.id;
   const inHell = player.position === HELL_NODE_ID;
   const actionStage = inHell ? state.turnStage === "hell" : state.turnStage === "move";
@@ -62,6 +81,9 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
     }
     if (state.moveDistance > 1)
       return { usable: false, kind: "prepare-boot", actionLabel: "Chaussée", reason: "Déjà prête !" };
+    if (!canAffordItem(state, itemId)) {
+      return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: getEnergyReason(itemId, state) };
+    }
     return { usable: true, kind: "prepare-boot", actionLabel: "Chausser" };
   }
 
@@ -77,12 +99,32 @@ export function getItemAvailability(itemId: ItemId, state: GameState, player: Pl
   }
 
   if (!actionStage) {
-    return { usable: false, kind: "instant", actionLabel: "Utiliser", reason: "Ton action du tour est déjà faite." };
+    return {
+      usable: false,
+      kind: "instant",
+      actionLabel: "Utiliser",
+      reason: "Tu as déjà bougé : garde-le pour ton prochain tour.",
+    };
   }
 
   const kind: ItemUseKind = ITEM_CATALOG[itemId].target === "player" ? "target" : "instant";
   const actionLabel =
-    itemId === "water-bottle" ? "Boire" : itemId === "mud" ? "Poser" : itemId === "tomato" ? "Lancer" : "Utiliser";
+    itemId === "water-bottle"
+      ? "Boire"
+      : itemId === "mud"
+        ? "Poser"
+        : itemId === "tomato" || itemId === "bullet-bill"
+          ? "Lancer"
+          : "Utiliser";
+  if (itemId === "bullet-bill" && state.bulletBill) {
+    return { usable: false, kind, actionLabel, reason: "Un Bullet Bill est déjà sur le plateau." };
+  }
+  const otherStackThrown = state.thrownStackId !== null && entryId !== state.thrownStackId;
+  if (itemId === "tomato" && otherStackThrown) {
+    return { usable: false, kind, actionLabel, reason: "Une seule pile de Tomates par tour." };
+  }
+  if (!canAffordItem(state, itemId))
+    return { usable: false, kind, actionLabel, reason: getEnergyReason(itemId, state) };
   return { usable: true, kind, actionLabel };
 }
 
@@ -97,20 +139,14 @@ export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Play
   const price = itemId === "boot" ? state.bootPrice : ITEM_CATALOG[itemId].price;
   const copies = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
 
-  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
-  if (itemId === "bullet-bill") {
-    if (state.bulletBill) return { price, canBuy: false, reason: "Déjà lancé" };
-  } else if (stackLimit) {
-    // A stack fills one slot: only the first one needs room in the bag.
-    const units = countItemUnits(player, itemId);
-    if (units >= stackLimit) return { price, canBuy: false, reason: `${stackLimit} au maximum` };
-    if (units === 0 && player.inventory.length >= getInventoryCapacity(player)) {
-      return { price, canBuy: false, reason: "Sac plein" };
-    }
-  } else {
+  // A stack with room takes one more without a new slot; a new stack counts as a copy.
+  if (!findStackWithRoom(player, itemId)) {
     if (player.inventory.length >= getInventoryCapacity(player)) return { price, canBuy: false, reason: "Sac plein" };
     if (itemId === "eraser" && copies >= 1) return { price, canBuy: false, reason: "Une seule Gomme" };
-    if (copies >= 2) return { price, canBuy: false, reason: "Max 2 exemplaires" };
+    if (copies >= 2) {
+      const reason = ITEM_CATALOG[itemId].stackLimit ? "Max 2 piles" : "Max 2 exemplaires";
+      return { price, canBuy: false, reason };
+    }
   }
 
   if (player.currency < price) return { price, canBuy: false, reason: "Trop cher" };

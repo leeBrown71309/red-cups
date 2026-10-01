@@ -261,6 +261,15 @@
   gap: 8px;
 }
 
+.player-details__stat--wide {
+  grid-column: 1 / -1;
+}
+
+.player-details__stat-value small {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
 .player-details__stat {
   display: grid;
   gap: 2px;
@@ -542,6 +551,13 @@
   font-weight: 600;
 }
 
+.item-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .item-card__tag {
   display: inline-block;
   padding: 0 8px;
@@ -638,6 +654,53 @@
   gap: 3px;
   font-size: 0.86rem;
   font-weight: 800;
+}
+
+/* Energy left this turn: one pip per point. */
+.energy-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  cursor: help;
+}
+
+.energy-gauge__pip {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--cream-3);
+  transition:
+    background-color 200ms ease,
+    transform 200ms var(--ease-bounce);
+}
+
+.energy-gauge__pip.is-full {
+  background: var(--sky);
+  box-shadow: inset 0 -3px 0 var(--sky-deep);
+  transform: scale(1.08);
+}
+
+/* Blue while the gauge is full, orange at two points, red at the last one. */
+.energy-gauge--mid .energy-gauge__pip.is-full {
+  background: var(--orange);
+  box-shadow: inset 0 -3px 0 var(--orange-deep);
+}
+
+.energy-gauge--low .energy-gauge__pip.is-full {
+  background: var(--cup);
+  box-shadow: inset 0 -3px 0 var(--cup-deep);
+}
+
+.energy-gauge--large {
+  gap: 4px;
+}
+
+.energy-gauge--large .energy-gauge__pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
 }
 
 .action-dock__content {

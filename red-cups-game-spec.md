@@ -82,7 +82,7 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - Un déplacement normal va vers une case adjacente autorisée.
 - Sur une case fléchée, on sort uniquement par sa flèche ; ailleurs, toute route connectée se prend dans les deux sens (voir 3.1).
 - Les bifurcations laissent le choix au joueur entre les routes légales.
-- La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement.
+- La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement (1 point d’énergie, plus 1 gardé pour ce déplacement ; une seule par tour, voir 4).
 - Lorsqu’un joueur **termine son déplacement** sur une case verte ou rouge, il tourne la roue correspondante (bonheur ou malheur). Simplement passer dessus avec la Botte ne déclenche pas de roue.
 - Ordre de résolution à l’arrivée : Boue, puis Red Cup (avec ses passifs), puis la roue de la case.
 - Être téléporté par la Bouteille d’eau ou reculé par Calme-toi déclenche aussi la roue de la case d’arrivée.
@@ -154,17 +154,17 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 
 ## 4. Tours, actions et boutique
 
-Un tour suit ces phases :
+Depuis le patch 0.1.4, le tour repose sur l’**énergie**. Il suit ces phases :
 
-1. Le joueur actif annonce son action : se déplacer ou utiliser un objet.
-2. Si un autre joueur possède **Non merci** (rechargé : pas utilisé depuis 3 tours de table), une fenêtre de réaction s’ouvre : il peut annuler l’action ou la laisser passer.
-3. L’action s’applique. Pour un déplacement : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
+1. Le joueur actif commence son tour avec **3 points d’énergie** : la jauge se remplit à chaque tour.
+2. Il utilise d’abord ses objets, autant qu’il veut tant que l’énergie suffit : chaque objet coûte sa propre énergie (tableau en 6). Chaque objet annoncé peut passer par la fenêtre de **Non merci**.
+3. Puis il se déplace. Il faut au moins 1 point ; le déplacement prend toute l’énergie restante et met fin à ses actions. Un déplacement peut aussi passer par Non merci (rechargé : pas utilisé depuis 3 tours de table), qui peut l’annuler ou le laisser passer. Ensuite : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
 4. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
 5. Le joueur termine son tour. Si tous les joueurs ont alors 0 pièce ou moins, le **Tour de Bénédiction** a lieu d’abord (voir 4.1). Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
 
-Utiliser un objet est une action. Une seule action principale est faite par tour. L’achat est une phase spéciale autorisée après l’arrivée en boutique et ne remplace pas le déplacement. La Botte et la Boue sont des préparations : on les utilise avant son action (se déplacer ou utiliser un autre objet), une seule Boue par tour. La Gomme est une réaction à un effet de roue.
+Les objets ne terminent plus le tour : on en enchaîne plusieurs, puis on se déplace. On peut finir son tour sans bouger après avoir utilisé au moins un objet, quand il reste moins d’1 point d’énergie, ou quand aucune route n’est possible ; sinon il faut se déplacer (réponse de l’auteur ; en ligne, un tour passé sans rien faire coûtera aussi une chance, voir le chrono). La Botte coûte 1 point et en garde 1 pour le déplacement de deux cases : il faut donc 2 points pour la préparer, et une seule Botte par tour. Une seule Boue par tour. La Tomate, la Gomme et le Casque ne coûtent rien. Acheter ne coûte pas d’énergie : un objet acheté sert à partir du tour suivant. En Enfer, la roue de l’Enfer remplace le déplacement (voir 9.1). La Gomme est une réaction à un effet de roue.
 
-Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Depuis le patch 0.1.1, il sert une fois tous les 3 tours de table : utilisé au tour N, il revient au tour N + 3, quelles que soient les Red Cups. Une action annulée met fin au tour de l’acteur ; un objet annulé est perdu (règle confirmée). Seule exception : une Boue annulée est perdue mais, comme elle n’était pas l’action du tour, l’acteur joue encore. En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 15 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
+Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Depuis le patch 0.1.1, il sert une fois tous les 3 tours de table : utilisé au tour N, il revient au tour N + 3, quelles que soient les Red Cups. Un objet annulé est perdu avec son énergie (règle confirmée), mais depuis le patch 0.1.4 l’acteur continue son tour ; un déplacement annulé prend toute l’énergie restante et termine le tour. En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 15 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
 
 ### 4.1 Tour de Bénédiction (patch 0.1.1)
 
@@ -195,23 +195,24 @@ Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l�
 
 ## 6. Boutique et prix de départ
 
-Prix rééquilibrés par l’auteur au patch 0.1.4. Ils sont configurés séparément pour pouvoir être ajustés.
+Prix rééquilibrés et coûts en énergie fixés par l’auteur au patch 0.1.4. Ils sont configurés séparément pour pouvoir être ajustés.
 
-| Objet | Prix |
-| --- | ---: |
-| Ndoye | 250 |
-| Hollow Purple | 600 |
-| Corde | 400 |
-| Botte | de 100 à 400 |
-| Boue | 200 |
-| Tomate | 10 |
-| Gomme | 200 |
-| Bullet Bill | 550 |
-| Middle Finger | 400 |
-| Monopoly Man | 600 |
-| Bouteille d’eau | 600 |
-| Casque | 200 |
-| Draven | 700 |
+| Objet | Prix | Énergie |
+| --- | ---: | ---: |
+| Ndoye | 250 | 2 |
+| Hollow Purple | 600 | 3 |
+| Corde | 400 | 2 |
+| Botte | de 100 à 400 | 1 (+1 gardé) |
+| Boue | 200 | 1 |
+| Tomate | 10 | 0 |
+| Gomme | 200 | 0 |
+| Bullet Bill | 550 | 2 |
+| Middle Finger | 400 | 2 |
+| Monopoly Man | 600 | 3 |
+| Bouteille d’eau | 600 | 3 |
+| Casque | 200 | 0 |
+| Draven | 700 | 3 |
+| Déplacement | — | tout ce qui reste |
 
 Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table après son premier achat, jusqu’au plafond de 400 pièces (500 avant le patch 0.1.4). L’affichage et le moment exact de cette hausse sont configurés dans les règles de partie.
 
@@ -222,14 +223,14 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Ndoye | Fait tourner la roue du malheur pour une cible, soi-même compris. |
 | Hollow Purple | Envoie un joueur en Enfer ; peut cibler son utilisateur. |
 | Corde | Rapproche un autre joueur de l’utilisateur, jusqu’à sa position. Baraqué réduit la distance de déplacement imposée de moitié. Ni roue ni boutique pour ce déplacement. |
-| Botte | Permet de se déplacer de deux cases au lieu d’une ; à utiliser avant le déplacement. Son prix augmente comme décrit plus haut. |
-| Boue | Se pose sur la case de l’utilisateur, avant son action : il peut ensuite se déplacer (ou utiliser un autre objet) dans le même tour. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
+| Botte | Permet de se déplacer de deux cases au lieu d’une ; à préparer avant le déplacement, pour 1 point d’énergie, en gardant 1 point pour ce déplacement. Une seule par tour. Son prix augmente comme décrit plus haut. |
+| Boue | Se pose sur la case de l’utilisateur, avant son déplacement, pour 1 point d’énergie. Une seule Boue par tour. Le prochain joueur qui y entre perd 200 pièces et 100 pièces reviennent au poseur, sauf si c’est le poseur lui-même qui marche dedans. |
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
-| Bullet Bill | N’appartient à personne. Dès l’achat, il attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance d’une seule case par charge (patch 0.1.4) : seule une cible sur la case voisine, ou sur sa propre case, est touchée. Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
+| Bullet Bill | S’achète comme un objet et se lance depuis le sac pendant son tour, pour 2 points d’énergie, s’il n’y en a pas déjà un sur le plateau (patch 0.1.4 ; avant, il partait dès l’achat). Lancé, il n’appartient à personne et attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance d’une seule case par charge (patch 0.1.4) : seule une cible sur la case voisine, ou sur sa propre case, est touchée. Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
 | Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
-| Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant l’action du tour : elle ne compte pas comme une action et on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans **une seule** place du sac. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
+| Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant son déplacement et sans énergie : on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans une place du sac. Depuis le patch 0.1.4, une pile compte comme un exemplaire : deux piles au plus (comme deux exemplaires de tout objet), et on ne lance que d’**une seule pile par tour**, soit 5 Tomates au plus. Une Tomate gratuite de la roue arrive en nouvelle pile de 5 quand le sac a la place. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. |
 
@@ -257,7 +258,7 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 ### 9.1 Enfer
 
 - La case 11 représente l’Enfer.
-- Un joueur en Enfer ne suit pas le déplacement normal. À son tour, il tourne la roue de l’Enfer jusqu’à sa libération.
+- Un joueur en Enfer ne suit pas le déplacement normal. À son tour, il tourne la roue de l’Enfer jusqu’à sa libération. Depuis le patch 0.1.4, cette roue remplace le déplacement : il faut au moins 1 point d’énergie, elle prend le reste, et ses objets passent avant. Envoyé en Enfer pendant son propre tour, un joueur à qui il reste de l’énergie peut tourner la roue tout de suite ; ce tour compte alors dans sa peine.
 - Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 avec le bonus de 200 pièces du départ (sauf **Je suis Cups**, patch 0.1.3) ; le perdant y reste.
 - Certains effets spéciaux peuvent aussi faire sortir de l’Enfer. La Bouteille d’eau en est un exemple ; une roue positive peut en devenir un autre.
 - Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 avec le bonus du départ et le perdant reste en Enfer.
@@ -370,8 +371,10 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Boue** : plus épaisse, cernée d’encre, posée sur le dessus de la case (elle monte avec la case surlignée) ; la pastille du numéro s’affiche sur une case boueuse.
 - **Son d’achat** : une caisse enregistreuse, sans le son de perte d’argent.
 - **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
+- **Énergie** : 3 points par tour. Les objets coûtent de 0 à 3 points et ne terminent plus le tour ; le déplacement (ou la roue de l’Enfer) demande au moins 1 point et prend le reste. La Botte coûte 1 point et en garde 1 pour bouger. Jauge dans le dock et sur la fiche de chaque joueur, bleue pleine, orange à 2 points, rouge au dernier ; coûts affichés dans la boutique, le sac et l’aide (voir 4).
+- **Tomates** : une pile compte comme un exemplaire, deux piles au plus, une seule pile lancée par tour.
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
-- **Bullet Bill** : une seule case par charge.
+- **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.
 - **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 

@@ -1,7 +1,9 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
+import { launchBulletBill } from "./bullet-bill";
 import { drawSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
+import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
   addRedGreenBonuses,
   addStartBonus,
@@ -37,9 +39,10 @@ import {
 } from "./types";
 
 /**
- * The two actions a player can take on their turn — moving or using an item —
- * split into "plan" (validation, no change) and "apply" (effects), so the
- * Non merci reaction window can sit in between.
+ * What a player does on their turn — use items, then move — split into "plan"
+ * (validation, no change) and "apply" (effects), so the Non merci reaction
+ * window can sit in between. Items cost energy and leave the turn going; the
+ * move takes the energy left and ends it.
  */
 
 export interface MovePlan {
@@ -50,7 +53,7 @@ export interface MovePlan {
 
 export function planMove(state: GameState, destination: NodeId, ignoreArrows: boolean): MovePlan | null {
   const player = getActivePlayer(state);
-  if (state.phase !== "playing" || state.turnStage !== "move" || !player) return null;
+  if (state.phase !== "playing" || state.turnStage !== "move" || !player || !canAffordMove(state)) return null;
 
   const board = getBoard(state);
   const regularPath = findLegalPath(board, player, destination, state.moveDistance, false);
@@ -110,9 +113,8 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   if (earnsStartBonus(board, player.position, path)) nextState = addStartBonus(nextState, player.id);
 
   nextState = {
-    ...nextState,
+    ...spendAllEnergy(nextState),
     moveDistance: 1,
-    turnActionTaken: true,
     turnStage: interruptedTo === null ? getArrivalStage(state, destination) : "turn-end",
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
@@ -154,27 +156,17 @@ export interface ItemPlan {
   count: number;
 }
 
-/** Items that are not "used" as an action: they react or trigger on their own. */
-const NON_ACTION_ITEMS: ItemId[] = ["eraser", "helmet", "bullet-bill", "boot"];
-
-/**
- * Laid before the turn's action, like the Botte is prepared: the player may
- * still move or use another item afterwards, but lays one mud per turn.
- */
-const PREPARATION_ITEMS: ItemId[] = ["mud"];
+/** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
+const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot"];
 
 /** Pulled by the Corde or swapped by the Monopoly Man: moved, but nobody spins a wheel for it. */
 const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
 
 /**
- * Thrown before the turn's action and as often as the stack allows, without
- * using the action up or going through Non merci: the Tomate is only for fun.
+ * Thrown for free and as often as the stack allows, without going through
+ * Non merci: the Tomate is only for fun.
  */
 const THROWN_ITEMS: ItemId[] = ["tomato"];
-
-function isPreparationItem(itemId: ItemId): boolean {
-  return PREPARATION_ITEMS.includes(itemId);
-}
 
 export function isThrownItem(itemId: ItemId): boolean {
   return THROWN_ITEMS.includes(itemId);
@@ -193,13 +185,17 @@ export function planItemUse(
   if (state.turnStage !== (inHell ? "hell" : "move")) return null;
 
   const itemId = getItemEntry(player, entryId);
-  if (!itemId || NON_ACTION_ITEMS.includes(itemId)) return null;
+  if (!itemId || NOT_USED_FROM_BAG.includes(itemId) || !canAffordItem(state, itemId)) return null;
   if (itemId === "water-bottle" && !inHell) return null;
   // Nobody walks into Hell, so mud placed there could never be stepped on.
   if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
+  // A single Bullet Bill flies at a time.
+  if (itemId === "bullet-bill" && state.bulletBill) return null;
 
   // Only a stack can be thrown several at a time, and never more than it holds.
   const entry = player.inventory.find((candidate) => candidate.id === entryId);
+  // A stack counts as one item: the Tomates of a turn all come from the same one.
+  if (isThrownItem(itemId) && state.thrownStackId !== null && state.thrownStackId !== entryId) return null;
   const count = isThrownItem(itemId) && entry ? requestedCount : 1;
   if (!Number.isInteger(count) || count < 1 || (entry && count > getEntryUnits(entry))) return null;
 
@@ -217,19 +213,20 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   if (!player) return state;
   const { itemId, target, count } = plan;
 
-  let nextState = state;
+  // The turn goes on in the stage it was in: more items, then the move.
+  let nextState = spendEnergy(state, getItemEnergyCost(itemId));
   for (let spent = 0; spent < count; spent += 1) {
     nextState = updatePlayer(nextState, player.id, (currentPlayer) => spendItemEntry(currentPlayer, entryId));
   }
-  if (isPreparationItem(itemId)) nextState = { ...nextState, mudPlacedThisTurn: true };
-  else if (!isThrownItem(itemId)) nextState = { ...nextState, turnActionTaken: true, turnStage: "turn-end" };
+  if (itemId === "mud") nextState = { ...nextState, mudPlacedThisTurn: true };
+  if (isThrownItem(itemId)) nextState = { ...nextState, thrownStackId: entryId };
 
   switch (itemId) {
     case "ndoye":
       if (!target) return state;
       nextState = addLog(nextState, `${player.name} active Ndoye sur ${target.name}.`, "event");
       // Je note copies Ndoye when the wheel resolves, through the wheel's source item.
-      return startWheel(nextState, "misfortune", target.id, "turn-end", { sourceItemId: "ndoye", origin: "item" });
+      return startWheel(nextState, "misfortune", target.id, state.turnStage, { sourceItemId: "ndoye", origin: "item" });
 
     case "hollow-purple":
       if (!target) return state;
@@ -241,6 +238,15 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       if (!target) return state;
       nextState = pullWithRope(nextState, player, target);
       nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      break;
+
+    case "bullet-bill":
+      nextState = launchBulletBill(nextState);
+      nextState = addLog(
+        nextState,
+        `${player.name} lance Bullet Bill : il attend au départ et fonce au prochain tour.`,
+        "event",
+      );
       break;
 
     case "mud":
@@ -396,23 +402,25 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
     noThanksReadyRound: state.round + NO_THANKS_COOLDOWN_ROUNDS,
   }));
   const { action } = pending;
-  if (action.type === "item" && CANCELLED_ITEM_IS_CONSUMED) {
-    nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
+
+  // A cancelled item is lost with its energy, but the actor's turn goes on: other items, then the move.
+  if (action.type === "item") {
+    if (CANCELLED_ITEM_IS_CONSUMED) {
+      nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
+    }
+    nextState = {
+      ...spendEnergy(nextState, getItemEnergyCost(action.itemId)),
+      pendingReaction: null,
+      turnStage: pending.resumeStage,
+      ...(action.itemId === "mud" ? { mudPlacedThisTurn: true } : {}),
+    };
+    const cancelled =
+      action.itemId === "mud" ? `la Boue de ${actor.name} est perdue` : `l’action de ${actor.name} est annulée`;
+    return addLog(nextState, `${reactor.name} utilise Non merci : ${cancelled}.`, "event");
   }
 
-  // A cancelled mud is lost, but it was never the turn's action: the actor still gets to play.
-  if (action.type === "item" && isPreparationItem(action.itemId)) {
-    nextState = { ...nextState, pendingReaction: null, turnStage: pending.resumeStage, mudPlacedThisTurn: true };
-    return addLog(nextState, `${reactor.name} utilise Non merci : la Boue de ${actor.name} est perdue.`, "event");
-  }
-
-  nextState = {
-    ...nextState,
-    pendingReaction: null,
-    turnStage: "turn-end",
-    moveDistance: 1,
-    turnActionTaken: true,
-  };
+  // A cancelled move still took the energy left: the turn is over.
+  nextState = { ...spendAllEnergy(nextState), pendingReaction: null, turnStage: "turn-end", moveDistance: 1 };
   return addLog(nextState, `${reactor.name} utilise Non merci : l’action de ${actor.name} est annulée.`, "event");
 }
 

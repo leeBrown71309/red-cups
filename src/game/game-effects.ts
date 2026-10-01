@@ -3,6 +3,7 @@ import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, isIce, type B
 import { blowBlizzard, isBlizzardRound } from "./ice";
 import { advanceBulletBill } from "./bullet-bill";
 import { createDuel, getDuelModes } from "./duel-setup";
+import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
@@ -563,9 +564,11 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
     activePlayerIndex: nextIndex,
     round: nextRound,
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
+    energyLeft: getEnergyCapacity(activePlayer),
     turnActionTaken: false,
     moveDistance: 1,
     mudPlacedThisTurn: false,
+    thrownStackId: null,
     blessingQueue: [],
     pendingWheel: null,
     pendingChallenge: null,

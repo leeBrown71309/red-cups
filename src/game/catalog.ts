@@ -8,7 +8,12 @@ export interface ItemDefinition {
   /** A general description, for the shop, the bag, How to play and the target picker. */
   description: string;
   target: "self" | "player" | "none" | "special";
-  /** Stackable items pile up to this many in a single bag slot, and only one slot may hold them. */
+  /** Energy spent to use it on your turn; nothing for the items that trigger on their own. */
+  energyCost: number;
+  /**
+   * Stackable items pile up to this many in a bag slot. Each stack counts as
+   * one copy, and only one stack is thrown from per turn.
+   */
   stackLimit?: number;
   /** Only meaningful for player-targeted items. */
   canTargetSelf?: boolean;
@@ -22,6 +27,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "◉",
     description: "Fait tourner la roue du malheur à un joueur, toi compris.",
     target: "player",
+    energyCost: 2,
     canTargetSelf: true,
   },
   "hollow-purple": {
@@ -31,6 +37,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✦",
     description: "Envoie un joueur en Enfer. Peut te cibler.",
     target: "player",
+    energyCost: 3,
     canTargetSelf: true,
   },
   rope: {
@@ -40,22 +47,27 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "↝",
     description: "Attire un autre joueur sur ta case, sans roue ni boutique pour lui.",
     target: "player",
+    energyCost: 2,
   },
   boot: {
     id: "boot",
     name: "Botte",
     price: 100,
     symbol: "⇢",
-    description: "Avant de bouger : ton déplacement fait exactement deux cases. Son prix monte à chaque tour de table.",
+    description:
+      "Avant de bouger : ton déplacement fait exactement deux cases, et garde 1 point d’énergie pour lui. " +
+      "Son prix monte à chaque tour de table.",
     target: "special",
+    energyCost: 1,
   },
   mud: {
     id: "mud",
     name: "Boue",
     price: 200,
     symbol: "●",
-    description: "Pose-la sur ta case puis joue ton tour : qui s’y arrête perd 200 pièces et t’en donne 100.",
+    description: "Pose-la sur ta case avant de bouger : qui s’y arrête perd 200 pièces et t’en donne 100.",
     target: "self",
+    energyCost: 1,
   },
   eraser: {
     id: "eraser",
@@ -64,6 +76,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "⌫",
     description: "Annule le résultat d’une roue tournée pour toi, bon ou mauvais.",
     target: "special",
+    energyCost: 0,
   },
   "bullet-bill": {
     id: "bullet-bill",
@@ -71,8 +84,10 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     price: 550,
     symbol: "➤",
     description:
-      "Attend au départ, puis fonce sur le joueur le plus proche à chaque tour de table : sa victime perd 200 pièces et un tour.",
-    target: "special",
+      "Lance-le depuis ton sac : il attend au départ, puis fonce sur le joueur le plus proche à chaque tour de " +
+      "table. Sa victime perd 200 pièces et un tour.",
+    target: "none",
+    energyCost: 2,
   },
   "middle-finger": {
     id: "middle-finger",
@@ -81,6 +96,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✋",
     description: "Fait passer le prochain tour d’un joueur. Peut te cibler.",
     target: "player",
+    energyCost: 2,
     canTargetSelf: true,
   },
   "monopoly-man": {
@@ -90,6 +106,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "⇄",
     description: "Échange ta position avec celle d’un autre joueur, sans roue ni boutique.",
     target: "player",
+    energyCost: 3,
   },
   "water-bottle": {
     id: "water-bottle",
@@ -98,6 +115,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "♧",
     description: "En Enfer seulement : te téléporte sur une case au hasard.",
     target: "special",
+    energyCost: 3,
   },
   helmet: {
     id: "helmet",
@@ -106,6 +124,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "⬡",
     description: "S’active tout seul pour éviter un solde négatif.",
     target: "special",
+    energyCost: 0,
   },
   draven: {
     id: "draven",
@@ -114,14 +133,18 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✹",
     description: "Envoie tout le monde en Enfer, toi compris.",
     target: "self",
+    energyCost: 3,
   },
   tomato: {
     id: "tomato",
     name: "Tomate",
     price: 10,
     symbol: "✺",
-    description: "Lance-la sur un joueur pour rire, avant ton action : 2 chances sur 100 de l’assommer un tour.",
+    description:
+      "Lance-la sur un joueur pour rire, sans énergie : 2 chances sur 100 de l’assommer un tour. " +
+      "5 par pile, une seule pile lancée par tour.",
     target: "player",
+    energyCost: 0,
     stackLimit: 5,
   },
 };

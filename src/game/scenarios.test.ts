@@ -3,6 +3,7 @@ import { isRestorableGame, migrateGameSave, pickGameState } from "./game-save";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
 import {
+  BASE_ENERGY,
   EMPTY_GAME_STATE,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
@@ -74,13 +75,25 @@ describe("Non merci reaction window", () => {
     store().resolveReaction(store().players[1].id);
 
     for (const round of [2, 3]) {
-      useGameStore.setState({ round, redCupCycle: round, turnStage: "move", activePlayerIndex: 0 });
+      useGameStore.setState({
+        round,
+        redCupCycle: round,
+        turnStage: "move",
+        activePlayerIndex: 0,
+        energyLeft: BASE_ENERGY,
+      });
       editPlayer(0, { position: 0 });
       store().movePlayer(4);
+      expect(store().players[0].position).toBe(4);
       expect(store().turnStage).not.toBe("reaction");
     }
 
-    useGameStore.setState({ round: 1 + NO_THANKS_COOLDOWN_ROUNDS, turnStage: "move", activePlayerIndex: 0 });
+    useGameStore.setState({
+      round: 1 + NO_THANKS_COOLDOWN_ROUNDS,
+      turnStage: "move",
+      activePlayerIndex: 0,
+      energyLeft: BASE_ENERGY,
+    });
     editPlayer(0, { position: 0 });
     store().movePlayer(4);
     expect(store().turnStage).toBe("reaction");
@@ -205,7 +218,8 @@ describe("tile wheels after being moved by someone else", () => {
 
     expect(store().players[1].position).toBe(4);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    // The turn goes on: the Corde cost 2 of the 3 points, one is left to move.
+    expect(store().turnStage).toBe("move");
   });
 
   it("gives neither player a wheel nor the shop after a Monopoly Man swap", () => {
@@ -217,7 +231,7 @@ describe("tile wheels after being moved by someone else", () => {
 
     expect(store().players.map((player) => player.position)).toEqual([9, 5]);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    expect(store().turnStage).toBe("move");
   });
 
   it("still spins the wheel when the Bouteille d’eau lands on a colored tile", () => {
@@ -238,7 +252,7 @@ describe("tile wheels after being moved by someone else", () => {
     editPlayer(1, { position: 4 });
     store().useItem("purple-1", store().players[1].id);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    expect(store().turnStage).toBe("move");
   });
 });
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGameStore } from "./store";
-import { DELINQUENT_COST } from "./types";
+import { BASE_ENERGY, DELINQUENT_COST } from "./types";
 
 function startDeterministicGame(): void {
   useGameStore.getState().startGame(["Ada", "Benoît"]);
@@ -145,7 +145,8 @@ describe("Red Cups game store", () => {
     const player = useGameStore.getState().players[0];
     expect(player.position).not.toBe(11);
     expect(player.inventory).toHaveLength(0);
-    expect(useGameStore.getState().turnStage).toBe("turn-end");
+    // The bottle took all three points: out of Hell, the player can only end the turn.
+    expect(useGameStore.getState()).toMatchObject({ turnStage: "move", energyLeft: 0 });
   });
 
   it("sends Draven’s table to Hell and resolves the winner back to case 0", () => {
@@ -181,14 +182,14 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
 
     // 4 → 0 walks against the start's arrow, but 4 carries no arrow: free, and no start bonus either.
-    useGameStore.setState({ turnStage: "move" });
+    useGameStore.setState({ turnStage: "move", energyLeft: BASE_ENERGY });
     useGameStore.getState().movePlayer(0, true);
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
     expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(false);
 
     // Tile 3 must be left towards 6: reaching 4 from it really ignores an arrow.
     placeActivePlayer(3);
-    useGameStore.setState({ turnStage: "move" });
+    useGameStore.setState({ turnStage: "move", energyLeft: BASE_ENERGY });
     useGameStore.getState().movePlayer(4, true);
     const player = useGameStore.getState().players[0];
     expect(player.position).toBe(4);

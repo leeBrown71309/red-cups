@@ -2,11 +2,11 @@ import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middl
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
 import type { GameState, GhostState } from "./types";
 import { isMapId } from "./maps/map-registry";
-import { EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
+import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 12;
+export const GAME_SAVE_VERSION = 13;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -71,7 +71,9 @@ type SaveRecord = Record<string, unknown>;
  * Version 9 added the Basket duel and the Luna Park ghost, which a game saved
  * before shows a round later. Version 10 added the Tomate's last throw,
  * version 11 the Banquise snowballs. Version 12 (patch 0.1.4) added each
- * player's previous tile and the step forward of the wheel of fortune.
+ * player's previous tile and the step forward of the wheel of fortune,
+ * version 13 the energy of the turn (a game saved before goes on with a
+ * full gauge) and the Tomate stack thrown from this turn.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -105,11 +107,13 @@ function upgradeSave(save: SaveRecord): SaveRecord {
         }
       : null,
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
+    thrownStackId: save.thrownStackId ?? null,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],
     winReason: save.winReason ?? null,
     pendingAdvance: save.pendingAdvance ?? null,
+    energyLeft: save.energyLeft ?? BASE_ENERGY,
     players: players.map(({ noThanksUsedCycle: _replaced, ...player }) => ({
       ...player,
       hellTurns: player.hellTurns ?? 0,

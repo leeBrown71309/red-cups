@@ -1,6 +1,6 @@
 import { getBoardNode, getPathsOfLength, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { getEntryUnits } from "./state-utils";
+import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
@@ -30,34 +30,34 @@ export function countItemUnits(player: Player, itemId: ItemId): number {
     .reduce((total, entry) => total + getEntryUnits(entry), 0);
 }
 
+/** At most two copies of an item, a single Gomme: whether one more slot of it may be filled. */
+function isWithinCopyLimit(player: Player, itemId: ItemId): boolean {
+  const copies = countItemCopies(player, itemId);
+  return itemId === "eraser" ? copies < 1 : copies < 2;
+}
+
+/** Whether the item may take a slot of its own: room in the bag, within the copy limits. */
+export function canStartNewSlot(player: Player, itemId: ItemId): boolean {
+  return getOpenInventorySlots(player) > 0 && isWithinCopyLimit(player, itemId);
+}
+
 /**
- * At most two copies of an item and a single Gomme; a stackable item (the
- * Tomate) fills one slot only, up to its limit.
+ * At most two copies of an item and a single Gomme. A stackable item (the
+ * Tomate) piles up to its limit in a slot, and each stack counts as one copy:
+ * two stacks at most (patch 0.1.4).
  */
 export function canAddItem(player: Player, itemId: ItemId): boolean {
-  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
-  if (stackLimit) {
-    const units = countItemUnits(player, itemId);
-    return units > 0 ? units < stackLimit : getOpenInventorySlots(player) > 0;
-  }
-  if (getOpenInventorySlots(player) === 0) return false;
-  const itemCount = countItemCopies(player, itemId);
-  if (itemId === "eraser" && itemCount >= 1) return false;
-  return itemCount < 2;
+  return findStackWithRoom(player, itemId) !== undefined || canStartNewSlot(player, itemId);
 }
 
 /**
  * Whether an item handed to the player (Je note, the ghost's loot) can end up
  * in the bag, once an ordinary item is thrown away to make room. The copy
- * limits hold whatever is thrown away, and so does a stack of Tomates: a
- * discard frees a slot, not a place in the stack.
+ * limits hold whatever is thrown away.
  */
 export function canReceiveItem(player: Player, itemId: ItemId): boolean {
   if (canAddItem(player, itemId)) return true;
-  const copies = countItemCopies(player, itemId);
-  if (ITEM_CATALOG[itemId].stackLimit && copies > 0) return false;
-  if (copies >= 2 || (itemId === "eraser" && copies >= 1)) return false;
-  return player.inventory.some((entry) => entry.kind === "item");
+  return isWithinCopyLimit(player, itemId) && player.inventory.some((entry) => entry.kind === "item");
 }
 
 export function getLegalMoveOptions(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
