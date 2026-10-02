@@ -532,7 +532,8 @@ Les bots jouent maintenant chaque carte à part, à toutes les tables possibles 
 7. **À valider** — Une glissade dont toutes les routes ont déjà été parcourues (long trajet du Roller, Botte) s’arrête sur la première sans glace ; dans un cul-de-sac (Corrupteur qui entre en 4 contre la flèche 4 → 0, gelée), elle repart en arrière, et la flèche 4 → 0 paie alors le départ.
 8. **À valider** — Un joueur pris dans la glace et déplacé (Corde, échange, Enfer) perd sa glissade aussitôt, même s’il revient plus tard sur la case où il était pris.
 9. **À valider** — Pris par la tombée de glace pendant son propre tour après « Avance d’une case », un joueur termine son tour, comme après une marche.
-10. **À valider** — Les bots achètent d’abord les objets de leur rôle (boutique du diable, Made In Heaven, Bouclier), pour que ces objets soient bien testés ; cela ne change que les bots, pas les règles.
+10. **À valider** — L'Ange-Gardien qui reprend la place de son protégé en Enfer compte comme une entrée en Enfer pour le diable, que le protégé ait abandonné ou déclaré forfait.
+11. **À valider** — Les bots achètent d’abord les objets de leur rôle (boutique du diable, Made In Heaven, Bouclier), pour que ces objets soient bien testés ; cela ne change que les bots, pas les règles.
 
 ## 14. Historique des versions
 
