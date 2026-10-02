@@ -1,4 +1,5 @@
 import { getBoard, getShortestPath } from "./board";
+import { isImmuneToItems } from "./passive-rules";
 import { canUseNoThanks } from "./rules";
 import { addLog, applyCurrencyChange, updatePlayer } from "./state-utils";
 import type { BulletFlight, GameState, NodeId, Player, PlayerId } from "./types";
@@ -22,11 +23,14 @@ interface ChaseTarget {
   path: NodeId[];
 }
 
-/** Arrows do not bind a projectile; players in Hell are out of its reach. Ties go to the first seat. */
+/**
+ * Arrows do not bind a projectile; players in Hell are out of its reach, and
+ * Chance aveugle is never chased. Ties go to the first seat.
+ */
 function findNearestTarget(state: GameState, from: NodeId): ChaseTarget | undefined {
   const board = getBoard(state);
   return state.players
-    .filter((player) => player.position !== HELL_NODE_ID)
+    .filter((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player))
     .map((player) => ({ player, path: getShortestPath(board, from, player.position, true) }))
     .filter((entry): entry is ChaseTarget => entry.path !== null)
     .sort((left, right) => left.path.length - right.path.length)[0];

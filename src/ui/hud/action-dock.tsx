@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { resolveBoard } from "../../game/board";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
+import { formatGambleAmount } from "../../game/gamble";
 import { getTileWheel } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
@@ -186,6 +187,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
     }
     case "passive-choice":
       return <CalmDownContent />;
+    case "gamble":
+      return <GambleContent />;
     case "target":
       return <DockPrompt title="Duel en vue" hint="Choisis l’adversaire qui te rejoint en Enfer." />;
     case "discard":
@@ -434,6 +437,34 @@ function CalmDownContent() {
       </div>
       <button type="button" className="btn btn--cream" onClick={() => resolveCalmDown(null)}>
         Laisser passer
+      </button>
+    </DockPrompt>
+  );
+}
+
+/** Double or nothing: the holder stakes a gain or a loss of coins on a coin flip, or keeps it. */
+function GambleContent() {
+  const gamble = useGameStore((state) => state.pendingGambles[0]);
+  const players = useGameStore((state) => state.players);
+  const resolveGamble = useGameStore((state) => state.resolveGamble);
+  const holder = players.find((player) => player.id === gamble?.playerId);
+  if (!gamble) return null;
+  const gain = gamble.amount > 0;
+
+  return (
+    <DockPrompt
+      title={`${holder?.name ?? "Double or nothing"} : ${formatGambleAmount(gamble.amount)}`}
+      hint={
+        gain
+          ? "Double or nothing : une chance sur deux que ce gain double, sinon il est annulé."
+          : "Double or nothing : une chance sur deux que cette perte soit annulée, sinon elle double."
+      }
+    >
+      <button type="button" className="btn btn--cup" onClick={() => resolveGamble(true)} data-autofocus>
+        <UiIcon name="sparkle" size={20} /> Tenter le 50/50
+      </button>
+      <button type="button" className="btn btn--cream" onClick={() => resolveGamble(false)}>
+        Garder
       </button>
     </DockPrompt>
   );

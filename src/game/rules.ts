@@ -3,7 +3,14 @@ import { ITEM_CATALOG } from "./catalog";
 import { getCopyLimit, getMudPrice, shopsAnywhere } from "./passive-rules";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
-import { BASE_INVENTORY_CAPACITY, CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
+import {
+  BASE_INVENTORY_CAPACITY,
+  CORRUPTER_COST,
+  FIRST_ROUND,
+  HELL_NODE_ID,
+  MADE_IN_HEAVEN_CUP_NODE_ID,
+  START_NODE_ID,
+} from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
@@ -133,6 +140,11 @@ export function getItemPrice(itemId: ItemId, bootPrice: number, buyer?: Player):
   return ITEM_CATALOG[itemId].price;
 }
 
+/** Made In Heaven is only sold while the Red Cup stands away from the tile it would set it down on. */
+export function isOnSale(state: Pick<GameState, "redCupNodeId">, itemId: ItemId): boolean {
+  return itemId !== "made-in-heaven" || state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
+}
+
 /** A blue tile opens the shop; for eShop, any tile does. */
 export function opensShop(board: Board, player: Player): boolean {
   return isShopNode(board, player.position) || shopsAnywhere(player);
@@ -159,14 +171,15 @@ export function hasTurnMove(state: GameState, player: Player, ignoreArrows = fal
 
 /**
  * Player who must act right now: usually the active one, except for New Cup,
- * New Me, Calme-toi, a step forward won on a wheel, a tile wheel owed by
- * someone who was teleported or pushed there, and the next spinner of a Tour
- * de Bénédiction.
+ * New Me, Calme-toi, Double or nothing, a step forward won on a wheel, a tile
+ * wheel owed by someone who was teleported or pushed there, and the next
+ * spinner of a Tour de Bénédiction.
  */
 export function getDecidingPlayer(state: GameState): Player | undefined {
   const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
     reposition: state.pendingCupRepositionPlayerId,
     "passive-choice": state.pendingCalmDown?.passivePlayerId,
+    gamble: state.pendingGambles[0]?.playerId,
     advance: state.pendingAdvance?.playerId,
     "tile-wheel": state.pendingTileWheels[0]?.playerId,
     blessing: state.blessingQueue[0],

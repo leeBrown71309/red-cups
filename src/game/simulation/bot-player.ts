@@ -1,12 +1,12 @@
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
-import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
+import { ITEM_CATALOG } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
-import { canBuyItemKind } from "../passive-rules";
-import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions } from "../rules";
+import { canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
+import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
@@ -120,24 +120,29 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
     return endTurnAction("end-turn-stuck");
   }
 
-  const chaseCup = random() < 0.55;
+  // Chance aveugle cannot see the Red Cup to chase it.
+  const chaseCup = !isBlindToRedCup(player) && random() < 0.55;
   const destination = chaseCup
     ? [...regular].sort((left, right) => distanceToCup(store, left) - distanceToCup(store, right))[0]
     : pick(regular, random)!;
   return { label: "move", perform: (current) => current.movePlayer(destination) };
 }
 
+/** Voleur: now and then, a theft rather than a purchase. */
+const THEFT_CHANCE = 0.3;
+
 function chooseShopping(store: GameStore, random: Random): BotAction {
   const player = getActivePlayer(store);
-  const affordable = player
-    ? ITEM_ORDER.filter(
-        (itemId) =>
-          player.currency >= getItemPrice(itemId, store.bootPrice, player) &&
-          canAddItem(player, itemId) &&
-          canBuyItemKind(player, itemId),
+  const onShelf = player
+    ? getShopItems(player).filter(
+        (itemId) => canAddItem(player, itemId) && canBuyItemKind(player, itemId) && isOnSale(store, itemId),
       )
     : [];
 
+  const loot = player?.passiveId === "thief" && !store.theftAttempted ? pick(onShelf, random) : undefined;
+  if (loot && random() < THEFT_CHANCE) return { label: `steal:${loot}`, perform: (current) => current.stealItem(loot) };
+
+  const affordable = onShelf.filter((itemId) => player!.currency >= getItemPrice(itemId, store.bootPrice, player));
   const itemId = pick(affordable, random);
   if (itemId && random() < 0.55) return { label: `buy:${itemId}`, perform: (current) => current.buyItem(itemId) };
   return endTurnAction("end-turn");
@@ -256,6 +261,11 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       const nodeId = walker ? pick(getForwardTiles(store, walker), random) : undefined;
       if (nodeId === undefined) return null;
       return { label: "advance", perform: (current) => current.advanceOneTile(nodeId) };
+    }
+
+    case "gamble": {
+      const accept = random() < 0.5;
+      return { label: `gamble:${accept ? "stake" : "keep"}`, perform: (current) => current.resolveGamble(accept) };
     }
 
     case "passive-choice": {

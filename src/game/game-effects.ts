@@ -7,7 +7,7 @@ import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
-import { getMudOwnerReward } from "./passive-rules";
+import { getMudOwnerReward, isImmuneToItems } from "./passive-rules";
 import { endGame } from "./victory";
 import {
   canAddItem,
@@ -29,7 +29,7 @@ import {
   placeInHell,
   updatePlayer,
 } from "./state-utils";
-import type { DuelMode, GameState, ItemId, NodeId, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
+import type { DuelMode, GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
 import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
@@ -452,14 +452,17 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
  * d’où tu viens », « Va au Départ ») is an arrival, like the end of a walk:
  * the tile's wheel is queued, its mud and Red Cup apply, and the ghost meets
  * the player when the board settles. The shop opens through the stage given
- * by `getWheelArrivalStage`.
+ * by `getWheelArrivalStage`. `cameFrom` is the tile stepped in from, when the
+ * player stepped rather than being set down.
  */
-export function arriveOnTile(state: GameState, playerId: PlayerId): GameState {
+export function arriveOnTile(state: GameState, playerId: PlayerId, cameFrom: NodeId | null = null): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   let nextState = queueTileWheel(state, playerId);
-  nextState = triggerMud(nextState, playerId, player.position);
+  nextState = triggerMud(nextState, playerId, player.position, cameFrom);
+  // Chance aveugle may have stepped back out of the mud.
+  if (findPlayer(nextState, playerId)?.position !== player.position) return nextState;
   if (nextState.redCupNodeId !== player.position) return nextState;
   return collectCupOrRequestDiscard(nextState, playerId, player.position);
 }
@@ -495,12 +498,18 @@ export function stealFromKnockedOut(state: GameState, playerId: PlayerId): GameS
   return nextState;
 }
 
-export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
+/**
+ * Stopping in mud costs the player and pays its owner, then the mud is gone.
+ * Chance aveugle loses nothing (and pays nobody): they step back to
+ * `cameFrom`, the tile they stepped in from, or stay when they were set down.
+ */
+export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId, cameFrom: NodeId | null): GameState {
   const trap = state.mudTraps.find((candidate) => candidate.nodeId === nodeId);
   const player = findPlayer(state, playerId);
   if (!trap || !player) return state;
 
   let nextState: GameState = { ...state, mudTraps: state.mudTraps.filter((candidate) => candidate.id !== trap.id) };
+  if (isImmuneToItems(player)) return stepBackFromMud(nextState, player, cameFrom);
   nextState = addLog(nextState, `${player.name} tombe dans la Boue.`, "bad");
   nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
   // Stepping in your own mud pays nobody.
@@ -511,6 +520,19 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
     nextState = applyCurrencyChange(nextState, owner.id, reward);
   }
   return nextState;
+}
+
+/** Chance aveugle slips in the mud: one tile back, without an arrival there, and not a coin lost. */
+function stepBackFromMud(state: GameState, player: Player, cameFrom: NodeId | null): GameState {
+  if (cameFrom === null || cameFrom === HELL_NODE_ID || cameFrom === player.position) {
+    return addLog(state, `${player.name} glisse dans la Boue, sans rien perdre.`, "event");
+  }
+  const nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: cameFrom }));
+  return addLog(
+    nextState,
+    `${player.name} glisse dans la Boue et recule en case ${cameFrom}, sans rien perdre.`,
+    "event",
+  );
 }
 
 /**
@@ -654,6 +676,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     mudPlacedThisTurn: false,
     thrownStackId: null,
     diceRoll: null,
+    theftAttempted: false,
     blessingQueue: [],
     pendingWheel: null,
     pendingChallenge: null,
@@ -724,8 +747,11 @@ function thawFrozenSlide(state: GameState): GameState {
   nextState = addLog(nextState, `${active.name} brise la glace et arrive en case ${frozen.to}.`, "event");
   nextState = addRedGreenBonuses(nextState, active.id, [frozen.to]);
   nextState = queueTileWheel(nextState, active.id);
-  nextState = triggerMud(nextState, active.id, frozen.to);
-  if (nextState.redCupNodeId === frozen.to) nextState = collectCupOrRequestDiscard(nextState, active.id, frozen.to);
+  nextState = triggerMud(nextState, active.id, frozen.to, frozen.from);
+  const landed = findPlayer(nextState, active.id)?.position === frozen.to;
+  if (landed && nextState.redCupNodeId === frozen.to) {
+    nextState = collectCupOrRequestDiscard(nextState, active.id, frozen.to);
+  }
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
   if (nextState.phase !== "playing" || waitsForDecision) return nextState;

@@ -18,7 +18,13 @@ import {
   startWheel,
   triggerMud,
 } from "./game-effects";
-import { getTomatoStunChance, shopsAnywhere, TOMATO_ENJOYER_HIT_REWARD } from "./passive-rules";
+import {
+  canTargetPlayer,
+  getTomatoStunChance,
+  isImmuneToItems,
+  shopsAnywhere,
+  TOMATO_ENJOYER_HIT_REWARD,
+} from "./passive-rules";
 import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, isShopNode } from "./rules";
 import {
   addLog,
@@ -32,7 +38,14 @@ import {
   updatePlayer,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
-import { CANCELLED_ITEM_IS_CONSUMED, CORRUPTER_COST, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS } from "./types";
+import {
+  CANCELLED_ITEM_IS_CONSUMED,
+  CORRUPTER_COST,
+  HELL_NODE_ID,
+  MADE_IN_HEAVEN_CUP_NODE_ID,
+  NO_THANKS_COOLDOWN_ROUNDS,
+  START_NODE_ID,
+} from "./types";
 
 /**
  * What a player does on their turn — use items, then move — split into "plan"
@@ -80,7 +93,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   let nextState = state;
   if (plan.rebel) {
     nextState = addLog(nextState, `${player.name} ignore les flèches grâce à Corrupteur.`, "event");
-    nextState = applyCurrencyChange(nextState, player.id, -CORRUPTER_COST);
+    nextState = applyCurrencyChange(nextState, player.id, -CORRUPTER_COST, { gamble: false });
   }
 
   const board = getBoard(state);
@@ -139,8 +152,10 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   nextState = stealFromKnockedOut(nextState, player.id);
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   nextState = queueTileWheel(nextState, player.id);
-  nextState = triggerMud(nextState, player.id, destination);
-  if (nextState.redCupNodeId === destination) {
+  nextState = triggerMud(nextState, player.id, destination, path[path.length - 2] ?? player.position);
+  // Chance aveugle may have stepped back out of the mud: the Red Cup is only reached on its tile.
+  const landed = findPlayer(nextState, player.id)?.position === destination;
+  if (landed && nextState.redCupNodeId === destination) {
     nextState = collectCupOrRequestDiscard(nextState, player.id, destination);
   }
 
@@ -161,8 +176,8 @@ export interface ItemPlan {
 /** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
 const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot"];
 
-/** Pulled by the Corde or swapped by the Monopoly Man: moved, but nobody spins a wheel for it. */
-const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man"];
+/** Pulled by the Corde, swapped by the Monopoly Man, rewound by Made In Heaven: moved, but no wheel for it. */
+const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man", "made-in-heaven"];
 
 /**
  * Thrown for free and as often as the stack allows, without going through
@@ -206,7 +221,7 @@ export function planItemUse(
   if (definition.target !== "player") return { itemId, count };
 
   const target = findPlayer(state, targetPlayerId);
-  if (!target) return null;
+  if (!target || !canTargetPlayer(target)) return null;
   if (target.id === player.id && !definition.canTargetSelf) return null;
   return { itemId, target, count };
 }
@@ -308,16 +323,21 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "draven": {
+      // Non merci spares its holder; Chance aveugle is spared anyway.
       const spared = plan.sparedIds ?? [];
       nextState = {
         ...nextState,
         players: nextState.players.map((candidate) =>
-          spared.includes(candidate.id) ? candidate : placeInHell(candidate),
+          spared.includes(candidate.id) || isImmuneToItems(candidate) ? candidate : placeInHell(candidate),
         ),
       };
       nextState = addLog(nextState, "Draven envoie toute la table en Enfer.", "bad");
       break;
     }
+
+    case "made-in-heaven":
+      nextState = rewindToStart(nextState, player.id);
+      break;
 
     default:
       return state;
@@ -364,6 +384,36 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
   );
 }
 
+/**
+ * Made In Heaven: everybody else is back on the start, out of Hell too, with
+ * neither the start bonus nor an arrival, and the Red Cup stands on tile 8.
+ * A Cup never lies on ice: Banquise's blizzard ice on that tile melts.
+ */
+function rewindToStart(state: GameState, userId: PlayerId): GameState {
+  // The tile the Cup leaves becomes its previous one, as when a new Cup appears.
+  const cupMoves = state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
+  const meltsIce = state.iceTileNodeId === MADE_IN_HEAVEN_CUP_NODE_ID;
+  let nextState: GameState = {
+    ...state,
+    redCupNodeId: MADE_IN_HEAVEN_CUP_NODE_ID,
+    iceTileNodeId: meltsIce ? null : state.iceTileNodeId,
+    previousRedCupNodeId: cupMoves ? state.redCupNodeId : state.previousRedCupNodeId,
+    players: state.players.map((candidate) =>
+      candidate.id === userId || isImmuneToItems(candidate) || candidate.position === START_NODE_ID
+        ? candidate
+        : { ...candidate, position: START_NODE_ID, hellTurns: 0 },
+    ),
+  };
+  nextState = addLog(
+    nextState,
+    `Made In Heaven : le temps s’accélère ! Tout le monde revient au Départ, et la Red Cup se pose en case ${MADE_IN_HEAVEN_CUP_NODE_ID}.`,
+    "event",
+  );
+  return meltsIce
+    ? addLog(nextState, `La glace de la case ${MADE_IN_HEAVEN_CUP_NODE_ID} fond sous la Red Cup.`, "event")
+    : nextState;
+}
+
 /** Corde pulls the target onto the user's tile; Baraqué only moves half the way. */
 function pullWithRope(state: GameState, user: Player, target: Player): GameState {
   if (target.passiveId !== "built-like-a-tank") {
@@ -388,7 +438,11 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
  * The Tomate is only for fun and never asks.
  */
 function getItemVictims(state: GameState, actorId: PlayerId, itemId: ItemId, targetPlayerId?: PlayerId): PlayerId[] {
-  if (itemId === "draven") return state.players.filter((player) => player.id !== actorId).map((player) => player.id);
+  if (itemId === "draven") {
+    return state.players
+      .filter((player) => player.id !== actorId && !isImmuneToItems(player))
+      .map((player) => player.id);
+  }
   if (ITEM_CATALOG[itemId].target !== "player" || isThrownItem(itemId)) return [];
   return targetPlayerId && targetPlayerId !== actorId ? [targetPlayerId] : [];
 }

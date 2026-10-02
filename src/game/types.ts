@@ -29,6 +29,12 @@ export const GREEDY_CUP_REWARD = 1_000;
 export const GREEDY_STUN_THEFT = 50;
 /** Roller: faces of the die thrown for every move. */
 export const ROLLER_DIE_FACES = 6;
+/** Made In Heaven sets the Red Cup down on this tile, and is only sold while the Cup stands elsewhere. */
+export const MADE_IN_HEAVEN_CUP_NODE_ID = 8;
+/** Voleur: chance of being caught for every 10 coins of the stolen item's price. */
+export const THEFT_RISK_PER_TEN_COINS = 0.01;
+/** Voleur: caught, the thief loses items, or coins, worth this many times the price. */
+export const THEFT_PENALTY_RATE = 1.5;
 export const BULLET_BILL_DAMAGE = 200;
 /** Tiles Bullet Bill covers per charge: only a target on the next tile is hit (patch 0.1.4). */
 export const BULLET_BILL_CHARGE_STEPS = 1;
@@ -105,7 +111,9 @@ export type ItemId =
   | "water-bottle"
   | "helmet"
   | "draven"
-  | "tomato";
+  | "tomato"
+  /** Chance aveugle's own item. */
+  | "made-in-heaven";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -122,7 +130,10 @@ export type PassiveId =
   | "eshop"
   | "tomato-enjoyer"
   | "roller"
-  | "greedy";
+  | "greedy"
+  | "double-or-nothing"
+  | "blind-luck"
+  | "thief";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
@@ -194,6 +205,8 @@ export type TurnStage =
   | "advance"
   /** Calme-toi: the holder sets a player down three tiles from the new Red Cup, or lets them be. */
   | "passive-choice"
+  /** Double or nothing: the holder may stake a gain or a loss of coins on a coin flip. */
+  | "gamble"
   | "blessing"
   | "finished";
 
@@ -336,6 +349,15 @@ export interface PendingCalmDown {
   /** The first one is decided now. */
   targetIds: PlayerId[];
   resumeStage: TurnStage;
+}
+
+/**
+ * Double or nothing: a gain (positive) or a loss (negative) of coins the
+ * holder may still double or wipe out, on a coin flip.
+ */
+export interface PendingGamble {
+  playerId: PlayerId;
+  amount: number;
 }
 
 /** A player who arrived on a green or red tile and still has to spin its wheel. */
@@ -513,6 +535,14 @@ export interface GameState {
   thrownStackId: string | null;
   /** Roller: the die thrown for this turn's move, until the move is played. */
   diceRoll: number | null;
+  /**
+   * Double or nothing: gains and losses still to offer, in order. Each one is
+   * offered once the table is at rest, then play resumes at `gambleResumeStage`.
+   */
+  pendingGambles: PendingGamble[];
+  gambleResumeStage: TurnStage;
+  /** Voleur: one theft per visit to the shop, so one per turn. */
+  theftAttempted: boolean;
   bulletBill: BulletBillState | null;
   lastBulletFlight: BulletFlight | null;
   /** Banquise: the temporary ice tile brought by the last blizzard. */
@@ -581,6 +611,9 @@ export const EMPTY_GAME_STATE: GameState = {
   redGreenTriggers: { green: 0, red: 0 },
   thrownStackId: null,
   diceRoll: null,
+  pendingGambles: [],
+  gambleResumeStage: "turn-end",
+  theftAttempted: false,
   bulletBill: null,
   lastBulletFlight: null,
   iceTileNodeId: null,

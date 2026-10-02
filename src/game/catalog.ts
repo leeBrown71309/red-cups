@@ -147,6 +147,17 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     energyCost: 0,
     stackLimit: 5,
   },
+  "made-in-heaven": {
+    id: "made-in-heaven",
+    name: "Made In Heaven",
+    price: 1_200,
+    symbol: "✧",
+    description:
+      "Chance aveugle seulement : renvoie tous les autres joueurs au Départ, Enfer compris, sans bonus, et pose " +
+      "la Red Cup en case 8. En vente tant qu’elle n’y est pas, un seul à la fois.",
+    target: "none",
+    energyCost: 3,
+  },
 };
 
 export const ITEM_ORDER: ItemId[] = [
@@ -163,6 +174,7 @@ export const ITEM_ORDER: ItemId[] = [
   "water-bottle",
   "helmet",
   "draven",
+  "made-in-heaven",
 ];
 
 /**
@@ -282,6 +294,30 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
       "Tu gagnes à 5 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
       "assommé lui vole 50 pièces, ta Boue coûte 100 et rapporte 200, et ce que ton Ndoye fait perdre te revient.",
   },
+  "double-or-nothing": {
+    id: "double-or-nothing",
+    name: "Double or nothing",
+    shortName: "Double",
+    description:
+      "À chaque gain ou perte de pièces, tu peux tenter un 50/50 : la somme est doublée ou annulée. Tes achats et " +
+      "le Corrupteur ne comptent pas.",
+  },
+  "blind-luck": {
+    id: "blind-luck",
+    name: "Chance aveugle",
+    shortName: "Aveugle",
+    description:
+      "Tu ne vois jamais la Red Cup. Aucun objet ne peut te nuire, Bullet Bill compris : la Boue te fait juste " +
+      "reculer d’une case. Toi seul peux acheter Made In Heaven.",
+  },
+  thief: {
+    id: "thief",
+    name: "Voleur",
+    shortName: "Voleur",
+    description:
+      "Une fois par visite à la boutique, tente de voler un objet : 1 % de risque par tranche de 10 pièces de son " +
+      "prix. Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces.",
+  },
 };
 
 export const PASSIVE_ORDER: PassiveId[] = [
@@ -300,6 +336,9 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "tomato-enjoyer",
   "roller",
   "greedy",
+  "double-or-nothing",
+  "blind-luck",
+  "thief",
 ];
 
 export interface WeightedWheelResult {

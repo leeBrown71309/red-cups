@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
+import { canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
@@ -85,7 +86,8 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <div className="target-modal__item">
           <PlayerAvatar color={target.color} size={46} expression={getAvatarExpression(target)} />
           <p>
-            Chaque {item.name} a 2 chances sur 100 d’assommer {target.name}. Tu en as {units}.
+            Chaque {item.name} a {Math.round(getTomatoStunChance(activePlayer) * 100)} chances sur 100 d’assommer{" "}
+            {target.name}. Tu en as {units}.
           </p>
         </div>
         <div className="volley-picker" role="radiogroup" aria-label={`Nombre de ${item.name}s`}>
@@ -126,8 +128,9 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <ItemIcon itemId={entry.itemId} size={46} />
         <p>{item.description}</p>
       </div>
+      {/* Chance aveugle is out of every item's reach, so never offered as a target. */}
       <PlayerPickList
-        players={players}
+        players={players.filter(canTargetPlayer)}
         isDisabled={(player) => (player.id === activePlayer.id && !item.canTargetSelf ? "Pas sur toi" : null)}
         onPick={(playerId) => {
           // A single Tomate needs no count: it flies at once.

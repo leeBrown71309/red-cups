@@ -217,6 +217,7 @@ Prix rééquilibrés et coûts en énergie fixés par l’auteur au patch 0.1.4.
 | Bouteille d’eau | 600 | 3 |
 | Casque | 200 | 0 |
 | Draven | 700 | 3 |
+| Made In Heaven (Chance aveugle seulement) | 1 200 | 3 |
 | Déplacement | — | tout ce qui reste |
 
 Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table après son premier achat, jusqu’au plafond de 400 pièces (500 avant le patch 0.1.4). L’affichage et le moment exact de cette hausse sont configurés dans les règles de partie.
@@ -237,7 +238,8 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
 | Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant son déplacement et sans énergie : on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans une place du sac. Depuis le patch 0.1.4, une pile compte comme un exemplaire : deux piles au plus (comme deux exemplaires de tout objet), et on ne lance que d’**une seule pile par tour**, soit 5 Tomates au plus. Une Tomate gratuite de la roue arrive en nouvelle pile de 5 quand le sac a la place. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
-| Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. |
+| Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. Chance aveugle est épargné. |
+| Made In Heaven | Objet de Chance aveugle (patch 0.1.4), lui seul le voit en boutique. Un seul à la fois, en vente tant que la Red Cup n’est pas en case 8 (le joueur n’en apprend pas plus). Renvoie tous les autres joueurs au Départ, Enfer compris, sans bonus de départ ni effet de case, et pose la Red Cup en case 8 (la case de la première Cup sur les trois cartes). À Banquise, la glace du blizzard sur cette case fond alors. |
 
 Les objets consommables sont retirés de l’inventaire quand ils sont utilisés, sauf si un passif impose un effet différent. Les effets déclenchés, cibles autorisées et éventuelles résistances sont modélisés explicitement.
 
@@ -261,6 +263,9 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | eShop | Après chaque déplacement, la boutique s’ouvre où qu’il soit (y compris après « Avance d’une case » ou « Retourne d’où tu viens » quand son tour est fini). Commence avec 1 000 pièces (patch 0.1.4). |
 | Tomato Enjoyer | Chaque place du sac peut tenir une pile de 5 Tomates (20 au plus). Ses Tomates assomment 5 fois sur 100 au lieu de 2, et chaque Tomate qu’on lui lance lui rapporte 5 pièces (patch 0.1.4). |
 | Roller | Pour se déplacer, il lance d’abord un dé à 6 faces ; après le lancer, plus d’objet, seulement le déplacement. Il parcourt exactement ce nombre de cases, flèches respectées, sans jamais repasser par une case (celle de départ comprise). Si aucun chemin n’est assez long, il va le plus loin possible (réponse de l’auteur). Les cases traversées comptent (bonus du départ, Red light) ; la glace ne fait glisser qu’à l’arrivée. Il ne peut ni acheter ni chausser la Botte (patch 0.1.4). |
+| Double or nothing | Après chaque gain ou perte de pièces, dès que la table est au repos (pas au milieu d’une roue ou d’un duel), il peut tenter un 50/50 : la somme se produit une seconde fois, ou elle est annulée. Sinon, il la garde. Chaque somme est proposée à part, même pendant le tour d’un autre joueur. Ses achats, et le résultat du 50/50 lui-même, ne se rejouent pas (réponse de l’auteur, Q7) (patch 0.1.4). |
+| Chance aveugle | Ne voit jamais la Red Cup : en ligne sur son appareil, sur l’écran partagé quand c’est à lui de décider. Aucun objet ne peut lui nuire : il n’apparaît jamais dans les cibles (Q19), Draven et Bullet Bill l’épargnent. La Boue ne lui coûte rien et ne rapporte rien à son poseur : il recule sur la case d’où il est entré, sans effet de case (il reste sur place s’il a été téléporté). Lui seul peut acheter Made In Heaven (voir 7) (patch 0.1.4). |
+| Voleur | Une fois par visite à la boutique, il peut tenter de voler un objet au lieu de l’acheter, avec 1 % de risque par tranche de 10 pièces de son prix (Botte : son prix du moment). Réussi, l’objet est gratuit (règles du sac respectées). Pris, il part en Enfer, ce qui finit son tour, et doit 1,5 fois le prix : ses objets les plus chers partent d’abord, jusqu’à couvrir la somme, sans rendu de monnaie ; s’ils ne suffisent pas, le reste est pris sur ses pièces (Q8, Q9) (patch 0.1.4). |
 | Cupide | Gagne à 5 000 pièces (voir 3.3). Une Red Cup lui rapporte 1 000 pièces au lieu d’une place. En s’arrêtant sur la case d’un joueur assommé (qui doit passer son tour), il lui prend 50 pièces. Sa Boue lui coûte 100 pièces et lui rapporte 200 quand un autre joueur marche dedans. Les pièces que son Ndoye fait perdre à sa cible lui reviennent (patch 0.1.4). |
 
 ## 9. Enfer, roues et duels
@@ -383,7 +388,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
 - **Énergie** : 3 points par tour. Les objets coûtent de 0 à 3 points et ne terminent plus le tour ; le déplacement (ou la roue de l’Enfer) demande au moins 1 point et prend le reste. La Botte coûte 1 point et en garde 1 pour bouger. Jauge dans le dock et sur la fiche de chaque joueur, bleue pleine, orange à 2 points, rouge au dernier ; coûts affichés dans la boutique, le sac et l’aide (voir 4).
 - **Tomates** : une pile compte comme un exemplaire, deux piles au plus, une seule pile lancée par tour.
-- **Nouveaux passifs** (voir 8) : Nepo Baby, Red Bull, eShop, Tomato Enjoyer, Roller et Cupide, avec sa victoire à 5 000 pièces.
+- **Nouveaux passifs** (voir 8) : Nepo Baby, Red Bull, eShop, Tomato Enjoyer, Roller et Cupide, avec sa victoire à 5 000 pièces ; Double or nothing, Chance aveugle avec son objet Made In Heaven, et le Voleur.
 - **Passifs** (voir 8) : Penta et Je suis Cups disparaissent, Lambda arrive. Délinquant devient Corrupteur et Troll devient Goblin. New Cup, New Me choisit entre le Départ (+200) et rester ; Red light, Green light compte deux cases de chaque par Red Cup ; Non merci ne vise plus que ce qui l’affecte (objet, roue, Bullet Bill) et se recharge en 5 tours de table ; Je note garde une copie une fois sur trois ; Calme-toi replace les joueurs trop proches à trois cases de la Cup.
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.

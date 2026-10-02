@@ -1,5 +1,5 @@
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
-import { getCopyLimit, shopsAnywhere } from "../passive-rules";
+import { getCopyLimit, isImmuneToItems, shopsAnywhere } from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
@@ -30,6 +30,12 @@ import { getBoardMap } from "../maps/map-registry";
 import { checkEnergy, checkEnergyRange } from "./energy-invariants";
 import { checkCalmDown, checkNewCup, checkNoThanksUsage, checkRedGreen } from "./passive-invariants";
 import { checkAbandon, checkBlessing, checkBulletBill, checkMudReward } from "./event-invariants";
+import {
+  checkAdvancedPassives,
+  checkAdvancedPassiveState,
+  checkMadeInHeaven,
+  withoutGamblePause,
+} from "./advanced-passive-invariants";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
 export type { RuleViolation } from "./invariant-helpers";
@@ -238,6 +244,7 @@ export function checkState(state: GameState): RuleViolation[] {
 
   checkGhost(state, found);
   checkEnergyRange(state, found);
+  checkAdvancedPassiveState(state, found);
   return found;
 }
 
@@ -295,7 +302,12 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
 
   const destination = movement.path[movement.path.length - 1];
-  if (moved.position !== destination) {
+  // Chance aveugle slips in mud and steps back to the tile walked in from.
+  const steppedBack =
+    isImmuneToItems(mover) &&
+    previous.mudTraps.some((trap) => trap.nodeId === destination) &&
+    moved.position === (movement.path[movement.path.length - 2] ?? movement.from);
+  if (moved.position !== destination && !steppedBack) {
     found.push(violation("move-lands", `${mover.name} should stand on ${destination}, not ${moved.position}`));
   }
 
@@ -311,6 +323,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   // A step forward goes back to whatever the wheel interrupted; the tile wheel checks cover its arrival.
   const interrupted =
     stepForward ||
+    steppedBack ||
     movement.interruptedTo !== undefined ||
     ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
@@ -565,6 +578,11 @@ function checkTileWheelSpin(
   // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
   const exempt = playersMovedWithoutArrival(previous, appliedItem);
+  // Chance aveugle stepping back out of the mud does not arrive on the tile behind.
+  const logs = newLogTexts(previous, next);
+  for (const player of previous.players) {
+    if (logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue et recule`))) exempt.add(player.id);
+  }
   // Caught by falling ice halfway down a road: nothing is reached until the next turn.
   const movement = next.lastMovement;
   if (movement?.interruptedTo !== undefined && movement.seq !== previous.lastMovement?.seq)
@@ -653,6 +671,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   const targetAfter = findPlayer(next, item.targetPlayerId);
   if (!user || !userAfter) return;
   const label = `${user.name} used ${item.itemId}`;
+  if (target && isImmuneToItems(target)) {
+    found.push(violation("blind-luck-untargetable", `${label} on Chance aveugle`));
+  }
 
   // Je note never copies an item its holder used on themselves: the bag always loses it (one of a stack).
   if (countItemUnits(userAfter, item.itemId) !== countItemUnits(user, item.itemId) - (item.count ?? 1)) {
@@ -709,8 +730,16 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       }
       break;
     }
+    case "made-in-heaven":
+      checkMadeInHeaven(previous, next, user.id, found);
+      break;
     case "draven":
-      if (next.players.some((player) => player.position !== HELL_NODE_ID)) {
+      for (const player of next.players.filter(isImmuneToItems)) {
+        if (player.position === HELL_NODE_ID && findPlayer(previous, player.id)?.position !== HELL_NODE_ID) {
+          found.push(violation("blind-luck-draven", `${label}: Draven sent ${player.name} to Hell`));
+        }
+      }
+      if (next.players.some((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player))) {
         found.push(violation("draven", `${label}: someone escaped the trip to Hell`));
       }
       for (const player of next.players) {
@@ -762,17 +791,26 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
   const logs = newLogTexts(previous, next);
   for (const player of previous.players) {
     if (!logs.some((text) => text.startsWith(`${player.name} a purgé`))) continue;
-    // A skipped turn counts too, so the release may come one turn after the last spin.
-    if (player.position !== HELL_NODE_ID || player.hellTurns < HELL_TURN_LIMIT - 1) {
+    // A skipped turn counts too, so the release may come one turn after the last spin; when every seat
+    // skips, a single action may go round the table and count several of them.
+    const skips = logs.filter((text) => text === `${player.name} passe son tour.`).length;
+    if (player.position !== HELL_NODE_ID || player.hellTurns + Math.max(0, skips - 1) < HELL_TURN_LIMIT - 1) {
       found.push(violation("hell-early-release", `${player.name} left Hell after ${player.hellTurns} turns`));
     }
   }
 }
 
-/** Checks the consequences of one action, comparing the table before and after. */
-export function checkTransition(previous: GameState, next: GameState, appliedItem?: AppliedItem): RuleViolation[] {
+/**
+ * Checks the consequences of one action, comparing the table before and after.
+ * A Double or nothing gamble on offer is a pause on top of play: the rule
+ * checks look at the stage underneath, and its answer only has its own checks.
+ */
+export function checkTransition(previous: GameState, nextState: GameState, appliedItem?: AppliedItem): RuleViolation[] {
   if (previous.phase !== "playing") return [];
   const found: RuleViolation[] = [];
+  checkAdvancedPassives(previous, nextState, found);
+  if (previous.turnStage === "gamble") return found;
+  const next = withoutGamblePause(nextState);
   // An item announced to a Non merci holder has not happened yet.
   const itemApplied = appliedItem && next.turnStage !== "reaction" ? appliedItem : undefined;
   if (itemApplied) checkItemEffect(previous, next, itemApplied, found);

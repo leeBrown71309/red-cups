@@ -177,6 +177,20 @@ const ITEM_ARTWORK: Record<ItemId, () => ReactElement> = {
       <path d="M32 9 L33 4" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
+  // A winged clock under a halo, its hands racing: time speeds up and everyone else starts over.
+  "made-in-heaven": () => (
+    <>
+      <ellipse cx="32" cy="9" rx="14" ry="4.5" fill="none" stroke={INK} strokeWidth="7.5" />
+      <ellipse cx="32" cy="9" rx="14" ry="4.5" fill="none" stroke="#ffd166" strokeWidth="3.5" />
+      <path d="M15 33 C6 31 2 23 4 16 C9 21 13 22 18 23 Z" fill="#fff4ec" {...OUTLINE} />
+      <path d="M49 33 C58 31 62 23 60 16 C55 21 51 22 46 23 Z" fill="#fff4ec" {...OUTLINE} />
+      <circle cx="32" cy="38" r="19" fill="#8fd3ff" {...OUTLINE} />
+      <circle cx="32" cy="38" r="13" fill="#fff4ec" stroke={INK} strokeWidth="3" />
+      <path d="M32 38 L32 28 M32 38 L40 43" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M21 29 A15 15 0 0 1 30 25" fill="none" stroke="#62c7ff" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="32" cy="38" r="2.5" fill="#e8453c" />
+    </>
+  ),
 };
 
 export function ItemIcon({ itemId, size, className }: IconProps & { itemId: ItemId }) {

@@ -29,6 +29,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "prepareBoot":
     case "rollDice":
     case "buyItem":
+    case "stealItem":
     case "useItem":
     case "endTurn":
     case "spinHellWheel":
@@ -73,6 +74,9 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "resolveCalmDown":
       return only(state.pendingCalmDown?.passivePlayerId);
+
+    case "resolveGamble":
+      return state.turnStage === "gamble" ? only(state.pendingGambles[0]?.playerId) : [];
 
     case "abandonGame":
       return only(action.playerId);

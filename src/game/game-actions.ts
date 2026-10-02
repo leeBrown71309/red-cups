@@ -7,7 +7,8 @@ import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
-import { canBuyItemKind, getStartingCurrency } from "./passive-rules";
+import { offerGamble, resolveGamble } from "./gamble";
+import { canBuyItemKind, getStartingCurrency, getTheftPenalty, getTheftRisk } from "./passive-rules";
 import { checkGreedyVictory } from "./victory";
 import {
   canAffordItem,
@@ -45,6 +46,7 @@ import {
   getItemPrice,
   getTileWheel,
   getUniqueLegalDestinations,
+  isOnSale,
   opensShop,
 } from "./rules";
 import {
@@ -109,6 +111,8 @@ export type GameAction =
   /** Roller: throws the die that sets the length of the move. */
   | { type: "rollDice" }
   | { type: "buyItem"; itemId: ItemId }
+  /** Voleur: one attempt per visit to the shop. */
+  | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
   | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
@@ -133,7 +137,9 @@ export type GameAction =
   | { type: "resolveNewCup"; goToStart: boolean }
   | { type: "advanceOneTile"; destination: NodeId }
   /** Calme-toi: the tile the player is set down on, or null to let them be. */
-  | { type: "resolveCalmDown"; destination: NodeId | null };
+  | { type: "resolveCalmDown"; destination: NodeId | null }
+  /** Double or nothing: stake the gain or loss on offer, or keep it. */
+  | { type: "resolveGamble"; accept: boolean };
 
 export type GameActionType = GameAction["type"];
 
@@ -353,7 +359,7 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
     nextState = addStartBonus(nextState, player.id);
   }
   nextState = stealFromKnockedOut(nextState, player.id);
-  nextState = arriveOnTile(nextState, player.id);
+  nextState = arriveOnTile(nextState, player.id, player.position);
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
   if (nextState.phase !== "playing" || waitsForDecision) return nextState;
@@ -391,20 +397,77 @@ function rollDice(state: GameState): GameState {
   return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
 }
 
+/** Whether the shop open to `player` sells them `itemId`: their passive, their bag and the Red Cup allow it. */
+function isOnShelf(state: GameState, player: Player, itemId: ItemId): boolean {
+  if (state.turnStage !== "shop" || !opensShop(getBoard(state), player)) return false;
+  return canAddItem(player, itemId) && canBuyItemKind(player, itemId) && isOnSale(state, itemId);
+}
+
 function buyItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "shop" || !opensShop(getBoard(state), player)) return state;
+  if (!player || !isOnShelf(state, player, itemId)) return state;
 
   // Shopping costs no energy: what is bought is used from the next turn on, Bullet Bill included.
   const price = getItemPrice(itemId, state.bootPrice, player);
-  if (player.currency < price || !canAddItem(player, itemId) || !canBuyItemKind(player, itemId)) return state;
+  if (player.currency < price) return state;
 
-  let nextState = applyCurrencyChange(state, player.id, -price);
+  let nextState = applyCurrencyChange(state, player.id, -price, { gamble: false });
   nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
   if (itemId === "boot" && !state.bootFirstPurchased) {
     nextState = { ...nextState, bootFirstPurchased: true, bootLastPriceRound: state.round };
   }
   return addLog(nextState, `${player.name} achète ${ITEM_CATALOG[itemId].name} pour ${price} pièces.`, "good");
+}
+
+/**
+ * Voleur: one attempt per visit to the shop, with 1 % of risk for every 10
+ * coins of the price. Away with it, the item is free; caught, the thief goes
+ * to Hell, which ends the turn, and pays 1.5 times the price.
+ */
+function stealItem(state: GameState, itemId: ItemId): GameState {
+  const player = getActivePlayer(state);
+  if (!player || player.passiveId !== "thief" || state.theftAttempted || !isOnShelf(state, player, itemId)) {
+    return state;
+  }
+
+  const price = getItemPrice(itemId, state.bootPrice, player);
+  const itemName = ITEM_CATALOG[itemId].name;
+  let nextState: GameState = { ...state, theftAttempted: true };
+  if (drawEngineRandom() >= getTheftRisk(price)) {
+    nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
+    return addLog(nextState, `${player.name} vole ${itemName} sans se faire prendre !`, "good");
+  }
+
+  nextState = addLog(nextState, `${player.name} se fait prendre en volant ${itemName} !`, "bad");
+  nextState = payTheftPenalty(nextState, player.id, getTheftPenalty(price));
+  nextState = sendPlayerToHell(nextState, player.id);
+  return settleBoard({ ...nextState, turnStage: "turn-end" }, "turn-end");
+}
+
+/**
+ * Voleur caught: their items go first, the dearest first, until their worth
+ * covers the penalty (nothing is given back for an item worth more); coins
+ * pay whatever is left.
+ */
+function payTheftPenalty(state: GameState, playerId: PlayerId, penalty: number): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+
+  const worthOf = (entry: Player["inventory"][number]) =>
+    entry.kind === "item" ? getItemPrice(entry.itemId, state.bootPrice, player) * (entry.count ?? 1) : 0;
+  const items = player.inventory
+    .filter((entry) => entry.kind === "item")
+    .sort((left, right) => worthOf(right) - worthOf(left));
+
+  let nextState = state;
+  let owed = penalty;
+  for (const entry of items) {
+    if (owed <= 0 || entry.kind !== "item") break;
+    owed -= worthOf(entry);
+    nextState = updatePlayer(nextState, playerId, (current) => removeInventoryEntry(current, entry.id));
+    nextState = addLog(nextState, `${player.name} rend ${ITEM_CATALOG[entry.itemId].name}.`, "bad");
+  }
+  return owed > 0 ? applyCurrencyChange(nextState, playerId, -owed, { gamble: false }) : nextState;
 }
 
 function useItem(
@@ -510,10 +573,6 @@ function resolveWheel(state: GameState): GameState {
   return settleBoard(nextState, nextState.turnStage);
 }
 
-/**
- * Rubs out the result of a wheel for its player: with the Gomme, or with a
- * ready Non merci, which then recharges (patch 0.1.4).
- */
 /** Cupide: whatever their Ndoye's wheel makes its target lose comes back to them. */
 function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | undefined): GameState {
   const user = findPlayer(state, userId);
@@ -523,6 +582,10 @@ function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | 
   return addLog(nextState, `${user.name} récupère les ${lost} pièces perdues par ${target.name}.`, "good");
 }
 
+/**
+ * Rubs out the result of a wheel for its player: with the Gomme, or with a
+ * ready Non merci, which then recharges (patch 0.1.4).
+ */
 function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
   const pending = state.pendingWheel;
   const player = findPlayer(state, pending?.playerId);
@@ -671,13 +734,17 @@ function recordPreviousTiles(before: GameState, after: GameState): GameState {
   return moved ? { ...after, players } : after;
 }
 
-/** Runs one action; the Luna Park ghost first spares whoever stands in Hell before it. */
+/**
+ * Runs one action; the Luna Park ghost first spares whoever stands in Hell
+ * before it. Then Cupide may have won, and Double or nothing may stake what
+ * the action earned or cost.
+ */
 function applyGameAction(state: GameState, action: GameAction): GameState {
   const prepared = spareHellPlayers(state);
   const result = dispatchGameAction(prepared, action);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
   if (result === prepared) return state;
-  return checkGreedyVictory(recordPreviousTiles(prepared, result));
+  return offerGamble(checkGreedyVictory(recordPreviousTiles(prepared, result)));
 }
 
 function dispatchGameAction(state: GameState, action: GameAction): GameState {
@@ -694,6 +761,8 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return rollDice(state);
     case "buyItem":
       return buyItem(state, action.itemId);
+    case "stealItem":
+      return stealItem(state, action.itemId);
     case "useItem":
       return useItem(state, action.entryId, action.targetPlayerId, action.count);
     case "resolveReaction":
@@ -738,6 +807,8 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return advanceOneTile(state, action.destination);
     case "resolveCalmDown":
       return resolveCalmDown(state, action.destination);
+    case "resolveGamble":
+      return resolveGamble(state, action.accept);
   }
 }
 

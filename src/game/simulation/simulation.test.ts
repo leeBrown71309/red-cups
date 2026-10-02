@@ -46,6 +46,8 @@ describe("bot campaign", () => {
 
     expect(["coin-flip", "rock-paper-scissors", "player-vote"].filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
     expect(actions.abandon).toBeGreaterThan(0);
+    // The Voleur's tries, caught or not.
+    expect(Object.keys(actions).some((label) => label.startsWith("steal:"))).toBe(true);
 
     const expectedStages: TurnStage[] = [
       "move",
@@ -61,6 +63,7 @@ describe("bot campaign", () => {
       "reposition",
       "advance",
       "passive-choice",
+      "gamble",
     ];
     expect(expectedStages.filter((stage) => !stages[stage])).toEqual([]);
   });

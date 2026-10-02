@@ -18,6 +18,7 @@ export function endGame(state: GameState, winnerId: PlayerId, winReason: WinReas
     pendingAdvance: null,
     pendingReaction: null,
     pendingTileWheels: [],
+    pendingGambles: [],
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
     pendingCupRepositionResumeStage: null,

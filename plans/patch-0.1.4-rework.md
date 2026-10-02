@@ -26,6 +26,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 4** fait et commité.
 - [x] **Lot 5** fait et commité.
 - [x] **Lot 6** fait et commité.
+- [x] **Lot 7** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -371,6 +372,24 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - réussite : l'objet est gratuit, règles d'inventaire respectées ;
   - échec : il part en Enfer et perd des objets valant au moins 1,5 × le prix ; le reste est pris sur ses pièces (Q8) ;
   - bouton « Voler (X % de risque) » dans `shop-modal.tsx`.
+
+### Bilan du lot 7
+
+- **Double or nothing** :
+  - `applyCurrencyChange` met chaque gain ou perte en file (`pendingGambles`), sauf les achats, le Corrupteur, la pénalité du vol et le 50/50 lui-même (option `gamble: false`) ;
+  - nouveau module `game/gamble.ts` : après chaque action, `offerGamble` propose le premier pari dès que la table est au repos (déplacement, Enfer, boutique, fin de tour, Bénédiction), dans une nouvelle étape `gamble` ; `resolveGamble` tire le 50/50 puis reprend l'étape d'avant ;
+  - décidé par le détenteur, même pendant le tour d'un autre (`getDecidingPlayer`, permissions) ; invite « Tenter le 50/50 / Garder » dans le dock.
+- **Chance aveugle** :
+  - `isImmuneToItems` / `canTargetPlayer` (`passive-rules.ts`) : jamais dans les cibles (moteur, fenêtre de cible), épargné par Draven et par Bullet Bill ;
+  - Boue : il recule sur la case d'où il est entré, sans perte ni gain pour le poseur, et sans effet de case (la Red Cup n'est ramassée que s'il reste sur sa case) ;
+  - Red Cup cachée dans la scène 3D (`useRedCupHidden`) : en ligne sur son appareil, en local quand c'est à lui de décider. Le journal annonce toujours la case de la première Cup (la 8, comme dans les règles) ;
+  - les bots Chance aveugle ne courent plus après la Cup.
+- **Made In Heaven** : 1 200 pièces, 3 d'énergie, un seul à la fois, visible pour Chance aveugle seulement (`getShopItems`), en vente tant que la Cup n'est pas en case 8 (`isOnSale`, motif vague « Pas en vente pour l'instant » pour ne rien révéler). Tous les autres au Départ, Enfer compris, sans bonus ni effet de case ; la Cup en case 8. À Banquise, si le blizzard a gelé la case 8, cette glace fond sous la Cup (bug trouvé par la campagne de 2 000 parties : une Cup ne doit jamais être sur la glace). Nouvelle illustration.
+- **Voleur** : action `stealItem` en boutique, une tentative par tour (`theftAttempted`) ; risque `getTheftRisk`, pénalité `getTheftPenalty` ; pris, il perd ses objets les plus chers d'abord, puis des pièces, et part en Enfer (fin du tour). Bouton « Voler · X % de risque » sous « Acheter ».
+- **Corrections au passage** : la fenêtre des Tomates annonce 5 % pour Tomato Enjoyer ; un commentaire de `cancelWheel` déplacé au lot 6 remis en place ; le vérificateur ne signale plus une sortie d'Enfer quand un tour de table entier se saute en une action.
+- **Sauvegardes** : version 16 (`pendingGambles`, `gambleResumeStage`, `theftAttempted`).
+- **Vérificateur** : nouveau `advanced-passive-invariants.ts` (pari proposé au repos et seulement au détenteur, résultat du 50/50, vol en boutique et pénalité, Chance aveugle ni ciblé ni touché par Draven, Bullet Bill ou la Boue, Made In Heaven). Un pari en attente est vu comme une pause : les autres règles regardent l'étape d'en dessous.
+- **Tests** : nouveau `advanced-passives.test.ts` (13 tests) ; la campagne exige l'étape `gamble` et au moins un vol.
 
 ## Lot 8 — Rôles : Le diable et L'Ange-Gardien
 

@@ -1,7 +1,13 @@
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getCopyLimit } from "../../game/passive-rules";
-import { getCorrupterBlocker, getInventoryCapacity, getItemPrice, type CorrupterBlocker } from "../../game/rules";
+import { getCopyLimit, getTheftRisk } from "../../game/passive-rules";
+import {
+  getCorrupterBlocker,
+  getInventoryCapacity,
+  getItemPrice,
+  isOnSale,
+  type CorrupterBlocker,
+} from "../../game/rules";
 import { findStackWithRoom } from "../../game/state-utils";
 import type { GameState, ItemId, Player } from "../../game/types";
 import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
@@ -141,24 +147,45 @@ export interface PurchaseStatus {
   reason?: string;
 }
 
+/** Why an item cannot leave the shelf for this player, whatever they pay: their passive, the bag, the Cup. */
+function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): string | null {
+  if (itemId === "boot" && player.passiveId === "roller") return "Pas pour le Roller";
+  // Chance aveugle is not told where the Red Cup stands.
+  if (!isOnSale(state, itemId)) return "Pas en vente pour l’instant";
+
+  // A stack with room takes one more without a new slot; a new stack counts as a copy.
+  if (findStackWithRoom(player, itemId)) return null;
+  const capacity = getInventoryCapacity(player);
+  const copyLimit = getCopyLimit(player, itemId, capacity);
+  const copies = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
+  if (player.inventory.length >= capacity) return "Sac plein";
+  if (copies < copyLimit) return null;
+  if (itemId === "eraser") return "Une seule Gomme";
+  if (ITEM_CATALOG[itemId].stackLimit) return `Max ${copyLimit} piles`;
+  return copyLimit === 1 ? "Un seul à la fois" : `Max ${copyLimit} exemplaires`;
+}
+
 /** Explains why an item is greyed out in the shop instead of silently disabling it. */
 export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Player): PurchaseStatus {
   const price = getItemPrice(itemId, state.bootPrice, player);
-  const copies = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
-  if (itemId === "boot" && player.passiveId === "roller") return { price, canBuy: false, reason: "Pas pour le Roller" };
-
-  // A stack with room takes one more without a new slot; a new stack counts as a copy.
-  if (!findStackWithRoom(player, itemId)) {
-    const capacity = getInventoryCapacity(player);
-    const copyLimit = getCopyLimit(player, itemId, capacity);
-    if (player.inventory.length >= capacity) return { price, canBuy: false, reason: "Sac plein" };
-    if (itemId === "eraser" && copies >= copyLimit) return { price, canBuy: false, reason: "Une seule Gomme" };
-    if (copies >= copyLimit) {
-      const reason = ITEM_CATALOG[itemId].stackLimit ? `Max ${copyLimit} piles` : `Max ${copyLimit} exemplaires`;
-      return { price, canBuy: false, reason };
-    }
-  }
-
+  const blocker = getShelfBlocker(itemId, state, player);
+  if (blocker) return { price, canBuy: false, reason: blocker };
   if (player.currency < price) return { price, canBuy: false, reason: "Trop cher" };
   return { price, canBuy: true };
+}
+
+export interface TheftStatus {
+  /** Chance of being caught, from 0 to 1. */
+  risk: number;
+  canSteal: boolean;
+  reason?: string;
+}
+
+/** Voleur: the risk of stealing an item, or why it cannot be tried; null for everyone else. */
+export function getTheftStatus(itemId: ItemId, state: GameState, player: Player): TheftStatus | null {
+  if (player.passiveId !== "thief") return null;
+  const risk = getTheftRisk(getItemPrice(itemId, state.bootPrice, player));
+  if (state.theftAttempted) return { risk, canSteal: false, reason: "Un seul vol par visite" };
+  const blocker = getShelfBlocker(itemId, state, player);
+  return blocker ? { risk, canSteal: false, reason: blocker } : { risk, canSteal: true };
 }

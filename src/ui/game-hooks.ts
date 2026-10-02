@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { getForwardTiles } from "../game/game-actions";
 import { getCalmDownTiles } from "../game/game-effects";
+import { isBlindToRedCup } from "../game/passive-rules";
 import { getDecidingPlayer, getTurnMoveOptions } from "../game/rules";
 import { canUseCorrupter, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
@@ -49,6 +50,21 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
     if (!paths.has(destination)) paths.set(destination, path);
   }
   return { origin: activePlayer.position, paths };
+}
+
+/**
+ * Chance aveugle never sees the Red Cup: online on their own device, and on a
+ * shared screen whenever they are the one deciding.
+ */
+export function isRedCupHiddenFor(state: GameState, localPlayerId: string | null): boolean {
+  const viewer =
+    localPlayerId === null ? getDecidingPlayer(state) : state.players.find((player) => player.id === localPlayerId);
+  return viewer !== undefined && state.phase === "playing" && isBlindToRedCup(viewer);
+}
+
+export function useRedCupHidden(): boolean {
+  const localPlayerId = useLocalPlayerId();
+  return useGameStore((state) => isRedCupHiddenFor(state, localPlayerId));
 }
 
 /** In an online game, only the device of the deciding player sees and walks the paths. */

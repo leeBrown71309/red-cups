@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { ITEM_CATALOG, ITEM_ORDER, type ItemDefinition } from "../../game/catalog";
+import { ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
+import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
 import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency } from "../display/game-display";
-import { getPurchaseStatus } from "../display/item-availability";
+import { getPurchaseStatus, getTheftStatus } from "../display/item-availability";
 import { useActivePlayer } from "../game-hooks";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -32,6 +33,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
   const capacity = getInventoryCapacity(player);
   const selected = ITEM_CATALOG[selectedId];
   const selectedStatus = getPurchaseStatus(selectedId, game, player);
+  const theftStatus = getTheftStatus(selectedId, game, player);
 
   return (
     <ModalShell
@@ -63,7 +65,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
 
       <div className="shop-layout">
         <ul className="shop-shelf" aria-label="Objets en vente">
-          {ITEM_ORDER.map((itemId) => {
+          {getShopItems(player).map((itemId) => {
             const status = getPurchaseStatus(itemId, game, player);
             return (
               <li key={itemId}>
@@ -111,6 +113,17 @@ export function ShopModal({ onClose }: ShopModalProps) {
               selectedStatus.reason
             )}
           </button>
+          {theftStatus && (
+            <button
+              type="button"
+              className="btn btn--cream btn--block"
+              disabled={!theftStatus.canSteal}
+              onClick={() => game.stealItem(selectedId)}
+              title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+            >
+              {theftStatus.canSteal ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque` : theftStatus.reason}
+            </button>
+          )}
         </aside>
       </div>
     </ModalShell>

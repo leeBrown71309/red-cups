@@ -1,6 +1,6 @@
 import { isTableBroke } from "../blessing";
 import { getBoard, getNeighbors } from "../board";
-import { getMudOwnerReward } from "../passive-rules";
+import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
@@ -24,7 +24,7 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const flew = flight !== null && flight.seq !== previous.lastBulletFlight?.seq;
   const bullet = previous.bulletBill;
   const due = bullet !== null && (bullet.status === "active" || bullet.spawnRound <= next.round);
-  const reachable = previous.players.some((player) => player.position !== HELL_NODE_ID);
+  const reachable = previous.players.some((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player));
   if (next.round > previous.round && due && reachable && !flew) {
     found.push(violation("bullet-charges", `Bullet Bill stayed put at the start of round ${next.round}`));
   }
@@ -176,10 +176,18 @@ export function checkMudReward(previous: GameState, next: GameState, found: Rule
   const logs = newLogTexts(previous, next);
   // Walked into or sent there by a wheel: whoever the log shows falling in, not only the last walker.
   const victimId = previous.players.find((player) => logs.includes(`${player.name} tombe dans la Boue.`))?.id;
+  // Chance aveugle slips in it instead: nobody pays, nobody earns.
+  const slipped = previous.players.some((player) =>
+    logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue`)),
+  );
   for (const trap of triggered) {
     const owner = findPlayer(previous, trap.ownerId);
     if (!owner) continue;
     const paid = logs.includes(`${owner.name} touche ${getMudOwnerReward(owner)} pièces grâce à sa Boue.`);
+    if (slipped && !victimId) {
+      if (paid) found.push(violation("mud-blind-luck", `${owner.name} was paid for Chance aveugle's slip`));
+      continue;
+    }
     if (owner.id !== victimId && !paid) found.push(violation("mud-pays-owner", `${owner.name} got nothing`));
     if (owner.id === victimId && paid) found.push(violation("mud-own-trap", `${owner.name} was paid by their own mud`));
   }

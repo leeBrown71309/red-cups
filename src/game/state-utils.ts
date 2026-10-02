@@ -1,5 +1,6 @@
 import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
+import { offersGamble } from "./passive-rules";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
@@ -102,15 +103,32 @@ export function getItemEntry(player: Player, entryId: string): ItemId | undefine
   return entry?.kind === "item" ? entry.itemId : undefined;
 }
 
+export interface CurrencyChangeOptions {
+  /**
+   * False for what Double or nothing may not stake: voluntary spending (a
+   * purchase, Corrupteur, a theft gone wrong) and the coin flip's own outcome.
+   */
+  gamble?: boolean;
+}
+
 /**
  * Applies a coin change with the two money rules: the Casque absorbs a drop
  * below zero, and reaching −300 resets the balance and cancels the next turn.
+ * A Double or nothing holder may then stake the amount, once the table is at rest.
  */
-export function applyCurrencyChange(state: GameState, playerId: PlayerId, amount: number): GameState {
+export function applyCurrencyChange(
+  state: GameState,
+  playerId: PlayerId,
+  amount: number,
+  options: CurrencyChangeOptions = {},
+): GameState {
   const player = findPlayer(state, playerId);
   if (!player || amount === 0) return state;
 
   let nextState = state;
+  if (options.gamble !== false && offersGamble(player) && state.phase === "playing") {
+    nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
+  }
   let nextCurrency = player.currency + amount;
   let nextInventory = player.inventory;
 

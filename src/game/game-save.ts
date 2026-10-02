@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 15;
+export const GAME_SAVE_VERSION = 16;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -105,7 +105,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * version 13 the energy of the turn (a game saved before goes on with a
  * full gauge) and the Tomate stack thrown from this turn. Version 14 reworked
  * the passives: renamed and removed ones, Red light, Green light's count,
- * Non merci and Calme-toi. Version 15 added the Roller's die.
+ * Non merci and Calme-toi. Version 15 added the Roller's die, version 16 the
+ * stakes of Double or nothing and the Voleur's theft of the turn.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -141,6 +142,9 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     thrownStackId: save.thrownStackId ?? null,
     diceRoll: save.diceRoll ?? null,
+    pendingGambles: save.pendingGambles ?? [],
+    gambleResumeStage: save.gambleResumeStage ?? "turn-end",
+    theftAttempted: save.theftAttempted ?? false,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],

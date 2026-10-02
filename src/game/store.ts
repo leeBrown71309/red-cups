@@ -25,6 +25,8 @@ interface GameActions {
   /** Roller: throws the die before the move. */
   rollDice: () => void;
   buyItem: (itemId: ItemId) => void;
+  /** Voleur: tries to walk off with an item instead of paying for it. */
+  stealItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
   /** `count`: Tomates thrown at once from their stack. */
   useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number) => void;
@@ -57,6 +59,8 @@ interface GameActions {
   advanceOneTile: (destination: NodeId) => void;
   /** Calme-toi: the tile the player is set down on, or null to let them be. */
   resolveCalmDown: (destination: NodeId | null) => void;
+  /** Double or nothing: stakes the gain or loss on offer on a coin flip, or keeps it. */
+  resolveGamble: (accept: boolean) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -102,6 +106,7 @@ export const useGameStore = create<GameStore>()(
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       rollDice: () => dispatch({ type: "rollDice" }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
+      stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
       useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
@@ -124,6 +129,7 @@ export const useGameStore = create<GameStore>()(
       resolveNewCup: (goToStart) => dispatch({ type: "resolveNewCup", goToStart }),
       advanceOneTile: (destination) => dispatch({ type: "advanceOneTile", destination }),
       resolveCalmDown: (destination) => dispatch({ type: "resolveCalmDown", destination }),
+      resolveGamble: (accept) => dispatch({ type: "resolveGamble", accept }),
     };
   }, createGameSaveOptions<GameStore>()),
 );
