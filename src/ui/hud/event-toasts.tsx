@@ -55,6 +55,13 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: `${playerName(event.playerId)} est le diable !`,
         detail: `Il gagne dès que les autres seront entrés ${event.goal} fois en Enfer. Méfiez-vous de sa boutique.`,
       };
+    case "last-chance":
+      return {
+        tone: "danger",
+        eyebrow: "Dernière chance",
+        title: `${playerName(event.playerId)}, à toi de jouer !`,
+        detail: "Encore un tour qui passe sans jouer, et c’est le forfait.",
+      };
     case "doomsday-started":
       return {
         tone: "danger",

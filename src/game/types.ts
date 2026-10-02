@@ -442,6 +442,26 @@ export interface BlackCup extends DevilSpell {
 /** Le diable's Doomsday: every tile spins the wheel of misfortune for one round. */
 export type Doomsday = DevilSpell;
 
+/**
+ * Online only: the active player's time for this turn. It runs while the
+ * decision is theirs, from `runningSince` (after the animations' grace), and
+ * pauses while somebody else decides.
+ */
+export interface TurnClock {
+  playerId: PlayerId;
+  round: number;
+  remainingMs: number;
+  runningSince: number | null;
+}
+
+/** Online only: when somebody other than the active player must have decided. */
+export interface DecisionClock {
+  deadline: number;
+}
+
+/** Rules this game runs on: an online room refuses a device on other rules. */
+export const RULES_VERSION = "0.1.4";
+
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
   angelId: PlayerId;
@@ -640,6 +660,12 @@ export interface GameState {
   blackCup: BlackCup | null;
   doomsday: Doomsday | null;
   guardian: Guardian | null;
+  /** Online clocks; null in a local game. */
+  turnClock: TurnClock | null;
+  decisionClock: DecisionClock | null;
+  /** Online: turns each player let run out without doing anything; three is a forfeit. */
+  idleStrikes: Partial<Record<PlayerId, number>>;
+  rulesVersion: string;
   lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
   /** Null in a local game, which keeps Math.random; set in an online game. */
@@ -707,6 +733,10 @@ export const EMPTY_GAME_STATE: GameState = {
   blackCup: null,
   doomsday: null,
   guardian: null,
+  turnClock: null,
+  decisionClock: null,
+  idleStrikes: {},
+  rulesVersion: RULES_VERSION,
   lastMovement: null,
   log: [],
   seededRandom: null,

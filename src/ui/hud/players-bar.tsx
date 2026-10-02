@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { getDevilGoalFor } from "../../game/devil";
+import { IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
 import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
@@ -137,6 +138,14 @@ export function PlayersBar() {
                 </span>
               </span>
               <VoiceBadge userId={getUserIdOfPlayer(seatOrder, player.id)} />
+              {(game.idleStrikes[player.id] ?? 0) > 0 && (
+                <span
+                  className="player-chip__strikes"
+                  title="Chances perdues : trois tours sans jouer, et c’est le forfait"
+                >
+                  ⚠ {game.idleStrikes[player.id]}/{IDLE_STRIKES_TO_FORFEIT}
+                </span>
+              )}
               {role && (
                 <span className={`player-chip__role player-chip__role--${role.tone}`} title={role.title}>
                   {role.text}

@@ -45,6 +45,7 @@ import {
   type RuleViolation,
 } from "./invariant-helpers";
 import { checkDevilItem, checkHellEntries, checkRoleState } from "./role-invariants";
+import { checkClockState } from "./clock-invariants";
 import { findDevil, getDevilGoalFor } from "../devil";
 
 export type { RuleViolation } from "./invariant-helpers";
@@ -280,6 +281,7 @@ export function checkState(state: GameState): RuleViolation[] {
   checkEnergyRange(state, found);
   checkAdvancedPassiveState(state, found);
   checkRoleState(state, found);
+  checkClockState(state, found);
   return found;
 }
 

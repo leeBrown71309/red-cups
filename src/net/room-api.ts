@@ -119,6 +119,11 @@ export function claimSeat(code: string, name: string, avatar: number): Promise<v
   return callRoomFunction("claim_seat", { p_code: code, p_name: name, p_avatar: avatar });
 }
 
+/** The database's clock, in milliseconds since 1970: the one every device's turn clock follows. */
+export function fetchServerTime(): Promise<number> {
+  return callRoomFunction<number>("server_time", {}).then(Number);
+}
+
 /** Returns the room's current version, or null once the room is gone. */
 export function touchSeat(code: string): Promise<number | null> {
   return callRoomFunction<number | null>("touch_seat", { p_code: code });

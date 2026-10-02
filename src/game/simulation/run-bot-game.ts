@@ -3,10 +3,14 @@ import { MAP_ORDER } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
 import { assignGuardian } from "../guardian";
 import { getStartingCurrency } from "../passive-rules";
-import { useGameStore } from "../store";
+import { reduceGame, type GameAction } from "../game-actions";
+import { pickGameState } from "../game-save";
+import { setActionRelay, useGameStore } from "../store";
+import { getClockDeadline } from "../turn-clock";
 import type { MapId, PassiveId, Player, TurnStage, WinReason } from "../types";
 import { createSeededRandom } from "../../utils/seeded-random";
 import { chooseBotAction } from "./bot-player";
+import { checkClockExpiry } from "./clock-invariants";
 import { checkState, checkTransition, type RuleViolation } from "./rule-invariants";
 
 /**
@@ -24,6 +28,11 @@ export interface BotGameOptions {
   passives?: PassiveId[];
   /** Overrides everybody's starting coins, e.g. 0 to open with a Tour de Bénédiction. */
   startingCurrency?: number;
+  /**
+   * Plays as online, on a virtual clock: every action carries its time, and
+   * now and then a bot lets the clock run out instead of playing.
+   */
+  clock?: boolean;
   maxSteps?: number;
 }
 
@@ -50,6 +59,10 @@ export interface BotGameReport {
 }
 
 const DEFAULT_MAX_STEPS = 4_000;
+/** Clock games: how often a bot lets the clock run out rather than play. */
+const IDLE_CHANCE = 0.12;
+/** Clock games: the most a bot thinks before an action. */
+const MAX_THINKING_MS = 8_000;
 /** Consecutive actions that change nothing before the game is declared blocked. */
 const MAX_IDLE_ACTIONS = 25;
 /** Violations are capped per game: one engine bug usually repeats on every step. */
@@ -105,8 +118,16 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
   };
 
   const store = useGameStore;
+  // Clock games run every action through the online path, at the time on the virtual clock.
+  let clockNow = 0;
+  const relay = (action: GameAction) => {
+    const state = pickGameState(store.getState());
+    const nextState = reduceGame(state, action, { now: clockNow });
+    if (nextState !== state) store.setState(nextState);
+  };
   try {
     store.getState().resetGame();
+    if (options.clock) setActionRelay(relay);
     const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
     store.getState().startGame(botNames, options.seed, mapId);
     if (options.passives) {
@@ -132,6 +153,20 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
       if (before.phase !== "playing") break;
 
       increment(report.stageCounts, before.turnStage);
+      const deadline = options.clock ? getClockDeadline(before) : null;
+      if (deadline !== null && botRandom() < IDLE_CHANCE) {
+        // Asleep at the table: the clock runs out and the default applies.
+        clockNow = Math.max(clockNow, deadline);
+        increment(report.actionCounts, "expire-clock");
+        relay({ type: "expireClock" });
+        const after = store.getState();
+        report.steps = step + 1;
+        // Several defaults in one action: judged by the clock checks, the state checks follow next step.
+        if (after !== before) record(checkClockExpiry(before, after), step, "expire-clock", before.turnStage);
+        continue;
+      }
+      // Only clock games draw a thinking time: the other campaigns keep their seeded games.
+      if (options.clock) clockNow += Math.floor(botRandom() * MAX_THINKING_MS);
       const action = chooseBotAction(before, botRandom);
       if (!action) {
         report.blocked = true;
@@ -172,6 +207,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     report.winReason = final.winReason;
     report.rounds = final.round;
   } finally {
+    if (options.clock) setActionRelay(null);
     store.getState().resetGame();
   }
 

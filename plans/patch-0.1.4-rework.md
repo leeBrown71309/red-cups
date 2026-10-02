@@ -28,6 +28,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 6** fait et commité.
 - [x] **Lot 7** fait et commité.
 - [x] **Lot 8** fait et commité.
+- [x] **Lot 9** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -484,6 +485,23 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - `online-engine.test.ts` : déterminisme avec horodatage ;
   - `room-backend.test.ts` : PGlite et heure du serveur ;
   - nouveau `turn-clock.test.ts`.
+
+### Bilan du lot 9
+
+- **Moteur** (`game/turn-clock.ts`) :
+  - `reduceGame(state, action, { now })` : en ligne, chaque action porte son heure ; `updateClocks` tient après chaque action le chrono du tour (`turnClock` : joueur, temps restant, en cours depuis) et celui des décisions des autres (`decisionClock`) ;
+  - `isActiveDecision` / `getClockDeciderIds` disent à qui est la décision ; `getClockDeadline` donne l'échéance qui compte ;
+  - action `expireClock` (permise à tout joueur assis) : refusée avant l'échéance ; sinon fin du tour avec les défauts (`expireTurn`) ou défauts de la décision en cours (`clock-defaults.ts`, `getDefaultAction`) ;
+  - chances perdues (`idleStrikes`), forfait à la 3ᵉ (`applyForfeits`, `abandonPlayer(…, "forfeit")`) ;
+  - `rulesVersion` dans l'état ; `getForwardTiles` passe dans `rules.ts`.
+- **Réseau** :
+  - le message `action` porte `issuedAt` ; `prepareLocalAction` et `applyRemoteAction` rejouent à cette heure ;
+  - `server_time()` (ajout seul dans `supabase/schema.sql`, à appliquer sur Supabase) et `fetchServerTime` ; `room-store` mesure le décalage au branchement et à chaque battement (`getServerNow`) ;
+  - toutes les 500 ms, l'appareil regarde l'échéance et envoie `expireClock` (le décideur à l'heure, les autres 2 s après) ;
+  - `isSameRules` : un salon d'une autre version est refusé.
+- **Interface** : compte à rebours dans le dock (rouge sous 10 s), « ⚠ N/3 » dans la barre des joueurs, bannière « Dernière chance ».
+- **Sauvegardes** : version 18.
+- **Tests** : nouveau `turn-clock.test.ts` (6 tests) ; déterminisme du chrono rejoué sur deux appareils (`online-engine.test.ts`) ; `server_time` dans PGlite (`room-backend.test.ts`) ; nouvelle série de bots « online clock games » qui laissent filer le chrono à toutes les étapes, jugée par `clock-invariants.ts`.
 
 ## Lot 10 — Draft des passifs avant la partie
 

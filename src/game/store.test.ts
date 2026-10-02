@@ -1,16 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { withPassives } from "./forced-passives";
 import { useGameStore } from "./store";
 import { BASE_ENERGY, CORRUPTER_COST } from "./types";
 
+/** Two Baraqués: the passives drawn at random (Red Bull's gauge, a role) never change what a test sees. */
 function startDeterministicGame(): void {
   useGameStore.getState().startGame(["Ada", "Benoît"]);
-  useGameStore.setState((state) => ({
-    players: state.players.map((player) => ({
-      ...player,
-      passiveId: "built-like-a-tank",
-      currency: 2_000,
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, ["built-like-a-tank", "built-like-a-tank"]));
 }
 
 function placeActivePlayer(nodeId: number): void {

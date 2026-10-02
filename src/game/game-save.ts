@@ -2,11 +2,11 @@ import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middl
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
 import type { GameState, GhostState } from "./types";
 import { isMapId } from "./maps/map-registry";
-import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
+import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 17;
+export const GAME_SAVE_VERSION = 18;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -108,7 +108,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * Non merci and Calme-toi. Version 15 added the Roller's die, version 16 the
  * stakes of Double or nothing and the Voleur's theft of the turn. Version 17
  * added le diable (count of Hell entries, Portails, Black Cup, Doomsday) and
- * L'Ange-Gardien (protégé, co-winner).
+ * L'Ange-Gardien (protégé, co-winner). Version 18 added the online clocks,
+ * the chances lost and the rules version.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -154,6 +155,10 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     blackCup: save.blackCup ?? null,
     doomsday: save.doomsday ?? null,
     guardian: save.guardian ?? null,
+    turnClock: save.turnClock ?? null,
+    decisionClock: save.decisionClock ?? null,
+    idleStrikes: save.idleStrikes ?? {},
+    rulesVersion: save.rulesVersion ?? RULES_VERSION,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],

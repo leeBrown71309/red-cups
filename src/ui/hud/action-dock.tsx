@@ -24,6 +24,7 @@ import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } 
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 import { getAvatarExpression } from "./players-bar";
+import { TurnTimer } from "./turn-timer";
 
 interface ActionDockProps {
   onOpenShop: () => void;
@@ -61,6 +62,7 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
           {decider.id === activePlayer.id && (
             <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
           )}
+          <TurnTimer />
         </div>
       </div>
       <div className="action-dock__content">

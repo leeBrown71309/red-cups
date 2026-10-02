@@ -103,6 +103,14 @@ beforeAll(async () => {
   await db.exec(SCHEMA);
 }, 60_000);
 
+describe("server clock", () => {
+  it("tells every device the same time, in milliseconds", async () => {
+    const before = Date.now();
+    const [row] = await as<{ t: number }>(await person(), `select server_time() t`);
+    expect(Math.abs(Number(row.t) - before)).toBeLessThan(60_000);
+  });
+});
+
 describe("lobby", () => {
   it("seats players with their avatar and shows the roster to a newcomer", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);

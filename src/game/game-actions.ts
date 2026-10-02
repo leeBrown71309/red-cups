@@ -1,4 +1,4 @@
-import { abandonPlayer } from "./abandon";
+import { abandonPlayer, canAbandon } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
@@ -19,6 +19,15 @@ import {
   isDoomed,
 } from "./passive-rules";
 import { checkVictories } from "./victory";
+import { getDefaultAction } from "./clock-defaults";
+import {
+  addIdleStrike,
+  getClockDeadline,
+  getIdleStrikes,
+  IDLE_STRIKES_TO_FORFEIT,
+  isActiveDecision,
+  updateClocks,
+} from "./turn-clock";
 import {
   canAffordItem,
   canAffordMove,
@@ -52,9 +61,9 @@ import {
   canAddItem,
   canStartNewSlot,
   canUseNoThanks,
+  getForwardTiles,
   getItemPrice,
   getTileWheelFor,
-  getUniqueLegalDestinations,
   isOnSale,
   opensShop,
 } from "./rules";
@@ -153,7 +162,14 @@ export type GameAction =
   /** Calme-toi: the tile the player is set down on, or null to let them be. */
   | { type: "resolveCalmDown"; destination: NodeId | null }
   /** Double or nothing: stake the gain or loss on offer, or keep it. */
-  | { type: "resolveGamble"; accept: boolean };
+  | { type: "resolveGamble"; accept: boolean }
+  /** Online: the clock that counts ran out; any seated device may close it. */
+  | { type: "expireClock" };
+
+/** What an action is played with besides the board: online, the server time it was sent at. */
+export interface ReduceContext {
+  now?: number;
+}
 
 export type GameActionType = GameAction["type"];
 
@@ -269,11 +285,7 @@ function giveFreeItem(state: GameState, player: Player): GameState {
   return addLog(nextState, `${player.name} reçoit ${gift} gratuitement.`, "good");
 }
 
-/** Tiles a player may step forward onto: one step along the roads, arrows obeyed; none from Hell. */
-export function getForwardTiles(state: GameState, player: Player): NodeId[] {
-  if (player.position === HELL_NODE_ID) return [];
-  return getUniqueLegalDestinations(getBoard(state), player, 1, false);
-}
+export { getForwardTiles };
 
 /** Applies one wheel outcome to its player; chained and interactive outcomes are handled by the caller. */
 function applyWheelOutcome(
@@ -539,8 +551,71 @@ function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: 
 
 function endTurn(state: GameState): GameState {
   if (!canEndTurn(state)) return state;
+  return endTurnNow(state);
+}
+
+/** The turn is over, whatever is left of it; a broke table first goes through its Tour de Bénédiction. */
+function endTurnNow(state: GameState): GameState {
   const ended: GameState = { ...state, turnStage: "turn-end" };
   return isTableBroke(ended) ? startBlessingRound(ended) : beginNextTurn(ended);
+}
+
+/** Defaults played in a row when a clock runs out, at most: a turn never has this many decisions left. */
+const MAX_DEFAULT_STEPS = 24;
+
+/**
+ * Online: the clock that counts ran out. The active player's turn ends, their
+ * own decisions still open taking their default; a turn run out without
+ * anything done costs them a chance. Somebody else's decision takes its
+ * default, every vote or hand still missing included.
+ */
+function expireClock(state: GameState, now: number | undefined): GameState {
+  const deadline = getClockDeadline(state);
+  if (now === undefined || deadline === null || now < deadline) return state;
+  if (isActiveDecision(state)) return expireTurn(state);
+
+  const stage = state.turnStage;
+  let nextState = addLog(state, "Temps écoulé : le choix par défaut s’applique.", "event");
+  for (let step = 0; step < MAX_DEFAULT_STEPS; step += 1) {
+    const action = getDefaultAction(nextState);
+    const after = action ? dispatchGameAction(nextState, action) : nextState;
+    if (after === nextState) break;
+    nextState = after;
+    if (nextState.turnStage !== stage || isActiveDecision(nextState)) break;
+  }
+  return nextState;
+}
+
+function expireTurn(state: GameState): GameState {
+  const player = getActivePlayer(state);
+  if (!player) return state;
+  let nextState = addLog(state, `Temps écoulé pour ${player.name}.`, "bad");
+  if (!state.turnActionTaken) {
+    nextState = addIdleStrike(nextState, player.id);
+    const strikes = getIdleStrikes(nextState, player.id);
+    nextState = addLog(nextState, `${player.name} perd une chance (${strikes}/${IDLE_STRIKES_TO_FORFEIT}).`, "bad");
+  }
+  for (let step = 0; step < MAX_DEFAULT_STEPS; step += 1) {
+    const stillTheirs =
+      nextState.phase === "playing" && getActivePlayer(nextState)?.id === player.id && isActiveDecision(nextState);
+    if (!stillTheirs) break;
+    if (["move", "hell", "shop", "turn-end"].includes(nextState.turnStage)) return endTurnNow(nextState);
+    const action = getDefaultAction(nextState);
+    const after = action ? dispatchGameAction(nextState, action) : nextState;
+    if (after === nextState) break;
+    nextState = after;
+  }
+  return nextState;
+}
+
+/** Online: three turns run out without doing anything are a forfeit, as soon as the table is at rest. */
+function applyForfeits(state: GameState): GameState {
+  let nextState = state;
+  for (const player of state.players) {
+    if (getIdleStrikes(nextState, player.id) < IDLE_STRIKES_TO_FORFEIT || !canAbandon(nextState)) continue;
+    nextState = abandonPlayer(nextState, player.id, "forfeit");
+  }
+  return nextState;
 }
 
 /** In Hell the wheel stands for the move: it takes the energy left and ends the turn. */
@@ -774,16 +849,18 @@ function recordPreviousTiles(before: GameState, after: GameState): GameState {
  * before it. Then Cupide may have won, and Double or nothing may stake what
  * the action earned or cost.
  */
-function applyGameAction(state: GameState, action: GameAction): GameState {
+function applyGameAction(state: GameState, action: GameAction, now: number | undefined): GameState {
   const prepared = spareHellPlayers(state);
-  const result = dispatchGameAction(prepared, action);
+  const result = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
   if (result === prepared) return state;
   const counted = countHellEntries(prepared, recordPreviousTiles(prepared, result));
-  return offerGamble(checkVictories(counted));
+  const settled = offerGamble(checkVictories(applyForfeits(counted)));
+  // Online, the clocks follow every action, at the time it was sent.
+  return now === undefined || settled.seededRandom === null ? settled : updateClocks(settled, now);
 }
 
-function dispatchGameAction(state: GameState, action: GameAction): GameState {
+function dispatchGameAction(state: GameState, action: GameAction, now?: number): GameState {
   switch (action.type) {
     case "startGame":
       return startGame(state, action.playerNames, action.seed, action.avatarColors, action.mapId);
@@ -849,6 +926,8 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return resolveCalmDown(state, action.destination);
     case "resolveGamble":
       return resolveGamble(state, action.accept);
+    case "expireClock":
+      return expireClock(state, now);
   }
 }
 
@@ -858,11 +937,12 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
  * An online game draws from its stored seed, so the result is identical on
  * every device.
  */
-export function reduceGame(state: GameState, action: GameAction): GameState {
+export function reduceGame(state: GameState, action: GameAction, context: ReduceContext = {}): GameState {
   const { seededRandom } = state;
+  const { now } = context;
   if (!seededRandom || action.type === "startGame" || action.type === "resetGame") {
-    return applyGameAction(state, action);
+    return applyGameAction(state, action, now);
   }
-  const { result, seed } = runWithSeededSource(seededRandom, () => applyGameAction(state, action));
+  const { result, seed } = runWithSeededSource(seededRandom, () => applyGameAction(state, action, now));
   return result === state ? state : { ...result, seededRandom: seed };
 }

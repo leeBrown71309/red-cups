@@ -25,6 +25,8 @@ export type FeedbackEvent =
   /** Le diable is announced to the whole table as the game starts. */
   | { type: "devil-announced"; playerId: PlayerId; goal: number }
   | { type: "doomsday-started" }
+  /** Online: the player whose turn starts has one chance left before a forfeit. */
+  | { type: "last-chance"; playerId: PlayerId }
   | { type: "black-cup-cast" }
   | { type: "carousel-flipped"; reversed: boolean }
   | { type: "player-left"; playerId: PlayerId }

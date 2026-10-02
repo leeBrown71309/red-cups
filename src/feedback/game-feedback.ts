@@ -1,6 +1,7 @@
 import { getBoard } from "../game/board";
 import { ITEM_ORDER } from "../game/catalog";
 import { findDevil, getDevilGoalFor } from "../game/devil";
+import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
 import { countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
@@ -248,6 +249,12 @@ function collectEvents(
     events.push({ type: "devil-announced", playerId: devil.id, goal: getDevilGoalFor(state) });
   }
   if (state.doomsday && !previous.doomsday) events.push({ type: "doomsday-started" });
+  const opening = state.players[state.activePlayerIndex];
+  const newTurn =
+    opening && (opening.id !== previous.players[previous.activePlayerIndex]?.id || state.round !== previous.round);
+  if (newTurn && (state.idleStrikes[opening.id] ?? 0) >= IDLE_STRIKES_WARNING) {
+    events.push({ type: "last-chance", playerId: opening.id });
+  }
   if (state.blackCup && !previous.blackCup) events.push({ type: "black-cup-cast" });
   if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
     events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });

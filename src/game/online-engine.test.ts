@@ -36,7 +36,7 @@ function recordBotGame(seed: number, playerCount: number, steps: number): { acti
 }
 
 function replay(start: GameState, actions: GameAction[]): GameState {
-  return actions.reduce(reduceGame, start);
+  return actions.reduce((state, action) => reduceGame(state, action), start);
 }
 
 describe("seeded games", () => {
@@ -169,5 +169,18 @@ describe("online permissions", () => {
         "p3",
       ),
     ).toBe(true);
+  });
+});
+
+describe("online turn clock", () => {
+  it("lands on the same clock on every device, from the time each action was sent", () => {
+    const { actions } = recordBotGame(42, 3, 120);
+    const playerNames = ["Bot 1", "Bot 2", "Bot 3"];
+    const start = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames, seed: 42 }, { now: 1_000 });
+    const timed = actions.map((action, index) => ({ action, now: 2_000 + index * 1_500 }));
+    const deviceA = timed.reduce((state, { action, now }) => reduceGame(state, action, { now }), start);
+    const deviceB = timed.reduce((state, { action, now }) => reduceGame(state, action, { now }), start);
+    expect(deviceA.turnClock).not.toBeNull();
+    expect(deviceB).toEqual(deviceA);
   });
 });

@@ -157,8 +157,13 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
   const previousActive = previous.players[previous.activePlayerIndex];
   const nextActive = next.players[next.activePlayerIndex];
   // L'Ange-Gardien takes the place of a protégé who leaves, in Hell, where a duel may wait; on their own
-  // turn, they play it on from Hell.
-  const heirDuel = previous.guardian?.protegeId === leaver.id && ["duel", "hell"].includes(next.turnStage);
+  // turn, they play it on from Hell (their shop closes there, their move becomes a Hell turn).
+  const heirDuel =
+    previous.guardian?.protegeId === leaver.id &&
+    (next.turnStage === "duel" || previous.players[previous.activePlayerIndex]?.id === previous.guardian.angelId);
+  // Online, a forfeit is settled once the table is at rest, right after the action that got it there.
+  const forfeit = newLogTexts(previous, next).some((text) => text.startsWith(`${leaver.name} déclare forfait`));
+  if (forfeit) return;
   if (previousActive.id !== leaver.id) {
     if (nextActive?.id !== previousActive.id || (next.turnStage !== previous.turnStage && !heirDuel)) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));

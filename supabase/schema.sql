@@ -281,6 +281,17 @@ begin
 end;
 $$;
 
+-- The database's clock, in milliseconds since 1970. Devices compare it with
+-- their own to run the same online turn clock, whatever their clocks say.
+create or replace function public.server_time()
+returns double precision
+language sql
+stable
+set search_path = public
+as $$
+  select extract(epoch from now()) * 1000;
+$$;
+
 -- Leaving. A lobby whose host walks out closes; a game under way goes on;
 -- a finished game closes with its last player, since nobody may come back to it.
 create or replace function public.leave_room(p_code text)
@@ -599,6 +610,7 @@ begin
     'public.create_room(text)',
     'public.claim_seat(text, text, smallint)',
     'public.touch_seat(text)',
+    'public.server_time()',
     'public.leave_room(text)',
     'public.shuffle_room(text)',
     'public.open_room(text, jsonb, jsonb)',

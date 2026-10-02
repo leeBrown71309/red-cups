@@ -106,6 +106,21 @@ describe("rich table games", () => {
   );
 });
 
+describe("online clock games", () => {
+  it(
+    "keeps the rules when clocks run out at every kind of decision",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE * 2 }, (_, index) =>
+        runBotGame({ seed: 40_000 + index, playerCount: 2 + (index % 7), clock: true }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(mergeCounts(reports, "actionCounts")["expire-clock"]).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
 describe("passive stress games", () => {
   it.each(PASSIVE_ORDER)(
     "keeps the rules with %s at the table",

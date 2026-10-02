@@ -187,6 +187,19 @@ Le passif **Non merci** (refait au patch 0.1.4, réponses de l’auteur) annule 
 - Si c’était son tour, la main passe au joueur suivant. S’il ne reste qu’un joueur, celui-ci gagne par abandon.
 - Les joueurs partis figurent en bas du classement final.
 
+### 4.3 Chrono de tour en ligne (patch 0.1.4)
+
+Seulement en ligne : une partie locale n'a pas de chrono.
+
+- **Le tour** : le joueur actif a **45 secondes** pour ses propres décisions (objets, déplacement, roue de sa case, boutique…). Le chrono part après chaque action avec 3 secondes de grâce, le temps des animations, et se met en pause quand c'est à un autre joueur de décider.
+- **Les décisions des autres** (réaction à Non merci ou au Bouclier, vote, pierre-feuille-ciseaux, Calme-toi, Double or nothing, roue tournée pour un autre, objet à jeter…) ont **20 secondes**, 45 pour un Basket ; le délai repart après chaque action pendant cette décision (chaque vote, par exemple).
+- **Temps écoulé** : n'importe quel appareil de la table le constate (celui du joueur concerné d'abord, les autres 2 secondes plus tard s'il est parti) et le choix par défaut s'applique :
+  - le tour du joueur actif se termine ; ses décisions encore ouvertes prennent leur défaut ;
+  - défauts : la réaction laisse passer, New Cup reste, Calme-toi laisse en place, Double or nothing garde la somme, la roue s'applique, « Avance d'une case » prend une case au hasard, l'objet à jeter est tiré au hasard, le défi de l'Enfer vise un joueur au hasard, le duel tire la pièce, une main ou un vote manquant au hasard, et un tireur de Basket absent marque 0.
+- **Chances** : un tour qui se termine au chrono sans que le joueur ait rien fait (ni objet, ni Botte, ni déplacement, ni roue de l'Enfer) lui coûte une chance (réponse Q1). À 2 chances perdues, une bannière l'avertit au début de son tour suivant ; à la **3ᵉ, il déclare forfait** et quitte la partie comme un abandon (voir 4.2), dès que la table est au repos ; si c'était le protégé d'un Ange-Gardien, l'Ange prend sa place. La barre des joueurs affiche « ⚠ 1/3 ».
+- **Horloge commune** : chaque action porte l'heure du serveur à laquelle elle a été jouée, si bien que tous les appareils calculent le même chrono. Une fonction `server_time()` du schéma Supabase donne cette heure ; sans elle, chaque appareil se fie à sa propre horloge.
+- **Versions** : un salon dont la partie suit d'autres règles (une autre version du jeu) est refusé, pour que tous les appareils jouent les mêmes règles.
+
 ## 5. Monnaie et inventaire
 
 - Solde de départ : 2 000 pièces.
@@ -454,6 +467,16 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 9. **À valider** — L'Ange ne peut pas être **défié** depuis l'Enfer ; à 2 joueurs avec l'Ange, la roue « Choisis un joueur à affronter » ne fait rien. Le **fantôme** lui prend des pièces ou un objet au lieu de l'emporter en Enfer.
 10. **À valider** — Le **Toucher d'Enfer** agit dès que le diable et un joueur assommé se retrouvent sur la même case, quel que soit celui qui bouge.
 
+### Lot 9 — Chrono de tour en ligne
+
+1. **À valider** — Les 45 secondes ne comptent que les décisions du joueur actif, et chaque action lui rend 3 secondes de grâce pour les animations : un joueur qui enchaîne les objets dispose donc d'un peu plus de 45 secondes en tout.
+2. **À valider** — Les décisions des autres ont 20 secondes (45 pour un Basket), et ce délai repart après chaque action pendant la décision (chaque vote).
+3. **À valider** — Les choix par défaut à l'échéance : laisser passer, rester, garder, appliquer la roue ; tirage au hasard pour la case où avancer, l'objet à jeter, l'adversaire du défi, la main ou le vote manquant ; 0 panier pour un tireur absent.
+4. **À valider** — **Une chance perdue** seulement quand le chrono termine un tour sans aucune action ; finir soi-même son tour, coincé ou sans énergie, ne coûte rien (lecture de Q1).
+5. **À valider** — Les chances perdues ne se regagnent jamais pendant la partie ; le forfait tombe à la 3ᵉ, une fois la table au repos.
+6. **À valider** — Un joueur qui quitte le salon pendant une décision (roue, duel) n'abandonne pas tout de suite : le chrono ferme ses décisions et ses tours, et il déclare forfait au bout de 3 tours.
+7. **À valider** — La fonction `server_time()` est dans `supabase/schema.sql` mais n'est pas encore appliquée sur le projet Supabase partagé : tant qu'elle ne l'est pas, chaque appareil se fie à sa propre horloge, et un appareil mal réglé peut fermer un tour un peu trop tôt ou trop tard.
+
 ## 14. Historique des versions
 
 ### 0.1.4 — en préparation
@@ -472,6 +495,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.
 - **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.
+- **Chrono en ligne** (voir 4.3) : 45 secondes par tour, 20 pour les décisions des autres, choix par défaut à l'échéance, une chance perdue par tour passé sans jouer et forfait à la troisième ; heure du serveur commune ; un salon d'une autre version est refusé.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 
 ### 0.1.3 — septembre 2026

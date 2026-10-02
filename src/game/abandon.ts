@@ -19,7 +19,11 @@ export function canAbandon(state: GameState): boolean {
  * passes to the next seat; with a single player left, that player wins.
  * L'Ange-Gardien takes the place of a protégé who leaves, from Hell.
  */
-export function abandonPlayer(state: GameState, playerId: PlayerId): GameState {
+export function abandonPlayer(
+  state: GameState,
+  playerId: PlayerId,
+  reason: "abandon" | "forfeit" = "abandon",
+): GameState {
   const index = state.players.findIndex((player) => player.id === playerId);
   if (!canAbandon(state) || index < 0) return state;
 
@@ -34,7 +38,9 @@ export function abandonPlayer(state: GameState, playerId: PlayerId): GameState {
       // Keeps pointing at the same player once the seats before them shift.
       activePlayerIndex: index < state.activePlayerIndex ? state.activePlayerIndex - 1 : state.activePlayerIndex,
     },
-    `${leaver.name} abandonne la partie.`,
+    reason === "forfeit"
+      ? `${leaver.name} déclare forfait : trois tours sans jouer.`
+      : `${leaver.name} abandonne la partie.`,
     "bad",
   );
   const heirInHell = state.guardian?.protegeId === leaver.id && players.length > 1;

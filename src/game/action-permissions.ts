@@ -82,6 +82,10 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "abandonGame":
       return only(action.playerId);
+
+    // Whoever sees a clock run out may close it: a device gone quiet must not hold the table.
+    case "expireClock":
+      return state.players.map((player) => player.id);
   }
 }
 
