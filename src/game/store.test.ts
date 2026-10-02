@@ -1,15 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { withPassives } from "./forced-passives";
 import { useGameStore } from "./store";
-import { DELINQUENT_COST } from "./types";
+import { BASE_ENERGY, CORRUPTER_COST } from "./types";
 
+/** Two Baraqués: the passives drawn at random (Red Bull's gauge, a role) never change what a test sees. */
 function startDeterministicGame(): void {
   useGameStore.getState().startGame(["Ada", "Benoît"]);
-  useGameStore.setState((state) => ({
-    players: state.players.map((player) => ({
-      ...player,
-      passiveId: "built-like-a-tank",
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, ["built-like-a-tank", "built-like-a-tank"]));
 }
 
 function placeActivePlayer(nodeId: number): void {
@@ -58,7 +55,8 @@ describe("Red Cups game store", () => {
 
     const state = useGameStore.getState();
     const activePlayer = state.players[0];
-    expect(activePlayer.currency).toBe(1_600);
+    // Botte 100 + Ndoye 250.
+    expect(activePlayer.currency).toBe(1_650);
     expect(activePlayer.inventory.filter((entry) => entry.kind === "item")).toHaveLength(2);
     expect(state.turnStage).toBe("shop");
   });
@@ -72,7 +70,8 @@ describe("Red Cups game store", () => {
     useGameStore.getState().resolveWheel();
 
     const state = useGameStore.getState();
-    expect(state.players[1].currency).toBe(1_900);
+    // The first wedge of misfortune: −200.
+    expect(state.players[1].currency).toBe(1_800);
     expect(state.turnStage).toBe("turn-end");
     expect(state.pendingWheel).toBeNull();
   });
@@ -143,7 +142,8 @@ describe("Red Cups game store", () => {
     const player = useGameStore.getState().players[0];
     expect(player.position).not.toBe(11);
     expect(player.inventory).toHaveLength(0);
-    expect(useGameStore.getState().turnStage).toBe("turn-end");
+    // The bottle took all three points: out of Hell, the player can only end the turn.
+    expect(useGameStore.getState()).toMatchObject({ turnStage: "move", energyLeft: 0 });
   });
 
   it("sends Draven’s table to Hell and resolves the winner back to case 0", () => {
@@ -168,10 +168,10 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().players.filter((player) => player.position === 11)).toHaveLength(1);
   });
 
-  it("charges Délinquant only when the move really goes against an arrow", () => {
+  it("charges Corrupteur only when the move really goes against an arrow", () => {
     startDeterministicGame();
     useGameStore.setState((state) => ({
-      players: state.players.map((player, index) => (index === 0 ? { ...player, passiveId: "delinquent" } : player)),
+      players: state.players.map((player, index) => (index === 0 ? { ...player, passiveId: "corrupter" } : player)),
     }));
 
     placeActivePlayer(7);
@@ -179,41 +179,19 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
 
     // 4 → 0 walks against the start's arrow, but 4 carries no arrow: free, and no start bonus either.
-    useGameStore.setState({ turnStage: "move" });
+    useGameStore.setState({ turnStage: "move", energyLeft: BASE_ENERGY });
     useGameStore.getState().movePlayer(0, true);
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
-    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(false);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Corrupteur"))).toBe(false);
 
     // Tile 3 must be left towards 6: reaching 4 from it really ignores an arrow.
     placeActivePlayer(3);
-    useGameStore.setState({ turnStage: "move" });
+    useGameStore.setState({ turnStage: "move", energyLeft: BASE_ENERGY });
     useGameStore.getState().movePlayer(4, true);
     const player = useGameStore.getState().players[0];
     expect(player.position).toBe(4);
-    expect(player.currency).toBe(2_000 - DELINQUENT_COST);
-    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(true);
-  });
-
-  it("offers Calme-toi as an optional reaction after a Cup spawns nearby", () => {
-    startDeterministicGame();
-    const players = useGameStore.getState().players;
-    useGameStore.setState({
-      players: players.map((player, index) => ({
-        ...player,
-        passiveId: index === 1 ? "calm-down" : "built-like-a-tank",
-      })),
-    });
-    vi.spyOn(Math, "random").mockReturnValue(0);
-
-    placeActivePlayer(10);
-    useGameStore.getState().movePlayer(8);
-    const state = useGameStore.getState();
-    expect(state.turnStage).toBe("passive-choice");
-    expect(state.pendingCalmDown?.passivePlayerId).toBe(players[1].id);
-
-    state.resolveCalmDown(false);
-    expect(useGameStore.getState().turnStage).toBe("shop");
-    expect(useGameStore.getState().pendingCalmDown).toBeNull();
+    expect(player.currency).toBe(2_000 - CORRUPTER_COST);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Corrupteur"))).toBe(true);
   });
 
   it("records the walked path so the board can animate it", () => {

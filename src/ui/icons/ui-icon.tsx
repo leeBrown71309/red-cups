@@ -27,6 +27,7 @@ const UI_ICON_PATHS = {
   mic: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3",
   micOff: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3M4 4l16 16",
   check: "M5 12.5l4.5 4.5L19 7",
+  shield: "M12 3l8 3v6c0 5-3.5 8-8 9c-4.5-1-8-4-8-9V6l8-3z",
   crown: "M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z",
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
   flag: "M5 21V4M5 4h12l-2.5 4.5L17 13H5",

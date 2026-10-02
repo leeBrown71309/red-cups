@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { SCENE_COLORS } from "../../theme/palette";
-import { addOutline, jitterGeometry, type SceneKit } from "../scene-kit";
+import { addOutline, easeOutBack, jitterGeometry, type SceneKit } from "../scene-kit";
 
 export interface AnimatedProp {
   group: THREE.Group;
@@ -88,31 +88,114 @@ export function createRedCup(kit: SceneKit): AnimatedProp {
   };
 }
 
+const MUD_POP_SECONDS = 0.35;
+
+/**
+ * A thick splat of mud, laid on top of a tile (its origin is the tile's top).
+ * The ink contour and the wet, darker heart keep it readable on every tile
+ * colour, by day or under the night fair's lights.
+ */
 export function createMudPuddle(kit: SceneKit): AnimatedProp {
   const group = new THREE.Group();
+  const splat = new THREE.Group();
+  group.add(splat);
+
   const puddle = new THREE.Mesh(
-    kit.geometry("mud-puddle", () => jitterGeometry(new THREE.CylinderGeometry(0.5, 0.56, 0.07, 9), 0.06, 7)),
-    kit.glossy(SCENE_COLORS.mud),
+    kit.geometry("mud-puddle", () => jitterGeometry(new THREE.CylinderGeometry(0.42, 0.48, 0.1, 10), 0.05, 7)),
+    kit.flat(SCENE_COLORS.mud),
   );
-  puddle.position.y = 0.38;
+  puddle.position.y = 0.05;
+  puddle.castShadow = true;
   puddle.receiveShadow = true;
-  group.add(puddle);
+  addOutline(puddle, kit, 1.08);
+  splat.add(puddle);
+
+  const wet = new THREE.Mesh(
+    kit.geometry("mud-wet", () => jitterGeometry(new THREE.CylinderGeometry(0.28, 0.3, 0.02, 9), 0.04, 11)),
+    kit.glossy(SCENE_COLORS.mudWet),
+  );
+  wet.position.y = 0.105;
+  splat.add(wet);
+
+  const dropGeometry = kit.geometry("mud-drop", () => new THREE.IcosahedronGeometry(0.06, 0));
+  [0.4, 1.9, 3.3, 4.8].forEach((angle, index) => {
+    const drop = new THREE.Mesh(dropGeometry, kit.flat(SCENE_COLORS.mud));
+    drop.position.set(Math.cos(angle) * 0.5, 0.03, Math.sin(angle) * 0.5);
+    drop.scale.setScalar(index % 2 === 0 ? 1 : 0.7);
+    addOutline(drop, kit, 1.2);
+    splat.add(drop);
+  });
 
   const bubbles: THREE.Mesh[] = [];
-  const bubbleGeometry = kit.geometry("mud-bubble", () => new THREE.IcosahedronGeometry(0.07, 0));
+  const bubbleGeometry = kit.geometry("mud-bubble", () => new THREE.IcosahedronGeometry(0.065, 0));
   for (let index = 0; index < 3; index += 1) {
-    const bubble = new THREE.Mesh(bubbleGeometry, kit.glossy("#a8734f"));
-    bubble.position.set(Math.cos(index * 2.1) * 0.24, 0.42, Math.sin(index * 2.1) * 0.24);
+    const bubble = new THREE.Mesh(bubbleGeometry, kit.glossy(SCENE_COLORS.mudBubble));
+    bubble.position.set(Math.cos(index * 2.1) * 0.15, 0.13, Math.sin(index * 2.1) * 0.15);
     bubbles.push(bubble);
-    group.add(bubble);
+    splat.add(bubble);
   }
+
+  let age = 0;
+  splat.scale.setScalar(0.001);
 
   return {
     group,
-    update: (elapsed) => {
+    update: (elapsed, delta) => {
+      age += delta;
+      splat.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
       bubbles.forEach((bubble, index) => {
         const cycle = (elapsed * 0.8 + index * 0.33) % 1;
         bubble.scale.setScalar(cycle < 0.85 ? cycle : 0);
+      });
+    },
+  };
+}
+
+/** Le diable's Portail: a purple swirl onto Hell, laid on a tile's top and slowly turning. */
+export function createHellPortal(kit: SceneKit): AnimatedProp {
+  const group = new THREE.Group();
+  const swirl = new THREE.Group();
+  group.add(swirl);
+
+  const rim = new THREE.Mesh(
+    kit.geometry("portal-rim", () => new THREE.TorusGeometry(0.34, 0.07, 8, 20)),
+    kit.flat("#8e5bd9", { emissive: "#5e3a99", emissiveIntensity: 0.5 }),
+  );
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 0.06;
+  addOutline(rim, kit, 1.08);
+  swirl.add(rim);
+
+  const pit = new THREE.Mesh(
+    kit.geometry("portal-pit", () => new THREE.CircleGeometry(0.3, 20)),
+    kit.flat("#2b1440", { emissive: "#e8453c", emissiveIntensity: 0.35 }),
+  );
+  pit.rotation.x = -Math.PI / 2;
+  pit.position.y = 0.04;
+  swirl.add(pit);
+
+  const sparkGeometry = kit.geometry("portal-spark", () => new THREE.IcosahedronGeometry(0.05, 0));
+  const sparks = [0, 1, 2].map(() => {
+    const spark = new THREE.Mesh(sparkGeometry, kit.flat("#ff9f43", { emissive: "#ff6b2c", emissiveIntensity: 0.8 }));
+    swirl.add(spark);
+    return spark;
+  });
+
+  let age = 0;
+  swirl.scale.setScalar(0.001);
+  return {
+    group,
+    update: (elapsed, delta) => {
+      age += delta;
+      swirl.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
+      swirl.rotation.y = -elapsed * 1.4;
+      sparks.forEach((spark, index) => {
+        const angle = elapsed * 2 + (index / sparks.length) * Math.PI * 2;
+        spark.position.set(
+          Math.cos(angle) * 0.22,
+          0.12 + ((elapsed * 0.6 + index * 0.33) % 1) * 0.35,
+          Math.sin(angle) * 0.22,
+        );
       });
     },
   };

@@ -1,34 +1,53 @@
 import { useState } from "react";
-import { ITEM_CATALOG, ITEM_ORDER } from "../../game/catalog";
+import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
+import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
+import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency } from "../display/game-display";
-import { getPurchaseStatus } from "../display/item-availability";
+import { getPurchaseStatus, getTheftStatus } from "../display/item-availability";
 import { useActivePlayer } from "../game-hooks";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { DetailCarousel } from "../components/detail-carousel";
+
+/** When, and for how much energy, a bought item can be used. */
+function describeEnergyUse(item: ItemDefinition): string {
+  if (item.energyCost === 0 && item.target === "special") return "Agit tout seul, sans énergie.";
+  const cost = item.energyCost === 0 ? "sans énergie" : `pour ${formatEnergyCost(item.energyCost)}`;
+  return `Utilisable dès ton prochain tour, ${cost}.`;
+}
 
 interface ShopModalProps {
   onClose: () => void;
 }
 
-/** Market stall: pick an item on the shelf, read what it does, buy it. */
+type ShopTab = "shop" | "devil";
+
+/** Market stall: pick an item on the shelf, read what it does, buy it. Le diable has a second stall. */
 export function ShopModal({ onClose }: ShopModalProps) {
   const game = useGameStore();
   const player = useActivePlayer();
   const [selectedId, setSelectedId] = useState<ItemId>("boot");
+  const [tab, setTab] = useState<ShopTab>("shop");
   if (!player) return null;
+
+  const isDevil = player.passiveId === "devil";
+  const shelf = getShopItems(player).filter((itemId) => DEVIL_ITEMS.includes(itemId) === (tab === "devil"));
+  const openTab = (next: ShopTab) => {
+    setTab(next);
+    setSelectedId(next === "devil" ? DEVIL_ITEMS[0] : "boot");
+  };
 
   const capacity = getInventoryCapacity(player);
   const selected = ITEM_CATALOG[selectedId];
   const selectedStatus = getPurchaseStatus(selectedId, game, player);
+  const theftStatus = getTheftStatus(selectedId, game, player);
 
   return (
     <ModalShell
-      title="Boutique"
+      title={tab === "devil" ? "Boutique du diable" : "Boutique"}
       eyebrow={`Case ${player.position} · ${player.name}`}
       tone="sky"
       size="large"
@@ -52,11 +71,33 @@ export function ShopModal({ onClose }: ShopModalProps) {
         <span className="shop-status__bag">
           <UiIcon name="bag" size={18} /> {player.inventory.length}/{capacity} places
         </span>
+        {isDevil && (
+          <span className="shop-tabs" role="tablist" aria-label="Étals">
+            {(["shop", "devil"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={tab === option}
+                className={`btn btn--small ${tab === option ? "btn--grape" : "btn--cream"}`}
+                onClick={() => openTab(option)}
+              >
+                {option === "devil" ? (
+                  <>
+                    <UiIcon name="flame" size={16} /> Diable
+                  </>
+                ) : (
+                  "Boutique"
+                )}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
 
       <div className="shop-layout">
         <ul className="shop-shelf" aria-label="Objets en vente">
-          {ITEM_ORDER.map((itemId) => {
+          {shelf.map((itemId) => {
             const status = getPurchaseStatus(itemId, game, player);
             return (
               <li key={itemId}>
@@ -70,9 +111,12 @@ export function ShopModal({ onClose }: ShopModalProps) {
                 >
                   <ItemIcon itemId={itemId} size={40} />
                   <span className="shop-item__name">{ITEM_CATALOG[itemId].name}</span>
-                  <span className="price-chip">
-                    <CoinIcon size={14} />
-                    {formatCurrency(status.price)}
+                  <span className="shop-item__chips">
+                    <span className="price-chip">
+                      <CoinIcon size={14} />
+                      {formatCurrency(status.price)}
+                    </span>
+                    <EnergyCost cost={ITEM_CATALOG[itemId].energyCost} />
                   </span>
                 </button>
               </li>
@@ -84,7 +128,9 @@ export function ShopModal({ onClose }: ShopModalProps) {
           <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
           <strong className="shop-detail__name">{selected.name}</strong>
           <p>{selected.description}</p>
-          <DetailCarousel key={selectedId} details={selected.details} label={selected.name} />
+          <span className="shop-detail__energy">
+            <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
+          </span>
           <button
             type="button"
             className="btn btn--gold btn--block"
@@ -99,6 +145,17 @@ export function ShopModal({ onClose }: ShopModalProps) {
               selectedStatus.reason
             )}
           </button>
+          {theftStatus && (
+            <button
+              type="button"
+              className="btn btn--cream btn--block"
+              disabled={!theftStatus.canSteal}
+              onClick={() => game.stealItem(selectedId)}
+              title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+            >
+              {theftStatus.canSteal ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque` : theftStatus.reason}
+            </button>
+          )}
         </aside>
       </div>
     </ModalShell>

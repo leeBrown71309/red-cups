@@ -1,6 +1,7 @@
 import { countBaskets } from "./duel-setup";
 import { addStartBonus, settleBoard } from "./game-effects";
 import { resolveGhostDuel } from "./ghost";
+import { carryOffIce } from "./ice";
 import { addLog, findPlayer, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, PendingDuel, PlayerId, RpsChoice } from "./types";
 import { BASKET_MAX_SCORE, GHOST_ID, START_NODE_ID } from "./types";
@@ -146,5 +147,7 @@ export function resolveDuel(state: GameState, winnerId: PlayerId): GameState {
     "good",
   );
   nextState = addStartBonus(nextState, winnerId);
+  // A start frozen by the blizzard carries the winner on.
+  nextState = carryOffIce(nextState, winnerId, winner.position);
   return settleBoard(nextState, duel.resumeStage);
 }

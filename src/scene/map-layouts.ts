@@ -49,8 +49,8 @@ const LUNA_PARK_LAYOUT: MapLayoutConfig = {
   groundWidth: 24.4,
   groundDepth: 17.4,
   shopStalls: {
-    5: { x: -1.75, z: 1.35, rotation: -0.55 },
-    8: { x: 1.9, z: -1.35, rotation: 0.2 },
+    5: { x: 1.9, z: -1.35, rotation: 0.2 },
+    8: { x: -1.75, z: 1.35, rotation: -0.55 },
     // The ghost-train portal takes the outer corner of tile 12.
     12: { x: -1.75, z: -1.45, rotation: 0.5 },
   },

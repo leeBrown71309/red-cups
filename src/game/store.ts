@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reduceGame, type GameAction } from "./game-actions";
 import { createGameSaveOptions, pickGameState } from "./game-save";
-import type { GameState, ItemId, MapId, NodeId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
+import type { GameState, ItemId, MapId, NodeId, PassiveId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
 import { EMPTY_GAME_STATE } from "./types";
 
 interface GameActions {
@@ -17,12 +17,23 @@ interface GameActions {
    * Starts a local game on the given board (classic by default); an online
    * game passes the room's seed so every device draws the same.
    */
-  startGame: (playerNames: string[], seed?: number, mapId?: MapId) => void;
+  /** `draft`: the players pick their passive before the first turn. */
+  startGame: (playerNames: string[], seed?: number, mapId?: MapId, draft?: boolean) => void;
+  /** The passive draft: this player's card, until the draft closes. */
+  pickPassive: (playerId: PlayerId, passiveId: PassiveId) => void;
   resetGame: () => void;
   /** Declares a move; it may wait in a Non merci reaction window before applying. */
   movePlayer: (destination: NodeId, ignoreArrows?: boolean) => void;
   prepareBoot: (entryId: string) => void;
+  /** Roller: throws the die before the move. */
+  rollDice: () => void;
+  /** Le diable walks out of Hell, back on the start. */
+  leaveHell: () => void;
+  /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
+  rescueProtege: () => void;
   buyItem: (itemId: ItemId) => void;
+  /** Voleur: tries to walk off with an item instead of paying for it. */
+  stealItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
   /** `count`: Tomates thrown at once from their stack. */
   useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number) => void;
@@ -37,7 +48,8 @@ interface GameActions {
   abandonGame: (playerId: PlayerId) => void;
   spinWheel: (wheelId: WheelId, playerId: PlayerId, resumeStage: TurnStage, sourceItemId?: ItemId) => void;
   resolveWheel: () => void;
-  cancelWheel: () => void;
+  /** Rubs the wheel's result out with the Gomme, or with Non merci when `withNoThanks` is set. */
+  cancelWheel: (withNoThanks?: boolean) => void;
   challengePlayer: (targetPlayerId: PlayerId) => void;
   flipDuelCoin: () => void;
   pickDuelHand: (playerId: PlayerId, choice: RpsChoice) => void;
@@ -48,8 +60,18 @@ interface GameActions {
   /** Basket: the duellist's baskets once the time is up. */
   submitBasketScore: (playerId: PlayerId, score: number) => void;
   discardInventoryEntry: (entryId: string) => void;
-  repositionBeforeCup: (destination: NodeId) => void;
-  resolveCalmDown: (useEffect: boolean) => void;
+  /** New Cup, New Me: off to the start for the start bonus, or stay. */
+  resolveNewCup: (goToStart: boolean) => void;
+  /** Wheel of fortune: the step forward onto a neighbouring tile. */
+  advanceOneTile: (destination: NodeId) => void;
+  /** Calme-toi: the tile the player is set down on, or null to let them be. */
+  resolveCalmDown: (destination: NodeId | null) => void;
+  /** Double or nothing: stakes the gain or loss on offer on a coin flip, or keeps it. */
+  resolveGamble: (accept: boolean) => void;
+  blackjackHit: (playerId: PlayerId) => void;
+  blackjackStand: (playerId: PlayerId) => void;
+  /** Arm wrestle: one side's taps once their ten seconds are over. */
+  submitArmTaps: (playerId: PlayerId, taps: number) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -88,12 +110,18 @@ export const useGameStore = create<GameStore>()(
       adoptGame: (state) => set({ ...EMPTY_GAME_STATE, ...pickGameState(state) }),
 
       // Setting up and leaving a game stay on this device: an online room builds its own start.
-      startGame: (playerNames, seed, mapId) => get().applyLocally({ type: "startGame", playerNames, seed, mapId }),
+      startGame: (playerNames, seed, mapId, draft) =>
+        get().applyLocally({ type: "startGame", playerNames, seed, mapId, ...(draft ? { draft } : {}) }),
+      pickPassive: (playerId, passiveId) => dispatch({ type: "pickPassive", playerId, passiveId }),
       resetGame: () => set({ ...EMPTY_GAME_STATE }),
 
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
+      rollDice: () => dispatch({ type: "rollDice" }),
+      leaveHell: () => dispatch({ type: "leaveHell" }),
+      rescueProtege: () => dispatch({ type: "rescueProtege" }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
+      stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
       useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
@@ -104,7 +132,7 @@ export const useGameStore = create<GameStore>()(
       spinWheel: (wheelId, playerId, resumeStage, sourceItemId) =>
         dispatch({ type: "spinWheel", wheelId, playerId, resumeStage, sourceItemId }),
       resolveWheel: () => dispatch({ type: "resolveWheel" }),
-      cancelWheel: () => dispatch({ type: "cancelWheel" }),
+      cancelWheel: (withNoThanks) => dispatch({ type: "cancelWheel", ...(withNoThanks ? { withNoThanks } : {}) }),
       challengePlayer: (targetPlayerId) => dispatch({ type: "challengePlayer", targetPlayerId }),
       flipDuelCoin: () => dispatch({ type: "flipDuelCoin" }),
       pickDuelHand: (playerId, choice) => dispatch({ type: "pickDuelHand", playerId, choice }),
@@ -113,11 +141,16 @@ export const useGameStore = create<GameStore>()(
       startBasketRound: (playerId) => dispatch({ type: "startBasketRound", playerId }),
       submitBasketScore: (playerId, score) => dispatch({ type: "submitBasketScore", playerId, score }),
       discardInventoryEntry: (entryId) => dispatch({ type: "discardInventoryEntry", entryId }),
-      repositionBeforeCup: (destination) => dispatch({ type: "repositionBeforeCup", destination }),
-      resolveCalmDown: (useEffect) => dispatch({ type: "resolveCalmDown", useEffect }),
+      resolveNewCup: (goToStart) => dispatch({ type: "resolveNewCup", goToStart }),
+      advanceOneTile: (destination) => dispatch({ type: "advanceOneTile", destination }),
+      resolveCalmDown: (destination) => dispatch({ type: "resolveCalmDown", destination }),
+      resolveGamble: (accept) => dispatch({ type: "resolveGamble", accept }),
+      blackjackHit: (playerId) => dispatch({ type: "blackjackHit", playerId }),
+      blackjackStand: (playerId) => dispatch({ type: "blackjackStand", playerId }),
+      submitArmTaps: (playerId, taps) => dispatch({ type: "submitArmTaps", playerId, taps }),
     };
   }, createGameSaveOptions<GameStore>()),
 );
 
 export { getActivePlayer } from "./state-utils";
-export { canUseDelinquent } from "./rules";
+export { canUseCorrupter } from "./rules";

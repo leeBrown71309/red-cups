@@ -4,7 +4,8 @@ import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { settleBoard, sendPlayerToHell } from "./game-effects";
 import { getBoardMap } from "./maps/map-registry";
-import { canAddItem, countItemCopies, getInventoryCapacity } from "./rules";
+import { avoidsHell } from "./passive-rules";
+import { canAddItem, canReceiveItem } from "./rules";
 import {
   addLog,
   appendItem,
@@ -86,9 +87,13 @@ function getGhostDistances(state: GameState, from: NodeId): Map<NodeId, number> 
 /**
  * One to three tiles along the roads, picked at random at every crossroads
  * and never straight back where it came from unless the road ends there.
+ * It stops on the first tile where somebody stands: the scene shows every
+ * tile of the drift, so gliding over a pawn without a duel would look like
+ * the ghost ignored it.
  */
 function drawGhostDrift(state: GameState, from: NodeId): NodeId[] {
   const steps = 1 + Math.floor(drawEngineRandom() * GHOST_MAX_DRIFT_STEPS);
+  const occupied = new Set(state.players.map((player) => player.position));
   const path: NodeId[] = [];
   let previous: NodeId | null = null;
   let current = from;
@@ -98,6 +103,7 @@ function drawGhostDrift(state: GameState, from: NodeId): NodeId[] {
     const next = randomChoice(onwards.length > 0 ? onwards : neighbors);
     if (next === undefined) break;
     path.push(next);
+    if (occupied.has(next)) break;
     previous = current;
     current = next;
   }
@@ -176,28 +182,18 @@ export function findGhostOpponent(state: GameState): Player | undefined {
   return candidates.find((player) => player.id === active?.id) ?? candidates[0];
 }
 
-/** An item the winner may hold: never a third copy, never a second Gomme; a full bag makes room. */
-function canTakeLootItem(player: Player, itemId: GhostState["loot"]["items"][number]["itemId"]): boolean {
-  if (canAddItem(player, itemId)) return true;
-  // A full stack of Tomates cannot take one more, whatever is thrown away.
-  if (ITEM_CATALOG[itemId].stackLimit && countItemCopies(player, itemId) > 0) return false;
-  const copies = countItemCopies(player, itemId);
-  if (copies >= 2 || (itemId === "eraser" && copies >= 1)) return false;
-  const bagFull = player.inventory.length >= getInventoryCapacity(player);
-  return !bagFull || player.inventory.some((entry) => entry.kind === "item");
-}
-
+/** L'Ange-Gardien never goes to Hell: the ghost takes coins or an item from them, if anything. */
 function drawPenalty(player: Player): GhostPenalty {
-  const options: GhostPenalty[] = [{ kind: "hell" }];
+  const options: GhostPenalty[] = avoidsHell(player) ? [] : [{ kind: "hell" }];
   if (player.currency > 0) options.push({ kind: "coins", amount: Math.min(GHOST_STEAL_COINS, player.currency) });
   const item = randomChoice(player.inventory.filter((entry) => entry.kind === "item"));
   if (item?.kind === "item") options.push({ kind: "item", entryId: item.id, itemId: item.itemId });
-  return randomChoice(options) ?? { kind: "hell" };
+  return randomChoice(options) ?? { kind: "coins", amount: 0 };
 }
 
 /** One piece of loot at a time: coins or one item, drawn; a reward of its own when the loot is empty. */
 function drawReward(ghost: GhostState, player: Player): GhostReward {
-  const items = ghost.loot.items.filter((entry) => canTakeLootItem(player, entry.itemId));
+  const items = ghost.loot.items.filter((entry) => canReceiveItem(player, entry.itemId));
   const kinds: ("coins" | "item")[] = [];
   if (ghost.loot.coins > 0) kinds.push("coins");
   if (items.length > 0) kinds.push("item");

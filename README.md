@@ -9,7 +9,22 @@ façons de jouer :
   rejoignent un salon : il n’y a pas de spectateurs. Avant de lancer, l’hôte peut mélanger l’ordre du tour ; le tirage
   est fait par la base (`shuffle_room`), donc tout le monde voit l’ordre qui sera joué.
 
-Les règles, décisions confirmées et points ouverts sont dans [`red-cups-game-spec.md`](./red-cups-game-spec.md).
+Les règles, décisions confirmées et points ouverts sont dans [`red-cups-game-spec.md`](./red-cups-game-spec.md). Le
+patch 0.1.4 est décrit lot par lot dans [`plans/patch-0.1.4-rework.md`](./plans/patch-0.1.4-rework.md), et ses choix
+encore à valider dans la section 13 de la spec.
+
+## Déroulé d’une partie (patch 0.1.4)
+
+- **Draft** : chacun choisit son passif parmi 3 cartes (2 au-delà de 6 joueurs). En local, l’écran passe de main en
+  main ; en ligne, la table a une minute. Puis un compte à rebours de 5 secondes ouvre la partie.
+- **Énergie** : 3 points par tour. On utilise d’abord ses objets, chacun à son coût, puis on se déplace : le
+  déplacement prend le reste et termine le tour.
+- **Rôles** : le diable (annoncé à tous, sa boutique, sa victoire par les entrées en Enfer), L’Ange-Gardien (un
+  protégé public, avec un halo), Cupide (victoire à 5 000 pièces) et une vingtaine de passifs.
+- **Mini-jeux** : les duels tirent pile ou face, pierre-feuille-ciseaux, vote, Basket ou Blackjack ; Baraqué répond
+  au Monopoly Man par un bras de fer.
+- **En ligne** : 45 secondes par tour, 20 pour les décisions des autres, avec un choix par défaut à l’échéance ; un
+  tour passé sans jouer coûte une chance, et la troisième est un forfait.
 
 ## Démarrage
 
@@ -34,10 +49,11 @@ bun run format:check
 
 ### Tests par bots
 
-Les tests incluent une campagne de 400 parties jouées par des bots, plus 30 parties par passif et 30 parties
-commencées sans le sou (pour éprouver le Tour de Bénédiction). Des bots jouent toutes les places (déplacements,
-objets, boutique, roues, duels, réactions Non merci, abandons) et un vérificateur contrôle les règles après chaque
-action. Chaque anomalie est rapportée avec sa graine et son numéro d’action pour la rejouer.
+Les tests incluent une campagne de 400 parties jouées par des bots, plus 30 parties par passif, 30 parties
+commencées sans le sou (pour éprouver le Tour de Bénédiction), des parties qui passent par le draft et des parties
+« en ligne » sur une horloge virtuelle, où les bots laissent parfois filer le chrono. Des bots jouent toutes les places
+(déplacements, objets, boutique, roues, duels, réactions Non merci, abandons) et un vérificateur contrôle les règles
+après chaque action. Chaque anomalie est rapportée avec sa graine et son numéro d’action pour la rejouer.
 
 ```sh
 bun run simulate -- --games 1000 --min 2 --max 8
@@ -60,6 +76,11 @@ Ordre des actions : l’appareil qui joue calcule le nouvel état, l’écrit av
 (`advance_room`), puis diffuse l’action ; les autres la rejouent. Deux actions simultanées (deux duellistes qui
 choisissent en même temps) ne peuvent donc pas diverger : une seule écriture passe, l’autre appareil recharge et
 réessaie. Un battement toutes les 20 secondes rattrape un message perdu.
+
+Chrono (patch 0.1.4) : chaque action porte l’heure du serveur à laquelle elle a été jouée, et les autres appareils la
+rejouent à cette même heure, ce qui leur donne le même chrono. Cette heure vient de `server_time()`, à appliquer avec
+le schéma. Tout appareil assis peut clore un chrono échu (`expireClock`). Un salon dont la partie suit d’autres règles
+(une autre version du jeu) est refusé.
 
 Mise en place d’un projet Supabase :
 
@@ -102,9 +123,10 @@ limitée à deux projets par compte.
 - **Plateau** : diorama low poly posé dans un plateau-jouet crème, comme un vrai jeu de société. Cases facettées aux
   couleurs du jeu original (bleu boutique, rouge, vert, gris, départ doré), chemins en pas japonais, arbres et buissons
   en icosaèdres, étang, Enfer en cratère violet qui sourit (clin d’œil au smiley de la case 11).
-- **Sens de circulation** : la sortie imposée d’une case fléchée porte des chevrons orange animés, sur la moitié de
-  route qui part de cette case (on peut y entrer par cette route, mais on doit en sortir par là). Les routes libres
-  n’en ont pas. Le tunnel 7 → 1 passe par des arches dans le rebord, avec des chevrons bleus.
+- **Sens de circulation** : comme sur le plateau original, une case fléchée porte sa flèche sur elle : une flèche en
+  relief, de la couleur de la case, sort de son bord vers la route par laquelle on doit la quitter (on peut y entrer
+  par n’importe quelle route). Les routes restent nues ; seuls le tunnel 7 → 1, qui passe par des arches dans le
+  rebord, et le carrousel de Luna Park portent des chevrons, car c’est la route elle-même qui a un sens.
 - **Luna Park** (seconde carte) : la même boîte de jeu, la nuit. Pavés bleu nuit, cases à bord néon, guirlandes
   d’ampoules, grande roue et chapiteau au fond, lampadaires, ballons et confettis. L’Enfer est un manège maudit dont
   les chauves-souris tournent dans le sens du carrousel ; le train fantôme relie deux maisons hantées. Chaque carte

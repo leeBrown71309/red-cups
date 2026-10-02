@@ -59,8 +59,9 @@ export const CLASSIC_MAP: BoardMap = {
   roadLegend: [
     {
       style: "arrow",
-      title: "Sortie fléchée",
-      description: "Sur une case fléchée, tu dois sortir par sa flèche. On peut y entrer par n’importe quelle route.",
+      title: "Case fléchée",
+      description:
+        "La flèche sort de la case : arrêté dessus, tu repars par la route qu’elle montre. On peut y entrer par n’importe quelle route.",
     },
     { style: "road", title: "Chemin libre", description: "Praticable dans les deux sens." },
     {

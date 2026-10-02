@@ -162,7 +162,8 @@ describe("room store lobby", () => {
     const [code, state, seatOrder] = api.rematchRoom.mock.calls[0];
     expect(code).toBe(ROOM_CODE);
     expect(seatOrder).toEqual([GUEST_ID, HOST_ID]);
-    expect(state).toMatchObject({ phase: "playing", mapId: "banquise" });
+    // A rematch opens on the passive draft, like any online game.
+    expect(state).toMatchObject({ phase: "draft", mapId: "banquise" });
     expect(state.players.map((player: { name: string }) => player.name)).toEqual(["P1", "P0"]);
   });
 

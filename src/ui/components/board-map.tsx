@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { getBoardNode, resolveBoard } from "../../game/board";
 import type { MapId, NodeId } from "../../game/types";
 import { getSceneTheme } from "../../theme/map-themes";
-import { TILE_COLORS } from "../../theme/palette";
+import { SCENE_COLORS, TILE_COLORS } from "../../theme/palette";
 
 const WIDTH = 640;
 const MARGIN_X = 58;
@@ -34,6 +34,63 @@ function ArrowHead({ from, to, at, color, ink }: { from: Point; to: Point; at: n
       <polyline points={points} stroke={ink} strokeWidth="9" />
       <polyline points={points} stroke={color} strokeWidth="4.5" />
     </g>
+  );
+}
+
+/** A block arrow sticking out of a tile's circle towards its forced exit, its base hidden under the tile. */
+function getTileArrowPoints(center: Point, direction: Point, radius: number): string {
+  const normal = { x: -direction.y, y: direction.x };
+  const at = (along: number, side: number) =>
+    `${center.x + direction.x * along + normal.x * side},${center.y + direction.y * along + normal.y * side}`;
+  const base = radius - 8;
+  const neck = radius + 6;
+  const tip = radius + 18;
+  return [at(base, 6), at(neck, 6), at(neck, 12), at(tip, 0), at(neck, -12), at(neck, -6), at(base, -6)].join(" ");
+}
+
+/**
+ * A tile and its arrows, drawn as one shape: the arrows' outlines go under
+ * the tile, their fill over its edge, so each arrow grows out of the tile.
+ */
+function ArrowedTile({
+  center,
+  radius,
+  directions,
+  fill,
+  ink,
+}: {
+  center: Point;
+  radius: number;
+  directions: Point[];
+  fill: string;
+  ink: string;
+}) {
+  const arrows = directions.map((direction) => getTileArrowPoints(center, direction, radius));
+  return (
+    <g strokeLinejoin="round">
+      {arrows.map((points) => (
+        <polygon key={`outline-${points}`} points={points} fill={fill} stroke={ink} strokeWidth="3" />
+      ))}
+      <circle cx={center.x} cy={center.y} r={radius} fill={fill} stroke={ink} strokeWidth="3" />
+      {arrows.map((points) => (
+        <polygon key={`fill-${points}`} points={points} fill={fill} />
+      ))}
+    </g>
+  );
+}
+
+/** The legend's sample of an arrow tile. */
+export function TileArrowSwatch() {
+  return (
+    <svg className="legend-arrow-tile" viewBox="0 0 54 26" aria-hidden="true">
+      <ArrowedTile
+        center={{ x: 14, y: 13 }}
+        radius={9}
+        directions={[{ x: 1, y: 0 }]}
+        fill={TILE_COLORS.start.top}
+        ink={SCENE_COLORS.ink}
+      />
+    </svg>
   );
 }
 
@@ -73,9 +130,10 @@ interface BoardMapProps {
 }
 
 /**
- * Flat plan of a board. Arrows show forced directions, the dashed road is the
- * tunnel (wrapping around the classic board, the ghost train at Luna Park)
- * and the pink ring is the carousel with its current direction.
+ * Flat plan of a board. An arrow tile grows an arrow towards its forced exit,
+ * the dashed road is the tunnel (wrapping around the classic board, the ghost
+ * train at Luna Park) and the pink ring is the carousel with its current
+ * direction.
  */
 export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null, highlightNodeId }: BoardMapProps) {
   const board = resolveBoard(mapId, carouselReversed, iceTileNodeId);
@@ -168,12 +226,6 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
               strokeWidth="9"
               strokeLinecap="round"
             />
-            {edge.arrow && (
-              <>
-                <ArrowHead from={start} to={end} at={0.2} color={roads.arrow} ink={plan.ink} />
-                <ArrowHead from={start} to={end} at={0.38} color={roads.arrow} ink={plan.ink} />
-              </>
-            )}
           </g>
         );
       })}
@@ -182,6 +234,21 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
         const center = project(node.x, node.z);
         const colors = TILE_COLORS[node.kind];
         const highlighted = node.id === highlightNodeId;
+        const radius =
+          node.kind === "start"
+            ? TILE_RADIUS + 4
+            : node.kind === "hell" && theme.neonTiles
+              ? TILE_RADIUS + 8
+              : TILE_RADIUS;
+        const arrowDirections = board.edges
+          .filter((edge) => edge.arrow && edge.from === node.id)
+          .flatMap((edge) => {
+            const target = getBoardNode(board, edge.to);
+            if (!target) return [];
+            const end = project(target.x, target.z);
+            const length = Math.hypot(end.x - center.x, end.y - center.y) || 1;
+            return [{ x: (end.x - center.x) / length, y: (end.y - center.y) / length }];
+          });
         return (
           <g key={node.id}>
             {highlighted && (
@@ -209,19 +276,12 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
                 opacity="0.55"
               />
             )}
-            <circle
-              cx={center.x}
-              cy={center.y}
-              r={
-                node.kind === "start"
-                  ? TILE_RADIUS + 4
-                  : node.kind === "hell" && theme.neonTiles
-                    ? TILE_RADIUS + 8
-                    : TILE_RADIUS
-              }
+            <ArrowedTile
+              center={center}
+              radius={radius}
+              directions={arrowDirections}
               fill={colors.top}
-              stroke={plan.ink}
-              strokeWidth="3"
+              ink={plan.ink}
             />
             <text className="board-map__label" x={center.x} y={center.y + 7} textAnchor="middle" fill={plan.label}>
               {node.kind === "hell" ? "☻" : node.id}

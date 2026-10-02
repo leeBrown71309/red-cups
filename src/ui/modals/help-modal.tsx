@@ -6,6 +6,7 @@ import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
 import type { MapId } from "../../game/types";
 import {
+  BASE_ENERGY,
   GHOST_COOLDOWN_ROUNDS,
   GHOST_EMPTY_LOOT_REWARD,
   GHOST_LOOT_COINS,
@@ -16,12 +17,12 @@ import {
   SNOWBALL_HITS_TO_FREEZE,
   START_BONUS,
 } from "../../game/types";
-import { BoardMap } from "../components/board-map";
+import { BoardMap, TileArrowSwatch } from "../components/board-map";
+import { EnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { useMapChoiceStore } from "../lobby/map-choice-store";
-import { DetailCarousel } from "../components/detail-carousel";
 
 type HelpTab = "board" | "turn" | "items" | "passives";
 
@@ -32,8 +33,7 @@ const TABS: { id: HelpTab; label: string }[] = [
   { id: "passives", label: "Passifs" },
 ];
 
-const ROAD_SWATCH_CLASSES: Record<RoadLegendEntry["style"], string> = {
-  arrow: "legend-road legend-road--oneway",
+const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, string> = {
   road: "legend-road",
   tunnel: "legend-road legend-road--tunnel",
   carousel: "legend-road legend-road--carousel",
@@ -45,26 +45,41 @@ function getTurnSteps(mapId: MapId): string[] {
   const board = resolveBoard(mapId);
   const bonusTiles = getStartBonusNodeIds(board).join(" ou ");
   const steps = [
-    "À ton tour, fais une seule action : avancer d’une case ou utiliser un objet.",
-    "La Botte se prépare et la Boue se pose avant de bouger : elles ne comptent pas comme ton action.",
-    "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté ou reculé, ça compte ; " +
-      "tiré par la Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
-    "Sur une case bleue, la boutique s’ouvre : achète tant que ton solde et ton sac le permettent. " +
-      "Deux exemplaires au plus d’un même objet, une seule Gomme.",
-    "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places, 5 avec Penta) ; " +
+    "Avant la partie, chacun choisit son passif parmi ses cartes (3, ou 2 au-delà de 6 joueurs), jamais les mêmes " +
+      "que celles des autres. En ligne, la table a une minute ; en local, l’écran passe de main en main.",
+    "En ligne, ton tour dure 45 secondes, et les décisions des autres 20 : à la fin, le choix par défaut s’applique. " +
+      "Un tour passé sans rien faire te coûte une chance ; à la troisième, tu déclares forfait.",
+    `À ton tour, tu as ${BASE_ENERGY} points d’énergie. Utilise d’abord tes objets : chacun coûte son énergie, ` +
+      "affichée sur l’objet. La Tomate, la Gomme et le Casque sont gratuits.",
+    "Puis avance d’une case : il faut au moins 1 point, le déplacement prend tout ce qui reste et termine ton " +
+      "tour. Après avoir utilisé un objet, ou sans assez d’énergie pour bouger, tu peux aussi finir ton tour sur place.",
+    "La Botte coûte 1 point et en garde 1 pour ton déplacement de deux cases : une seule par tour. " +
+      "Une seule Boue par tour aussi.",
+    "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté, reculé ou déplacé " +
+      "par une roue (« Avance d’une case », « Retourne d’où tu viens »), ça compte, boutique comprise ; tiré par la " +
+      "Corde, échangé par le Monopoly Man, envoyé au Départ par New Cup ou replacé par Calme-toi, non.",
+    "Sur une case bleue, la boutique s’ouvre : achète tant que ton solde et ton sac le permettent, sans " +
+      "énergie. Ce que tu achètes sert à partir de ton prochain tour. Deux exemplaires au plus d’un même objet, " +
+      "une seule Gomme. Les Tomates s’empilent par 5 : une pile compte comme un exemplaire, et tu ne lances " +
+      "qu’une pile par tour.",
+    "Ramasse 3 Red Cups pour gagner (Cupide gagne à 5 000 pièces, le diable avec assez d’entrées en Enfer, " +
+      "L’Ange-Gardien avec son protégé). Chaque Cup prend une place de ton " +
+      "sac (4 places) ; " +
       "sac plein, tu jettes un objet, jamais une Cup.",
     `Entrer au Départ depuis la case ${bonusTiles}, dans le sens de la flèche : +${START_BONUS} pièces. ` +
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
-    "En Enfer, à chaque tour, tu tournes sa roue ou tu utilises un objet. Deux joueurs en Enfer = duel : " +
-      `le gagnant repart du Départ avec ${START_BONUS} pièces.`,
-    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table ou Basket. " +
-      "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
+    "En Enfer, sa roue remplace le déplacement : au moins 1 point, et elle prend le reste. Tes objets passent " +
+      `avant. Deux joueurs en Enfer = duel : le gagnant repart du Départ avec ${START_BONUS} pièces.`,
+    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table, Basket ou " +
+      "Blackjack. Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; au Blackjack, le plus proche de " +
+      "21 sans le dépasser gagne. Égalité : la pièce départage.",
     `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
-    "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
-      "puis attend 3 tours de table.",
-    "Bullet Bill attend au départ dès son achat, puis fonce de 2 cases vers le joueur le plus proche à chaque " +
-      "tour de table : −200 pièces et un tour passé pour sa victime.",
+    "Non merci : son détenteur peut annuler un objet utilisé contre lui, une roue tournée pour lui (après le " +
+      "résultat) ou Bullet Bill qui fonce sur lui, puis attend 5 tours de table. Contre Draven, il ne protège que " +
+      "lui. Les déplacements et les Tomates ne s’annulent pas.",
+    "Bullet Bill se lance depuis ton sac : il attend au départ, puis avance d’une case vers le joueur le plus " +
+      "proche à chaque tour de table. Celui qu’il atteint perd 200 pièces et passe son prochain tour.",
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
     "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
   ];
@@ -88,14 +103,14 @@ function getTurnSteps(mapId: MapId): string[] {
   if (hasCarousel(board)) {
     steps.push(
       `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
-        "Délinquant peut le prendre à contresens.",
+        "Corrupteur peut le prendre à contresens.",
     );
   }
   if (board.map.haunted) {
     steps.push(
       "Le fantôme rôde sur tout le plateau, sans respecter les routes : à chaque fin de tour, il glisse de 1 à " +
-        `${GHOST_MAX_DRIFT_STEPS} cases, ou disparaît pour réapparaître au loin. S’il tombe sur toi, ou si tu ` +
-        "t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
+        `${GHOST_MAX_DRIFT_STEPS} cases, en s’arrêtant sur le premier joueur qu’il croise, ou disparaît pour ` +
+        "réapparaître au loin. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
       `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
         `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
         `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,
@@ -168,9 +183,13 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <ul className="legend-list legend-list--roads">
               {shownMap.roadLegend.map((entry) => (
                 <li key={entry.title}>
-                  <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
-                    {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
-                  </span>
+                  {entry.style === "arrow" ? (
+                    <TileArrowSwatch />
+                  ) : (
+                    <span className={ROAD_SWATCH_CLASSES[entry.style]} aria-hidden="true">
+                      {entry.style === "road" ? "" : entry.style === "ice" ? "❄" : "›››"}
+                    </span>
+                  )}
                   <span>
                     <strong>{entry.title}</strong>
                     <small>{entry.description}</small>
@@ -204,13 +223,14 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                   <strong>{item.name}</strong>
                   <p>{item.description}</p>
                 </div>
-                <span className="price-chip">
-                  <CoinIcon size={16} />
-                  {itemId === "boot" ? "dès " : ""}
-                  {formatCurrency(item.price)}
+                <span className="help-item__chips">
+                  <span className="price-chip">
+                    <CoinIcon size={16} />
+                    {itemId === "boot" ? "dès " : ""}
+                    {formatCurrency(item.price)}
+                  </span>
+                  <EnergyCost cost={item.energyCost} />
                 </span>
-                {/* Full card width: squeezed beside the icon and the price, the rules wrapped every other word. */}
-                <DetailCarousel details={item.details} label={item.name} />
               </li>
             );
           })}
@@ -225,7 +245,6 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               <li key={passiveId}>
                 <strong>{passive.name}</strong>
                 <p>{passive.description}</p>
-                <DetailCarousel details={passive.details} label={passive.name} />
               </li>
             );
           })}

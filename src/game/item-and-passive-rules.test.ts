@@ -1,15 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
-import { DELINQUENT_COST, MUD_OWNER_REWARD, MUD_PENALTY, STARTING_CURRENCY } from "./types";
+import { CORRUPTER_COST, MUD_OWNER_REWARD, MUD_PENALTY, STARTING_CURRENCY } from "./types";
+import { withPassives } from "./forced-passives";
 
-/** Patch 0.1.1: Délinquant, Boue, New Cup, New Me and the wheel of fortune. */
+/** Patch 0.1.1: Corrupteur, Boue and the wheel of fortune (New Cup, New Me: see passive-rework.test.ts). */
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {
@@ -25,18 +24,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Délinquant", () => {
-  it(`pays ${DELINQUENT_COST} coins per ignored arrow`, () => {
-    startTable(["delinquent", "penta"]);
+describe("Corrupteur", () => {
+  it(`pays ${CORRUPTER_COST} coins per ignored arrow`, () => {
+    startTable(["corrupter", "lambda"]);
     editPlayer(0, { position: 3 });
     store().movePlayer(4, true);
 
     expect(store().players[0].position).toBe(4);
-    expect(store().players[0].currency).toBe(STARTING_CURRENCY - DELINQUENT_COST);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY - CORRUPTER_COST);
   });
 
   it("cannot break out of the start towards the first Cup on the first round", () => {
-    startTable(["delinquent", "penta"]);
+    startTable(["corrupter", "lambda"]);
     store().movePlayer(8, true);
 
     expect(store().players[0].position).toBe(0);
@@ -45,16 +44,16 @@ describe("Délinquant", () => {
   });
 
   it("may leave the start against its arrow from the second round on", () => {
-    startTable(["delinquent", "penta"]);
+    startTable(["corrupter", "lambda"]);
     useGameStore.setState({ round: 2 });
     store().movePlayer(8, true);
 
     expect(store().players[0].position).toBe(8);
-    expect(store().players[0].currency).toBe(STARTING_CURRENCY - DELINQUENT_COST);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY - CORRUPTER_COST);
   });
 
   it("can still ignore arrows elsewhere on the first round", () => {
-    startTable(["delinquent", "penta"]);
+    startTable(["corrupter", "lambda"]);
     editPlayer(0, { position: 9 });
     store().movePlayer(5, true);
     expect(store().players[0].position).toBe(5);
@@ -63,7 +62,7 @@ describe("Délinquant", () => {
 
 describe("Boue", () => {
   it("is laid before the turn's move", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { inventory: [{ id: "mud-1", kind: "item", itemId: "mud" }] });
     store().useItem("mud-1");
 
@@ -75,7 +74,7 @@ describe("Boue", () => {
   });
 
   it("can be laid only once per turn", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, {
       inventory: [
         { id: "mud-1", kind: "item", itemId: "mud" },
@@ -94,7 +93,7 @@ describe("Boue", () => {
   });
 
   it(`pays ${MUD_OWNER_REWARD} coins to whoever laid it when somebody else steps in`, () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const ownerId = store().players[1].id;
     useGameStore.setState({ mudTraps: [{ id: "trap", nodeId: 2, ownerId }] });
     store().movePlayer(2);
@@ -105,7 +104,7 @@ describe("Boue", () => {
   });
 
   it("pays nobody when its owner steps in it", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const ownerId = store().players[0].id;
     useGameStore.setState({ mudTraps: [{ id: "trap", nodeId: 2, ownerId }] });
     store().movePlayer(2);
@@ -115,57 +114,9 @@ describe("Boue", () => {
   });
 });
 
-describe("New Cup, New Me", () => {
-  /** Player 1 collects the Cup on tile 8 (a shop) while player 2 holds New Cup, New Me. */
-  function collectCupWithRepositioner(repositionerIndex: number): void {
-    const passives: PassiveId[] = ["built-like-a-tank", "troll"];
-    passives[repositionerIndex] = "new-cup-new-me";
-    startTable(passives);
-    editPlayer(0, { position: 10 });
-    store().movePlayer(8);
-    expect(store().turnStage).toBe("reposition");
-  }
-
-  it("spins no wheel on the tile chosen before the Cup appears", () => {
-    collectCupWithRepositioner(1);
-    store().repositionBeforeCup(4);
-
-    expect(store().players[1].position).toBe(4);
-    expect(store().pendingTileWheels).toEqual([]);
-    // The collector, still on the shop tile, keeps the shop they walked to.
-    expect(store().turnStage).toBe("shop");
-  });
-
-  it("does not open the shop of the tile the collector repositions onto", () => {
-    collectCupWithRepositioner(0);
-    store().repositionBeforeCup(3);
-
-    expect(store().players[0].position).toBe(3);
-    expect(store().turnStage).toBe("turn-end");
-  });
-
-  it("keeps the shop when the collector stays on their tile", () => {
-    collectCupWithRepositioner(0);
-    store().repositionBeforeCup(8);
-    expect(store().turnStage).toBe("shop");
-  });
-
-  it("drops the wheel of a colored tile left behind", () => {
-    startTable(["new-cup-new-me", "troll"]);
-    vi.spyOn(Math, "random").mockReturnValue(0.5);
-    useGameStore.setState({ redCupNodeId: 4 });
-    store().movePlayer(4);
-    expect(store().turnStage).toBe("reposition");
-
-    store().repositionBeforeCup(2);
-    expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
-  });
-});
-
 describe("wheel of fortune", () => {
   it("can send its spinner to the wheel of misfortune", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const playerId = store().players[0].id;
     useGameStore.setState({
       turnStage: "wheel-result",

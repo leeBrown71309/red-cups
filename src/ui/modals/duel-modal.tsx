@@ -10,6 +10,7 @@ import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
 import { UiIcon } from "../icons/ui-icon";
 import { BasketGame } from "./basket-game";
+import { BlackjackGame } from "./blackjack-game";
 import { DuellistAvatar, findDuellist, isGhost, type Duellist } from "./duellists";
 
 const RPS_OPTIONS: { id: RpsChoice; label: string; emoji: string }[] = [
@@ -117,6 +118,8 @@ function DuelArena({ duel, first, second }: DuelArenaProps) {
         <RockPaperScissors duel={duel} first={first} second={second} />
       ) : duel.mode === "basket" ? (
         <BasketGame duel={duel} first={first} second={second} />
+      ) : duel.mode === "blackjack" ? (
+        <BlackjackGame duel={duel} first={first} second={second} />
       ) : (
         <TableVote duel={duel} first={first} second={second} />
       )}

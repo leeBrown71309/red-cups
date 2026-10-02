@@ -3,7 +3,7 @@ import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import type { MapId, NodeId } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
-import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves } from "../ui/game-hooks";
+import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves, useRedCupHidden } from "../ui/game-hooks";
 import { useMapChoiceStore } from "../ui/lobby/map-choice-store";
 import { BoardWorld, type BoardView } from "./board-world";
 import type { CameraMode } from "./camera-rig";
@@ -131,6 +131,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const game = useGameStore();
   const legalMoves = useLegalMoves();
   const lagged = useLaggedProps();
+  const cupHidden = useRedCupHidden();
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
 
@@ -156,11 +157,13 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
               isSleeping: player.skippedTurns > 0,
               ...(frozen ? { frozenTo: frozen.to } : {}),
               ...(game.snowFrozenPlayerIds.includes(player.id) ? { snowFrozen: true } : {}),
+              ...(game.guardian?.protegeId === player.id ? { halo: true } : {}),
             };
           })
         : [],
-      redCupNodeId: playing ? lagged.redCupNodeId : getBoardMap(mapId).initialCupNodeId,
+      redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
+      portalNodeIds: playing ? game.hellPortals.map((portal) => portal.nodeId) : [],
       // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
       bulletBill:
         playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,
@@ -179,5 +182,5 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       followActivePlayer,
       activePlayerId: activePlayer?.id ?? null,
     };
-  }, [game, lagged, legalMoves, previewNodeId, followActivePlayer, mode, mapId]);
+  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, mode, mapId]);
 }

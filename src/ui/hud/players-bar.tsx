@@ -1,17 +1,20 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
+import { getDevilGoalFor } from "../../game/devil";
+import { IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
+import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
-import type { Player } from "../../game/types";
+import type { GameState, Player } from "../../game/types";
 import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useRoomStore } from "../../net/room-store";
+import { EnergyGauge } from "../components/energy-meter";
 import { PlayerAvatar, type AvatarExpression } from "../components/player-avatar";
 import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { DetailCarousel } from "../components/detail-carousel";
 
 export function getAvatarExpression(player: Player): AvatarExpression {
   if (player.skippedTurns > 0) return "sleepy";
@@ -29,6 +32,23 @@ export function CupPips({ count, size = 14 }: { count: number; size?: number }) 
       ))}
     </span>
   );
+}
+
+/** Both roles are public: le diable's count of Hell entries, L'Ange-Gardien and their protégé. */
+function getRoleTag(state: GameState, player: Player): { text: string; title: string; tone: string } | null {
+  if (player.passiveId === "devil") {
+    const count = `${state.devilHellEntries}/${getDevilGoalFor(state)}`;
+    return { text: `Enfer ${count}`, title: `Entrées en Enfer des autres joueurs : ${count}`, tone: "devil" };
+  }
+  const guardian = state.guardian;
+  const name = (id: string | undefined) => state.players.find((candidate) => candidate.id === id)?.name ?? "";
+  if (guardian?.angelId === player.id) {
+    return { text: "Ange", title: `Protège ${name(guardian.protegeId)}`, tone: "angel" };
+  }
+  if (guardian?.protegeId === player.id) {
+    return { text: "Protégé", title: `Protégé par ${name(guardian.angelId)}`, tone: "angel" };
+  }
+  return null;
 }
 
 const DETAILS_WIDTH = 280;
@@ -61,6 +81,7 @@ export function PlayersBar() {
   const snowballHits = useGameStore((state) => state.snowballHits);
   const snowFrozenPlayerIds = useGameStore((state) => state.snowFrozenPlayerIds);
   const seatOrder = useRoomStore((state) => state.seatOrder);
+  const game = useGameStore();
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -92,6 +113,7 @@ export function PlayersBar() {
         const active = phase === "playing" && index === activePlayerIndex;
         const cups = countRedCups(player);
         const open = anchor?.playerId === player.id;
+        const role = getRoleTag(game, player);
         return (
           <div className="player-chip-wrap" role="listitem" key={player.id}>
             <button
@@ -116,6 +138,19 @@ export function PlayersBar() {
                 </span>
               </span>
               <VoiceBadge userId={getUserIdOfPlayer(seatOrder, player.id)} />
+              {(game.idleStrikes[player.id] ?? 0) > 0 && (
+                <span
+                  className="player-chip__strikes"
+                  title="Chances perdues : trois tours sans jouer, et c’est le forfait"
+                >
+                  ⚠ {game.idleStrikes[player.id]}/{IDLE_STRIKES_TO_FORFEIT}
+                </span>
+              )}
+              {role && (
+                <span className={`player-chip__role player-chip__role--${role.tone}`} title={role.title}>
+                  {role.text}
+                </span>
+              )}
               {player.skippedTurns > 0 && !snowFrozenPlayerIds.includes(player.id) && (
                 <span className="player-chip__badge" title="Passe son prochain tour">
                   <UiIcon name="sleep" size={12} strokeWidth={2.8} />
@@ -143,8 +178,33 @@ export function PlayersBar() {
   );
 }
 
+/** The gauge left this turn for the active player; the others refill it when their turn comes. */
+function EnergyStat({ player }: { player: Player }) {
+  const playing = useGameStore(
+    (state) => state.phase === "playing" && state.players[state.activePlayerIndex]?.id === player.id,
+  );
+  const energyLeft = useGameStore((state) => state.energyLeft);
+  const capacity = getEnergyCapacity(player);
+  const shown = playing ? energyLeft : capacity;
+
+  return (
+    <div className="player-details__stat player-details__stat--wide">
+      <span className="eyebrow">Énergie</span>
+      <span className="player-details__stat-value">
+        <EnergyGauge left={shown} capacity={capacity} large />
+        <strong>
+          {shown}/{capacity}
+        </strong>
+        <small>{playing ? "ce tour" : "à son prochain tour"}</small>
+      </span>
+    </div>
+  );
+}
+
 function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
   const round = useGameStore((state) => state.round);
+  const game = useGameStore();
+  const role = getRoleTag(game, player);
   const passive = PASSIVE_CATALOG[player.passiveId];
   const noThanksStatus =
     player.passiveId !== "no-thanks"
@@ -188,13 +248,14 @@ function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnch
             <strong>{formatCurrency(player.currency)}</strong>
           </span>
         </div>
+        <EnergyStat player={player} />
       </div>
       <div className="player-details__passive">
         <span className="eyebrow">Passif</span>
         <strong>{passive.name}</strong>
         <p>{passive.description}</p>
-        <DetailCarousel key={passive.id} details={passive.details} label={passive.name} />
         {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
+        {role && <p className="player-details__passive-status">{role.title}.</p>}
       </div>
       <div className="player-details__bag">
         <span className="eyebrow">

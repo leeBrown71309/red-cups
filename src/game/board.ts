@@ -101,7 +101,7 @@ export function isOneWay(edge: BoardEdge): boolean {
 /**
  * Tiles reachable in one step. Arrows constrain the tile they are drawn on
  * (forced exit), tunnels and the carousel are one-way; `ignoreArrows`
- * (Délinquant) lifts all of them, so any connected road can be taken either way.
+ * (Corrupteur) lifts all of them, so any connected road can be taken either way.
  */
 export function getNeighbors(board: Board, nodeId: NodeId, ignoreArrows = false): NodeId[] {
   const neighbors = new Set<NodeId>();
@@ -127,7 +127,7 @@ export function getStartBonusNodeIds(board: Board): NodeId[] {
 /**
  * The 200 coins of the start reward completing the loop, so they are only paid
  * when a step enters the start along an arrow pointing at it (8 → 0 on the
- * classic board, 5 → 0 at Luna Park, 4 → 0 at Banquise). Stepping back into it against its own
+ * classic board and at Luna Park, 4 → 0 at Banquise). Stepping back into it against its own
  * arrows (4 → 0 on the classic board) would otherwise let a player farm the
  * bonus by bouncing 4 ↔ 0.
  */
@@ -158,6 +158,25 @@ export function getPathsOfLength(
   }
 
   return paths.map((path) => path.slice(1));
+}
+
+/**
+ * Roller: walks of `distance` steps that never come back to a tile already
+ * stood on, the starting one included. When no walk is that long, the longest
+ * ones open (answer of the game's author).
+ */
+export function getSimplePaths(board: Board, startNodeId: NodeId, distance: number): NodeId[][] {
+  let paths: NodeId[][] = [[startNodeId]];
+  for (let step = 0; step < distance; step += 1) {
+    const longer = paths.flatMap((path) =>
+      getNeighbors(board, path[path.length - 1])
+        .filter((neighbor) => !path.includes(neighbor))
+        .map((neighbor) => [...path, neighbor]),
+    );
+    if (longer.length === 0) break;
+    paths = longer;
+  }
+  return paths.map((path) => path.slice(1)).filter((path) => path.length > 0);
 }
 
 export function getShortestPath(

@@ -28,7 +28,8 @@ export function playBotsFrom(start: GameState, options: BotPlayOptions): GameSta
     store.getState().adoptGame(start);
     for (let step = 0; step < (options.maxSteps ?? DEFAULT_MAX_STEPS); step += 1) {
       const state = store.getState();
-      if (state.phase !== "playing") break;
+      // An online kickoff opens on the passive draft: the bots pick first.
+      if (state.phase !== "playing" && state.phase !== "draft") break;
       const { abandon } = options;
       if (abandon && !abandoned && step >= abandon.afterStep && canAbandon(state)) {
         state.abandonGame(abandon.playerId);

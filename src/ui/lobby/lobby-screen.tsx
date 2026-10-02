@@ -164,7 +164,7 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
             </button>
           </div>
 
-          <p className="lobby__note">Les passifs sont tirés au hasard au lancement.</p>
+          <p className="lobby__note">Chacun choisit son passif parmi ses cartes, juste avant la partie.</p>
           <div className="lobby__actions">
             <button type="button" className="btn btn--cup btn--large lobby__start" onClick={() => setStep("map")}>
               Suivant : la carte →

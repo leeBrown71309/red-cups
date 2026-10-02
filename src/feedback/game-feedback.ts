@@ -1,8 +1,11 @@
 import { getBoard } from "../game/board";
-import { countRedCups } from "../game/rules";
+import { ITEM_ORDER } from "../game/catalog";
+import { findDevil, getDevilGoalFor } from "../game/devil";
+import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
+import { countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
-import type { BulletFlight, GameState } from "../game/types";
-import { GHOST_ID, HELL_NODE_ID } from "../game/types";
+import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
+import { GAME_COUNTDOWN_MS, GHOST_ID, HELL_NODE_ID } from "../game/types";
 import {
   ALERT_BANNER_MS,
   BULLET_IMPACT_PAUSE_MS,
@@ -16,6 +19,14 @@ import { useUiStore } from "./ui-store";
 
 /** Lets the camera fly from the lobby orbit to the board before the first turn banner. */
 const GAME_INTRO_MS = 950;
+
+/** Items whose use already has its own feedback: the mud splash and the Tomate's throw. */
+const ITEMS_WITH_OWN_FEEDBACK: ItemId[] = ["mud", "tomato"];
+
+/** The item a player's bag lost between two states, if any. */
+function findSpentItem(before: Player, after: Player): ItemId | null {
+  return ITEM_ORDER.find((itemId) => countItemUnits(after, itemId) < countItemUnits(before, itemId)) ?? null;
+}
 
 /**
  * Turns raw state transitions into presentation events. Events caused by a
@@ -52,7 +63,10 @@ export function startGameFeedback(): () => void {
     // Timed on the board the walk was played on: a Cup picked up on arrival may flip the carousel.
     const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
-    const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
+    // After a draft, the table first reads a five-second countdown.
+    const afterDraft = gameJustStarted && previous.phase === "draft";
+    const introDelay = gameJustStarted ? GAME_INTRO_MS + (afterDraft ? GAME_COUNTDOWN_MS : 0) : 0;
+    if (afterDraft) ui.setCountdownUntil(now + GAME_COUNTDOWN_MS);
     const flight = getNewBulletFlight(state, previous);
     const flightMs = flight ? estimateBulletFlightMs(flight.path) : 0;
     const impactPauseMs = flight ? (flight.victimId ? BULLET_IMPACT_PAUSE_MS : BULLET_LANDING_PAUSE_MS) : 0;
@@ -65,7 +79,16 @@ export function startGameFeedback(): () => void {
     const celebrates = events.some((event) => event.type === "cup-collected");
     // The shop, the wheels and the other dialogs wait until the whole table has read the map's banner.
     const announcesMapEvent = events.some((event) =>
-      ["carousel-flipped", "blizzard", "ice-fall", "ghost-appeared", "ghost-attack"].includes(event.type),
+      [
+        "carousel-flipped",
+        "blizzard",
+        "ice-fall",
+        "ghost-appeared",
+        "ghost-attack",
+        "devil-announced",
+        "doomsday-started",
+        "black-cup-cast",
+      ].includes(event.type),
     );
 
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
@@ -154,12 +177,21 @@ function collectEvents(
   }
   newLogEntries.reverse().forEach((entry) => events.push({ type: "log", entry }));
 
+  const previousActive = previous.players.find((player) => player.id === activePlayer?.id);
+  const boughtItem =
+    state.turnStage === "shop" &&
+    previous.turnStage === "shop" &&
+    activePlayer !== undefined &&
+    previousActive !== undefined &&
+    activePlayer.inventory.length > previousActive.inventory.length;
+
   for (const player of state.players) {
     const before = previous.players.find((candidate) => candidate.id === player.id);
     if (!before) continue;
 
     const delta = player.currency - before.currency;
-    if (delta !== 0) events.push({ type: "currency", playerId: player.id, delta });
+    const purchase = boughtItem && player.id === activePlayer?.id && delta < 0;
+    if (delta !== 0) events.push({ type: "currency", playerId: player.id, delta, purchase });
 
     if (countRedCups(player) > countRedCups(before)) {
       events.push({ type: "cup-collected", playerId: player.id, nodeId: player.position });
@@ -182,25 +214,19 @@ function collectEvents(
     events.push({ type: "shop-opened", playerId: activePlayer.id });
   }
 
-  const previousActive = previous.players.find((player) => player.id === activePlayer?.id);
-  const boughtItem =
-    state.turnStage === "shop" &&
-    previous.turnStage === "shop" &&
-    activePlayer !== undefined &&
-    previousActive !== undefined &&
-    (activePlayer.inventory.length > previousActive.inventory.length ||
-      (state.bulletBill !== null && previous.bulletBill === null));
   if (boughtItem && activePlayer) events.push({ type: "purchase", playerId: activePlayer.id });
 
   const cancelled = newLogEntries.some((entry) => entry.text.includes("utilise Non merci"));
   if (state.pendingReaction && !previous.pendingReaction) events.push({ type: "reaction-opened" });
   if (cancelled) events.push({ type: "action-cancelled" });
 
+  // Several items may be used in one turn: each one shows by the bag it left.
+  const spentItem = activePlayer && previousActive ? findSpentItem(previousActive, activePlayer) : null;
   const usedItem =
     !walkerId &&
     !cancelled &&
-    state.turnActionTaken &&
-    !previous.turnActionTaken &&
+    spentItem !== null &&
+    !ITEMS_WITH_OWN_FEEDBACK.includes(spentItem) &&
     ["move", "hell", "reaction"].includes(previous.turnStage);
   if (usedItem) events.push({ type: "item-used" });
 
@@ -221,6 +247,18 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+  const devil = findDevil(state);
+  if (devil && previous.phase !== "playing" && state.phase === "playing") {
+    events.push({ type: "devil-announced", playerId: devil.id, goal: getDevilGoalFor(state) });
+  }
+  if (state.doomsday && !previous.doomsday) events.push({ type: "doomsday-started" });
+  const opening = state.players[state.activePlayerIndex];
+  const newTurn =
+    opening && (opening.id !== previous.players[previous.activePlayerIndex]?.id || state.round !== previous.round);
+  if (newTurn && (state.idleStrikes[opening.id] ?? 0) >= IDLE_STRIKES_WARNING) {
+    events.push({ type: "last-chance", playerId: opening.id });
+  }
+  if (state.blackCup && !previous.blackCup) events.push({ type: "black-cup-cast" });
   if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
     events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });
   }

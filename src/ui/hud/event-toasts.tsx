@@ -48,6 +48,34 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: "BOUM !",
         detail: `Bullet Bill percute ${playerName(event.playerId)} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,
       };
+    case "devil-announced":
+      return {
+        tone: "danger",
+        eyebrow: "Le diable est à table",
+        title: `${playerName(event.playerId)} est le diable !`,
+        detail: `Il gagne dès que les autres seront entrés ${event.goal} fois en Enfer. Méfiez-vous de sa boutique.`,
+      };
+    case "last-chance":
+      return {
+        tone: "danger",
+        eyebrow: "Dernière chance",
+        title: `${playerName(event.playerId)}, à toi de jouer !`,
+        detail: "Encore un tour qui passe sans jouer, et c’est le forfait.",
+      };
+    case "doomsday-started":
+      return {
+        tone: "danger",
+        eyebrow: "Doomsday",
+        title: "Toutes les cases sont maudites !",
+        detail: "Jusqu’au prochain tour du diable, chaque case fait tourner la roue du malheur.",
+      };
+    case "black-cup-cast":
+      return {
+        tone: "danger",
+        eyebrow: "Black Cup",
+        title: "La Red Cup plonge en Enfer !",
+        detail: "Elle y reste deux tours de table. Qui arrive en Enfer d’ici là la ramasse.",
+      };
     case "blessing-started":
       return {
         tone: "blessing",
