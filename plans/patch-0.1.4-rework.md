@@ -28,6 +28,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 6** fait et commité.
 - [x] **Lot 7** fait et commité.
 - [x] **Lot 8** fait et commité.
+- Après les 12 lots : tests par carte et corrections (voir « Après les 12 lots — tests par carte »).
 - [x] **Lot 9** fait et commité.
 - [x] **Lot 10** fait et commité.
 - [x] **Lot 11** fait et commité.
@@ -586,6 +587,39 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - **Version** : `package.json` passe à 0.1.4.
 - **Campagne finale** : 1 000 parties, 0 violation, aucune bloquée ; 100 parties avec chrono, 0 violation.
 - **Avant de publier** : appliquer `supabase/schema.sql` (ajout de `server_time()`) sur le projet Supabase partagé, puis ouvrir les PR vers `pre-prod` et `main`.
+
+## Après les 12 lots — tests par carte
+
+Demande de l'utilisateur : des bugs n'apparaissent que sur certaines cartes (exemple : « Avance d'une case » vers une case glissante ne glissait pas). Les bots testent donc chaque carte à part, à toutes les tables possibles, en local et en ligne, en commençant par la carte de base.
+
+### Banc de test (`src/game/simulation/`)
+
+- **Campagne par carte** (`runMapCampaign`, `getTableSetup` dans `run-bot-game.ts`) : chaque partie tire sa table, de 2 à 8 joueurs ; chaque passif à tour de rôle à la première place (et un second à côté) ; une table sur trois en ligne, une sur quatre avec le draft ; de temps en temps une table sans le sou (Tour de Bénédiction) ou riche (victoire de Cupide).
+- **En ligne** (option `online`) : chaque action passe par le chrono virtuel ; elle doit pouvoir être envoyée par un siège (`getActionActorIds`), et un second appareil la rejoue depuis le message réseau (`applyRemoteAction`), son plateau passant par du JSON comme les instantanés du salon. Toute différence est une violation (`online-sender`, `online-replay`, `online-divergence`).
+- **Mécaniques des cartes** (`map-events.ts`) : glissades (et ce qui les a causées), tombées de glace, blizzard, joueurs emportés par la glace, boules de neige, fantôme, carrousel, tunnel et train fantôme, Bullet Bill, bonus du départ, Toucher d'Enfer, Bouclier.
+- **Règles des cartes** (`map-invariants.ts`) : personne ne reste sur la glace (`no-rest-on-ice`), avec l'action fautive (`lands-on-ice`, `ice-under-player`) ; pas de Portail sur la glace.
+- **Couverture** (`coverage.ts`) : la campagne d'une carte doit avoir joué chaque objet (achat et usage), chaque issue de roue, chaque mode de duel, chaque étape, chaque passif, les actions spéciales (Corrupteur, Botte, Roller, diable, Ange, Voleur, draft, chrono) et chaque mécanique de la carte.
+- **Rejeu** : une graine se rejoue à l'identique (test `replays a seed exactly`). Le tirage du protégé d'un Ange-Gardien imposé par le banc se faisait avec `Math.random` : il passe par la graine de la partie (le jeu lui-même ne tire rien hors de sa graine, vérifié sur les trois cartes).
+- **Outils** : `bun run simulate -- --map classic --games 2500 --seed 1` (ou `luna-park`, `banquise`) affiche violations, couverture et « Jamais joué » ; l'option `trace` de `runBotGame` rejoue une graine pas à pas.
+- **Bots** : ils achètent d'abord les objets de leur rôle (boutique du diable, Made In Heaven, Bouclier), sinon la Black Cup ou le Bouclier passaient presque inaperçus.
+- **Tests** : `simulation.test.ts` joue 300 parties par carte (règles, blocages, couverture, rejeu) ; `ice-rules.test.ts` fixe les règles de la glace et le Toucher d'Enfer au changement de tour.
+
+### Carte de base
+
+- 2 500 + 3 000 parties : aucune violation, aucune bloquée, tout joué (tunnel 7 → 1 compris).
+- Faux positifs du vérificateur corrigés : Made In Heaven, Monopoly Man et Calme-toi quand le Toucher d'Enfer envoie aussitôt en Enfer le joueur assommé posé sur la case du diable.
+
+### Luna Park
+
+- 2 500 + 2 500 parties : aucune violation après corrections, aucune bloquée, tout joué (fantôme sous toutes ses formes, carrousel, train fantôme).
+- Faux positifs corrigés : la Black Cup qui renvoie la Cup en Enfer là où la précédente avait été trouvée ; Bullet Bill suivi du Toucher d'Enfer, de la Black Cup et du Goblin ; l'entrée en Enfer d'un joueur qui déclare forfait dans la même action.
+
+### Banquise
+
+- Avant : des milliers de joueurs restaient sur la glace (« Avance d'une case », « Va au Départ » et sorties d'Enfer vers un départ gelé, « Retourne d'où tu viens », Calme-toi, Bouteille d'eau, échanges, blizzard sur un joueur, glissade du Roller sans route libre, Corrupteur dans le cul-de-sac 4 → 0, joueur qui brise la glace sur une case gelée entre-temps).
+- **Corrections** (`ice.ts`, voir la spec 3.2 ter) : `drawSlide` ne s'arrête plus sur la glace (`getSlideChoices`) ; « Avance d'une case » glisse comme une marche (`advanceOneTile`) ; « Va au Départ » et « Retourne d'où tu viens » glissent avant l'arrivée (`arriveAfterSlide`) ; les autres poses sur la glace sont emportées tout de suite (`carryOffIce` : blizzard, sorties d'Enfer, duel, New Cup, Made In Heaven, Monopoly Man, bras de fer, demi-Corde, recul dans la Boue), avec un filet de sécurité après chaque action (`slideOffIce`) ; Calme-toi, Portail et Bouteille d'eau évitent la glace ; la glissade d'un joueur déplacé est oubliée (`forgetBrokenHolds`).
+- **Changement de tour** (`rideGhost`, `game-effects.ts`) : le plateau est réglé au début de chaque tour sur toutes les cartes ; seul Luna Park le faisait, d'où un Toucher d'Enfer en retard d'une action ailleurs.
+- 2 500 parties après corrections : voir le bilan ci-dessous.
 
 ## Choix à valider
 

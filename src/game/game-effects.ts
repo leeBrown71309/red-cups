@@ -1,6 +1,6 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
-import { blowBlizzard, isBlizzardRound } from "./ice";
+import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletDodger } from "./bullet-bill";
 import { createDuel, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
@@ -255,8 +255,11 @@ function collectBlackCup(state: GameState, stage: TurnStage): GameState | null {
   return settleBoard(nextState, nextState.turnStage);
 }
 
-export function randomNormalNode(board: Board, excludeNodeId?: NodeId): NodeId {
-  const nodes = board.normalNodeIds.filter((nodeId) => nodeId !== excludeNodeId);
+/** Any tile but Hell (and `excludeNodeId`); with `standOnly`, never on ice, where nobody stays. */
+export function randomNormalNode(board: Board, excludeNodeId?: NodeId, standOnly = false): NodeId {
+  const nodes = board.normalNodeIds.filter(
+    (nodeId) => nodeId !== excludeNodeId && !(standOnly && isIce(board, nodeId)),
+  );
   return randomChoice(nodes) ?? START_NODE_ID;
 }
 
@@ -292,12 +295,17 @@ function getDistanceToCup(board: Board, cupNodeId: NodeId, nodeId: NodeId): numb
   return getShortestPath(board, cupNodeId, nodeId, true)?.length ?? Infinity;
 }
 
-/** Calme-toi: the tiles exactly three steps from the Red Cup, where the holder may set a player down. */
+/**
+ * Calme-toi: the tiles exactly three steps from the Red Cup, where the holder
+ * may set a player down; never on ice, where nobody stays.
+ */
 export function getCalmDownTiles(state: GameState): NodeId[] {
   const cupNodeId = state.redCupNodeId;
   if (cupNodeId === null) return [];
   const board = getBoard(state);
-  return board.normalNodeIds.filter((nodeId) => getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE);
+  return board.normalNodeIds.filter(
+    (nodeId) => !isIce(board, nodeId) && getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE,
+  );
 }
 
 /**
@@ -567,11 +575,13 @@ function stepBackFromMud(state: GameState, player: Player, cameFrom: NodeId | nu
     return addLog(state, `${player.name} glisse dans la Boue, sans rien perdre.`, "event");
   }
   const nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: cameFrom }));
-  return addLog(
+  const logged = addLog(
     nextState,
     `${player.name} glisse dans la Boue et recule en case ${cameFrom}, sans rien perdre.`,
     "event",
   );
+  // Back onto ice, the ice carries them on.
+  return carryOffIce(logged, player.id, player.position);
 }
 
 /**
@@ -591,7 +601,8 @@ export function releaseFromHellWithToll(state: GameState, playerId: PlayerId): G
     "event",
   );
   nextState = addStartBonus(nextState, playerId);
-  return applyCurrencyChange(nextState, playerId, -HELL_EXIT_TOLL);
+  // A start frozen by the blizzard carries them on.
+  return carryOffIce(applyCurrencyChange(nextState, playerId, -HELL_EXIT_TOLL), playerId, HELL_NODE_ID);
 }
 
 /** Counts one more of the player's own turns in Hell, releasing them once the limit is served. */
@@ -750,10 +761,15 @@ function askToDodgeBulletBill(state: GameState, victimId: PlayerId): GameState {
   return addLog(nextState, `Bullet Bill fonce sur ${victim?.name ?? "un joueur"}…`, "event");
 }
 
-/** Luna Park: the ghost rides on at every turn change, and may land on somebody right away. */
+/**
+ * Every turn change ends on a settled board, whatever the map: a player
+ * knocked out on le diable's tile by a snowball or Bullet Bill meets their
+ * Toucher d'Enfer at once. At Luna Park, the ghost rides on first, and may
+ * land on somebody right away.
+ */
 function rideGhost(state: GameState): GameState {
-  if (!state.ghost || state.phase !== "playing" || !["move", "hell"].includes(state.turnStage)) return state;
-  return settleBoard(advanceGhost(state), state.turnStage);
+  if (state.phase !== "playing" || !["move", "hell"].includes(state.turnStage)) return state;
+  return settleBoard(state.ghost ? advanceGhost(state) : state, state.turnStage);
 }
 
 /**
@@ -774,25 +790,30 @@ function thawFrozenSlide(state: GameState): GameState {
   // Pulled, swapped or sent to Hell meanwhile: the slide it was finishing no longer exists.
   if (active.position !== frozen.from) return nextState;
 
-  nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, position: frozen.to }));
+  // The blizzard may have frozen the tile meanwhile: the slide then goes on from there.
+  const onward = isIce(getBoard(state), frozen.to) ? drawSlide(state, frozen.from, [frozen.to], false) : null;
+  const path = [frozen.to, ...(onward?.slide ?? [])];
+  const end = path[path.length - 1];
+  nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, position: end }));
   nextState = {
     ...nextState,
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
       playerId: active.id,
       from: frozen.from,
-      path: [frozen.to],
+      path,
       thawed: true,
     },
   };
   nextState = addLog(nextState, `${active.name} brise la glace et arrive en case ${frozen.to}.`, "event");
-  nextState = addRedGreenBonuses(nextState, active.id, [frozen.to]);
+  if (onward) nextState = recordSlide(nextState, active.id, onward, end);
+  nextState = addRedGreenBonuses(nextState, active.id, path);
   nextState = queueTileWheel(nextState, active.id);
-  nextState = triggerMud(nextState, active.id, frozen.to, frozen.from);
+  nextState = triggerMud(nextState, active.id, end, path[path.length - 2] ?? frozen.from);
   nextState = triggerPortal(nextState, active.id);
-  const landed = findPlayer(nextState, active.id)?.position === frozen.to;
-  if (landed && nextState.redCupNodeId === frozen.to) {
-    nextState = collectCupOrRequestDiscard(nextState, active.id, frozen.to);
+  const landed = findPlayer(nextState, active.id)?.position === end;
+  if (landed && nextState.redCupNodeId === end) {
+    nextState = collectCupOrRequestDiscard(nextState, active.id, end);
   }
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);

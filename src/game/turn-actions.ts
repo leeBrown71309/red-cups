@@ -1,7 +1,7 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
-import { drawSlide } from "./ice";
+import { carryOffIce, drawSlide, recordSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
 import { castBlackCup, dropBlackCup, openPortal, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { startArmWrestle } from "./arm-wrestle";
@@ -107,22 +107,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
 
   nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
   nextState = addLog(nextState, `${player.name} se déplace en case ${walkEnd}.`);
-  if (slide && slide.slide.length > 0) {
-    nextState = addLog(nextState, `${player.name} glisse sur la glace jusqu’en case ${destination}.`, "event");
-  }
-  if (slide?.iceFall) {
-    nextState = {
-      ...nextState,
-      lastIceFall: { seq: (state.lastIceFall?.seq ?? 0) + 1, playerId: player.id, ...slide.iceFall },
-    };
-    nextState = addLog(
-      nextState,
-      slide.iceFall.hit
-        ? `La glace tombe sur ${player.name}, pris au piège sur la route de la case ${slide.iceFall.to}.`
-        : `La glace tombe à côté de ${player.name}, qui file vers la case ${slide.iceFall.to}.`,
-      slide.iceFall.hit ? "bad" : "event",
-    );
-  }
+  if (slide) nextState = recordSlide(nextState, player.id, slide, destination);
   nextState = addRedGreenBonuses(nextState, player.id, path);
   // Doomsday: the start pays nothing.
   if (earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
@@ -145,15 +130,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   };
 
   // Stuck in the ice: nothing is reached yet; the slide ends when the player's next turn comes.
-  if (interruptedTo !== null) {
-    return {
-      ...nextState,
-      frozenSlides: [
-        ...nextState.frozenSlides.filter((entry) => entry.playerId !== player.id),
-        { playerId: player.id, from: destination, to: interruptedTo },
-      ],
-    };
-  }
+  if (interruptedTo !== null) return nextState;
 
   nextState = stealFromKnockedOut(nextState, player.id);
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
@@ -318,12 +295,15 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
           return candidate;
         }),
       };
+      // Swapped onto a player held by the ice, the ice carries them on.
+      nextState = carryOffIce(carryOffIce(nextState, player.id, player.position), target.id, target.position);
       nextState = addLog(nextState, `${player.name} échange sa place avec ${target.name}.`, "event");
       nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "water-bottle": {
-      const destination = randomNormalNode(getBoard(state));
+      // A tile to stand on: never on ice, which nobody stays on.
+      const destination = randomNormalNode(getBoard(state), undefined, true);
       nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
       nextState = addLog(nextState, `${player.name} sort de l’Enfer et atterrit en case ${destination}.`, "good");
       if (nextState.redCupNodeId === destination) {
@@ -445,6 +425,8 @@ function rewindToStart(state: GameState, userId: PlayerId): GameState {
     `Made In Heaven : le temps s’accélère ! Tout le monde revient au Départ, et la Red Cup se pose en case ${MADE_IN_HEAVEN_CUP_NODE_ID}.`,
     "event",
   );
+  // A start frozen by the blizzard carries them on.
+  nextState = state.players.reduce((current, player) => carryOffIce(current, player.id, player.position), nextState);
   return meltsIce
     ? addLog(nextState, `La glace de la case ${MADE_IN_HEAVEN_CUP_NODE_ID} fond sous la Red Cup.`, "event")
     : nextState;
@@ -469,7 +451,12 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
     ...currentPlayer,
     position: steps > 0 ? path[steps - 1] : currentPlayer.position,
   }));
-  return addLog(nextState, `${target.name} résiste à la Corde grâce à Baraqué.`, "event");
+  // Pulled halfway onto ice, the ice carries them on.
+  return carryOffIce(
+    addLog(nextState, `${target.name} résiste à la Corde grâce à Baraqué.`, "event"),
+    target.id,
+    target.position,
+  );
 }
 
 /**

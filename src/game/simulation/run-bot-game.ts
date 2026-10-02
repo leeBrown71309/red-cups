@@ -1,16 +1,22 @@
+import { applyRemoteAction, getUserIdOfPlayer } from "../../net/room-protocol";
+import { getActionActorIds } from "../action-permissions";
 import { PASSIVE_ORDER } from "../catalog";
 import { MAP_ORDER } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
+import { runWithSeededSource } from "../engine-random";
 import { assignGuardian } from "../guardian";
 import { getStartingCurrency } from "../passive-rules";
 import { reduceGame, type GameAction } from "../game-actions";
 import { pickGameState } from "../game-save";
 import { setActionRelay, useGameStore } from "../store";
 import { getClockDeadline } from "../turn-clock";
-import type { MapId, PassiveId, Player, TurnStage, WinReason } from "../types";
+import type { GameState, MapId, PassiveId, Player, TurnStage, WinReason } from "../types";
+import { EMPTY_GAME_STATE } from "../types";
 import { createSeededRandom } from "../../utils/seeded-random";
 import { chooseBotAction } from "./bot-player";
 import { checkClockExpiry } from "./clock-invariants";
+import { violation } from "./invariant-helpers";
+import { countMapEvents } from "./map-events";
 import { checkState, checkTransition, type RuleViolation } from "./rule-invariants";
 
 /**
@@ -33,9 +39,17 @@ export interface BotGameOptions {
    * now and then a bot lets the clock run out instead of playing.
    */
   clock?: boolean;
+  /**
+   * Plays as an online table, on the clock: every action must be one a seat
+   * may send, and a second device replays it from the wire, its board going
+   * through JSON like the room's snapshots, and must land on the same board.
+   */
+  online?: boolean;
   /** Opens on the passive draft, as every game the table plays. */
   draft?: boolean;
   maxSteps?: number;
+  /** Called after every action that changed the board, to replay a failing seed step by step. */
+  trace?: (step: number, label: string, before: GameState, after: GameState) => void;
 }
 
 export interface SeededViolation extends RuleViolation {
@@ -58,6 +72,10 @@ export interface BotGameReport {
   violations: SeededViolation[];
   actionCounts: Record<string, number>;
   stageCounts: Record<string, number>;
+  /** What the map's own mechanics did (see `countMapEvents`). */
+  eventCounts: Record<string, number>;
+  /** The passives at the table once play began, after the draft if any. */
+  passives: PassiveId[];
 }
 
 const DEFAULT_MAX_STEPS = 4_000;
@@ -89,6 +107,19 @@ function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
   });
 }
 
+/** Compares two boards key by key, whatever order their keys were written in. */
+function toStableJson(value: unknown): string {
+  return JSON.stringify(value, (_key, inner: unknown) =>
+    inner && typeof inner === "object" && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([left], [right]) => left.localeCompare(right)))
+      : inner,
+  );
+}
+
+function cloneThroughJson(state: GameState): GameState {
+  return JSON.parse(JSON.stringify(state)) as GameState;
+}
+
 /** Seeds alternate between the maps, so every campaign plays all of them. */
 function mapForSeed(seed: number): MapId {
   return MAP_ORDER[Math.abs(seed) % MAP_ORDER.length];
@@ -110,7 +141,10 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     violations: [],
     actionCounts: {},
     stageCounts: {},
+    eventCounts: {},
+    passives: [],
   };
+  const clock = options.clock === true || options.online === true;
 
   const record = (found: RuleViolation[], step: number, action: string, stage: TurnStage) => {
     for (const item of found) {
@@ -122,24 +156,69 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
   const store = useGameStore;
   // Clock games run every action through the online path, at the time on the virtual clock.
   let clockNow = 0;
+  const seatOrder = Array.from({ length: options.playerCount }, (_, index) => `device-${index + 1}`);
+  let secondDevice: { state: GameState; version: number } | null = null;
+  const onlineIssues: RuleViolation[] = [];
+
+  /** The action as a room sends it: from a seat allowed to, replayed by another device on its own board. */
+  const sendOnline = (state: GameState, nextState: GameState, action: GameAction) => {
+    const senderId = getActionActorIds(state, action)[0];
+    const userId = senderId ? getUserIdOfPlayer(seatOrder, senderId) : null;
+    if (!userId) {
+      onlineIssues.push(violation("online-sender", `no seat may send ${action.type} at stage ${state.turnStage}`));
+      return;
+    }
+    const device = secondDevice ?? { state: cloneThroughJson(state), version: 0 };
+    const wire = { kind: "action" as const, action, fromVersion: device.version, senderId: userId, issuedAt: clockNow };
+    const outcome = applyRemoteAction(device.state, device.version, seatOrder, wire);
+    const issuesBefore = onlineIssues.length;
+    if (outcome.kind !== "applied") {
+      onlineIssues.push(violation("online-replay", `the second device could not replay ${action.type}`));
+    } else if (toStableJson(outcome.state) !== toStableJson(nextState)) {
+      onlineIssues.push(violation("online-divergence", `the second device drifted after ${action.type}`));
+    }
+    // A drifted device reloads the snapshot, like the room makes it do.
+    const replayed = outcome.kind === "applied" && onlineIssues.length === issuesBefore ? outcome.state : nextState;
+    secondDevice = { state: cloneThroughJson(replayed), version: device.version + 1 };
+  };
   const relay = (action: GameAction) => {
     const state = pickGameState(store.getState());
     const nextState = reduceGame(state, action, { now: clockNow });
-    if (nextState !== state) store.setState(nextState);
+    if (nextState === state) return;
+    if (options.online) sendOnline(state, nextState, action);
+    store.setState(nextState);
   };
   try {
     store.getState().resetGame();
-    if (options.clock) setActionRelay(relay);
+    if (clock) setActionRelay(relay);
     const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
-    store.getState().startGame(botNames, options.seed, mapId, options.draft);
+    if (options.online) {
+      // Like the room's kickoff: the first board is built at the server's time, the draft's clock running.
+      const startAction: GameAction = {
+        type: "startGame",
+        playerNames: botNames,
+        seed: options.seed,
+        mapId,
+        ...(options.draft ? { draft: true } : {}),
+      };
+      store.getState().adoptGame(reduceGame(EMPTY_GAME_STATE, startAction, { now: clockNow }));
+    } else {
+      store.getState().startGame(botNames, options.seed, mapId, options.draft);
+    }
     if (options.passives) {
       // The first turn's gauge follows the passive too (Red Bull).
       store.setState((state) => {
         const players = assignPassives(state.players, options.passives!);
         return { players, energyLeft: getEnergyCapacity(players[state.activePlayerIndex]) };
       });
-      // A forced Ange-Gardien draws a protégé among the passives now at the table.
-      store.setState((state) => assignGuardian(state));
+      // A forced Ange-Gardien draws a protégé among the passives now at the table, from the game's own
+      // seed: the campaign must replay exactly.
+      store.setState((current) => {
+        const state = pickGameState(current);
+        if (!state.seededRandom) return assignGuardian(state);
+        const { result, seed } = runWithSeededSource(state.seededRandom, () => assignGuardian(state));
+        return { ...result, seededRandom: seed };
+      });
     }
     const { startingCurrency } = options;
     if (startingCurrency !== undefined) {
@@ -153,9 +232,12 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
       const before = store.getState();
       record(checkState(before), step, "state", before.turnStage);
       if (before.phase !== "playing" && before.phase !== "draft") break;
+      if (before.phase === "playing" && report.passives.length === 0) {
+        report.passives = before.players.map((player) => player.passiveId);
+      }
 
       increment(report.stageCounts, before.turnStage);
-      const deadline = options.clock ? getClockDeadline(before) : null;
+      const deadline = clock ? getClockDeadline(before) : null;
       if (deadline !== null && botRandom() < IDLE_CHANCE) {
         // Asleep at the table: the clock runs out and the default applies.
         clockNow = Math.max(clockNow, deadline);
@@ -163,12 +245,15 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
         relay({ type: "expireClock" });
         const after = store.getState();
         report.steps = step + 1;
+        record(onlineIssues.splice(0), step, "expire-clock", before.turnStage);
+        countMapEvents(before, after, "expire-clock", report.eventCounts);
+        options.trace?.(step, "expire-clock", before, after);
         // Several defaults in one action: judged by the clock checks, the state checks follow next step.
         if (after !== before) record(checkClockExpiry(before, after), step, "expire-clock", before.turnStage);
         continue;
       }
       // Only clock games draw a thinking time: the other campaigns keep their seeded games.
-      if (options.clock) clockNow += Math.floor(botRandom() * MAX_THINKING_MS);
+      if (clock) clockNow += Math.floor(botRandom() * MAX_THINKING_MS);
       const action = chooseBotAction(before, botRandom);
       if (!action) {
         report.blocked = true;
@@ -185,6 +270,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
       action.perform(before);
       const after = store.getState();
       report.steps = step + 1;
+      record(onlineIssues.splice(0), step, action.label, before.turnStage);
 
       if (after === before) {
         idle += 1;
@@ -202,6 +288,8 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
       }
       idle = 0;
       record(checkTransition(before, after, action.item), step, action.label, before.turnStage);
+      countMapEvents(before, after, action.label, report.eventCounts);
+      options.trace?.(step, action.label, before, after);
     }
 
     const final = store.getState();
@@ -209,7 +297,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     report.winReason = final.winReason;
     report.rounds = final.round;
   } finally {
-    if (options.clock) setActionRelay(null);
+    if (clock) setActionRelay(null);
     store.getState().resetGame();
   }
 
@@ -239,6 +327,45 @@ export function runBotCampaign(options: CampaignOptions): BotGameReport[] {
   );
 }
 
+/** A table of a mixed campaign: everything a set of tables can be, varied from one game to the next. */
+export type TableSetup = Pick<BotGameOptions, "playerCount" | "passives" | "startingCurrency" | "online" | "draft">;
+
+/**
+ * Game `index` of a mixed campaign. Over a few hundred games every passive
+ * sits at every table size, in local and in online play; a quarter of the
+ * tables go through the draft (which deals the passives itself), and now and
+ * then a table starts broke (Tour de Bénédiction) or rich (Cupide's goal).
+ */
+export function getTableSetup(index: number): TableSetup {
+  const playerCount = 2 + (index % 7);
+  const draft = index % 4 === 3;
+  const first = PASSIVE_ORDER[index % PASSIVE_ORDER.length];
+  const second = PASSIVE_ORDER[(index * 7 + 3) % PASSIVE_ORDER.length];
+  const passives = draft ? undefined : first === second ? [first] : [first, second];
+  const startingCurrency = index % 10 === 5 ? 0 : index % 10 === 9 ? 4_500 : undefined;
+  return { playerCount, passives, startingCurrency, online: index % 3 === 1, draft };
+}
+
+export interface MapCampaignOptions {
+  mapId: MapId;
+  games: number;
+  firstSeed?: number;
+  maxSteps?: number;
+}
+
+/** Every kind of table (see `getTableSetup`) on a single map, each game on its own seed. */
+export function runMapCampaign(options: MapCampaignOptions): BotGameReport[] {
+  const firstSeed = options.firstSeed ?? 1;
+  return Array.from({ length: options.games }, (_, index) =>
+    runBotGame({
+      seed: firstSeed + index,
+      mapId: options.mapId,
+      maxSteps: options.maxSteps,
+      ...getTableSetup(firstSeed + index),
+    }),
+  );
+}
+
 /** Groups violations by rule with one example each, for readable test failures. */
 export function summarizeViolations(reports: BotGameReport[]): string[] {
   const byRule = new Map<string, { count: number; example: SeededViolation }>();
@@ -254,7 +381,10 @@ export function summarizeViolations(reports: BotGameReport[]): string[] {
   );
 }
 
-export function mergeCounts(reports: BotGameReport[], key: "actionCounts" | "stageCounts"): Record<string, number> {
+export function mergeCounts(
+  reports: BotGameReport[],
+  key: "actionCounts" | "stageCounts" | "eventCounts",
+): Record<string, number> {
   const merged: Record<string, number> = {};
   for (const report of reports) {
     for (const [name, count] of Object.entries(report[key])) merged[name] = (merged[name] ?? 0) + count;

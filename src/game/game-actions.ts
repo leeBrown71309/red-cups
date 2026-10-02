@@ -1,8 +1,8 @@
 import { abandonPlayer, canAbandon } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
-import { earnsStartBonus, getBoard } from "./board";
+import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
-import { pickBlizzardTile } from "./ice";
+import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
@@ -266,7 +266,10 @@ function startGame(
       : announceDevil(assignGuardian(opening));
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
     const withIce =
-      map.blizzardEveryRounds === undefined ? withRoles : { ...withRoles, iceTileNodeId: pickBlizzardTile(withRoles) };
+      map.blizzardEveryRounds === undefined
+        ? withRoles
+        : // The whole table stands on the start at first: the first ice falls elsewhere.
+          { ...withRoles, iceTileNodeId: pickBlizzardTile(withRoles, [START_NODE_ID]) };
     // Luna Park's ghost waits a round or two before haunting the carousel.
     return { ...withIce, ghost: createGhost(withIce) };
   };
@@ -355,7 +358,12 @@ function applyWheelOutcome(
       if (wheelId !== "hell" || player.position !== HELL_NODE_ID)
         return addLog(state, "La roue ne produit aucun effet.");
       const freed = updatePlayer(state, player.id, (current) => ({ ...current, position: START_NODE_ID }));
-      return addStartBonus(addLog(freed, `${player.name} sort de l’Enfer et revient en case 0.`, "good"), player.id);
+      const paid = addStartBonus(
+        addLog(freed, `${player.name} sort de l’Enfer et revient en case 0.`, "good"),
+        player.id,
+      );
+      // A start frozen by the blizzard carries them on.
+      return carryOffIce(paid, player.id, HELL_NODE_ID);
     }
     case "go-to-start": {
       const fromHell = player.position === HELL_NODE_ID;
@@ -366,7 +374,7 @@ function applyWheelOutcome(
         "good",
       );
       nextState = addStartBonus(nextState, player.id);
-      return arriveOnTile(nextState, player.id);
+      return arriveAfterSlide(nextState, player.id, player.position);
     }
     case "go-back": {
       const back = player.previousNodeId;
@@ -376,8 +384,7 @@ function applyWheelOutcome(
       }
       let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: back }));
       nextState = addLog(nextState, `${player.name} retourne en case ${back}.`, "bad");
-      nextState = { ...nextState, turnStage: getWheelArrivalStage(nextState, player.id, state.turnStage) };
-      return arriveOnTile(nextState, player.id);
+      return arriveAfterSlide(nextState, player.id, player.position, state.turnStage);
     }
     case "advance-one":
       if (getForwardTiles(state, player).length === 0)
@@ -391,10 +398,24 @@ function applyWheelOutcome(
 }
 
 /**
+ * « Va au Départ », « Retourne d’où tu viens »: the wheel set the player down
+ * on a tile, coming from `cameFrom`. At Banquise, ice there slides them on
+ * first, and they arrive where the slide stops. The active player whose turn
+ * was over then shops on a blue tile, when `resumeStage` asks for the stage
+ * to follow.
+ */
+function arriveAfterSlide(state: GameState, playerId: PlayerId, cameFrom: NodeId, resumeStage?: TurnStage): GameState {
+  const slid = slideOnArrival(state, playerId, cameFrom);
+  const staged = resumeStage ? { ...slid, turnStage: getWheelArrivalStage(slid, playerId, resumeStage) } : slid;
+  return arriveOnTile(staged, playerId);
+}
+
+/**
  * Wheel of fortune, « Avance d’une case »: a one-tile walk, arrows obeyed.
  * The tile walked onto counts for Red light, Green light and the start bonus,
  * and is reached like the end of any walk: its wheel, its shop, its mud and
- * its Red Cup.
+ * its Red Cup. At Banquise a step onto ice slides on, like any walk (see
+ * `drawSlide`): the tile the slide stops on is the one reached.
  */
 function advanceOneTile(state: GameState, destination: NodeId): GameState {
   const pending = state.pendingAdvance;
@@ -402,25 +423,40 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
   if (!pending || !player || state.turnStage !== "advance") return state;
   if (!getForwardTiles(state, player).includes(destination)) return state;
 
-  let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: destination }));
-  const resumeStage = getWheelArrivalStage(nextState, player.id, pending.resumeStage);
+  const board = getBoard(state);
+  const slide = isIce(board, destination) ? drawSlide(state, player.position, [destination]) : null;
+  const path = slide ? [destination, ...slide.slide] : [destination];
+  const end = path[path.length - 1];
+  // Caught by falling ice halfway: nothing is reached, the shop included, until the player's next turn.
+  const heldTo = slide?.interruptedTo ?? null;
+
+  let nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: end }));
+  // Like a walk, the ice ends the turn of the active player it caught.
+  const heldStage =
+    getActivePlayer(state)?.id === player.id && pending.resumeStage === "move" ? "turn-end" : pending.resumeStage;
+  const resumeStage = heldTo === null ? getWheelArrivalStage(nextState, player.id, pending.resumeStage) : heldStage;
   nextState = { ...nextState, pendingAdvance: null, turnStage: resumeStage };
+  const slid = slide !== null && (slide.slide.length > 0 || heldTo !== null);
   nextState = {
     ...nextState,
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
       playerId: player.id,
       from: player.position,
-      path: [destination],
+      path,
+      ...(slid ? { slideStart: 1 } : {}),
+      ...(heldTo === null ? {} : { interruptedTo: heldTo }),
     },
   };
   nextState = addLog(nextState, `${player.name} avance en case ${destination}.`, "good");
-  nextState = addRedGreenBonuses(nextState, player.id, [destination]);
-  if (earnsStartBonus(getBoard(state), player.position, [destination]) && !isDoomed(state, player)) {
+  if (slide) nextState = recordSlide(nextState, player.id, slide, end);
+  nextState = addRedGreenBonuses(nextState, player.id, path);
+  if (earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
     nextState = addStartBonus(nextState, player.id);
   }
+  if (heldTo !== null) return settleBoard(nextState, resumeStage);
   nextState = stealFromKnockedOut(nextState, player.id);
-  nextState = arriveOnTile(nextState, player.id, player.position);
+  nextState = arriveOnTile(nextState, player.id, path[path.length - 2] ?? player.position);
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
   if (nextState.phase !== "playing" || waitsForDecision) return nextState;
@@ -810,6 +846,8 @@ function resolveNewCup(state: GameState, goToStart: boolean): GameState {
     nextState = updatePlayer(nextState, playerId, (current) => ({ ...current, position: START_NODE_ID }));
     nextState = addLog(nextState, `${player.name} file au Départ avant l’apparition de la Cup.`, "event");
     nextState = addStartBonus(nextState, playerId);
+    // A start frozen by the blizzard carries them on, before Calme-toi looks around the new Cup.
+    nextState = carryOffIce(nextState, playerId, player.position);
   } else {
     nextState = addLog(nextState, `${player.name} reste où il est avant l’apparition de la Cup.`);
   }
@@ -881,11 +919,15 @@ function recordPreviousTiles(before: GameState, after: GameState): GameState {
  */
 function applyGameAction(state: GameState, action: GameAction, now: number | undefined): GameState {
   const prepared = spareHellPlayers(state);
-  const result = dispatchGameAction(prepared, action, now);
+  const dispatched = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
-  if (result === prepared) return state;
+  if (dispatched === prepared) return state;
+  // Banquise: nobody stays on ice, whatever set them down there.
+  const result = slideOffIce(prepared, dispatched);
   const counted = countHellEntries(prepared, recordPreviousTiles(prepared, result));
-  const settled = offerGamble(checkVictories(applyForfeits(counted)));
+  // A forfeit may seat L'Ange-Gardien in Hell in their protégé's place: an entry too, as after an abandon.
+  const forfeited = countHellEntries(counted, applyForfeits(counted));
+  const settled = offerGamble(checkVictories(forfeited));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;

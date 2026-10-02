@@ -4,7 +4,14 @@ import { countItemUnits } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameState, TurnStage } from "../types";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
-import { expectedBalance, newLogTexts, violation, type RuleViolation } from "./invariant-helpers";
+import {
+  expectedBalance,
+  newLogTexts,
+  slidOnIce,
+  touchedByHell,
+  violation,
+  type RuleViolation,
+} from "./invariant-helpers";
 
 /** Checks for Double or nothing, Chance aveugle with Made In Heaven, and the Voleur (patch 0.1.4). */
 
@@ -113,8 +120,14 @@ export function checkMadeInHeaven(previous: GameState, next: GameState, userId: 
   if (next.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID && next.phase === "playing") {
     found.push(violation("made-in-heaven-cup", `the Red Cup stands on tile ${next.redCupNodeId}`));
   }
+  // Toucher d'Enfer may take a knocked-out player on to Hell, and a frozen start slides them on (Banquise).
   const left = next.players.filter(
-    (player) => player.id !== userId && !isImmuneToItems(player) && player.position !== START_NODE_ID,
+    (player) =>
+      player.id !== userId &&
+      !isImmuneToItems(player) &&
+      player.position !== START_NODE_ID &&
+      !touchedByHell(previous, next, player.id) &&
+      !slidOnIce(previous, next, player.id),
   );
   // The Luna Park ghost may duel whoever it finds on the start, and the duel sends a loser to Hell.
   if (left.length > 0 && next.pendingDuel === null) {

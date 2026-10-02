@@ -39,11 +39,15 @@ import {
 import {
   expectedBalance,
   fellIntoHell,
+  carriedByIce,
   newLogTexts,
+  slidOnIce,
+  touchedByHell,
   turnChanged,
   violation,
   type RuleViolation,
 } from "./invariant-helpers";
+import { checkMapState, checkMapTransition } from "./map-invariants";
 import { checkDevilItem, checkHellEntries, checkRoleState } from "./role-invariants";
 import { checkClockState } from "./clock-invariants";
 import { checkDraftState, checkDraftTransition } from "./draft-invariants";
@@ -173,7 +177,9 @@ export function checkState(state: GameState): RuleViolation[] {
       .some(
         (entry) =>
           entry.text.startsWith(active.name) &&
-          (entry.text.includes("tombe à −300 pièces") || entry.text.includes("perd son prochain tour")),
+          (entry.text.includes("tombe à −300 pièces") ||
+            entry.text.includes("perd son prochain tour") ||
+            entry.text.includes("devra passer son prochain tour")),
       );
     const benched = active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage);
     if (benched && !state.turnActionTaken && !thawedNow && !resetNow) {
@@ -214,7 +220,8 @@ export function checkState(state: GameState): RuleViolation[] {
     if (state.redCupNodeId === START_NODE_ID || (state.redCupNodeId === HELL_NODE_ID && !state.blackCup)) {
       found.push(violation("cup-tile", `Red Cup on forbidden tile ${state.redCupNodeId}`));
     }
-    if (state.redCupCycle > 0 && state.redCupNodeId === state.previousRedCupNodeId) {
+    // A Black Cup may take a Cup down to Hell where the last one was found.
+    if (state.redCupCycle > 0 && state.redCupNodeId === state.previousRedCupNodeId && !state.blackCup) {
       found.push(violation("cup-moves-on", `Red Cup reappeared on tile ${state.redCupNodeId}`));
     }
   } else if (state.phase === "playing" && state.pendingCupRevealNodeId === null) {
@@ -285,6 +292,7 @@ export function checkState(state: GameState): RuleViolation[] {
   checkAdvancedPassiveState(state, found);
   checkRoleState(state, found);
   checkClockState(state, found);
+  checkMapState(state, found);
   return found;
 }
 
@@ -301,7 +309,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     found.push(violation("move-from-position", `${mover.name} left ${movement.from} but stood on ${mover.position}`));
   }
   if (movement.thawed) {
-    checkThaw(previous, movement, found);
+    checkThaw(previous, next, movement, found);
     return;
   }
   if (movement.flungByGhost) {
@@ -343,14 +351,18 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
 
   const destination = movement.path[movement.path.length - 1];
   // Chance aveugle slips in mud and steps back to the tile walked in from.
+  const mudOnArrival = isImmuneToItems(mover) && previous.mudTraps.some((trap) => trap.nodeId === destination);
+  // Stepping back onto ice, they slide on from there.
   const steppedBack =
-    isImmuneToItems(mover) &&
-    previous.mudTraps.some((trap) => trap.nodeId === destination) &&
-    moved.position === (movement.path[movement.path.length - 2] ?? movement.from);
+    mudOnArrival &&
+    (moved.position === (movement.path[movement.path.length - 2] ?? movement.from) ||
+      slidOnIce(previous, next, mover.id));
   // Le diable's Portail drops whoever stops on it into Hell, and so does their Toucher d'Enfer a
   // knocked-out player stopping on their tile.
   const portalFall = fellIntoHell(previous, next, mover.id, destination);
-  if (moved.position !== destination && !steppedBack && !portalFall) {
+  // Banquise: a move that ends the turn may meet the blizzard, whose ice carries the player on.
+  const carried = carriedByIce(previous, next, mover.id);
+  if (moved.position !== destination && !steppedBack && !portalFall && !carried) {
     found.push(violation("move-lands", `${mover.name} should stand on ${destination}, not ${moved.position}`));
   }
 
@@ -383,7 +395,11 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
 }
 
-/** Banquise: every slid step leaves an ice tile by a real road, never back where it came from. */
+/**
+ * Banquise: every slid step leaves an ice tile by a real road, never back
+ * where it came from but at a dead end (every other road leads to ice already
+ * crossed).
+ */
 function checkSlide(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
   const board = getBoard(previous);
   const start = movement.slideStart ?? movement.path.length;
@@ -392,7 +408,10 @@ function checkSlide(previous: GameState, next: GameState, movement: PlayerMoveme
     const iceTile = tiles[index];
     const cameFrom = tiles[index - 1];
     const step = movement.path[index];
-    if (!isIce(board, iceTile) || step === cameFrom || !getNeighbors(board, iceTile).includes(step)) {
+    const crossed = new Set(tiles.slice(0, index + 1));
+    const roads = getNeighbors(board, iceTile);
+    const deadEnd = roads.every((nodeId) => nodeId === cameFrom || (crossed.has(nodeId) && isIce(board, nodeId)));
+    if (!isIce(board, iceTile) || (step === cameFrom && !deadEnd) || !roads.includes(step)) {
       found.push(violation("ice-slide", `slid ${iceTile} → ${step} after coming from ${cameFrom}`));
     }
   }
@@ -454,12 +473,16 @@ function checkSnowballs(previous: GameState, next: GameState, found: RuleViolati
   }
   if (!snowball || snowball.seq === previous.lastSnowball?.seq) return;
   const target = findPlayer(previous, snowball.targetId);
-  if (!getBoardMap(previous.mapId).snowballs || previous.redCupCycle === 0) {
+  // The first Red Cup may be taken by the very action whose turn change throws the snowball.
+  if (!getBoardMap(previous.mapId).snowballs || next.redCupCycle === 0) {
     found.push(violation("snowball-map", `a snowball flew on ${previous.mapId} before any Red Cup`));
   }
   // Judged after the turn change: a sentence served in Hell ends just before the penguins throw.
   const targetAfter = findPlayer(next, snowball.targetId);
-  if (!target || targetAfter?.position === HELL_NODE_ID || previous.snowFrozenPlayerIds.includes(target.id)) {
+  // Frozen solid on le diable's tile, the target may go on to Hell through their Toucher d'Enfer.
+  const touched = touchedByHell(previous, next, snowball.targetId);
+  const inHell = targetAfter?.position === HELL_NODE_ID && !touched;
+  if (!target || inHell || previous.snowFrozenPlayerIds.includes(target.id)) {
     found.push(violation("snowball-target", `a snowball was aimed at ${snowball.targetId}, out of reach`));
   }
   const hitsBefore = previous.snowballHits[snowball.targetId] ?? 0;
@@ -530,9 +553,13 @@ function checkGhostDuelResult(previous: GameState, next: GameState, found: RuleV
 }
 
 /** Banquise: breaking free finishes exactly the slide that was put on hold. */
-function checkThaw(previous: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
+function checkThaw(previous: GameState, next: GameState, movement: PlayerMovement, found: RuleViolation[]): void {
   const frozen = previous.frozenSlides.find((entry) => entry.playerId === movement.playerId);
-  if (!frozen || frozen.from !== movement.from || movement.path.join(",") !== String(frozen.to)) {
+  // The tile it was heading for may have frozen meanwhile: the slide then goes on from there.
+  const onward = movement.path.slice(1);
+  // Frozen by the blizzard in the very turn change that thaws the player.
+  const slidOnward = onward.length === 0 || isIce(getBoard(next), movement.path[0]);
+  if (!frozen || frozen.from !== movement.from || movement.path[0] !== frozen.to || !slidOnward) {
     found.push(violation("ice-thaw", `thawed ${movement.from} → ${movement.path.join(" → ")} without a matching hold`));
   }
 }
@@ -544,6 +571,9 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   // The last wheel of a Tour de Bénédiction passes the turn: the Hell toll, skipped turns used up and
   // Bullet Bill's charge then blur what the wheel itself did.
   if (turnChanged(previous, next) || next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;
+  // A Red Cup found in the same action (Toucher d'Enfer onto the Black Cup) pays or costs its own coins:
+  // Goblins steal, Cupide cashes it.
+  if (next.redCupCycle !== previous.redCupCycle) return;
 
   const before = findPlayer(previous, wheel.playerId);
   const after = findPlayer(next, wheel.playerId);
@@ -574,13 +604,21 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   if (["skip-turn", "hell-skip"].includes(wheel.result.id) && after.skippedTurns !== before.skippedTurns + 1) {
     found.push(violation("wheel-skip", `${before.name} did not get a skipped turn`));
   }
-  if (wheel.result.id === "escape" && before.position === HELL_NODE_ID && after.position !== START_NODE_ID) {
+  const escapedOnIce = slidOnIce(previous, next, before.id);
+  if (
+    wheel.result.id === "escape" &&
+    before.position === HELL_NODE_ID &&
+    after.position !== START_NODE_ID &&
+    !escapedOnIce
+  ) {
     found.push(violation("wheel-escape", `${before.name} escaped Hell to tile ${after.position} instead of 0`));
   }
+  // A frozen start slides the player on (Banquise).
   if (
     wheel.result.id === "go-to-start" &&
     after.position !== START_NODE_ID &&
-    !fellIntoHell(previous, next, after.id, START_NODE_ID)
+    !fellIntoHell(previous, next, after.id, START_NODE_ID) &&
+    !slidOnIce(previous, next, after.id)
   ) {
     found.push(violation("wheel-start", `${before.name} was sent to the start but stands on ${after.position}`));
   }
@@ -590,7 +628,8 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   if (
     wheel.result.id === "go-back" &&
     after.position !== expectedBack &&
-    !fellIntoHell(previous, next, after.id, expectedBack)
+    !fellIntoHell(previous, next, after.id, expectedBack) &&
+    !slidOnIce(previous, next, after.id)
   ) {
     found.push(violation("wheel-back", `${before.name} went back to ${after.position}, not ${expectedBack}`));
   }
@@ -645,6 +684,8 @@ function checkTileWheelSpin(
   }
   for (const player of previous.players) {
     if (logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue et recule`))) exempt.add(player.id);
+    // Banquise: carried away by the ice, nobody arrives where it leaves them.
+    if (carriedByIce(previous, next, player.id)) exempt.add(player.id);
   }
   // Caught by falling ice halfway down a road: nothing is reached until the next turn.
   const movement = next.lastMovement;
@@ -781,8 +822,13 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       ) {
         break;
       }
+      // Toucher d'Enfer may take a knocked-out player on to Hell; ice slides them on (Banquise).
+      const carriedOn = (playerId: string) =>
+        touchedByHell(previous, next, playerId) || slidOnIce(previous, next, playerId);
       if (target && targetAfter && !tank) {
-        if (userAfter.position !== target.position || targetAfter.position !== user.position) {
+        const userSwapped = userAfter.position === target.position || carriedOn(user.id);
+        const targetSwapped = targetAfter.position === user.position || carriedOn(target.id);
+        if (!userSwapped || !targetSwapped) {
           found.push(violation("monopoly-man", `${label}: positions were not swapped`));
         }
       } else if (target && targetAfter && tank && targetAfter.position !== target.position) {
@@ -877,7 +923,9 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
   const outgoing = getActivePlayer(previous);
   const outgoingAfter = outgoing && findPlayer(next, outgoing.id);
   if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= HELL_TURN_LIMIT && outgoingAfter) {
-    if (outgoingAfter.position !== START_NODE_ID && !fellIntoHell(previous, next, outgoing.id, START_NODE_ID)) {
+    const carriedOn =
+      fellIntoHell(previous, next, outgoing.id, START_NODE_ID) || slidOnIce(previous, next, outgoing.id);
+    if (outgoingAfter.position !== START_NODE_ID && !carriedOn) {
       found.push(violation("hell-release", `${outgoing.name} served ${HELL_TURN_LIMIT} Hell turns but stayed`));
     }
   }
@@ -928,5 +976,6 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   checkSnowballs(previous, next, found);
   checkEnergy(previous, next, found, itemApplied);
   checkHellEntries(previous, next, found);
+  checkMapTransition(previous, next, found);
   return found;
 }

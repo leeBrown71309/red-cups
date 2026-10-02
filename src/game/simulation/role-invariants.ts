@@ -4,7 +4,7 @@ import { countRedCups } from "../rules";
 import { findPlayer } from "../state-utils";
 import type { GameState, ItemId } from "../types";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
-import { violation, type RuleViolation } from "./invariant-helpers";
+import { newLogTexts, violation, type RuleViolation } from "./invariant-helpers";
 
 /** Checks for le diable, their shop, and L'Ange-Gardien (patch 0.1.4). */
 
@@ -53,6 +53,8 @@ export function checkRoleState(state: GameState, found: RuleViolation[]): void {
 /** Every player but le diable stepping into Hell counts once towards their goal. */
 export function checkHellEntries(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (!findDevil(previous) || !findDevil(next)) return;
+  const logs = newLogTexts(previous, next);
+  // L'Ange-Gardien taking over a leaving protégé's seat, from Hell, enters it like anybody else.
   const entries = next.players.filter((player) => {
     const before = findPlayer(previous, player.id);
     return (
@@ -62,9 +64,20 @@ export function checkHellEntries(previous: GameState, next: GameState, found: Ru
       player.position === HELL_NODE_ID
     );
   }).length;
-  if (next.devilHellEntries - previous.devilHellEntries !== entries) {
+  // A player sent to Hell who forfeits in the same action still entered it.
+  const forfeited = previous.players.filter(
+    (player) =>
+      !findPlayer(next, player.id) &&
+      player.passiveId !== "devil" &&
+      player.position !== HELL_NODE_ID &&
+      logs.includes(`${player.name} est envoyé en Enfer.`),
+  ).length;
+  if (next.devilHellEntries - previous.devilHellEntries !== entries + forfeited) {
     found.push(
-      violation("devil-count", `${entries} entries counted as ${next.devilHellEntries - previous.devilHellEntries}`),
+      violation(
+        "devil-count",
+        `${entries + forfeited} entries counted as ${next.devilHellEntries - previous.devilHellEntries}`,
+      ),
     );
   }
 }
@@ -94,11 +107,15 @@ export function checkDevilItem(
         found.push(violation("portal-open", "the Portail did not open"));
       }
       break;
-    case "black-cup":
+    case "black-cup": {
+      // Toucher d'Enfer may send a knocked-out player to Hell at once, who finds the Black Cup there.
+      const foundAtOnce = newLogTexts(previous, next).some((text) => text.includes("trouve la Black Cup"));
+      if (foundAtOnce) break;
       if (!next.blackCup || next.blackCup.returnNodeId !== previous.redCupNodeId) {
         found.push(violation("black-cup-cast", "the Black Cup did not take the Red Cup to Hell"));
       }
       break;
+    }
     case "doomsday":
       if (!next.doomsday || next.doomsday.casterId !== userId) {
         found.push(violation("doomsday-cast", "Doomsday did not start"));

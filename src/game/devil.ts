@@ -1,6 +1,7 @@
-import { getBoard } from "./board";
+import { getBoard, isIce } from "./board";
 import { createEngineId } from "./engine-random";
 import { avoidsHell, getDevilGoal, isImmuneToItems } from "./passive-rules";
+import { carryOffIce } from "./ice";
 import { addLog, findPlayer, randomChoice, sendPlayerToHell, updatePlayer } from "./state-utils";
 import type { DevilSpell, GameState, Player, PlayerId } from "./types";
 import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_NODE_ID } from "./types";
@@ -56,7 +57,13 @@ export function leaveHell(state: GameState): GameState {
     position: START_NODE_ID,
     hellTurns: 0,
   }));
-  return addLog({ ...nextState, turnStage: "move" }, `${player.name} sort de l’Enfer comme il lui plaît.`, "event");
+  const left = addLog(
+    { ...nextState, turnStage: "move" },
+    `${player.name} sort de l’Enfer comme il lui plaît.`,
+    "event",
+  );
+  // A start frozen by the blizzard carries them on.
+  return carryOffIce(left, player.id, HELL_NODE_ID);
 }
 
 /** A spell cast now that lasts `rounds` rounds of the table. */
@@ -74,7 +81,11 @@ function hasExpired(state: GameState, spell: DevilSpell): boolean {
 /** Portail: a random tile, neither Hell nor the start nor the Red Cup's, opens onto Hell. */
 export function openPortal(state: GameState, casterId: PlayerId): GameState {
   const taken = new Set([START_NODE_ID, HELL_NODE_ID, state.redCupNodeId, ...state.hellPortals.map((p) => p.nodeId)]);
-  const nodeId = randomChoice(getBoard(state).normalNodeIds.filter((candidate) => !taken.has(candidate)));
+  // Never on ice: nobody stops there, so the Portail would wait for nothing.
+  const board = getBoard(state);
+  const nodeId = randomChoice(
+    board.normalNodeIds.filter((candidate) => !taken.has(candidate) && !isIce(board, candidate)),
+  );
   if (nodeId === undefined) return addLog(state, "Le Portail ne trouve aucune case où s’ouvrir.");
   const portal = { id: createEngineId(), nodeId, ...castSpell(state, casterId, PORTAL_ROUNDS) };
   const nextState: GameState = { ...state, hellPortals: [...state.hellPortals, portal] };

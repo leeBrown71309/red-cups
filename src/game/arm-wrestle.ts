@@ -1,6 +1,7 @@
 import { getBoard, getNeighbors, getShortestPath } from "./board";
 import { createEngineId } from "./engine-random";
 import { settleBoard } from "./game-effects";
+import { carryOffIce } from "./ice";
 import { addLog, findPlayer, placeInHell } from "./state-utils";
 import type { GameState, NodeId, Player, PlayerId } from "./types";
 import { ARM_WRESTLE_MAX_TAPS, HELL_NODE_ID, TANK_ARM_STRENGTH } from "./types";
@@ -75,6 +76,8 @@ function settleArmWrestle(state: GameState, attackerTaps: number, defenderTaps: 
   } else {
     nextState = nudgeAfterDraw(addLog(nextState, "Égalité au bras de fer !", "event"), attacker, defender);
   }
+  // Swapped or nudged onto ice, the ice carries them on.
+  nextState = carryOffIce(carryOffIce(nextState, attacker.id, attacker.position), defender.id, defender.position);
   // Like the swap itself, nothing here is an arrival: no wheel, no shop.
   return settleBoard(nextState, pending.resumeStage);
 }

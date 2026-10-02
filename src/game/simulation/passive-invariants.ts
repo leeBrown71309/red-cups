@@ -11,7 +11,14 @@ import {
   START_BONUS,
   START_NODE_ID,
 } from "../types";
-import { expectedBalance, newLogTexts, violation, type RuleViolation } from "./invariant-helpers";
+import {
+  expectedBalance,
+  newLogTexts,
+  slidOnIce,
+  touchedByHell,
+  violation,
+  type RuleViolation,
+} from "./invariant-helpers";
 
 /**
  * Checks for the passives reworked in patch 0.1.4: New Cup, New Me, Calme-toi,
@@ -35,7 +42,8 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const toStart = logs.some((text) => text.startsWith(`${before.name} file au Départ`));
   // Knocked out on le diable's tile, the start may lead straight to Hell through their Toucher d'Enfer.
   const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
-  const landed = after.position === START_NODE_ID || touched;
+  // A frozen start slides them on (Banquise).
+  const landed = after.position === START_NODE_ID || touched || slidOnIce(previous, next, holderId);
   if (toStart && (!landed || after.currency !== expectedBalance(before, START_BONUS))) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
@@ -81,7 +89,10 @@ export function checkCalmDown(previous: GameState, next: GameState, found: RuleV
   const before = findPlayer(previous, pending.targetIds[0]);
   const after = findPlayer(next, pending.targetIds[0]);
   if (!before || !after || before.position === after.position) return;
-  if (distanceToCup(previous, after.position) !== CALM_DOWN_DISTANCE || after.position === HELL_NODE_ID) {
+  // Knocked out on le diable's tile, the player set down may go on to Hell through their Toucher d'Enfer.
+  const touched = touchedByHell(previous, next, after.id);
+  const offTarget = distanceToCup(previous, after.position) !== CALM_DOWN_DISTANCE || after.position === HELL_NODE_ID;
+  if (offTarget && !touched) {
     found.push(violation("calm-down-distance", `${before.name} was set down on ${after.position}`));
   }
   // A wheel still owed on the tile left behind is dropped once the board settles.

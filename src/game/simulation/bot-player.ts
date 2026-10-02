@@ -1,7 +1,7 @@
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
-import { ITEM_CATALOG } from "../catalog";
+import { DEVIL_ITEMS, ITEM_CATALOG } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
@@ -12,7 +12,7 @@ import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveO
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
-import type { InventoryEntry, NodeId, PlayerId, RpsChoice } from "../types";
+import type { InventoryEntry, ItemId, NodeId, PlayerId, RpsChoice } from "../types";
 import type { AppliedItem } from "./rule-invariants";
 
 /**
@@ -136,6 +136,9 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
 
 /** Voleur: now and then, a theft rather than a purchase. */
 const THEFT_CHANCE = 0.3;
+/** Items of a role, which its holder goes for first: le diable's shop, Made In Heaven, the Bouclier. */
+const ROLE_ITEMS: ItemId[] = [...DEVIL_ITEMS, "made-in-heaven", "shield"];
+const ROLE_ITEM_CHANCE = 0.8;
 
 function chooseShopping(store: GameStore, random: Random): BotAction {
   const player = getActivePlayer(store);
@@ -149,6 +152,13 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
   if (loot && random() < THEFT_CHANCE) return { label: `steal:${loot}`, perform: (current) => current.stealItem(loot) };
 
   const affordable = onShelf.filter((itemId) => player!.currency >= getItemPrice(itemId, store.bootPrice, player));
+  const roleItem = pick(
+    affordable.filter((itemId) => ROLE_ITEMS.includes(itemId)),
+    random,
+  );
+  if (roleItem && random() < ROLE_ITEM_CHANCE) {
+    return { label: `buy:${roleItem}`, perform: (current) => current.buyItem(roleItem) };
+  }
   const itemId = pick(affordable, random);
   if (itemId && random() < 0.55) return { label: `buy:${itemId}`, perform: (current) => current.buyItem(itemId) };
   return endTurnAction("end-turn");

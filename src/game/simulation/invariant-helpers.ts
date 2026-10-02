@@ -41,6 +41,35 @@ export function fellIntoHell(previous: GameState, next: GameState, playerId: str
   return portal || newLogTexts(previous, next).some((text) => text.includes("Toucher d’Enfer"));
 }
 
+/**
+ * Banquise: `playerId` slid on during this action, after a wheel set them
+ * down on ice, or carried away by it (see `carriedByIce`).
+ */
+export function slidOnIce(previous: GameState, next: GameState, playerId: string): boolean {
+  const name = previous.players.find((player) => player.id === playerId)?.name;
+  const slid =
+    name !== undefined && newLogTexts(previous, next).some((text) => text.startsWith(`${name} glisse sur la glace`));
+  return slid || carriedByIce(previous, next, playerId);
+}
+
+/**
+ * Banquise: the ice carried `playerId` away in this action, after a swap, a
+ * trip to a frozen start or the blizzard freezing their tile; the tile it
+ * leaves them on is no arrival.
+ */
+export function carriedByIce(previous: GameState, next: GameState, playerId: string): boolean {
+  const name = previous.players.find((player) => player.id === playerId)?.name;
+  return name !== undefined && newLogTexts(previous, next).some((text) => text.startsWith(`La glace emporte ${name} `));
+}
+
+/** Knocked out on le diable's tile, `playerId` went straight to Hell through their Toucher d'Enfer. */
+export function touchedByHell(previous: GameState, next: GameState, playerId: string): boolean {
+  const player = next.players.find((candidate) => candidate.id === playerId);
+  return (
+    player?.position === HELL_NODE_ID && newLogTexts(previous, next).some((text) => text.includes("Toucher d’Enfer"))
+  );
+}
+
 /** Compares players, not seats: a seat emptied before the active one shifts its index without a turn change. */
 export function turnChanged(previous: GameState, next: GameState): boolean {
   const activeId = (state: GameState) => state.players[state.activePlayerIndex]?.id;

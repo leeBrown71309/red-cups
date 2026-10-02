@@ -4,7 +4,14 @@ import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
-import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
+import {
+  expectedBalance,
+  newLogTexts,
+  slidOnIce,
+  turnChanged,
+  violation,
+  type RuleViolation,
+} from "./invariant-helpers";
 
 /**
  * Checks for the table-wide events: Bullet Bill, the Tour de Bénédiction,
@@ -72,7 +79,10 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const logs = newLogTexts(previous, next);
   // Knocked out on le diable's tile, the victim may go straight to Hell through their Toucher d'Enfer.
   const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
-  if (after.position !== landing && !touched) {
+  // Banquise: the blizzard may freeze the victim's tile as the round begins, and the ice carry them away.
+  // Banquise: the ice may carry the victim away (blizzard) or, held in it, they break free as their turn begins.
+  const thawedVictim = next.lastMovement?.thawed === true && next.lastMovement.playerId === before.id;
+  if (after.position !== landing && !touched && !slidOnIce(previous, next, before.id) && !thawedVictim) {
     found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
   }
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
@@ -82,10 +92,13 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const thawed = next.lastMovement?.thawed === true && next.lastMovement.seq !== previous.lastMovement?.seq;
   // The last wheel of a Tour de Bénédiction pays out in the same action that opens the charging round.
   const wheelPaidToo = previous.pendingWheel !== null;
+  // Sent to Hell by Toucher d'Enfer, the victim may find the Black Cup there, and Goblins steal at the new Cup.
+  const cupFound = next.redCupCycle !== previous.redCupCycle;
   if (
     !releasedFromHell &&
     !thawed &&
     !wheelPaidToo &&
+    !cupFound &&
     after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)
   ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
