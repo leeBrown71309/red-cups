@@ -169,7 +169,7 @@ Depuis le patch 0.1.4, le tour repose sur l’**énergie**. Il suit ces phases :
 4. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
 5. Le joueur termine son tour. Si tous les joueurs ont alors 0 pièce ou moins, le **Tour de Bénédiction** a lieu d’abord (voir 4.1). Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
 
-Les objets ne terminent plus le tour : on en enchaîne plusieurs, puis on se déplace. On peut finir son tour sans bouger après avoir utilisé au moins un objet, quand il reste moins d’1 point d’énergie, ou quand aucune route n’est possible ; sinon il faut se déplacer (réponse de l’auteur ; en ligne, un tour passé sans rien faire coûtera aussi une chance, voir le chrono). La Botte coûte 1 point et en garde 1 pour le déplacement de deux cases : il faut donc 2 points pour la préparer, et une seule Botte par tour. Une seule Boue par tour. La Tomate, la Gomme et le Casque ne coûtent rien. Acheter ne coûte pas d’énergie : un objet acheté sert à partir du tour suivant. En Enfer, la roue de l’Enfer remplace le déplacement (voir 9.1). La Gomme est une réaction à un effet de roue.
+Les objets ne terminent plus le tour : on en enchaîne plusieurs, puis on se déplace. On peut finir son tour sans bouger après avoir utilisé au moins un objet qui coûte de l’énergie (une Tomate, gratuite, ne compte pas : réponse de l’auteur), quand il reste moins d’1 point d’énergie, ou quand aucune route n’est possible ; sinon il faut se déplacer (réponse de l’auteur ; en ligne, un tour passé sans rien faire coûtera aussi une chance, voir le chrono). La Botte coûte 1 point et en garde 1 pour le déplacement de deux cases : il faut donc 2 points pour la préparer, et une seule Botte par tour. Une seule Boue par tour. La Tomate, la Gomme et le Casque ne coûtent rien. Acheter ne coûte pas d’énergie : un objet acheté sert à partir du tour suivant. En Enfer, la roue de l’Enfer remplace le déplacement (voir 9.1). La Gomme est une réaction à un effet de roue.
 
 Le passif **Non merci** (refait au patch 0.1.4, réponses de l’auteur) annule ce qui devait affecter son détenteur, puis se recharge 5 tours de table : utilisé au tour N, il revient au tour N + 5, quelles que soient les Red Cups.
 
@@ -272,7 +272,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant son déplacement et sans énergie : on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans une place du sac. Depuis le patch 0.1.4, une pile compte comme un exemplaire : deux piles au plus (comme deux exemplaires de tout objet), et on ne lance que d’**une seule pile par tour**, soit 5 Tomates au plus. Une Tomate gratuite de la roue arrive en nouvelle pile de 5 quand le sac a la place. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. Chance aveugle est épargné. |
-| Bouclier | Objet de L'Ange-Gardien (patch 0.1.4). Quand un autre joueur utilise un objet à cible unique sur son protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque l'objet (perdu avec son énergie) ou le laisse passer (Q14). Le Bouclier est alors consommé. Ni Draven ni Bullet Bill. |
+| Bouclier | Objet de L'Ange-Gardien (patch 0.1.4). Quand un autre joueur utilise un objet à cible unique sur son protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque l'objet (perdu avec son énergie) ou le laisse passer (Q14). Il bloque aussi Bullet Bill qui fonce sur son protégé (réponse de l'auteur) : Bullet Bill s'écrase sans le toucher. Le Bouclier est alors consommé. Pas Draven. |
 | Portail | Boutique du diable. S'ouvre sur une case au hasard, ni l'Enfer, ni le Départ, ni la Red Cup. Le premier joueur qui s'y arrête, le diable compris (Q18), tombe en Enfer et le referme. Sinon il se referme après 2 tours de table, au tour du diable. Chance aveugle s'y arrête sans tomber. |
 | Toucher d'Enfer | Boutique du diable, agit tout seul. Dès que le diable se trouve sur la case d'un joueur assommé ou qui doit passer son tour, ce joueur part en Enfer, tous ceux de la case d'un coup ; l'objet est alors consommé. |
 | Black Cup | Boutique du diable. La Red Cup plonge en Enfer pour 2 tours de table, puis revient sur sa case (la glace du blizzard y fond). Le premier joueur qui arrive en Enfer entre-temps la ramasse ; ceux qui y étaient déjà ne la ramassent pas (Q16). |
@@ -305,8 +305,8 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Double or nothing | Après chaque gain ou perte de pièces, dès que la table est au repos (pas au milieu d’une roue ou d’un duel), il peut tenter un 50/50 : la somme se produit une seconde fois, ou elle est annulée. Sinon, il la garde. Chaque somme est proposée à part, même pendant le tour d’un autre joueur. Ses achats, et le résultat du 50/50 lui-même, ne se rejouent pas (réponse de l’auteur, Q7) (patch 0.1.4). |
 | Chance aveugle | Ne voit jamais la Red Cup : en ligne sur son appareil, sur l’écran partagé quand c’est à lui de décider. Aucun objet ne peut lui nuire : il n’apparaît jamais dans les cibles (Q19), Draven et Bullet Bill l’épargnent. La Boue ne lui coûte rien et ne rapporte rien à son poseur : il recule sur la case d’où il est entré, sans effet de case (il reste sur place s’il a été téléporté). Lui seul peut acheter Made In Heaven (voir 7) (patch 0.1.4). |
 | Voleur | Une fois par visite à la boutique, il peut tenter de voler un objet au lieu de l’acheter, avec 1 % de risque par tranche de 10 pièces de son prix (Botte : son prix du moment). Réussi, l’objet est gratuit (règles du sac respectées). Pris, il part en Enfer, ce qui finit son tour, et doit 1,5 fois le prix : ses objets les plus chers partent d’abord, jusqu’à couvrir la somme, sans rendu de monnaie ; s’ils ne suffisent pas, le reste est pris sur ses pièces (Q8, Q9) (patch 0.1.4). |
-| Le diable | Annoncé à toute la table au lancement. Gagne dès que les autres joueurs sont entrés en Enfer ⌊4N − N/2⌋ fois, N étant le nombre de joueurs au lancement (2 → 7, 4 → 14, 8 → 28) ; chaque entrée compte, quelle qu'en soit la cause. Ne ramasse pas la Red Cup. Sort de l'Enfer quand il veut pendant son tour : retour en case 0, sans les 200 pièces (Q10), et son tour continue. Ne détient jamais deux fois le même objet (une seule pile de Tomates). Sur les cases bleues, sa boutique a un second onglet avec ses 5 objets (Q11, voir 7). La barre des joueurs affiche son compteur, par exemple « Enfer 5/14 » (patch 0.1.4). |
-| L'Ange-Gardien | Seulement à 4 joueurs ou plus. Au lancement, un protégé est tiré parmi les joueurs qui ne sont pas des malfaiteurs (le diable, le Voleur, le Goblin, le Corrupteur) ; sans protégé possible, l'Ange devient Lambda. Le protégé est public et porte un halo (Q13). L'Ange gagne avec son protégé. Il commence avec 600 pièces et 2 places, ne ramasse pas la Red Cup et ne va jamais en Enfer : à la place, il perd son prochain tour (Hollow Purple, Draven, roues, Portail ; le fantôme lui prend des pièces ou un objet ; la Corde ou le Monopoly Man d'un joueur en Enfer le laissent sur place ; on ne peut pas le défier). La Boue lui fait perdre son prochain tour au lieu de 200 pièces. Sa roue du malheur n'a que 2 issues : passer son tour ou rien. Il ne vise que son protégé et n'utilise jamais Ndoye, Hollow Purple, Boue, Tomate, Bullet Bill, Middle Finger, Draven ni Casque (ni achat, ni usage). Pendant son tour, il peut sacrifier ses 2 prochains tours pour tirer son protégé de l'Enfer : le protégé arrive sur sa case, sans effet de case. Si le protégé abandonne, l'Ange prend sa place (passif, sac, Red Cups et pièces) mais en Enfer (patch 0.1.4). |
+| Le diable | Annoncé à toute la table au lancement. Gagne dès que les autres joueurs sont entrés en Enfer ⌊4N − N/2⌋ fois, N étant le nombre de joueurs au lancement (2 → 7, 4 → 14, 8 → 28) ; chaque entrée compte, quelle qu'en soit la cause. Ne ramasse pas la Red Cup. Sort de l'Enfer quand il veut pendant son tour, pour 1 point d'énergie (réponse de l'auteur) : retour en case 0, sans les 200 pièces (Q10), et son tour continue avec l'énergie qui reste. Ne détient jamais deux fois le même objet (une seule pile de Tomates). Sur les cases bleues, sa boutique a un second onglet avec ses 5 objets (Q11, voir 7). La barre des joueurs affiche son compteur, par exemple « Enfer 5/14 » (patch 0.1.4). |
+| L'Ange-Gardien | Seulement à 4 joueurs ou plus. Au lancement, un protégé est tiré parmi les joueurs qui ne sont pas des malfaiteurs (le diable, le Voleur, le Goblin, le Corrupteur) ; sans protégé possible, l'Ange devient Lambda. Le protégé est public et porte un halo (Q13). L'Ange gagne avec son protégé. Il commence avec 600 pièces et 2 places, ne ramasse pas la Red Cup et ne va jamais en Enfer : à la place, il perd son prochain tour (Hollow Purple, Draven, roues, Portail ; le fantôme lui prend des pièces ou un objet ; la Corde ou le Monopoly Man d'un joueur en Enfer le laissent sur place ; on ne peut pas le défier). La Boue lui fait perdre son prochain tour au lieu de 200 pièces. Sa roue du malheur n'a que 2 issues : passer son tour ou rien. Il ne vise que son protégé et n'utilise jamais Ndoye, Hollow Purple, Boue, Tomate, Bullet Bill, Middle Finger, Draven ni Casque (ni achat, ni usage). Pendant son tour, il peut sacrifier ses 2 prochains tours pour tirer son protégé de l'Enfer : le protégé arrive sur sa case, sans effet de case, et le tour de l'Ange s'arrête là (réponse de l'auteur). Si le protégé abandonne, l'Ange prend sa place (passif, sac, Red Cups et pièces) mais en Enfer (patch 0.1.4). |
 | Cupide | Gagne à 5 000 pièces (voir 3.3). Une Red Cup lui rapporte 1 000 pièces au lieu d’une place. En s’arrêtant sur la case d’un joueur assommé (qui doit passer son tour), il lui prend 50 pièces. Sa Boue lui coûte 100 pièces et lui rapporte 200 quand un autre joueur marche dedans. Les pièces que son Ndoye fait perdre à sa cible lui reviennent (patch 0.1.4). |
 
 ## 9. Enfer, roues et duels
@@ -440,51 +440,51 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 
 ### Lot 3 — Boutique et roues
 
-1. **À valider** — La boutique de la case d'arrivée (après « Avance d'une case » ou « Retourne d'où tu viens ») ne s'ouvre que pour le joueur dont c'est le tour, et seulement si son tour était fini. Un joueur visé par un Ndoye qui atterrit sur une boutique n'achète pas.
-2. **À valider** — « Avance d'une case » compte comme un pas à pied : bonus du départ et Red light s'appliquent. « Retourne d'où tu viens » est un retour en arrière, sans bonus.
-3. **À valider** — Les roues peuvent s'enchaîner : roue du bonheur, une case, puis la roue de la nouvelle case (conséquence de la réponse Q2).
+1. **Validé** — La boutique de la case d'arrivée (après « Avance d'une case » ou « Retourne d'où tu viens ») ne s'ouvre que pour le joueur dont c'est le tour, et seulement si son tour était fini. Un joueur visé par un Ndoye qui atterrit sur une boutique n'achète pas.
+2. **Validé** — « Avance d'une case » compte comme un pas à pied : bonus du départ et Red light s'appliquent. « Retourne d'où tu viens » est un retour en arrière, sans bonus.
+3. **Validé** — Les roues peuvent s'enchaîner : roue du bonheur, une case, puis la roue de la nouvelle case (conséquence de la réponse Q2).
 
 ### Lot 4 — Énergie
 
 1. **Validé** — **Bullet Bill va dans le sac** à l'achat et se lance pendant son tour pour 2 points.
 2. **Validé** — Envoyé en Enfer pendant son propre tour avec de l'énergie, un joueur peut tourner la roue de l'Enfer tout de suite ; ce tour compte dans sa peine.
 3. **Validé** — **Tomates** (retour de l'auteur) : une pile compte comme un objet, plusieurs piles possibles, une seule pile lancée par tour.
-4. **À valider** — Lancer une Tomate ou poser une Boue compte comme « utiliser un objet » : cela suffit pour finir son tour sans bouger.
+4. **Validé, modifié** — Seul un objet qui coûte de l'énergie compte comme « utiliser un objet » pour finir son tour sans bouger : poser une Boue (1 point) suffit, lancer une Tomate (gratuite) non. En ligne, un tour où l'on n'a lancé que des Tomates compte donc comme un tour sans jouer.
 
 ### Lot 5 — Passifs existants
 
-1. **À valider** — **Lambda** est arrivé dès le lot 5 (au lieu du lot 6) et se tire au sort comme les autres passifs.
-2. **À valider** — **New Cup, New Me** : aller au Départ marche aussi depuis l'Enfer, c'est donc une sortie d'Enfer à chaque nouvelle Cup.
-3. **À valider** — **Non merci** ne peut pas annuler la Tomate, objet « pour rire ».
-4. **À valider** — Contre **Bullet Bill**, Non merci compte comme utilisé dans le tour de table qui commence ; il revient 5 tours après celui-là.
-5. **À valider** — **Calme-toi** peut replacer un joueur sur n'importe quelle case à 3 de la Cup, Départ et boutiques compris ; il n'en tire rien (ni roue, ni boutique, ni Boue, ni bonus).
+1. **Validé** — **Lambda** est arrivé dès le lot 5 (au lieu du lot 6) et se tire au sort comme les autres passifs.
+2. **Validé** — **New Cup, New Me** : aller au Départ marche aussi depuis l'Enfer, c'est donc une sortie d'Enfer à chaque nouvelle Cup.
+3. **Validé** — **Non merci** ne peut pas annuler la Tomate, objet « pour rire ».
+4. **Validé** — Contre **Bullet Bill**, Non merci compte comme utilisé dans le tour de table qui commence ; il revient 5 tours après celui-là.
+5. **Validé** — **Calme-toi** peut replacer un joueur sur n'importe quelle case à 3 de la Cup, Départ et boutiques compris ; il n'en tire rien (ni roue, ni boutique, ni Boue, ni bonus).
 
 ### Lot 6 — Passifs simples et victoire de Cupide
 
-1. **À valider** — **Cupide** ne vole les 50 pièces que s'il s'arrête sur la case d'un joueur assommé (en marchant ou avec « Avance d'une case ») ; passer dessus ne suffit pas.
-2. **À valider** — **Cupide** n'accumule pas de Red Cups : il ne gagne qu'à 5 000 pièces.
-3. **À valider** — **eShop** a aussi la boutique après « Avance d'une case » ou « Retourne d'où tu viens », quand son tour est fini.
+1. **Validé** — **Cupide** ne vole les 50 pièces que s'il s'arrête sur la case d'un joueur assommé (en marchant ou avec « Avance d'une case ») ; passer dessus ne suffit pas.
+2. **Validé** — **Cupide** n'accumule pas de Red Cups : il ne gagne qu'à 5 000 pièces.
+3. **Validé** — **eShop** a aussi la boutique après « Avance d'une case » ou « Retourne d'où tu viens », quand son tour est fini.
 4. **À valider** — **Roller** : une fois le dé lancé, il ne peut plus utiliser d'objet ; il ne peut pas chausser une Botte reçue gratuitement.
 
 ### Lot 7 — Passifs avancés
 
-1. **À valider** — **Double or nothing** propose chaque somme à part : un passage au Départ avec une case verte donne deux invites. L'invite vient dès que la table est au repos, même pendant le tour d'un autre.
-2. **À valider** — **Chance aveugle et la Boue** : le poseur ne touche rien ; si Chance aveugle a été téléporté sur la Boue, il reste sur place au lieu de reculer.
-3. **À valider** — **Chance aveugle** est protégé de ses propres objets aussi : son Draven l'épargne, et il ne peut pas se viser lui-même.
-4. **À valider** — **Made In Heaven** déjà acheté reste utilisable même si la Cup est arrivée en case 8 entre-temps ; la boutique dit seulement « Pas en vente pour l'instant », sans révéler où est la Cup.
-5. **À valider** — **Voleur pris** : ses objets les plus chers partent d'abord, sans rendu de monnaie ; un vol de Tomate raté (1 % de risque) peut lui coûter un Draven.
-6. **À valider** — Une **Botte volée** ne lance pas la hausse de son prix, réservée au premier achat.
+1. **Validé** — **Double or nothing** propose chaque somme à part : un passage au Départ avec une case verte donne deux invites. L'invite vient dès que la table est au repos, même pendant le tour d'un autre.
+2. **Validé** — **Chance aveugle et la Boue** : le poseur ne touche rien ; si Chance aveugle a été téléporté sur la Boue, il reste sur place au lieu de reculer.
+3. **Validé** — **Chance aveugle** est protégé de ses propres objets aussi : son Draven l'épargne, et il ne peut pas se viser lui-même.
+4. **Validé** — **Made In Heaven** déjà acheté reste utilisable même si la Cup est arrivée en case 8 entre-temps ; la boutique dit seulement « Pas en vente pour l'instant », sans révéler où est la Cup.
+5. **Validé** — **Voleur pris** : ses objets les plus chers partent d'abord, sans rendu de monnaie ; un vol de Tomate raté (1 % de risque) peut lui coûter un Draven.
+6. **Validé** — Une **Botte volée** ne lance pas la hausse de son prix, réservée au premier achat.
 
 ### Lot 8 — Le diable et L'Ange-Gardien
 
-1. **À valider** — **Doomsday** touche tout le monde, le diable compris (seul Chance aveugle y échappe), et dure jusqu'au prochain tour du diable.
-2. **À valider** — Les **2 tours de table** du Portail et de la Black Cup se terminent au tour du diable.
-3. **À valider** — **Sortir de l'Enfer** ne coûte pas d'énergie au diable, et son tour continue depuis la case 0.
-4. **À valider** — **Boue de l'Ange** : il perd son prochain tour, et le poseur touche quand même ses 100 pièces.
-5. **À valider** — Le **Bouclier** ne bloque que les objets à cible unique visant le protégé, ni Draven ni Bullet Bill.
-6. **À valider** — **Libérer le protégé** ne coûte pas d'énergie à l'Ange, et son tour continue.
-7. **À valider** — La **Black Cup** reste rouge sur le plateau pendant son séjour en Enfer (pas de modèle noir).
-8. **À valider** — Le **protégé** est tiré dès la fin du draft (lot 10), parmi les passifs choisis, et annoncé tout de suite à la table.
+1. **Validé** — **Doomsday** touche tout le monde, le diable compris (seul Chance aveugle y échappe), et dure jusqu'au prochain tour du diable.
+2. **Validé** — Les **2 tours de table** du Portail et de la Black Cup se terminent au tour du diable.
+3. **Validé, modifié** — **Sortir de l'Enfer** coûte 1 point d'énergie au diable ; son tour continue depuis la case 0 avec ce qui reste (sans point, le bouton est grisé).
+4. **Validé** — **Boue de l'Ange** : il perd son prochain tour, et le poseur touche quand même ses 100 pièces.
+5. **Validé, modifié** — Le **Bouclier** bloque les objets à cible unique visant le protégé, et aussi Bullet Bill quand il fonce sur lui (une fenêtre de réaction s'ouvre pour l'Ange au début du tour de table, comme pour Non merci). Pas Draven.
+6. **Validé, modifié** — **Libérer le protégé** termine le tour de l'Ange (son énergie est perdue).
+7. **Validé** — La **Black Cup** reste rouge sur le plateau pendant son séjour en Enfer (pas de modèle noir).
+8. **Validé** — Le **protégé** est tiré dès la fin du draft (lot 10), parmi les passifs choisis, et annoncé tout de suite à la table.
 9. **À valider** — L'Ange ne peut pas être **défié** depuis l'Enfer ; à 2 joueurs avec l'Ange, la roue « Choisis un joueur à affronter » ne fait rien. Le **fantôme** lui prend des pièces ou un objet au lieu de l'emporter en Enfer.
 10. **À valider** — Le **Toucher d'Enfer** agit dès que le diable et un joueur assommé se retrouvent sur la même case, quel que soit celui qui bouge.
 

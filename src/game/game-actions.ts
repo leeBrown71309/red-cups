@@ -601,12 +601,25 @@ function resolveReaction(state: GameState, reactorId: PlayerId | null): GameStat
 }
 
 /**
- * Bullet Bill's victim answered as a new round was starting: with Non merci it
- * fizzles out, otherwise it hits. Either way the turn change then goes on.
+ * Bullet Bill's victim answered as a new round was starting: with Non merci,
+ * or their angel's Bouclier, it fizzles out; otherwise it hits. Either way the
+ * turn change then goes on.
  */
 function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: PlayerId | null): GameState {
   if (reactorId === null) return resumeAfterBulletReaction(state, false);
+  const reactor = findPlayer(state, reactorId);
   const victim = findPlayer(state, victimId);
+  if (reactorId !== victimId) {
+    // L'Ange-Gardien raises their Bouclier, which is then spent.
+    const shield = reactor?.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
+    let shielded = updatePlayer(state, reactorId, (player) => spendItemEntry(player, shield?.id ?? ""));
+    shielded = addLog(
+      shielded,
+      `${reactor?.name ?? "L’Ange-Gardien"} lève son Bouclier : Bullet Bill épargne ${victim?.name ?? "son protégé"}.`,
+      "event",
+    );
+    return resumeAfterBulletReaction(shielded, true);
+  }
   // Spent in the round that is starting.
   let nextState = spendNoThanks(state, victimId, state.round + 1);
   nextState = addLog(nextState, `${victim?.name ?? "Un joueur"} utilise Non merci contre Bullet Bill.`, "event");

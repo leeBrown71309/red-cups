@@ -629,6 +629,17 @@ Demande de l'utilisateur : des bugs n'apparaissent que sur certaines cartes (exe
 - **Campagnes finales** (graine 70 000) : 2 500 parties par carte, aucune violation, aucune bloquée, toutes terminées, « Jamais joué : rien » sur les trois cartes.
 - **CI** : chaque carte a son fichier de test (`*-campaign.test.ts`), les campagnes rendent la main entre leurs paquets, et Vitest tourne en processus séparés (`pool: "forks"`) : en threads, un processus saturé manquait les appels de Vitest, ce qui faisait échouer le déploiement de la pré-prod alors que tous les tests passaient.
 
+## Réponses de l'auteur aux choix des lots 3 à 8
+
+Reçues le 2026-10-02 ; la section 13 de la spec donne le statut de chaque choix. Quatre comportements changent, sans être poussés sur la pré-prod :
+
+- **Lot 4** : seul un objet qui coûte de l'énergie compte comme une action du tour (`spendEnergy`, `energy.ts`) ; une Tomate ne permet plus de finir son tour sans bouger.
+- **Lot 8, 3** : le diable paie 1 point d'énergie pour sortir de l'Enfer (`canLeaveHell`, `DEVIL_HELL_EXIT_ENERGY`, `devil.ts`) ; le bouton est grisé sans énergie.
+- **Lot 8, 5** : le Bouclier bloque aussi Bullet Bill qui fonce sur le protégé (`findBulletReactors`, `bullet-bill.ts` ; `resolveBulletReaction`, `game-actions.ts`).
+- **Lot 8, 6** : libérer le protégé termine le tour de l'Ange (`rescueProtege`, `guardian.ts`).
+- Restent à valider : lot 6, choix 4 ; lot 8, choix 9 et 10 (pas de réponse).
+- Tests : `energy.test.ts` et `roles.test.ts` ; campagnes de 1 500 parties par carte sans violation après ajustement du vérificateur (coût d'une Tomate, deux forfaits dans la même action, bonus du départ d'un autre joueur, esquive emportée par le blizzard).
+
 ## Choix à valider
 
 Les choix pris sans l'auteur, lot par lot, sont rassemblés dans la spec, section 13 « Choix à valider du patch 0.1.4 » : chaque ligne dit ce que fait le jeu et si le choix est déjà validé. Chaque nouveau lot y ajoute les siens, pour une relecture d'ensemble avec l'auteur une fois tous les lots faits.

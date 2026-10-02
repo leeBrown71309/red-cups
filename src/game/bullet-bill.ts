@@ -60,12 +60,28 @@ function planCharge(state: GameState, from: NodeId): Charge | null {
  * Non merci: the player Bullet Bill is about to hit as `round` starts, when
  * they may still cancel it. Nothing moves yet.
  */
-export function findBulletDodger(state: GameState, round: number): PlayerId | null {
+/**
+ * Who may stop the charge about to hit its victim as `round` begins: the
+ * victim with Non merci, and L'Ange-Gardien with a Bouclier when the victim
+ * is their protégé (author's answer). Empty when it just hits.
+ */
+export function findBulletReactors(
+  state: GameState,
+  round: number,
+): { victimId: PlayerId; reactorIds: PlayerId[] } | null {
   const bullet = state.bulletBill;
   if (!bullet || !isDue(state, round)) return null;
   const charge = planCharge(state, bullet.position);
-  if (!charge?.hit || !canUseNoThanks(charge.target.player, round)) return null;
-  return charge.target.player.id;
+  if (!charge?.hit) return null;
+  const victim = charge.target.player;
+  const reactorIds = canUseNoThanks(victim, round) ? [victim.id] : [];
+  const angel = state.players.find((player) => player.id === state.guardian?.angelId);
+  const shielded =
+    angel !== undefined &&
+    state.guardian?.protegeId === victim.id &&
+    angel.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield");
+  if (shielded) reactorIds.push(angel.id);
+  return reactorIds.length > 0 ? { victimId: victim.id, reactorIds } : null;
 }
 
 /**

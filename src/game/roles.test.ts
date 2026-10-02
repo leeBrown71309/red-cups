@@ -63,7 +63,15 @@ describe("Le diable", () => {
     useGameStore.setState({ turnStage: "hell" });
     store().leaveHell();
     expect(store().players[0]).toMatchObject({ position: START_NODE_ID, currency: STARTING_CURRENCY });
-    expect(store().turnStage).toBe("move");
+    expect(store()).toMatchObject({ turnStage: "move", energyLeft: 2 });
+  });
+
+  it("pays a point of energy to leave Hell, and cannot without one (author's answer)", () => {
+    startTable(["devil", "lambda"]);
+    editPlayer(0, { position: HELL_NODE_ID, hellTurns: 1 });
+    useGameStore.setState({ turnStage: "hell", energyLeft: 0 });
+    store().leaveHell();
+    expect(store().players[0].position).toBe(HELL_NODE_ID);
   });
 
   it("has a shop of their own, never holding the same item twice", () => {
@@ -214,7 +222,30 @@ describe("L'Ange-Gardien", () => {
     store().rescueProtege();
     expect(store().players[1]).toMatchObject({ position: 2, hellTurns: 0 });
     expect(store().players[0].skippedTurns).toBe(2);
-    expect(store().turnStage).toBe("move");
+    // Freeing the protégé ends the angel's turn (author's answer).
+    expect(store()).toMatchObject({ turnStage: "turn-end", energyLeft: 0 });
+  });
+
+  it("stops Bullet Bill charging at their protégé with the Bouclier (author's answer)", () => {
+    startTable(["lambda", "guardian-angel"]);
+    useGameStore.setState({
+      guardian: { angelId: playerId(1), protegeId: playerId(0) },
+      activePlayerIndex: 1,
+      turnStage: "turn-end",
+      bulletBill: { status: "active", position: 5, spawnRound: 1 },
+    });
+    editPlayer(0, { position: 5 });
+    editPlayer(1, { position: 2, inventory: [item("shield", "shield")] });
+    store().endTurn();
+    expect(store().pendingReaction).toMatchObject({
+      action: { type: "bullet-bill", victimId: playerId(0) },
+      reactorIds: [playerId(1)],
+    });
+
+    store().resolveReaction(playerId(1));
+    expect(store().bulletBill).toBeNull();
+    expect(store().players[0]).toMatchObject({ currency: STARTING_CURRENCY, skippedTurns: 0 });
+    expect(store().players[1].inventory).toEqual([]);
   });
 
   it("blocks an item aimed at their protégé with the Bouclier", () => {

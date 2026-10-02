@@ -1,4 +1,5 @@
 import { getBoard, isIce } from "./board";
+import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
 import { avoidsHell, getDevilGoal, isImmuneToItems } from "./passive-rules";
 import { carryOffIce } from "./ice";
@@ -46,13 +47,28 @@ export function getDevilGoalFor(state: GameState): number {
   return getDevilGoal(state.startingPlayerCount);
 }
 
-/** Le diable may leave Hell whenever it is their turn: back on the start, without the start bonus. */
-export function leaveHell(state: GameState): GameState {
+/** Energy le diable pays to leave Hell (author's answer). */
+export const DEVIL_HELL_EXIT_ENERGY = 1;
+
+/** Whether the active player is le diable in Hell with the energy to leave it. */
+export function canLeaveHell(state: GameState): boolean {
   const player = state.players[state.activePlayerIndex];
-  if (!player || player.passiveId !== "devil" || state.turnStage !== "hell" || player.position !== HELL_NODE_ID) {
-    return state;
-  }
-  const nextState = updatePlayer(state, player.id, (current) => ({
+  return (
+    player?.passiveId === "devil" &&
+    state.turnStage === "hell" &&
+    player.position === HELL_NODE_ID &&
+    state.energyLeft >= DEVIL_HELL_EXIT_ENERGY
+  );
+}
+
+/**
+ * Le diable may leave Hell whenever it is their turn, for a point of energy:
+ * back on the start, without the start bonus, the rest of the turn ahead.
+ */
+export function leaveHell(state: GameState): GameState {
+  if (!canLeaveHell(state)) return state;
+  const player = state.players[state.activePlayerIndex];
+  const nextState = updatePlayer(spendEnergy(state, DEVIL_HELL_EXIT_ENERGY), player.id, (current) => ({
     ...current,
     position: START_NODE_ID,
     hellTurns: 0,
