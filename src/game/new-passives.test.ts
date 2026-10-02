@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { withPassives } from "./forced-passives";
 import { getSimplePaths, type Board } from "./board";
 import { canAddItem, countItemUnits, getItemPrice } from "./rules";
 import { getStartingCurrency } from "./passive-rules";
@@ -14,13 +15,7 @@ import { BASE_ENERGY, GREEDY_CUP_REWARD, GREEDY_GOAL, GREEDY_STUN_THEFT, STARTIN
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({
-      ...player,
-      passiveId: passives[index],
-      currency: getStartingCurrency(passives[index]),
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {

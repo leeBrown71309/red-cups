@@ -7,7 +7,8 @@ import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
-import { getMudOwnerReward, isImmuneToItems } from "./passive-rules";
+import { applyHellTouch, expireDevilSpells, triggerPortal } from "./devil";
+import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems } from "./passive-rules";
 import { endGame } from "./victory";
 import {
   canAddItem,
@@ -15,7 +16,7 @@ import {
   countRedCups,
   getInventoryCapacity,
   getNodeKind,
-  getTileWheel,
+  getTileWheelFor,
   opensShop,
 } from "./rules";
 import {
@@ -25,8 +26,8 @@ import {
   findPlayer,
   getActivePlayer,
   randomChoice,
+  sendPlayerToHell,
   shuffle,
-  placeInHell,
   updatePlayer,
 } from "./state-utils";
 import type { DuelMode, GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
@@ -73,7 +74,8 @@ export function startWheel(
   resumeStage: TurnStage,
   options: { sourceItemId?: ItemId; origin?: WheelOrigin } = {},
 ): GameState {
-  const result = chooseWheelResult(wheelId, drawEngineRandom());
+  // L'Ange-Gardien's wheel of misfortune is not everybody's.
+  const result = chooseWheelResult(wheelId, drawEngineRandom(), findPlayer(state, playerId));
   const nextState: GameState = {
     ...state,
     pendingWheel: { id: createEngineId(), wheelId, playerId, result, resumeStage, ...options },
@@ -89,7 +91,7 @@ export function startWheel(
 export function normalizeResumeStage(state: GameState, stage: TurnStage): TurnStage {
   const active = getActivePlayer(state);
   if (!active || state.phase !== "playing") return stage;
-  if (stage === "shop" && !opensShop(getBoard(state), active)) return "turn-end";
+  if (stage === "shop" && !opensShop(state, active)) return "turn-end";
   if (stage === "tile-wheel") return state.tileWheelResumeStage;
   // A turn that opens with side effects (Banquise's thaw) must still start where the player now is.
   if (stage === "move" && active.position === HELL_NODE_ID) return "hell";
@@ -106,7 +108,7 @@ export function queueTileWheel(state: GameState, playerId: PlayerId): GameState 
   const player = findPlayer(state, playerId);
   if (!player || state.phase !== "playing") return state;
   const others = state.pendingTileWheels.filter((entry) => entry.playerId !== playerId);
-  if (getTileWheel(getBoard(state), player.position) === null) {
+  if (getTileWheelFor(state, player, player.position) === null) {
     return others.length === state.pendingTileWheels.length ? state : { ...state, pendingTileWheels: others };
   }
   return { ...state, pendingTileWheels: [...others, { playerId, nodeId: player.position }] };
@@ -134,11 +136,10 @@ export function dropTileWheels(state: GameState, playerId: PlayerId): GameState 
 
 /** Drops queued wheels whose player has left the tile since, e.g. after a duel or Calme-toi. */
 export function validTileWheels(state: GameState): GameState {
-  const board = getBoard(state);
-  const valid = state.pendingTileWheels.filter(
-    (entry) =>
-      findPlayer(state, entry.playerId)?.position === entry.nodeId && getTileWheel(board, entry.nodeId) !== null,
-  );
+  const valid = state.pendingTileWheels.filter((entry) => {
+    const player = findPlayer(state, entry.playerId);
+    return player?.position === entry.nodeId && getTileWheelFor(state, player, entry.nodeId) !== null;
+  });
   return valid.length === state.pendingTileWheels.length ? state : { ...state, pendingTileWheels: valid };
 }
 
@@ -198,6 +199,11 @@ export function settleBoard(current: GameState, resumeStage: TurnStage): GameSta
     return state;
   }
   const stage = normalizeResumeStage(state, resumeStage);
+  // Le diable's Toucher d'Enfer, then the Black Cup waiting in Hell for whoever arrives there.
+  const touched = applyHellTouch(state);
+  if (touched !== state) return settleBoard(touched, stage);
+  const collected = collectBlackCup(state, stage);
+  if (collected) return collected;
   const hellPlayers = state.players.filter((player) => player.position === HELL_NODE_ID);
   if (hellPlayers.length >= 2) return startDuel(state, hellPlayers[0].id, hellPlayers[1].id, stage);
   const ghostOpponent = findGhostOpponent(state);
@@ -221,11 +227,31 @@ function continueBlessing(state: GameState): GameState {
   return beginNextTurn(ended);
 }
 
-export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameState {
-  const player = findPlayer(state, playerId);
-  if (!player) return state;
-  const nextState = updatePlayer(state, playerId, placeInHell);
-  return addLog(nextState, `${player.name} est envoyé en Enfer.`, "bad");
+export { sendPlayerToHell };
+
+/**
+ * Le diable's Black Cup is picked up by the first player who arrives in Hell
+ * after it was cast, le diable aside; whoever already stood there does not.
+ * Null when nobody picks it up now.
+ */
+function collectBlackCup(state: GameState, stage: TurnStage): GameState | null {
+  const blackCup = state.blackCup;
+  if (!blackCup || state.redCupNodeId !== HELL_NODE_ID) return null;
+  const inHell = state.players.filter((player) => player.position === HELL_NODE_ID);
+  const bystanderIds = blackCup.bystanderIds.filter((id) => inHell.some((player) => player.id === id));
+  const collector = inHell.find((player) => !bystanderIds.includes(player.id) && canCollectRedCup(player));
+  if (!collector) {
+    return bystanderIds.length === blackCup.bystanderIds.length
+      ? null
+      : settleBoard({ ...state, blackCup: { ...blackCup, bystanderIds } }, stage);
+  }
+
+  // The Black Cup ends once the next Cup appears, after a discard for room if need be.
+  const found = addLog({ ...state, turnStage: stage }, `${collector.name} trouve la Black Cup en Enfer !`, "good");
+  const nextState = collectCupOrRequestDiscard(found, collector.id, HELL_NODE_ID);
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
 }
 
 export function randomNormalNode(board: Board, excludeNodeId?: NodeId): NodeId {
@@ -345,6 +371,7 @@ function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStag
     ...nextState,
     previousRedCupNodeId: cupNodeId,
     redCupCycle: nextState.redCupCycle + 1,
+    blackCup: null,
     redCupNodeId: repositioner ? null : nextCupNodeId,
     pendingCupRepositionPlayerId: repositioner?.id ?? null,
     pendingCupRevealNodeId: repositioner ? nextCupNodeId : null,
@@ -363,7 +390,8 @@ function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStag
 
 export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || state.redCupNodeId !== nodeId) return state;
+  // Le diable and L'Ange-Gardien walk past it.
+  if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
   if (player.passiveId === "greedy") return cashInCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
@@ -461,7 +489,8 @@ export function arriveOnTile(state: GameState, playerId: PlayerId, cameFrom: Nod
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   let nextState = queueTileWheel(state, playerId);
   nextState = triggerMud(nextState, playerId, player.position, cameFrom);
-  // Chance aveugle may have stepped back out of the mud.
+  nextState = triggerPortal(nextState, playerId);
+  // Chance aveugle may have stepped back out of the mud, and a Portail drops into Hell.
   if (findPlayer(nextState, playerId)?.position !== player.position) return nextState;
   if (nextState.redCupNodeId !== player.position) return nextState;
   return collectCupOrRequestDiscard(nextState, playerId, player.position);
@@ -474,7 +503,7 @@ export function arriveOnTile(state: GameState, playerId: PlayerId, cameFrom: Nod
 export function getWheelArrivalStage(state: GameState, playerId: PlayerId, resumeStage: TurnStage): TurnStage {
   const player = findPlayer(state, playerId);
   const isActive = getActivePlayer(state)?.id === playerId;
-  const onShop = player !== undefined && opensShop(getBoard(state), player);
+  const onShop = player !== undefined && opensShop(state, player);
   return isActive && onShop && resumeStage === "turn-end" ? "shop" : resumeStage;
 }
 
@@ -511,7 +540,16 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId,
   let nextState: GameState = { ...state, mudTraps: state.mudTraps.filter((candidate) => candidate.id !== trap.id) };
   if (isImmuneToItems(player)) return stepBackFromMud(nextState, player, cameFrom);
   nextState = addLog(nextState, `${player.name} tombe dans la Boue.`, "bad");
-  nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
+  // L'Ange-Gardien loses their next turn rather than coins; the mud's owner is paid all the same.
+  if (avoidsHell(player)) {
+    nextState = updatePlayer(nextState, playerId, (current) => ({
+      ...current,
+      skippedTurns: current.skippedTurns + 1,
+    }));
+    nextState = addLog(nextState, `${player.name} perd son prochain tour dans la Boue.`, "bad");
+  } else {
+    nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
+  }
   // Stepping in your own mud pays nobody.
   const owner = findPlayer(nextState, trap.ownerId);
   if (owner && owner.id !== playerId) {
@@ -689,6 +727,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     pendingCalmDown: null,
     pendingAdvance: null,
   };
+  // Le diable's Portails, Black Cup and Doomsday last whole rounds, from turn to turn.
+  nextState = expireDevilSpells(nextState);
   nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);
 }
@@ -748,6 +788,7 @@ function thawFrozenSlide(state: GameState): GameState {
   nextState = addRedGreenBonuses(nextState, active.id, [frozen.to]);
   nextState = queueTileWheel(nextState, active.id);
   nextState = triggerMud(nextState, active.id, frozen.to, frozen.from);
+  nextState = triggerPortal(nextState, active.id);
   const landed = findPlayer(nextState, active.id)?.position === frozen.to;
   if (landed && nextState.redCupNodeId === frozen.to) {
     nextState = collectCupOrRequestDiscard(nextState, active.id, frozen.to);

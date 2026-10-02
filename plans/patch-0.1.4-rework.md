@@ -27,6 +27,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 5** fait et commité.
 - [x] **Lot 6** fait et commité.
 - [x] **Lot 7** fait et commité.
+- [x] **Lot 8** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -430,6 +431,32 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - **Boutique restreinte** : ni Ndoye, ni Hollow Purple, ni Boue, ni Tomate, ni Bullet Bill, ni Middle Finger, ni Draven, ni Casque.
   - **Bouclier** (500, hors tour) : **au choix de l'Ange** (Q14). Quand un objet néfaste vise le protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque ou laisse passer.
 - **Barre des joueurs** : lien Ange → protégé et compteur du diable (« Enfer 5/14 »).
+
+### Bilan du lot 8
+
+- **Le diable** (`game/devil.ts`) :
+  - annoncé au lancement, dans le journal et par une bannière ;
+  - `countHellEntries` compte après chaque action les autres joueurs qui entrent en Enfer, quelle qu'en soit la cause ; `checkVictories` (`victory.ts`, qui remplace `checkGreedyVictory`) le fait gagner à ⌊4N − N/2⌋ (`startingPlayerCount`) ;
+  - ne ramasse pas la Cup (`canCollectRedCup`), un seul exemplaire de chaque objet (`getCopyLimit`) ;
+  - action `leaveHell` : retour en case 0, sans bonus, son tour continue ;
+  - boutique : 2ᵉ onglet « Diable » dans la boutique ; compteur « Enfer N/objectif » dans la barre des joueurs.
+- **Ses objets** :
+  - Portail (`hellPortals`), Black Cup (`blackCup`), Doomsday (`doomsday`) durent un nombre de tours de table compté jusqu'au tour du diable (`DevilSpell`, `expireDevilSpells` à chaque début de tour) ;
+  - Portail : déclenché à l'arrêt (marche, roues, dégel), le diable compris ; nouveau modèle 3D ;
+  - Toucher d'Enfer : vérifié dans `settleBoard` ;
+  - Black Cup : la Cup en Enfer (`redCupNodeId` = Enfer), ramassée dans `settleBoard` par le premier joueur qui y arrive, hors témoins ; retour sur sa case, glace fondue ; Made In Heaven la fait remonter ;
+  - Sentence ; Doomsday : `getTileWheelFor`, `opensShop(state, …)` et le bonus du départ en tiennent compte (Chance aveugle épargné).
+- **L'Ange-Gardien** (`game/guardian.ts`) :
+  - absent du tirage à moins de 4 joueurs ; `assignGuardian` tire le protégé hors malfaiteurs, sinon Lambda ; état `guardian` ;
+  - 600 pièces, 2 places, pas de Cup ; `placeInHell` lui fait perdre un tour au lieu de l'Enfer (et `sendPlayerToHell` passe désormais par `state-utils`) ; ni défi, ni fantôme, ni Corde/Monopoly Man vers l'Enfer ; la Boue lui coûte un tour ;
+  - roue du malheur à 2 issues (`getWheelResults`, nouvelle issue `nothing`) ;
+  - cible seulement son protégé (`canTargetPlayer`), objets néfastes interdits à l'achat comme à l'usage (`canUseItemKind`) ;
+  - action `rescueProtege` (bouton « Libérer X » dans le dock) ; Bouclier dans la fenêtre de réaction de Non merci (« Bouclier ! ») ;
+  - co-victoire `coWinnerId` (classement, écran de victoire, historique) ; halo 3D au-dessus du protégé ; protégé qui abandonne → l'Ange prend sa place en Enfer.
+- **Trouvé par les bots** : à 2 joueurs, la roue de l'Enfer « Choisis un joueur à affronter » bloquait la partie quand le seul adversaire était l'Ange ; sans adversaire possible, elle ne fait plus rien. La Black Cup restait sans état pendant un choix d'objet à jeter ; elle prend fin maintenant à l'apparition de la Cup suivante.
+- **Sauvegardes** : version 17.
+- **Tests** : nouveau `roles.test.ts` (19 tests) ; un helper commun `withPassives` (`game/forced-passives.ts`) remplace les 8 copies qui imposaient un passif dans les tests : il recale aussi la jauge (un test échouait selon le passif tiré au hasard, Red Bull) et le protégé.
+- **Vérificateur** : nouveau `role-invariants.ts` (comptage des entrées en Enfer, victoire du diable, Black Cup, Portails, Sentence, Doomsday, Ange jamais en Enfer, protégé, co-victoire) ; les règles d'arrivée, de bonus et de boutique suivent Doomsday et le Portail.
 
 ## Lot 9 — Chrono de tour en ligne (45 s, 3 chances, forfait)
 

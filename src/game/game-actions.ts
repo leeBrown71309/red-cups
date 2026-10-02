@@ -7,9 +7,18 @@ import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
+import { announceDevil, countHellEntries, leaveHell } from "./devil";
 import { offerGamble, resolveGamble } from "./gamble";
-import { canBuyItemKind, getStartingCurrency, getTheftPenalty, getTheftRisk } from "./passive-rules";
-import { checkGreedyVictory } from "./victory";
+import { assignGuardian, rescueProtege } from "./guardian";
+import {
+  avoidsHell,
+  canBuyItemKind,
+  getStartingCurrency,
+  getTheftPenalty,
+  getTheftRisk,
+  isDoomed,
+} from "./passive-rules";
+import { checkVictories } from "./victory";
 import {
   canAffordItem,
   canAffordMove,
@@ -44,7 +53,7 @@ import {
   canStartNewSlot,
   canUseNoThanks,
   getItemPrice,
-  getTileWheel,
+  getTileWheelFor,
   getUniqueLegalDestinations,
   isOnSale,
   opensShop,
@@ -92,6 +101,7 @@ import {
   EMPTY_GAME_STATE,
   FIRST_ROUND,
   FREE_TOMATOES,
+  GUARDIAN_MIN_PLAYERS,
   HELL_NODE_ID,
   PLAYER_COLORS,
   ROLLER_DIE_FACES,
@@ -110,6 +120,10 @@ export type GameAction =
   | { type: "prepareBoot"; entryId: string }
   /** Roller: throws the die that sets the length of the move. */
   | { type: "rollDice" }
+  /** Le diable walks out of Hell, whenever they please. */
+  | { type: "leaveHell" }
+  /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
+  | { type: "rescueProtege" }
   | { type: "buyItem"; itemId: ItemId }
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
@@ -148,7 +162,11 @@ const MAX_PLAYERS = 8;
 /** Online players pick their avatar in the lobby; a local table takes the palette in seat order. */
 function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | undefined): Player[] {
   const names = playerNames.slice(0, MAX_PLAYERS).map((name, index) => name.trim() || `Joueur ${index + 1}`);
-  const passives = shuffle(PASSIVE_ORDER).slice(0, names.length);
+  // L'Ange-Gardien only joins a table of four or more.
+  const pool = PASSIVE_ORDER.filter(
+    (passiveId) => passiveId !== "guardian-angel" || names.length >= GUARDIAN_MIN_PLAYERS,
+  );
+  const passives = shuffle(pool).slice(0, names.length);
   return names.map((name, index) => ({
     id: getSeatPlayerId(index),
     name,
@@ -190,6 +208,7 @@ function startGame(
       turnStage: "move",
       mapId: map.id,
       players,
+      startingPlayerCount: players.length,
       energyLeft: getEnergyCapacity(players[0]),
       redCupNodeId: map.initialCupNodeId,
       log: [
@@ -199,9 +218,11 @@ function startGame(
         ),
       ],
     };
+    // Both roles are public: le diable is announced, L'Ange-Gardien's protégé drawn and named.
+    const withRoles = announceDevil(assignGuardian(opening));
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
     const withIce =
-      map.blizzardEveryRounds === undefined ? opening : { ...opening, iceTileNodeId: pickBlizzardTile(opening) };
+      map.blizzardEveryRounds === undefined ? withRoles : { ...withRoles, iceTileNodeId: pickBlizzardTile(withRoles) };
     // Luna Park's ghost waits a round or two before haunting the carousel.
     return { ...withIce, ghost: createGhost(withIce) };
   };
@@ -355,7 +376,7 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
   };
   nextState = addLog(nextState, `${player.name} avance en case ${destination}.`, "good");
   nextState = addRedGreenBonuses(nextState, player.id, [destination]);
-  if (earnsStartBonus(getBoard(state), player.position, [destination])) {
+  if (earnsStartBonus(getBoard(state), player.position, [destination]) && !isDoomed(state, player)) {
     nextState = addStartBonus(nextState, player.id);
   }
   nextState = stealFromKnockedOut(nextState, player.id);
@@ -385,6 +406,12 @@ function prepareBoot(state: GameState, entryId: string): GameState {
   return addLog(nextState, `${player.name} prépare la Botte pour un déplacement de deux cases.`, "event");
 }
 
+/** Le diable out of Hell: the ghost may be waiting on the start. A refused exit changes nothing. */
+function leaveHellAndSettle(state: GameState): GameState {
+  const left = leaveHell(state);
+  return left === state ? state : settleBoard(left, "move");
+}
+
 /**
  * Roller: the die is thrown before the move, which then covers exactly that
  * many tiles (or as many as the roads allow). No item after it.
@@ -399,7 +426,7 @@ function rollDice(state: GameState): GameState {
 
 /** Whether the shop open to `player` sells them `itemId`: their passive, their bag and the Red Cup allow it. */
 function isOnShelf(state: GameState, player: Player, itemId: ItemId): boolean {
-  if (state.turnStage !== "shop" || !opensShop(getBoard(state), player)) return false;
+  if (state.turnStage !== "shop" || !opensShop(state, player)) return false;
   return canAddItem(player, itemId) && canBuyItemKind(player, itemId) && isOnSale(state, itemId);
 }
 
@@ -529,7 +556,8 @@ function spinTileWheel(current: GameState): GameState {
   if (current.turnStage !== "tile-wheel") return current;
   const state = validTileWheels(current);
   const [next, ...rest] = state.pendingTileWheels;
-  const wheelId = next ? getTileWheel(getBoard(state), next.nodeId) : null;
+  const spinner = findPlayer(state, next?.playerId);
+  const wheelId = next && spinner ? getTileWheelFor(state, spinner, next.nodeId) : null;
   if (!next || !wheelId) return { ...state, turnStage: state.tileWheelResumeStage };
   const queueRest = { ...state, pendingTileWheels: rest };
   return startWheel(queueRest, wheelId, next.playerId, state.tileWheelResumeStage, { origin: "tile" });
@@ -548,6 +576,12 @@ function resolveWheel(state: GameState): GameState {
     });
   }
 
+  // L'Ange-Gardien cannot be dragged into Hell: with nobody else to call, the duel is off.
+  const opponents = state.players.filter((candidate) => candidate.id !== pending.playerId && !avoidsHell(candidate));
+  if (pending.result.id === "challenge" && opponents.length === 0) {
+    const nextState = addLog({ ...state, pendingWheel: null, turnStage: pending.resumeStage }, "Personne à défier.");
+    return settleBoard(nextState, pending.resumeStage);
+  }
   if (pending.result.id === "challenge") {
     const nextState: GameState = {
       ...state,
@@ -609,7 +643,8 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
 function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState {
   const pending = state.pendingChallenge;
   const target = findPlayer(state, targetPlayerId);
-  if (!pending || !target || pending.playerId === targetPlayerId) return state;
+  // L'Ange-Gardien never goes to Hell, so cannot be dragged into a duel there.
+  if (!pending || !target || pending.playerId === targetPlayerId || avoidsHell(target)) return state;
 
   let nextState = updatePlayer(state, targetPlayerId, placeInHell);
   nextState = { ...nextState, pendingChallenge: null };
@@ -744,7 +779,8 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
   const result = dispatchGameAction(prepared, action);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
   if (result === prepared) return state;
-  return offerGamble(checkGreedyVictory(recordPreviousTiles(prepared, result)));
+  const counted = countHellEntries(prepared, recordPreviousTiles(prepared, result));
+  return offerGamble(checkVictories(counted));
 }
 
 function dispatchGameAction(state: GameState, action: GameAction): GameState {
@@ -759,6 +795,10 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return prepareBoot(state, action.entryId);
     case "rollDice":
       return rollDice(state);
+    case "leaveHell":
+      return leaveHellAndSettle(state);
+    case "rescueProtege":
+      return rescueProtege(state);
     case "buyItem":
       return buyItem(state, action.itemId);
     case "stealItem":

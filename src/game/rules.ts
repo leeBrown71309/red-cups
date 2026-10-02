@@ -1,22 +1,15 @@
 import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { getCopyLimit, getMudPrice, shopsAnywhere } from "./passive-rules";
+import { getBagSlots, getCopyLimit, getMudPrice, isDoomed, shopsAnywhere } from "./passive-rules";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
-import {
-  BASE_INVENTORY_CAPACITY,
-  CORRUPTER_COST,
-  FIRST_ROUND,
-  HELL_NODE_ID,
-  MADE_IN_HEAVEN_CUP_NODE_ID,
-  START_NODE_ID,
-} from "./types";
+import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
-/** Every bag holds four entries, Red Cups included. */
-export function getInventoryCapacity(_player: Player): number {
-  return BASE_INVENTORY_CAPACITY;
+/** Every bag holds four entries, Red Cups included; L'Ange-Gardien's two. */
+export function getInventoryCapacity(player: Player): number {
+  return getBagSlots(player);
 }
 
 export function getOpenInventorySlots(player: Player): number {
@@ -140,14 +133,21 @@ export function getItemPrice(itemId: ItemId, bootPrice: number, buyer?: Player):
   return ITEM_CATALOG[itemId].price;
 }
 
+/** The wheel `player` spins on `nodeId`: during Doomsday, the wheel of misfortune on every tile. */
+export function getTileWheelFor(state: GameState, player: Player, nodeId: NodeId): WheelId | null {
+  if (nodeId !== HELL_NODE_ID && isDoomed(state, player)) return "misfortune";
+  return getTileWheel(getBoard(state), nodeId);
+}
+
 /** Made In Heaven is only sold while the Red Cup stands away from the tile it would set it down on. */
 export function isOnSale(state: Pick<GameState, "redCupNodeId">, itemId: ItemId): boolean {
   return itemId !== "made-in-heaven" || state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
 }
 
-/** A blue tile opens the shop; for eShop, any tile does. */
-export function opensShop(board: Board, player: Player): boolean {
-  return isShopNode(board, player.position) || shopsAnywhere(player);
+/** A blue tile opens the shop, for eShop any tile does; never in Hell, nor during Doomsday. */
+export function opensShop(state: GameState, player: Player, nodeId: NodeId = player.position): boolean {
+  if (nodeId === HELL_NODE_ID || isDoomed(state, player)) return false;
+  return isShopNode(getBoard(state), nodeId) || shopsAnywhere(player);
 }
 
 /**

@@ -1,5 +1,6 @@
 import { getBoard } from "../game/board";
 import { ITEM_ORDER } from "../game/catalog";
+import { findDevil, getDevilGoalFor } from "../game/devil";
 import { countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
@@ -74,7 +75,16 @@ export function startGameFeedback(): () => void {
     const celebrates = events.some((event) => event.type === "cup-collected");
     // The shop, the wheels and the other dialogs wait until the whole table has read the map's banner.
     const announcesMapEvent = events.some((event) =>
-      ["carousel-flipped", "blizzard", "ice-fall", "ghost-appeared", "ghost-attack"].includes(event.type),
+      [
+        "carousel-flipped",
+        "blizzard",
+        "ice-fall",
+        "ghost-appeared",
+        "ghost-attack",
+        "devil-announced",
+        "doomsday-started",
+        "black-cup-cast",
+      ].includes(event.type),
     );
 
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
@@ -233,6 +243,12 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
+  const devil = findDevil(state);
+  if (devil && previous.phase !== "playing" && state.phase === "playing") {
+    events.push({ type: "devil-announced", playerId: devil.id, goal: getDevilGoalFor(state) });
+  }
+  if (state.doomsday && !previous.doomsday) events.push({ type: "doomsday-started" });
+  if (state.blackCup && !previous.blackCup) events.push({ type: "black-cup-cast" });
   if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
     events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });
   }

@@ -13,7 +13,7 @@ import { useGameStore } from "../store";
 import type { MapId, PassiveId, Player } from "../types";
 import { HELL_NODE_ID, START_NODE_ID } from "../types";
 import { MAP_ORDER, getBoardMap, resolveMapChoice } from "./map-registry";
-import { getStartingCurrency } from "../passive-rules";
+import { withPassives } from "../forced-passives";
 
 const sorted = (values: number[]) => [...values].sort((left, right) => left - right);
 
@@ -192,13 +192,7 @@ function startTable(mapId: MapId, passives: PassiveId[]): void {
     undefined,
     mapId,
   );
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({
-      ...player,
-      passiveId: passives[index],
-      currency: getStartingCurrency(passives[index]),
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {
@@ -218,7 +212,8 @@ describe("a game at Luna Park", () => {
     expect(store().mapId).toBe("luna-park");
     expect(store().redCupNodeId).toBe(8);
     expect(store().carouselReversed).toBe(false);
-    expect(store().log[0].text).toContain("Luna Park");
+    // Le diable, when drawn, is announced right after the opening line.
+    expect(store().log.some((entry) => entry.text.includes("Luna Park"))).toBe(true);
   });
 
   it("flips the carousel when a new Red Cup appears", () => {

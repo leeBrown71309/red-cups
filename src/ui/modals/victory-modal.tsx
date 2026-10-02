@@ -15,6 +15,8 @@ export function VictoryModal() {
   const abandonedPlayers = useGameStore((state) => state.abandonedPlayers);
   const winnerId = useGameStore((state) => state.winnerId);
   const winReason = useGameStore((state) => state.winReason);
+  const coWinnerId = useGameStore((state) => state.coWinnerId);
+  const devilHellEntries = useGameStore((state) => state.devilHellEntries);
   const mapId = useGameStore((state) => state.mapId);
   const startGame = useGameStore((state) => state.startGame);
   const resetGame = useGameStore((state) => state.resetGame);
@@ -29,6 +31,7 @@ export function VictoryModal() {
   // The rematch offers the board just played first; any other map, or a draw, is one arrow away.
   const [rematchChoice, setRematchChoice] = useState<MapChoice>(mapId);
   const winner = players.find((player) => player.id === winnerId);
+  const angel = players.find((player) => player.id === coWinnerId);
   if (!winner) return null;
 
   // A rematch replays the same table. Online, the host starts it for whoever is still in the room.
@@ -85,12 +88,15 @@ export function VictoryModal() {
               ? "Dernière personne à table"
               : winReason === "greedy"
                 ? "5 000 pièces. Cupide rafle la mise."
-                : "Trois Red Cups. Une légende."}
+                : winReason === "devil"
+                  ? `${devilHellEntries} entrées en Enfer. Le diable l’emporte.`
+                  : "Trois Red Cups. Une légende."}
           </span>
           <h2 id="victory-title" className="victory__title">
             {winner.name} gagne la partie !
           </h2>
-          <StandingsList state={{ players, abandonedPlayers, winnerId }} />
+          {angel && <p className="victory__map-note">Avec {angel.name}, son Ange-Gardien, qui gagne avec lui.</p>}
+          <StandingsList state={{ players, abandonedPlayers, winnerId, coWinnerId }} />
           {isOnline && !isHost && (
             <p className="victory__map-note">Reste dans le salon : l’hôte peut lancer une revanche.</p>
           )}

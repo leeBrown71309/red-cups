@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 16;
+export const GAME_SAVE_VERSION = 17;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -106,7 +106,9 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * full gauge) and the Tomate stack thrown from this turn. Version 14 reworked
  * the passives: renamed and removed ones, Red light, Green light's count,
  * Non merci and Calme-toi. Version 15 added the Roller's die, version 16 the
- * stakes of Double or nothing and the Voleur's theft of the turn.
+ * stakes of Double or nothing and the Voleur's theft of the turn. Version 17
+ * added le diable (count of Hell entries, Portails, Black Cup, Doomsday) and
+ * L'Ange-Gardien (protégé, co-winner).
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -145,6 +147,13 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     pendingGambles: save.pendingGambles ?? [],
     gambleResumeStage: save.gambleResumeStage ?? "turn-end",
     theftAttempted: save.theftAttempted ?? false,
+    coWinnerId: save.coWinnerId ?? null,
+    startingPlayerCount: save.startingPlayerCount ?? players.length,
+    devilHellEntries: save.devilHellEntries ?? 0,
+    hellPortals: save.hellPortals ?? [],
+    blackCup: save.blackCup ?? null,
+    doomsday: save.doomsday ?? null,
+    guardian: save.guardian ?? null,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],

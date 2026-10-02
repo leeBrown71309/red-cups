@@ -1,6 +1,6 @@
 import { getStartBonusNodeIds, resolveBoard } from "../../game/board";
-import { WHEEL_RESULTS } from "../../game/catalog";
-import type { BoardNode, DuelMode, MapId, NodeId, WheelId, WheelOutcomeId } from "../../game/types";
+import { getWheelResults } from "../../game/catalog";
+import type { BoardNode, DuelMode, MapId, NodeId, Player, WheelId, WheelOutcomeId } from "../../game/types";
 import { HELL_NODE_ID, START_BONUS, START_NODE_ID } from "../../game/types";
 import { TILE_COLORS } from "../../theme/palette";
 
@@ -44,6 +44,7 @@ const OUTCOME_SHORT_LABELS: Record<WheelOutcomeId, string> = {
   challenge: "Duel",
   escape: "Libre !",
   "hell-skip": "Passe",
+  nothing: "Rien",
 };
 
 const POSITIVE_OUTCOMES: WheelOutcomeId[] = [
@@ -76,14 +77,14 @@ const WEDGE_COLOR_OVERRIDES: Partial<Record<WheelOutcomeId, string>> = {
 /**
  * Expands weighted results into equal wedges, spreading duplicates around
  * the wheel like a real carnival wheel instead of one oversized wedge.
+ * L'Ange-Gardien's wheel of misfortune has its own two wedges.
  */
-export function getWheelSegments(wheelId: WheelId): WheelSegment[] {
+export function getWheelSegments(wheelId: WheelId, player?: Pick<Player, "passiveId">): WheelSegment[] {
   const theme = WHEEL_THEMES[wheelId];
+  const results = getWheelResults(wheelId, player);
   const toSegment = (outcomeId: WheelOutcomeId) => ({ outcomeId, label: OUTCOME_SHORT_LABELS[outcomeId] });
-  const ordered = WHEEL_RESULTS[wheelId].map((result) => toSegment(result.id));
-  const extras = WHEEL_RESULTS[wheelId].flatMap((result) =>
-    Array.from({ length: result.weight - 1 }, () => toSegment(result.id)),
-  );
+  const ordered = results.map((result) => toSegment(result.id));
+  const extras = results.flatMap((result) => Array.from({ length: result.weight - 1 }, () => toSegment(result.id)));
 
   for (const extra of extras) {
     const firstIndex = ordered.findIndex((segment) => segment.outcomeId === extra.outcomeId);

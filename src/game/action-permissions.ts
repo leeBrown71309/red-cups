@@ -28,6 +28,8 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "movePlayer":
     case "prepareBoot":
     case "rollDice":
+    case "leaveHell":
+    case "rescueProtege":
     case "buyItem":
     case "stealItem":
     case "useItem":

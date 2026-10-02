@@ -24,6 +24,10 @@ interface GameActions {
   prepareBoot: (entryId: string) => void;
   /** Roller: throws the die before the move. */
   rollDice: () => void;
+  /** Le diable walks out of Hell, back on the start. */
+  leaveHell: () => void;
+  /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
+  rescueProtege: () => void;
   buyItem: (itemId: ItemId) => void;
   /** Voleur: tries to walk off with an item instead of paying for it. */
   stealItem: (itemId: ItemId) => void;
@@ -105,6 +109,8 @@ export const useGameStore = create<GameStore>()(
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       rollDice: () => dispatch({ type: "rollDice" }),
+      leaveHell: () => dispatch({ type: "leaveHell" }),
+      rescueProtege: () => dispatch({ type: "rescueProtege" }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
       stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
       useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),

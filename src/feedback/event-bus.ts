@@ -22,6 +22,10 @@ export type FeedbackEvent =
   | { type: "bullet-flight"; flight: BulletFlight }
   | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
   | { type: "blessing-started" }
+  /** Le diable is announced to the whole table as the game starts. */
+  | { type: "devil-announced"; playerId: PlayerId; goal: number }
+  | { type: "doomsday-started" }
+  | { type: "black-cup-cast" }
   | { type: "carousel-flipped"; reversed: boolean }
   | { type: "player-left"; playerId: PlayerId }
   | { type: "turn-skipped" }

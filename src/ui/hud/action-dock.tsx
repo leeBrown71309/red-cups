@@ -1,9 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
-import { resolveBoard } from "../../game/board";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { formatGambleAmount } from "../../game/gamble";
-import { getTileWheel } from "../../game/rules";
+import { canRescueProtege } from "../../game/guardian";
+import { getTileWheelFor } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import {
@@ -108,8 +108,12 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
   const spinTileWheel = useGameStore((state) => state.spinTileWheel);
   const tileWheels = useGameStore((state) => state.pendingTileWheels);
   const players = useGameStore((state) => state.players);
-  const mapId = useGameStore((state) => state.mapId);
   const activePlayerIndex = useGameStore((state) => state.activePlayerIndex);
+  // Doomsday turns every tile into a wheel of misfortune.
+  const spinnerFortune = useGameStore((state) => {
+    const spinner = state.players.find((candidate) => candidate.id === state.pendingTileWheels[0]?.playerId) ?? player;
+    return getTileWheelFor(state, spinner, spinner.position) === "fortune";
+  });
   const ghostDuel = useGameStore(
     (state) => state.pendingDuel?.ghost !== undefined && state.pendingDuel?.ghost !== null,
   );
@@ -125,7 +129,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <HellContent player={player} />;
     case "tile-wheel": {
       const spinner = players.find((candidate) => candidate.id === tileWheels[0]?.playerId) ?? player;
-      const fortune = getTileWheel(resolveBoard(mapId), spinner.position) === "fortune";
+      const fortune = spinnerFortune;
       const pushedThere = spinner.id !== player.id;
       return (
         <DockPrompt
@@ -233,6 +237,7 @@ function BlessingContent() {
 /** In Hell the wheel stands for the move: it needs a point and takes the rest. */
 function HellContent({ player }: { player: Player }) {
   const spinHellWheel = useGameStore((state) => state.spinHellWheel);
+  const leaveHell = useGameStore((state) => state.leaveHell);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
   const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
@@ -247,6 +252,16 @@ function HellContent({ player }: { player: Player }) {
 
   return (
     <DockPrompt title="Bienvenue en Enfer…" hint={`${advice} ${countdown}`}>
+      {player.passiveId === "devil" && (
+        <button
+          type="button"
+          className="btn btn--cup"
+          onClick={leaveHell}
+          title="Retour en case 0, sans les 200 pièces"
+        >
+          <UiIcon name="flag" size={20} /> Sortir de l’Enfer
+        </button>
+      )}
       <button type="button" className="btn btn--grape" onClick={spinHellWheel} disabled={tired}>
         <UiIcon name="flame" size={20} /> Tourner la roue
       </button>
@@ -263,6 +278,11 @@ function MoveContent({ player }: { player: Player }) {
   const diceRoll = useGameStore((state) => state.diceRoll);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
+  const rescueProtege = useGameStore((state) => state.rescueProtege);
+  const canRescue = useGameStore(canRescueProtege);
+  const protegeName = useGameStore(
+    (state) => state.players.find((candidate) => candidate.id === state.guardian?.protegeId)?.name,
+  );
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
   const previewNodeId = useUiStore((state) => state.previewNodeId);
@@ -351,6 +371,16 @@ function MoveContent({ player }: { player: Player }) {
         </div>
       )}
       {previewNodeId === null && <EndTurnButton />}
+      {canRescue && previewNodeId === null && (
+        <button
+          type="button"
+          className="btn btn--small btn--gold"
+          onClick={rescueProtege}
+          title="Il te rejoint sur ta case ; tu perds tes 2 prochains tours"
+        >
+          <UiIcon name="sparkle" size={16} /> Libérer {protegeName}
+        </button>
+      )}
       {isCorrupter && (
         <button
           type="button"

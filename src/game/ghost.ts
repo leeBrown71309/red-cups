@@ -4,6 +4,7 @@ import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { settleBoard, sendPlayerToHell } from "./game-effects";
 import { getBoardMap } from "./maps/map-registry";
+import { avoidsHell } from "./passive-rules";
 import { canAddItem, canReceiveItem } from "./rules";
 import {
   addLog,
@@ -181,12 +182,13 @@ export function findGhostOpponent(state: GameState): Player | undefined {
   return candidates.find((player) => player.id === active?.id) ?? candidates[0];
 }
 
+/** L'Ange-Gardien never goes to Hell: the ghost takes coins or an item from them, if anything. */
 function drawPenalty(player: Player): GhostPenalty {
-  const options: GhostPenalty[] = [{ kind: "hell" }];
+  const options: GhostPenalty[] = avoidsHell(player) ? [] : [{ kind: "hell" }];
   if (player.currency > 0) options.push({ kind: "coins", amount: Math.min(GHOST_STEAL_COINS, player.currency) });
   const item = randomChoice(player.inventory.filter((entry) => entry.kind === "item"));
   if (item?.kind === "item") options.push({ kind: "item", entryId: item.id, itemId: item.itemId });
-  return randomChoice(options) ?? { kind: "hell" };
+  return randomChoice(options) ?? { kind: "coins", amount: 0 };
 }
 
 /** One piece of loot at a time: coins or one item, drawn; a reward of its own when the loot is empty. */

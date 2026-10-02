@@ -37,10 +37,6 @@ export function checkAdvancedPassiveState(state: GameState, found: RuleViolation
   if (state.theftAttempted && active?.passiveId !== "thief") {
     found.push(violation("theft-passive", `${active?.name ?? "nobody"} has a theft this turn`));
   }
-  const bulletVictim = findPlayer(state, state.lastBulletFlight?.victimId);
-  if (bulletVictim && isImmuneToItems(bulletVictim)) {
-    found.push(violation("blind-luck-bullet", "Bullet Bill hit Chance aveugle"));
-  }
 }
 
 /** Double or nothing: every change of the holder's coins is offered, then doubled, wiped out or kept. */
@@ -126,7 +122,16 @@ export function checkMadeInHeaven(previous: GameState, next: GameState, userId: 
   }
 }
 
+/** Bullet Bill never chases Chance aveugle (judged when it hits: an heir may take the passive later). */
+function checkBlindLuckBullet(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const flight = next.lastBulletFlight;
+  if (!flight || flight.seq === previous.lastBulletFlight?.seq) return;
+  const victim = findPlayer(previous, flight.victimId);
+  if (victim && isImmuneToItems(victim)) found.push(violation("blind-luck-bullet", "Bullet Bill hit Chance aveugle"));
+}
+
 export function checkAdvancedPassives(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  checkBlindLuckBullet(previous, next, found);
   checkGamble(previous, next, found);
   checkTheft(previous, next, found);
   checkBlindLuckMud(previous, next, found);

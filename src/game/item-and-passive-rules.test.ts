@@ -2,19 +2,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
 import { CORRUPTER_COST, MUD_OWNER_REWARD, MUD_PENALTY, STARTING_CURRENCY } from "./types";
-import { getStartingCurrency } from "./passive-rules";
+import { withPassives } from "./forced-passives";
 
 /** Patch 0.1.1: Corrupteur, Boue and the wheel of fortune (New Cup, New Me: see passive-rework.test.ts). */
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({
-      ...player,
-      passiveId: passives[index],
-      currency: getStartingCurrency(passives[index]),
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {

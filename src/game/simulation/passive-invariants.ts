@@ -31,8 +31,12 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const after = findPlayer(next, holderId);
   if (!before || !after) return;
 
-  const toStart = newLogTexts(previous, next).some((text) => text.startsWith(`${before.name} file au Départ`));
-  if (toStart && (after.position !== START_NODE_ID || after.currency !== expectedBalance(before, START_BONUS))) {
+  const logs = newLogTexts(previous, next);
+  const toStart = logs.some((text) => text.startsWith(`${before.name} file au Départ`));
+  // Knocked out on le diable's tile, the start may lead straight to Hell through their Toucher d'Enfer.
+  const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
+  const landed = after.position === START_NODE_ID || touched;
+  if (toStart && (!landed || after.currency !== expectedBalance(before, START_BONUS))) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
   if (!toStart && after.position !== before.position) {
@@ -111,6 +115,8 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
     if (!before || before.noThanksReadyRound === player.noThanksReadyRound) continue;
+    // L'Ange-Gardien took the place of a protégé who left, Non merci and its cooldown included.
+    if (before.passiveId !== player.passiveId) continue;
     const reacted =
       previous.turnStage === "reaction" &&
       pending !== null &&
@@ -130,7 +136,10 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
   const opened = next.pendingReaction;
   if (opened && opened !== pending && opened.action.type === "item") {
     const { itemId, targetPlayerId } = opened.action;
-    const ownTarget = (reactorId: string) => itemId === "draven" || reactorId === targetPlayerId;
+    // L'Ange-Gardien's Bouclier answers for their protégé.
+    const guards = (reactorId: string) =>
+      next.guardian?.angelId === reactorId && next.guardian.protegeId === targetPlayerId && itemId !== "draven";
+    const ownTarget = (reactorId: string) => itemId === "draven" || reactorId === targetPlayerId || guards(reactorId);
     const hurtsSomeone = itemId === "draven" || ITEM_CATALOG[itemId].target === "player";
     if (isThrownItem(itemId) || !hurtsSomeone || !opened.reactorIds.every(ownTarget)) {
       found.push(violation("no-thanks-own-target", `Non merci offered on ${itemId} aimed at someone else`));

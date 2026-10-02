@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { withPassives } from "./forced-passives";
 import { canPlayerSendAction } from "./action-permissions";
 import { countItemUnits, getDecidingPlayer } from "./rules";
-import { getShopItems, getStartingCurrency, getTheftPenalty, getTheftRisk } from "./passive-rules";
+import { getShopItems, getTheftPenalty, getTheftRisk } from "./passive-rules";
 import { useGameStore } from "./store";
 import type { InventoryEntry, ItemId, PassiveId, Player } from "./types";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, MUD_PENALTY, STARTING_CURRENCY, START_NODE_ID } from "./types";
@@ -14,13 +15,7 @@ import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, MUD_PENALTY, STARTING_CURRENC
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({
-      ...player,
-      passiveId: passives[index],
-      currency: getStartingCurrency(passives[index]),
-    })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {

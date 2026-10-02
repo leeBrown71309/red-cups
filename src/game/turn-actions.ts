@@ -3,6 +3,7 @@ import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
 import { drawSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
+import { castBlackCup, dropBlackCup, openPortal, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
   addRedGreenBonuses,
@@ -20,12 +21,13 @@ import {
 } from "./game-effects";
 import {
   canTargetPlayer,
+  canUseItemKind,
   getTomatoStunChance,
+  isDoomed,
   isImmuneToItems,
-  shopsAnywhere,
   TOMATO_ENJOYER_HIT_REWARD,
 } from "./passive-rules";
-import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, isShopNode } from "./rules";
+import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, opensShop } from "./rules";
 import {
   addLog,
   applyCurrencyChange,
@@ -75,9 +77,9 @@ export function planMove(state: GameState, destination: NodeId, ignoreArrows: bo
   return rebelPath ? { path: rebelPath, rebel: true } : null;
 }
 
-/** A blue tile opens the shop at the end of a walk; for eShop, any tile does. */
+/** A blue tile opens the shop at the end of a walk; for eShop, any tile does; during Doomsday, none. */
 function getArrivalStage(state: GameState, player: Player, nodeId: NodeId): TurnStage {
-  return isShopNode(getBoard(state), nodeId) || shopsAnywhere(player) ? "shop" : "turn-end";
+  return opensShop(state, player, nodeId) ? "shop" : "turn-end";
 }
 
 /**
@@ -121,7 +123,10 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
     );
   }
   nextState = addRedGreenBonuses(nextState, player.id, path);
-  if (earnsStartBonus(board, player.position, path)) nextState = addStartBonus(nextState, player.id);
+  // Doomsday: the start pays nothing.
+  if (earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
+    nextState = addStartBonus(nextState, player.id);
+  }
 
   nextState = {
     ...spendAllEnergy(nextState),
@@ -153,7 +158,9 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   nextState = queueTileWheel(nextState, player.id);
   nextState = triggerMud(nextState, player.id, destination, path[path.length - 2] ?? player.position);
-  // Chance aveugle may have stepped back out of the mud: the Red Cup is only reached on its tile.
+  nextState = triggerPortal(nextState, player.id);
+  // Chance aveugle may have stepped back out of the mud, a Portail drops into Hell: the Red Cup is only
+  // reached on its tile.
   const landed = findPlayer(nextState, player.id)?.position === destination;
   if (landed && nextState.redCupNodeId === destination) {
     nextState = collectCupOrRequestDiscard(nextState, player.id, destination);
@@ -174,10 +181,20 @@ export interface ItemPlan {
 }
 
 /** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
-const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot"];
+const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot", "hell-touch", "shield"];
 
 /** Pulled by the Corde, swapped by the Monopoly Man, rewound by Made In Heaven: moved, but no wheel for it. */
 const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man", "made-in-heaven"];
+
+/**
+ * Le diable's items that need the table in a given state: a single Doomsday,
+ * a single Black Cup, and only while the Red Cup stands on the board.
+ */
+function canCastNow(state: GameState, itemId: ItemId): boolean {
+  if (itemId === "doomsday") return state.doomsday === null;
+  if (itemId === "black-cup") return state.blackCup === null && state.redCupNodeId !== null;
+  return true;
+}
 
 /**
  * Thrown for free and as often as the stack allows, without going through
@@ -204,6 +221,8 @@ export function planItemUse(
 
   const itemId = getItemEntry(player, entryId);
   if (!itemId || NOT_USED_FROM_BAG.includes(itemId) || !canAffordItem(state, itemId)) return null;
+  // L'Ange-Gardien may harm nobody, even with an item won on a wheel.
+  if (!canUseItemKind(player, itemId) || !canCastNow(state, itemId)) return null;
   if (itemId === "water-bottle" && !inHell) return null;
   // Nobody walks into Hell, so mud placed there could never be stepped on.
   if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
@@ -221,7 +240,7 @@ export function planItemUse(
   if (definition.target !== "player") return { itemId, count };
 
   const target = findPlayer(state, targetPlayerId);
-  if (!target || !canTargetPlayer(target)) return null;
+  if (!target || !canTargetPlayer(state, player, target)) return null;
   if (target.id === player.id && !definition.canTargetSelf) return null;
   return { itemId, target, count };
 }
@@ -291,11 +310,12 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
         nextState = addLog(nextState, `Baraqué annule l’effet du Monopoly Man sur ${target.name}.`, "event");
         break;
       }
+      // A swap into Hell is a trip to Hell: L'Ange-Gardien then stays put and loses a turn.
       nextState = {
         ...nextState,
         players: nextState.players.map((candidate) => {
-          if (candidate.id === player.id) return { ...candidate, position: target.position };
-          if (candidate.id === target.id) return { ...candidate, position: player.position };
+          if (candidate.id === player.id) return moveTo(candidate, target.position);
+          if (candidate.id === target.id) return moveTo(candidate, player.position);
           return candidate;
         }),
       };
@@ -337,6 +357,22 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
 
     case "made-in-heaven":
       nextState = rewindToStart(nextState, player.id);
+      break;
+
+    case "portal":
+      nextState = openPortal(nextState, player.id);
+      break;
+
+    case "black-cup":
+      nextState = castBlackCup(nextState, player.id);
+      break;
+
+    case "sentence":
+      nextState = passSentence(nextState, player.id);
+      break;
+
+    case "doomsday":
+      nextState = startDoomsday(nextState, player.id);
       break;
 
     default:
@@ -394,7 +430,8 @@ function rewindToStart(state: GameState, userId: PlayerId): GameState {
   const cupMoves = state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
   const meltsIce = state.iceTileNodeId === MADE_IN_HEAVEN_CUP_NODE_ID;
   let nextState: GameState = {
-    ...state,
+    // A Cup waiting in Hell under the Black Cup comes up too.
+    ...dropBlackCup(state),
     redCupNodeId: MADE_IN_HEAVEN_CUP_NODE_ID,
     iceTileNodeId: meltsIce ? null : state.iceTileNodeId,
     previousRedCupNodeId: cupMoves ? state.redCupNodeId : state.previousRedCupNodeId,
@@ -414,13 +451,16 @@ function rewindToStart(state: GameState, userId: PlayerId): GameState {
     : nextState;
 }
 
+/** Sets a player down on `nodeId`; Hell goes through the usual trip there. */
+function moveTo(player: Player, nodeId: NodeId): Player {
+  return nodeId === HELL_NODE_ID ? placeInHell(player) : { ...player, position: nodeId };
+}
+
 /** Corde pulls the target onto the user's tile; Baraqué only moves half the way. */
 function pullWithRope(state: GameState, user: Player, target: Player): GameState {
   if (target.passiveId !== "built-like-a-tank") {
-    const nextState = updatePlayer(state, target.id, (currentPlayer) => ({
-      ...currentPlayer,
-      position: user.position,
-    }));
+    // Pulled from Hell into Hell: a trip there, which L'Ange-Gardien never makes.
+    const nextState = updatePlayer(state, target.id, (currentPlayer) => moveTo(currentPlayer, user.position));
     return addLog(nextState, `${target.name} est tiré sur la case de ${user.name}.`, "event");
   }
 
@@ -454,15 +494,29 @@ export function getNoThanksReactors(state: GameState, victimIds: PlayerId[]): Pl
     .map((player) => player.id);
 }
 
+/** L'Ange-Gardien holding a Bouclier, when a single-target item is aimed at their protégé by someone else. */
+function getShieldBearers(state: GameState, actorId: PlayerId, action: DeclaredAction): PlayerId[] {
+  const guardian = state.guardian;
+  if (!guardian || action.type !== "item" || action.itemId === "draven") return [];
+  if (action.targetPlayerId !== guardian.protegeId || actorId === guardian.angelId) return [];
+  const angel = findPlayer(state, guardian.angelId);
+  return angel && holdsShield(angel) ? [angel.id] : [];
+}
+
+function holdsShield(player: Player): boolean {
+  return player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield");
+}
+
 /**
  * Non merci (patch 0.1.4): an item used against its holder waits for their
- * answer; null when the item hurts nobody who can cancel it.
+ * answer, as it does for L'Ange-Gardien's Bouclier when it targets their
+ * protégé; null when nobody can cancel it.
  */
 export function openReactionWindow(state: GameState, action: DeclaredAction): GameState | null {
   const actor = getActivePlayer(state);
   if (!actor || action.type !== "item") return null;
   const victimIds = getItemVictims(state, actor.id, action.itemId, action.targetPlayerId);
-  const reactorIds = getNoThanksReactors(state, victimIds);
+  const reactorIds = [...getNoThanksReactors(state, victimIds), ...getShieldBearers(state, actor.id, action)];
   if (reactorIds.length === 0) return null;
 
   const pendingReaction: PendingReaction = { actorId: actor.id, action, reactorIds, resumeStage: state.turnStage };
@@ -488,9 +542,14 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   const { action } = pending;
   if (!reactor || !actor || action.type !== "item") return state;
 
-  let nextState = spendNoThanks(state, reactor.id, state.round);
+  // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci.
+  const shield = reactor.passiveId === "guardian-angel";
+  const shieldEntry = reactor.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
+  let nextState = shield
+    ? updatePlayer(state, reactor.id, (player) => spendItemEntry(player, shieldEntry?.id ?? ""))
+    : spendNoThanks(state, reactor.id, state.round);
   const base: GameState = { ...nextState, pendingReaction: null, turnStage: pending.resumeStage };
-  if (action.itemId === "draven") {
+  if (action.itemId === "draven" && !shield) {
     const plan = planItemUse(base, action.entryId);
     if (!plan) return base;
     const spared = addLog(base, `${reactor.name} utilise Non merci : Draven l’épargne.`, "event");
@@ -503,11 +562,8 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   }
   nextState = spendEnergy(nextState, getItemEnergyCost(action.itemId));
   const itemName = ITEM_CATALOG[action.itemId].name;
-  return addLog(
-    nextState,
-    `${reactor.name} utilise Non merci : l’objet de ${actor.name} (${itemName}) est annulé.`,
-    "event",
-  );
+  const answer = shield ? "lève son Bouclier" : "utilise Non merci";
+  return addLog(nextState, `${reactor.name} ${answer} : l’objet de ${actor.name} (${itemName}) est annulé.`, "event");
 }
 
 /** Re-plays the declared item once nobody reacted, from the stage it was declared in. */

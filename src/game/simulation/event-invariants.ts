@@ -70,7 +70,11 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const after = findPlayer(next, flight.victimId);
   if (!before || !after) return;
   const logs = newLogTexts(previous, next);
-  if (after.position !== landing) found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
+  // Knocked out on le diable's tile, the victim may go straight to Hell through their Toucher d'Enfer.
+  const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
+  if (after.position !== landing && !touched) {
+    found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
+  }
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
   const releasedFromHell = logs.some((text) => text.startsWith(`${before.name} a purgé`));
   // Banquise: a thaw as the next turn begins may land the victim on a coloured tile, or pick up a
@@ -152,14 +156,18 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
 
   const previousActive = previous.players[previous.activePlayerIndex];
   const nextActive = next.players[next.activePlayerIndex];
+  // L'Ange-Gardien takes the place of a protégé who leaves, in Hell, where a duel may wait; on their own
+  // turn, they play it on from Hell.
+  const heirDuel = previous.guardian?.protegeId === leaver.id && ["duel", "hell"].includes(next.turnStage);
   if (previousActive.id !== leaver.id) {
-    if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
+    if (nextActive?.id !== previousActive.id || (next.turnStage !== previous.turnStage && !heirDuel)) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
   } else if (
     !["move", "hell"].includes(next.turnStage) &&
     !next.lastMovement?.thawed &&
     !next.pendingDuel?.ghost &&
+    !heirDuel &&
     next.pendingReaction?.action.type !== "bullet-bill"
   ) {
     // The next player's turn opens with their thaw at Banquise, which may owe a wheel first,

@@ -45,7 +45,11 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
   const cancelWheel = useGameStore((state) => state.cancelWheel);
   // Everybody watches the wheel; only its player applies the result or rubs it out.
   const canAct = useCanActFor([pending.playerId]);
-  const segments = useMemo(() => getWheelSegments(pending.wheelId), [pending.wheelId]);
+  const passiveId = player?.passiveId;
+  const segments = useMemo(
+    () => getWheelSegments(pending.wheelId, passiveId && { passiveId }),
+    [pending.wheelId, passiveId],
+  );
   const [rotation, setRotation] = useState(0);
   const [done, setDone] = useState(false);
   const skipRef = useRef(false);

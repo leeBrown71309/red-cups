@@ -35,6 +35,16 @@ export const MADE_IN_HEAVEN_CUP_NODE_ID = 8;
 export const THEFT_RISK_PER_TEN_COINS = 0.01;
 /** Voleur: caught, the thief loses items, or coins, worth this many times the price. */
 export const THEFT_PENALTY_RATE = 1.5;
+/** L'Ange-Gardien only joins tables of at least this many players. */
+export const GUARDIAN_MIN_PLAYERS = 4;
+/** L'Ange-Gardien: turns given up to free the protégé from Hell. */
+export const RESCUE_SKIPPED_TURNS = 2;
+/** Le diable's Portail stays open this many rounds, unless somebody stops on it first. */
+export const PORTAL_ROUNDS = 2;
+/** Le diable's Black Cup keeps the Red Cup in Hell this many rounds. */
+export const BLACK_CUP_ROUNDS = 2;
+/** Le diable's Doomsday lasts this many rounds. */
+export const DOOMSDAY_ROUNDS = 1;
 export const BULLET_BILL_DAMAGE = 200;
 /** Tiles Bullet Bill covers per charge: only a target on the next tile is hit (patch 0.1.4). */
 export const BULLET_BILL_CHARGE_STEPS = 1;
@@ -113,7 +123,15 @@ export type ItemId =
   | "draven"
   | "tomato"
   /** Chance aveugle's own item. */
-  | "made-in-heaven";
+  | "made-in-heaven"
+  /** Le diable's shop. */
+  | "portal"
+  | "hell-touch"
+  | "black-cup"
+  | "sentence"
+  | "doomsday"
+  /** L'Ange-Gardien's own item. */
+  | "shield";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -133,7 +151,9 @@ export type PassiveId =
   | "greedy"
   | "double-or-nothing"
   | "blind-luck"
-  | "thief";
+  | "thief"
+  | "devil"
+  | "guardian-angel";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
@@ -230,7 +250,9 @@ export type WheelOutcomeId =
   | "go-to-start"
   | "challenge"
   | "escape"
-  | "hell-skip";
+  | "hell-skip"
+  /** L'Ange-Gardien's wheel of misfortune only: nothing happens. */
+  | "nothing";
 
 export interface WheelResult {
   id: WheelOutcomeId;
@@ -392,8 +414,39 @@ export interface BulletFlight {
   dodgedBy?: PlayerId;
 }
 
-/** "greedy": Cupide reached its balance goal. */
-export type WinReason = "red-cups" | "forfeit" | "greedy";
+/** "greedy": Cupide reached its balance goal; "devil": le diable sent enough players to Hell. */
+export type WinReason = "red-cups" | "forfeit" | "greedy" | "devil";
+
+/**
+ * An effect of le diable that lasts whole rounds: it ends as the caster's
+ * turn comes in round `untilRound` (as that round starts, should they be gone).
+ */
+export interface DevilSpell {
+  casterId: PlayerId;
+  untilRound: number;
+}
+
+/** Le diable's Portail: whoever stops on its tile drops into Hell. */
+export interface HellPortal extends DevilSpell {
+  id: string;
+  nodeId: NodeId;
+}
+
+/** Le diable's Black Cup: the Red Cup waits in Hell, then goes back to its tile. */
+export interface BlackCup extends DevilSpell {
+  returnNodeId: NodeId;
+  /** Already in Hell when it was cast: only a player who arrives there afterwards picks it up. */
+  bystanderIds: PlayerId[];
+}
+
+/** Le diable's Doomsday: every tile spins the wheel of misfortune for one round. */
+export type Doomsday = DevilSpell;
+
+/** L'Ange-Gardien and the player they protect, known to the whole table. */
+export interface Guardian {
+  angelId: PlayerId;
+  protegeId: PlayerId;
+}
 
 /** Last walk on the board, kept so the scene can animate the hops. */
 export interface PlayerMovement {
@@ -577,6 +630,16 @@ export interface GameState {
   turnActionTaken: boolean;
   winnerId: PlayerId | null;
   winReason: WinReason | null;
+  /** L'Ange-Gardien wins along with their protégé. */
+  coWinnerId: PlayerId | null;
+  /** Players at the table when the game started: le diable's goal depends on it. */
+  startingPlayerCount: number;
+  /** Times a player other than le diable entered Hell; only counted while le diable plays. */
+  devilHellEntries: number;
+  hellPortals: HellPortal[];
+  blackCup: BlackCup | null;
+  doomsday: Doomsday | null;
+  guardian: Guardian | null;
   lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
   /** Null in a local game, which keeps Math.random; set in an online game. */
@@ -637,6 +700,13 @@ export const EMPTY_GAME_STATE: GameState = {
   duelResumeStage: "turn-end",
   winnerId: null,
   winReason: null,
+  coWinnerId: null,
+  startingPlayerCount: 0,
+  devilHellEntries: 0,
+  hellPortals: [],
+  blackCup: null,
+  doomsday: null,
+  guardian: null,
   lastMovement: null,
   log: [],
   seededRandom: null,

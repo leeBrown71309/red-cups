@@ -1,13 +1,13 @@
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
-import { getCopyLimit, isImmuneToItems, shopsAnywhere } from "../passive-rules";
+import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems } from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
   countItemUnits,
   countRedCups,
   getInventoryCapacity,
-  getTileWheel,
-  isShopNode,
+  getTileWheelFor,
+  opensShop,
 } from "../rules";
 import { findPlayer, getActivePlayer, getEntryUnits } from "../state-utils";
 import type { GameState, ItemId, NodeId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
@@ -36,7 +36,16 @@ import {
   checkMadeInHeaven,
   withoutGamblePause,
 } from "./advanced-passive-invariants";
-import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
+import {
+  expectedBalance,
+  fellIntoHell,
+  newLogTexts,
+  turnChanged,
+  violation,
+  type RuleViolation,
+} from "./invariant-helpers";
+import { checkDevilItem, checkHellEntries, checkRoleState } from "./role-invariants";
+import { findDevil, getDevilGoalFor } from "../devil";
 
 export type { RuleViolation } from "./invariant-helpers";
 
@@ -133,11 +142,13 @@ export function checkState(state: GameState): RuleViolation[] {
     const inHell = active.position === HELL_NODE_ID;
     if (state.turnStage === "hell" && !inHell) found.push(violation("hell-stage", `${active.name} is not in Hell`));
     if (state.turnStage === "move" && inHell) found.push(violation("move-stage", `${active.name} walks from Hell`));
-    if (state.turnStage === "shop" && !isShopNode(getBoard(state), active.position) && !shopsAnywhere(active)) {
+    if (state.turnStage === "shop" && !opensShop(state, active)) {
       found.push(violation("shop-stage", `${active.name} shops on tile ${active.position}`));
     }
     const nextWheel = state.pendingTileWheels[0];
-    if (state.turnStage === "tile-wheel" && (!nextWheel || getTileWheel(getBoard(state), nextWheel.nodeId) === null)) {
+    const spinner = findPlayer(state, nextWheel?.playerId);
+    const owesWheel = nextWheel && spinner && getTileWheelFor(state, spinner, nextWheel.nodeId) !== null;
+    if (state.turnStage === "tile-wheel" && !owesWheel) {
       found.push(violation("tile-wheel-stage", "tile-wheel stage without a green or red tile to spin"));
     }
     if (RESTING_STAGES.includes(state.turnStage) && state.turnStage !== "tile-wheel") {
@@ -150,7 +161,18 @@ export function checkState(state: GameState): RuleViolation[] {
     }
     // A skip drawn while breaking free of Banquise's ice, at the start of the turn, is for the next one.
     const thawedNow = state.lastMovement?.thawed === true && state.lastMovement.playerId === active.id;
-    if (active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage) && !state.turnActionTaken && !thawedNow) {
+    // A turn lost during this very turn is the next one's: a reset at −300 (Double or nothing as the turn
+    // opens), L'Ange-Gardien stepping in mud or onto a Portail.
+    const turnStart = state.log.findIndex((entry) => entry.text === `Tour de ${active.name}.`);
+    const resetNow = state.log
+      .slice(0, Math.max(0, turnStart))
+      .some(
+        (entry) =>
+          entry.text.startsWith(active.name) &&
+          (entry.text.includes("tombe à −300 pièces") || entry.text.includes("perd son prochain tour")),
+      );
+    const benched = active.skippedTurns > 0 && ["move", "hell"].includes(state.turnStage);
+    if (benched && !state.turnActionTaken && !thawedNow && !resetNow) {
       found.push(violation("skipped-player-plays", `${active.name} plays despite a skipped turn`));
     }
     if (state.turnStage === "blessing" && state.blessingQueue.length === 0) {
@@ -184,7 +206,8 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   if (state.redCupNodeId !== null) {
-    if (state.redCupNodeId === START_NODE_ID || state.redCupNodeId === HELL_NODE_ID) {
+    // Le diable's Black Cup keeps it in Hell for a while.
+    if (state.redCupNodeId === START_NODE_ID || (state.redCupNodeId === HELL_NODE_ID && !state.blackCup)) {
       found.push(violation("cup-tile", `Red Cup on forbidden tile ${state.redCupNodeId}`));
     }
     if (state.redCupCycle > 0 && state.redCupNodeId === state.previousRedCupNodeId) {
@@ -202,8 +225,11 @@ export function checkState(state: GameState): RuleViolation[] {
   const greedyWinner = findPlayer(state, state.winnerId);
   const wonByGreed =
     state.winReason === "greedy" && greedyWinner?.passiveId === "greedy" && greedyWinner.currency >= GREEDY_GOAL;
-  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed) {
-    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or Cupide's goal"));
+  const devil = findDevil(state);
+  const wonByDevil =
+    state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellEntries >= getDevilGoalFor(state);
+  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
+    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
   const rich = state.players.find((player) => player.passiveId === "greedy" && player.currency >= GREEDY_GOAL);
   if (rich && state.phase === "playing") {
@@ -231,6 +257,14 @@ export function checkState(state: GameState): RuleViolation[] {
   if (state.pendingReaction) {
     for (const reactorId of state.pendingReaction.reactorIds) {
       const reactor = findPlayer(state, reactorId);
+      // L'Ange-Gardien answers with a Bouclier, when the item aims at their protégé.
+      const action = state.pendingReaction.action;
+      const shield =
+        reactor?.passiveId === "guardian-angel" &&
+        reactor.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield") &&
+        action.type === "item" &&
+        action.targetPlayerId === state.guardian?.protegeId;
+      if (shield) continue;
       if (!reactor || reactor.passiveId !== "no-thanks") {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
       } else if (reactor.id === state.pendingReaction.actorId) {
@@ -245,6 +279,7 @@ export function checkState(state: GameState): RuleViolation[] {
   checkGhost(state, found);
   checkEnergyRange(state, found);
   checkAdvancedPassiveState(state, found);
+  checkRoleState(state, found);
   return found;
 }
 
@@ -307,11 +342,15 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     isImmuneToItems(mover) &&
     previous.mudTraps.some((trap) => trap.nodeId === destination) &&
     moved.position === (movement.path[movement.path.length - 2] ?? movement.from);
-  if (moved.position !== destination && !steppedBack) {
+  // Le diable's Portail drops whoever stops on it into Hell, and so does their Toucher d'Enfer a
+  // knocked-out player stopping on their tile.
+  const portalFall = fellIntoHell(previous, next, mover.id, destination);
+  if (moved.position !== destination && !steppedBack && !portalFall) {
     found.push(violation("move-lands", `${mover.name} should stand on ${destination}, not ${moved.position}`));
   }
 
-  const passedStart = earnsStartBonus(board, movement.from, movement.path);
+  // Doomsday: the start pays nothing.
+  const passedStart = earnsStartBonus(board, movement.from, movement.path) && !isDoomed(previous, mover);
   const gotBonus = logs.some((text) => text.includes("passe par le départ"));
   if (passedStart && !gotBonus) {
     found.push(violation("start-bonus", `${mover.name} crossed the start without the 200 coins`));
@@ -324,12 +363,13 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const interrupted =
     stepForward ||
     steppedBack ||
+    portalFall ||
     movement.interruptedTo !== undefined ||
     ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
-    const expected: TurnStage = getTileWheel(board, destination)
+    const expected: TurnStage = getTileWheelFor(previous, mover, destination)
       ? "tile-wheel"
-      : isShopNode(board, destination) || shopsAnywhere(mover)
+      : opensShop(previous, mover, destination)
         ? "shop"
         : "turn-end";
     if (next.turnStage !== expected) {
@@ -532,13 +572,21 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   if (wheel.result.id === "escape" && before.position === HELL_NODE_ID && after.position !== START_NODE_ID) {
     found.push(violation("wheel-escape", `${before.name} escaped Hell to tile ${after.position} instead of 0`));
   }
-  if (wheel.result.id === "go-to-start" && after.position !== START_NODE_ID) {
+  if (
+    wheel.result.id === "go-to-start" &&
+    after.position !== START_NODE_ID &&
+    !fellIntoHell(previous, next, after.id, START_NODE_ID)
+  ) {
     found.push(violation("wheel-start", `${before.name} was sent to the start but stands on ${after.position}`));
   }
   const back = before.previousNodeId;
   const canGoBack = before.position !== HELL_NODE_ID && back !== null && back !== HELL_NODE_ID;
   const expectedBack = canGoBack ? back : before.position;
-  if (wheel.result.id === "go-back" && after.position !== expectedBack) {
+  if (
+    wheel.result.id === "go-back" &&
+    after.position !== expectedBack &&
+    !fellIntoHell(previous, next, after.id, expectedBack)
+  ) {
     found.push(violation("wheel-back", `${before.name} went back to ${after.position}, not ${expectedBack}`));
   }
 }
@@ -550,6 +598,8 @@ function playersMovedWithoutArrival(previous: GameState, appliedItem?: AppliedIt
     exempt.add(appliedItem.userId);
     if (appliedItem.targetPlayerId) exempt.add(appliedItem.targetPlayerId);
   }
+  // Made In Heaven rewinds the whole table to the start: no arrival there, even under Doomsday.
+  if (appliedItem?.itemId === "made-in-heaven") previous.players.forEach((player) => exempt.add(player.id));
   if (previous.turnStage === "reposition" && previous.pendingCupRepositionPlayerId) {
     exempt.add(previous.pendingCupRepositionPlayerId);
   }
@@ -566,7 +616,7 @@ function checkTileWheelSpin(
 ): void {
   if (previous.turnStage === "tile-wheel" && next.pendingWheel) {
     const spinner = findPlayer(previous, next.pendingWheel.playerId);
-    const expected = spinner ? getTileWheel(getBoard(previous), spinner.position) : null;
+    const expected = spinner ? getTileWheelFor(previous, spinner, spinner.position) : null;
     if (next.pendingWheel.wheelId !== expected) {
       found.push(
         violation("tile-wheel-color", `tile ${spinner?.position} spun the ${next.pendingWheel.wheelId} wheel`),
@@ -578,8 +628,13 @@ function checkTileWheelSpin(
   // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
   const exempt = playersMovedWithoutArrival(previous, appliedItem);
-  // Chance aveugle stepping back out of the mud does not arrive on the tile behind.
+  // Chance aveugle stepping back out of the mud does not arrive on the tile behind, nor a protégé the
+  // angel pulls out of Hell.
   const logs = newLogTexts(previous, next);
+  const protegeId = previous.guardian?.protegeId;
+  if (protegeId && logs.some((text) => text.includes("pour tirer") && text.includes("de l’Enfer"))) {
+    exempt.add(protegeId);
+  }
   for (const player of previous.players) {
     if (logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue et recule`))) exempt.add(player.id);
   }
@@ -589,9 +644,12 @@ function checkTileWheelSpin(
     exempt.add(movement.playerId);
   for (const player of next.players) {
     const before = findPlayer(previous, player.id);
-    if (!before || before.position === player.position || getTileWheel(getBoard(next), player.position) === null) {
+    if (!before || before.position === player.position || getTileWheelFor(next, player, player.position) === null) {
       continue;
     }
+    // Out of Hell onto the start (a duel won, a sentence served, le diable leaving): no arrival, even
+    // when Doomsday turns the start into a wheel; the water bottle's random tile is one, though.
+    if (before.position === HELL_NODE_ID && player.position === START_NODE_ID) continue;
     const queued = next.pendingTileWheels.some(
       (entry) => entry.playerId === player.id && entry.nodeId === player.position,
     );
@@ -643,7 +701,9 @@ function checkCupRelocation(previous: GameState, next: GameState, found: RuleVio
     if (countRedCups(player) < countRedCups(before)) {
       found.push(violation("cups-are-kept", `${player.name} lost a Red Cup`));
     }
-    if (countRedCups(player) > countRedCups(before) && next.phase === "playing") {
+    // L'Ange-Gardien inherits the Red Cups of a protégé who left: none was picked up.
+    const inherited = next.players.length < previous.players.length;
+    if (countRedCups(player) > countRedCups(before) && next.phase === "playing" && !inherited) {
       const spot = next.redCupNodeId ?? next.pendingCupRevealNodeId;
       if (spot === previous.redCupNodeId || spot === START_NODE_ID) {
         found.push(violation("cup-respawn", `new Red Cup appeared on tile ${spot}`));
@@ -683,8 +743,10 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   const tank = target?.passiveId === "built-like-a-tank";
   switch (item.itemId) {
     case "hollow-purple":
-      if (targetAfter?.position !== HELL_NODE_ID)
+      // L'Ange-Gardien loses a turn instead.
+      if (targetAfter?.position !== HELL_NODE_ID && !(target && avoidsHell(target))) {
         found.push(violation("hollow-purple", `${label}: target not in Hell`));
+      }
       break;
     case "middle-finger":
       if (target && targetAfter && targetAfter.skippedTurns !== target.skippedTurns + 1) {
@@ -692,7 +754,10 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       }
       break;
     case "rope":
-      if (target && targetAfter && !tank && targetAfter.position !== user.position) {
+      // L'Ange-Gardien is never pulled into Hell.
+      const spared = target !== undefined && avoidsHell(target) && user.position === HELL_NODE_ID;
+      const touched = target !== undefined && fellIntoHell(previous, next, target.id, user.position);
+      if (target && targetAfter && !tank && !spared && !touched && targetAfter.position !== user.position) {
         found.push(violation("rope", `${label}: target ended on ${targetAfter.position}, not ${user.position}`));
       }
       if (ARRIVAL_STAGES.includes(next.turnStage)) {
@@ -700,6 +765,14 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       }
       break;
     case "monopoly-man":
+      // A swap into Hell leaves L'Ange-Gardien where they are.
+      if (
+        target &&
+        (avoidsHell(target) || avoidsHell(user)) &&
+        [user, target].some((p) => p.position === HELL_NODE_ID)
+      ) {
+        break;
+      }
       if (target && targetAfter && !tank) {
         if (userAfter.position !== target.position || targetAfter.position !== user.position) {
           found.push(violation("monopoly-man", `${label}: positions were not swapped`));
@@ -714,7 +787,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     case "tomato": {
       // Je note may have its holder make room for the copied Tomate first.
       const copyDiscard = next.turnStage === "discard" && next.pendingDiscard?.itemId === "tomato";
-      if (next.turnStage !== previous.turnStage && !copyDiscard) {
+      // Knocked out on le diable's tile, the target may go to Hell at once, and meet a duel there.
+      const touched = target !== undefined && fellIntoHell(previous, next, target.id, target.position);
+      if (next.turnStage !== previous.turnStage && !copyDiscard && !touched) {
         found.push(
           violation("tomato-keeps-turn", `${label}: the turn went from ${previous.turnStage} to ${next.turnStage}`),
         );
@@ -732,6 +807,13 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     }
     case "made-in-heaven":
       checkMadeInHeaven(previous, next, user.id, found);
+      checkDevilItem(previous, next, item.itemId, user.id, found);
+      break;
+    case "sentence":
+    case "portal":
+    case "black-cup":
+    case "doomsday":
+      checkDevilItem(previous, next, item.itemId, user.id, found);
       break;
     case "draven":
       for (const player of next.players.filter(isImmuneToItems)) {
@@ -739,7 +821,11 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
           found.push(violation("blind-luck-draven", `${label}: Draven sent ${player.name} to Hell`));
         }
       }
-      if (next.players.some((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player))) {
+      if (
+        next.players.some(
+          (player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !avoidsHell(player),
+        )
+      ) {
         found.push(violation("draven", `${label}: someone escaped the trip to Hell`));
       }
       for (const player of next.players) {
@@ -783,7 +869,7 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
   const outgoing = getActivePlayer(previous);
   const outgoingAfter = outgoing && findPlayer(next, outgoing.id);
   if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= HELL_TURN_LIMIT && outgoingAfter) {
-    if (outgoingAfter.position !== START_NODE_ID) {
+    if (outgoingAfter.position !== START_NODE_ID && !fellIntoHell(previous, next, outgoing.id, START_NODE_ID)) {
       found.push(violation("hell-release", `${outgoing.name} served ${HELL_TURN_LIMIT} Hell turns but stayed`));
     }
   }
@@ -832,5 +918,6 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   checkGhostMove(previous, next, found);
   checkSnowballs(previous, next, found);
   checkEnergy(previous, next, found, itemApplied);
+  checkHellEntries(previous, next, found);
   return found;
 }

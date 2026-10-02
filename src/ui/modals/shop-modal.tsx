@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
+import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
 import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
@@ -23,12 +23,22 @@ interface ShopModalProps {
   onClose: () => void;
 }
 
-/** Market stall: pick an item on the shelf, read what it does, buy it. */
+type ShopTab = "shop" | "devil";
+
+/** Market stall: pick an item on the shelf, read what it does, buy it. Le diable has a second stall. */
 export function ShopModal({ onClose }: ShopModalProps) {
   const game = useGameStore();
   const player = useActivePlayer();
   const [selectedId, setSelectedId] = useState<ItemId>("boot");
+  const [tab, setTab] = useState<ShopTab>("shop");
   if (!player) return null;
+
+  const isDevil = player.passiveId === "devil";
+  const shelf = getShopItems(player).filter((itemId) => DEVIL_ITEMS.includes(itemId) === (tab === "devil"));
+  const openTab = (next: ShopTab) => {
+    setTab(next);
+    setSelectedId(next === "devil" ? DEVIL_ITEMS[0] : "boot");
+  };
 
   const capacity = getInventoryCapacity(player);
   const selected = ITEM_CATALOG[selectedId];
@@ -37,7 +47,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
 
   return (
     <ModalShell
-      title="Boutique"
+      title={tab === "devil" ? "Boutique du diable" : "Boutique"}
       eyebrow={`Case ${player.position} · ${player.name}`}
       tone="sky"
       size="large"
@@ -61,11 +71,33 @@ export function ShopModal({ onClose }: ShopModalProps) {
         <span className="shop-status__bag">
           <UiIcon name="bag" size={18} /> {player.inventory.length}/{capacity} places
         </span>
+        {isDevil && (
+          <span className="shop-tabs" role="tablist" aria-label="Étals">
+            {(["shop", "devil"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                role="tab"
+                aria-selected={tab === option}
+                className={`btn btn--small ${tab === option ? "btn--grape" : "btn--cream"}`}
+                onClick={() => openTab(option)}
+              >
+                {option === "devil" ? (
+                  <>
+                    <UiIcon name="flame" size={16} /> Diable
+                  </>
+                ) : (
+                  "Boutique"
+                )}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
 
       <div className="shop-layout">
         <ul className="shop-shelf" aria-label="Objets en vente">
-          {getShopItems(player).map((itemId) => {
+          {shelf.map((itemId) => {
             const status = getPurchaseStatus(itemId, game, player);
             return (
               <li key={itemId}>

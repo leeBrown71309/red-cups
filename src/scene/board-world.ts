@@ -15,7 +15,7 @@ import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from ".
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
 import { createIceCrevasse } from "./models/polar-landmarks-model";
 import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
-import { createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
+import { createHellPortal, createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
 import { createTileArrow } from "./models/tile-arrow-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
@@ -33,6 +33,8 @@ export interface BoardView {
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
+  /** Le diable's Portails onto Hell. */
+  portalNodeIds: NodeId[];
   bulletBill: BulletView | null;
   /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
   bulletFlightSeq: number | null;
@@ -67,6 +69,8 @@ const BLIZZARD_FOG_SECONDS = 2.6;
 const TAP_DURATION_MS = 650;
 /** Where mud sits on a tile, from its centre. */
 const MUD_OFFSET = new THREE.Vector3(0.36, 0, 0.3);
+/** Where a Portail opens on a tile, opposite the mud. */
+const PORTAL_OFFSET = new THREE.Vector3(-0.32, 0, -0.3);
 
 /**
  * Owns the Three.js scene of one map. React feeds it a serialisable
@@ -93,6 +97,7 @@ export class BoardWorld {
   /** Only on maps a ghost haunts. */
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
+  private readonly portals = new Map<NodeId, AnimatedProp>();
   /** The arrows of the arrow tiles, which ride on their tile. */
   private readonly tileArrows: AnimatedProp[] = [];
   /** Banquise: the penguins of the scenery, who throw the snowballs. */
@@ -191,6 +196,7 @@ export class BoardWorld {
     }
 
     this.syncMud(view.mudNodeIds);
+    this.syncPortals(view.portalNodeIds);
     this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
     this.ghost?.sync(view.ghost, view.ghostEventSeq);
     this.refreshCoveredTiles(view);
@@ -406,6 +412,24 @@ export class BoardWorld {
     this.scene.add(prop.group);
   }
 
+  /** Le diable's Portails sit on the tile's top, in its back-left quarter, clear of the mud. */
+  private syncPortals(nodeIds: NodeId[]): void {
+    const wanted = new Set(nodeIds);
+    for (const [nodeId, portal] of this.portals) {
+      if (wanted.has(nodeId)) continue;
+      portal.group.removeFromParent();
+      this.portals.delete(nodeId);
+    }
+    for (const nodeId of wanted) {
+      const tile = this.tiles.get(nodeId);
+      if (this.portals.has(nodeId) || !tile) continue;
+      const portal = createHellPortal(this.kit);
+      portal.group.position.set(PORTAL_OFFSET.x, tile.topY, PORTAL_OFFSET.z);
+      tile.surface.add(portal.group);
+      this.portals.set(nodeId, portal);
+    }
+  }
+
   /**
    * Mud sits on the tile's top, in its front-right quarter: in view of the
    * camera, clear of the number badge (front-left) and of a lone pawn (centre).
@@ -467,6 +491,7 @@ export class BoardWorld {
     this.effects.update(delta);
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
+    for (const portal of this.portals.values()) portal.update(elapsed, delta);
     for (const arrow of this.tileArrows) arrow.update(elapsed, delta);
     for (const tile of this.tiles.values()) tile.update(elapsed, delta);
 

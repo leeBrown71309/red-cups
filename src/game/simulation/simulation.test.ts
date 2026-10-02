@@ -46,8 +46,10 @@ describe("bot campaign", () => {
 
     expect(["coin-flip", "rock-paper-scissors", "player-vote"].filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
     expect(actions.abandon).toBeGreaterThan(0);
-    // The Voleur's tries, caught or not.
+    // The Voleur's tries, caught or not; le diable leaving Hell; L'Ange-Gardien freeing their protégé.
     expect(Object.keys(actions).some((label) => label.startsWith("steal:"))).toBe(true);
+    expect(actions["leave-hell"]).toBeGreaterThan(0);
+    expect(actions["rescue-protege"]).toBeGreaterThan(0);
 
     const expectedStages: TurnStage[] = [
       "move",

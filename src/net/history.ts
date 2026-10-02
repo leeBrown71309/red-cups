@@ -1,5 +1,5 @@
 import { getSeatPlayerId } from "../game/game-actions";
-import { getPlaceOf } from "../game/standings";
+import { getPlaceOf, isWinnerOf } from "../game/standings";
 import type { GameState, PlayerId } from "../game/types";
 import { getSupabase } from "./supabase-client";
 
@@ -75,7 +75,7 @@ export function getOutcome(game: HistoryGame): HistoryOutcome {
   if (game.status === "playing" || !game.final) return { kind: "playing" };
   if (game.status === "unfinished") return { kind: "unfinished" };
   const me = getMyPlayerId(game);
-  if (game.final.winnerId === me) return { kind: "won" };
+  if (isWinnerOf(game.final, me)) return { kind: "won" };
   const place = getPlaceOf(game.final, me);
   if (place === null) return { kind: "abandoned" };
   return { kind: "placed", place, of: game.final.players.length + game.final.abandonedPlayers.length };

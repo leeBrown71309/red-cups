@@ -1,4 +1,5 @@
-import { passTurnFrom } from "./game-effects";
+import { passTurnFrom, settleBoard } from "./game-effects";
+import { replaceLeavingProtege } from "./guardian";
 import { addLog } from "./state-utils";
 import type { GameState, PlayerId, TurnStage } from "./types";
 
@@ -16,6 +17,7 @@ export function canAbandon(state: GameState): boolean {
 /**
  * Removes the player with their Red Cups and items. If it was their turn, it
  * passes to the next seat; with a single player left, that player wins.
+ * L'Ange-Gardien takes the place of a protégé who leaves, from Hell.
  */
 export function abandonPlayer(state: GameState, playerId: PlayerId): GameState {
   const index = state.players.findIndex((player) => player.id === playerId);
@@ -35,6 +37,8 @@ export function abandonPlayer(state: GameState, playerId: PlayerId): GameState {
     `${leaver.name} abandonne la partie.`,
     "bad",
   );
+  const heirInHell = state.guardian?.protegeId === leaver.id && players.length > 1;
+  nextState = replaceLeavingProtege(nextState, leaver);
 
   if (players.length === 1) {
     const [winner] = players;
@@ -49,6 +53,11 @@ export function abandonPlayer(state: GameState, playerId: PlayerId): GameState {
     return addLog(nextState, `${winner.name} remporte la partie par abandon !`, "good");
   }
 
-  if (!wasActive) return nextState;
-  return passTurnFrom({ ...nextState, turnStage: "turn-end" }, index - 1);
+  // The heir dropping into Hell may meet somebody there: a duel first.
+  const settle = (current: GameState) =>
+    heirInHell && ["move", "hell", "shop", "turn-end"].includes(current.turnStage)
+      ? settleBoard(current, current.turnStage)
+      : current;
+  if (!wasActive) return settle(nextState);
+  return settle(passTurnFrom({ ...nextState, turnStage: "turn-end" }, index - 1));
 }

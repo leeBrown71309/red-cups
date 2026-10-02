@@ -1,6 +1,7 @@
-import { ITEM_CATALOG, ITEM_ORDER } from "./catalog";
-import type { ItemId, PassiveId, Player } from "./types";
+import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
+import type { GameState, ItemId, PassiveId, Player } from "./types";
 import {
+  BASE_INVENTORY_CAPACITY,
   MUD_OWNER_REWARD,
   STARTING_CURRENCY,
   THEFT_PENALTY_RATE,
@@ -17,6 +18,7 @@ import {
 const STARTING_CURRENCIES: Partial<Record<PassiveId, number>> = {
   "nepo-baby": 3_000,
   eshop: 1_000,
+  "guardian-angel": 600,
 };
 
 export function getStartingCurrency(passiveId: PassiveId): number {
@@ -28,18 +30,46 @@ export function shopsAnywhere(player: Player): boolean {
   return player.passiveId === "eshop";
 }
 
-/** Items only one passive finds at the shop: Made In Heaven is Chance aveugle's. */
-const EXCLUSIVE_ITEMS: Partial<Record<ItemId, PassiveId>> = { "made-in-heaven": "blind-luck" };
+/** Items only one passive finds at the shop: Made In Heaven, le diable's shop, the Bouclier. */
+const EXCLUSIVE_ITEMS: Partial<Record<ItemId, PassiveId>> = {
+  "made-in-heaven": "blind-luck",
+  ...Object.fromEntries(DEVIL_ITEMS.map((itemId) => [itemId, "devil"])),
+  shield: "guardian-angel",
+};
 
-/** The shelf as `player` sees it: everything but the items of other passives. */
+/** L'Ange-Gardien may harm nobody: these never reach their bag through the shop, nor leave it. */
+const GUARDIAN_FORBIDDEN_ITEMS: ItemId[] = [
+  "ndoye",
+  "hollow-purple",
+  "mud",
+  "tomato",
+  "bullet-bill",
+  "middle-finger",
+  "draven",
+  "helmet",
+];
+
+/** The shelf as `player` sees it: everything but the items of other passives, and none that L'Ange-Gardien may not use. */
 export function getShopItems(player: Player): ItemId[] {
-  return ITEM_ORDER.filter((itemId) => (EXCLUSIVE_ITEMS[itemId] ?? player.passiveId) === player.passiveId);
+  return ITEM_ORDER.filter(
+    (itemId) => (EXCLUSIVE_ITEMS[itemId] ?? player.passiveId) === player.passiveId && canUseItemKind(player, itemId),
+  );
+}
+
+/** L'Ange-Gardien never uses an item that could harm (one won on a wheel stays in the bag). */
+export function canUseItemKind(player: Player, itemId: ItemId): boolean {
+  return player.passiveId !== "guardian-angel" || !GUARDIAN_FORBIDDEN_ITEMS.includes(itemId);
 }
 
 /** Items a passive may not buy: the Roller has no use for the Botte, and exclusive items stay with their passive. */
 export function canBuyItemKind(player: Player, itemId: ItemId): boolean {
   if (player.passiveId === "roller" && itemId === "boot") return false;
   return getShopItems(player).includes(itemId);
+}
+
+/** L'Ange-Gardien carries two items only. */
+export function getBagSlots(player: Player): number {
+  return player.passiveId === "guardian-angel" ? 2 : BASE_INVENTORY_CAPACITY;
 }
 
 /** Cupide pays less for the mud, and earns more when somebody steps in theirs. */
@@ -67,7 +97,8 @@ const SINGLE_COPY_ITEMS: ItemId[] = ["eraser", "made-in-heaven"];
  * for Tomato Enjoyer a stack of Tomates in every slot.
  */
 export function getCopyLimit(player: Player, itemId: ItemId, capacity: number): number {
-  if (SINGLE_COPY_ITEMS.includes(itemId)) return 1;
+  // Le diable never holds the same item twice.
+  if (SINGLE_COPY_ITEMS.includes(itemId) || player.passiveId === "devil") return 1;
   if (itemId === "tomato" && player.passiveId === "tomato-enjoyer") return capacity;
   return 2;
 }
@@ -81,9 +112,37 @@ export function isImmuneToItems(player: Player): boolean {
   return player.passiveId === "blind-luck";
 }
 
-/** Whether an item may be aimed at `target`. */
-export function canTargetPlayer(target: Player): boolean {
-  return !isImmuneToItems(target);
+/** Whether `user` may aim an item at `target`: never Chance aveugle, and L'Ange-Gardien only at their protégé. */
+export function canTargetPlayer(state: Pick<GameState, "guardian">, user: Player, target: Player): boolean {
+  if (isImmuneToItems(target)) return false;
+  return user.passiveId !== "guardian-angel" || state.guardian?.protegeId === target.id;
+}
+
+/** Le diable and L'Ange-Gardien never pick up a Red Cup. */
+export function canCollectRedCup(player: Player): boolean {
+  return player.passiveId !== "devil" && player.passiveId !== "guardian-angel";
+}
+
+/** L'Ange-Gardien never goes to Hell: they lose their next turn instead. */
+export function avoidsHell(player: Player): boolean {
+  return player.passiveId === "guardian-angel";
+}
+
+/** Players L'Ange-Gardien may not protect. */
+const MALEFACTORS: PassiveId[] = ["devil", "thief", "goblin", "corrupter"];
+
+export function isMalefactor(player: Player): boolean {
+  return MALEFACTORS.includes(player.passiveId);
+}
+
+/** Le diable wins once the others entered Hell ⌊4N − N/2⌋ times, N players at the start (2 → 7, 4 → 14). */
+export function getDevilGoal(playerCount: number): number {
+  return Math.floor(4 * playerCount - playerCount / 2);
+}
+
+/** Le diable's Doomsday turns every tile into a wheel of misfortune; Chance aveugle is spared. */
+export function isDoomed(state: Pick<GameState, "doomsday">, player: Player): boolean {
+  return state.doomsday !== null && !isImmuneToItems(player);
 }
 
 /** Chance aveugle never sees the Red Cup. */

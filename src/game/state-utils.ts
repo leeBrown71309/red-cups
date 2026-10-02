@@ -1,6 +1,6 @@
 import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { offersGamble } from "./passive-rules";
+import { avoidsHell, offersGamble } from "./passive-rules";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
@@ -46,9 +46,24 @@ export function updatePlayer(state: GameState, playerId: PlayerId, updater: (pla
   };
 }
 
-/** A fresh trip to Hell restarts the countdown; a player already there keeps theirs. */
+/**
+ * A fresh trip to Hell restarts the countdown; a player already there keeps
+ * theirs. L'Ange-Gardien never goes: they lose their next turn instead.
+ */
 export function placeInHell(player: Player): Player {
+  if (avoidsHell(player)) return { ...player, skippedTurns: player.skippedTurns + 1 };
   return player.position === HELL_NODE_ID ? player : { ...player, position: HELL_NODE_ID, hellTurns: 0 };
+}
+
+/** Sends a player to Hell; L'Ange-Gardien loses their next turn instead. */
+export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  const nextState = updatePlayer(state, playerId, placeInHell);
+  if (avoidsHell(player)) {
+    return addLog(nextState, `${player.name} ne va jamais en Enfer : il perd son prochain tour à la place.`, "bad");
+  }
+  return addLog(nextState, `${player.name} est envoyé en Enfer.`, "bad");
 }
 
 /** How many items an entry stands for: a stack of Tomates counts several, anything else one. */

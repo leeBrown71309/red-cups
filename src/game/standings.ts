@@ -3,19 +3,26 @@ import type { GameState, Player, PlayerId } from "./types";
 
 /**
  * The final table, as the victory screen and the game history show it: the
- * winner first (Cupide may win without a Red Cup), then the players still at
- * the table by Red Cups, then coins; players who left the game afterwards,
- * most recent departure first.
+ * winner first (Cupide and le diable may win without a Red Cup), then
+ * L'Ange-Gardien who won with them, then the players still at the table by
+ * Red Cups, then coins; players who left the game afterwards, most recent
+ * departure first.
  */
 export interface Standings {
   ranked: Player[];
   leavers: Player[];
 }
 
-type StandingsSource = Pick<GameState, "players" | "abandonedPlayers"> & Partial<Pick<GameState, "winnerId">>;
+type StandingsSource = Pick<GameState, "players" | "abandonedPlayers"> &
+  Partial<Pick<GameState, "winnerId" | "coWinnerId">>;
+
+/** Whether `playerId` won the game, alone or as L'Ange-Gardien of the winner. */
+export function isWinnerOf(state: Partial<Pick<GameState, "winnerId" | "coWinnerId">>, playerId: PlayerId): boolean {
+  return playerId === state.winnerId || (state.coWinnerId != null && playerId === state.coWinnerId);
+}
 
 export function getStandings(state: StandingsSource): Standings {
-  const isWinner = (player: Player) => (player.id === state.winnerId ? 1 : 0);
+  const isWinner = (player: Player) => (player.id === state.winnerId ? 2 : player.id === state.coWinnerId ? 1 : 0);
   const ranked = [...state.players].sort(
     (left, right) =>
       isWinner(right) - isWinner(left) || countRedCups(right) - countRedCups(left) || right.currency - left.currency,

@@ -1,6 +1,7 @@
 import { PASSIVE_ORDER } from "../catalog";
 import { MAP_ORDER } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
+import { assignGuardian } from "../guardian";
 import { getStartingCurrency } from "../passive-rules";
 import { useGameStore } from "../store";
 import type { MapId, PassiveId, Player, TurnStage, WinReason } from "../types";
@@ -114,6 +115,8 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
         const players = assignPassives(state.players, options.passives!);
         return { players, energyLeft: getEnergyCapacity(players[state.activePlayerIndex]) };
       });
+      // A forced Ange-Gardien draws a protégé among the passives now at the table.
+      store.setState((state) => assignGuardian(state));
     }
     const { startingCurrency } = options;
     if (startingCurrency !== undefined) {

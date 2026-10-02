@@ -1,4 +1,4 @@
-import type { ItemId, PassiveId, WheelId, WheelResult } from "./types";
+import type { ItemId, PassiveId, Player, WheelId, WheelResult } from "./types";
 
 export interface ItemDefinition {
   id: ItemId;
@@ -158,6 +158,67 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     target: "none",
     energyCost: 3,
   },
+  portal: {
+    id: "portal",
+    name: "Portail",
+    price: 300,
+    symbol: "◎",
+    description:
+      "Le diable : ouvre un portail vers l’Enfer sur une case au hasard, ni l’Enfer, ni le Départ, ni la Red Cup. " +
+      "Qui s’y arrête, toi compris, tombe en Enfer. Il se referme après 2 tours de table.",
+    target: "none",
+    energyCost: 2,
+  },
+  "hell-touch": {
+    id: "hell-touch",
+    name: "Toucher d’Enfer",
+    price: 400,
+    symbol: "☠",
+    description:
+      "Le diable : agit tout seul. Tout joueur assommé ou privé de tour sur ta case part en Enfer, tous d’un coup.",
+    target: "special",
+    energyCost: 0,
+  },
+  "black-cup": {
+    id: "black-cup",
+    name: "Black Cup",
+    price: 400,
+    symbol: "▼",
+    description:
+      "Le diable : la Red Cup passe 2 tours de table en Enfer, puis revient sur sa case. Un autre joueur qui " +
+      "arrive en Enfer entre-temps la ramasse.",
+    target: "none",
+    energyCost: 3,
+  },
+  sentence: {
+    id: "sentence",
+    name: "Sentence",
+    price: 400,
+    symbol: "⚖",
+    description: "Le diable : envoie en Enfer tous les autres joueurs à 0 pièce ou moins.",
+    target: "none",
+    energyCost: 2,
+  },
+  doomsday: {
+    id: "doomsday",
+    name: "Doomsday",
+    price: 666,
+    symbol: "☄",
+    description:
+      "Le diable : jusqu’à ton prochain tour, toutes les cases font tourner la roue du malheur, Départ et " +
+      "boutiques compris. Le Départ ne paie plus et la boutique ne s’ouvre pas.",
+    target: "none",
+    energyCost: 3,
+  },
+  shield: {
+    id: "shield",
+    name: "Bouclier",
+    price: 500,
+    symbol: "⛨",
+    description: "L’Ange-Gardien : quand un objet vise ton protégé, tu peux le bloquer, même hors de ton tour.",
+    target: "special",
+    energyCost: 0,
+  },
 };
 
 export const ITEM_ORDER: ItemId[] = [
@@ -175,7 +236,16 @@ export const ITEM_ORDER: ItemId[] = [
   "helmet",
   "draven",
   "made-in-heaven",
+  "shield",
+  "portal",
+  "hell-touch",
+  "black-cup",
+  "sentence",
+  "doomsday",
 ];
+
+/** Le diable's own shop, a second tab on the blue tiles. */
+export const DEVIL_ITEMS: ItemId[] = ["portal", "hell-touch", "black-cup", "sentence", "doomsday"];
 
 /**
  * Wheel of fortune: the items of 400 coins or less at the shop, one of which
@@ -310,6 +380,24 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
       "Tu ne vois jamais la Red Cup. Aucun objet ne peut te nuire, Bullet Bill compris : la Boue te fait juste " +
       "reculer d’une case. Toi seul peux acheter Made In Heaven.",
   },
+  devil: {
+    id: "devil",
+    name: "Le diable",
+    shortName: "Diable",
+    description:
+      "Toute la table le sait. Tu gagnes quand les autres sont entrés assez de fois en Enfer (4 par joueur, moins " +
+      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais tu sors de l’Enfer quand tu veux et tu as ta " +
+      "boutique. Jamais deux fois le même objet.",
+  },
+  "guardian-angel": {
+    id: "guardian-angel",
+    name: "L’Ange-Gardien",
+    shortName: "Ange",
+    description:
+      "Tu protèges un joueur tiré au sort et tu gagnes avec lui. Ni Red Cup ni Enfer pour toi (tu passes ton tour " +
+      "à la place), 600 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer pour tes 2 " +
+      "prochains tours.",
+  },
   thief: {
     id: "thief",
     name: "Voleur",
@@ -339,6 +427,8 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "double-or-nothing",
   "blind-luck",
   "thief",
+  "devil",
+  "guardian-angel",
 ];
 
 export interface WeightedWheelResult {
@@ -389,8 +479,24 @@ export const WHEEL_RESULTS: Record<WheelId, WeightedWheelResult[]> = {
   ],
 };
 
-export function chooseWheelResult(wheelId: WheelId, randomValue: number): WheelResult {
-  const results = WHEEL_RESULTS[wheelId];
+/** L'Ange-Gardien's wheel of misfortune has two wedges only. */
+const GUARDIAN_MISFORTUNE_RESULTS: WeightedWheelResult[] = [
+  { wheelId: "misfortune", id: "skip-turn", label: "Passe ton prochain tour", weight: 1 },
+  { wheelId: "misfortune", id: "nothing", label: "Rien du tout", weight: 1 },
+];
+
+/** The wedges of a wheel as `player` spins it. */
+export function getWheelResults(wheelId: WheelId, player?: Pick<Player, "passiveId">): WeightedWheelResult[] {
+  if (wheelId === "misfortune" && player?.passiveId === "guardian-angel") return GUARDIAN_MISFORTUNE_RESULTS;
+  return WHEEL_RESULTS[wheelId];
+}
+
+export function chooseWheelResult(
+  wheelId: WheelId,
+  randomValue: number,
+  player?: Pick<Player, "passiveId">,
+): WheelResult {
+  const results = getWheelResults(wheelId, player);
   const totalWeight = results.reduce((sum, result) => sum + result.weight, 0);
   const normalizedValue = Math.min(Math.max(randomValue, 0), 0.999_999_999);
   let cursor = normalizedValue * totalWeight;

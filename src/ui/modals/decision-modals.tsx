@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
-import { canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
+import { avoidsHell, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
@@ -60,6 +60,7 @@ export function PlayerPickList({
  */
 export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose: () => void }) {
   const players = useGameStore((state) => state.players);
+  const guardian = useGameStore((state) => state.guardian);
   const activePlayer = useGameStore((state) => state.players[state.activePlayerIndex]);
   const useItem = useGameStore((state) => state.useItem);
   const [targetId, setTargetId] = useState<PlayerId | null>(null);
@@ -128,9 +129,9 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <ItemIcon itemId={entry.itemId} size={46} />
         <p>{item.description}</p>
       </div>
-      {/* Chance aveugle is out of every item's reach, so never offered as a target. */}
+      {/* Chance aveugle is out of every item's reach; L'Ange-Gardien only aims at their protégé. */}
       <PlayerPickList
-        players={players.filter(canTargetPlayer)}
+        players={players.filter((player) => canTargetPlayer({ guardian }, activePlayer, player))}
         isDisabled={(player) => (player.id === activePlayer.id && !item.canTargetSelf ? "Pas sur toi" : null)}
         onPick={(playerId) => {
           // A single Tomate needs no count: it flies at once.
@@ -159,7 +160,10 @@ export function ChallengeModal() {
     <ModalShell title="Choisis ton adversaire" eyebrow={`${challenger.name} appelle en duel`} tone="grape">
       <p className="modal-lead">L’adversaire te rejoint en Enfer. Le gagnant repart du Départ.</p>
       {canAct ? (
-        <PlayerPickList players={players.filter((player) => player.id !== challenger.id)} onPick={challengePlayer} />
+        <PlayerPickList
+          players={players.filter((player) => player.id !== challenger.id && !avoidsHell(player))}
+          onPick={challengePlayer}
+        />
       ) : (
         <WaitingNote player={challenger} text={`${challenger.name} choisit son adversaire…`} />
       )}
@@ -254,9 +258,16 @@ export function ReactionModal() {
   const actor = players.find((player) => player.id === pending?.actorId);
   if (!pending) return null;
   const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
+  // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci.
+  const shieldOnly = reactors.every((reactor) => reactor.passiveId === "guardian-angel");
 
   return (
-    <ModalShell title="Non merci ?" eyebrow="Réaction possible" tone="grape" className="reaction-modal">
+    <ModalShell
+      title={shieldOnly ? "Bouclier ?" : "Non merci ?"}
+      eyebrow="Réaction possible"
+      tone="grape"
+      className="reaction-modal"
+    >
       <div className="reaction" onPointerDown={() => setCountdownActive(false)}>
         <div className="reaction__announce">
           {actor ? (
@@ -277,7 +288,15 @@ export function ReactionModal() {
                 <PlayerAvatar color={reactor.color} size={44} />
                 <span className="reaction__reactor-name">{reactor.name}</span>
                 <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                  <UiIcon name="hand" size={18} /> Non merci !
+                  {reactor.passiveId === "guardian-angel" ? (
+                    <>
+                      <UiIcon name="shield" size={18} /> Bouclier !
+                    </>
+                  ) : (
+                    <>
+                      <UiIcon name="hand" size={18} /> Non merci !
+                    </>
+                  )}
                 </button>
               </li>
             ))}

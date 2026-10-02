@@ -5,7 +5,8 @@ import { ITEM_CATALOG } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
-import { canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
+import { canRescueProtege } from "../guardian";
+import { avoidsHell, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
@@ -93,6 +94,10 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   const roller = player.passiveId === "roller";
   if (boot && !roller && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
     return { label: "prepare-boot", perform: (current) => current.prepareBoot(boot.id) };
+  }
+
+  if (canRescueProtege(store) && random() < 0.5) {
+    return { label: "rescue-protege", perform: (current) => current.rescueProtege() };
   }
 
   const items = listUsableItems(store);
@@ -199,6 +204,9 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return chooseMoveTurn(store, random);
 
     case "hell": {
+      if (getActivePlayer(store)?.passiveId === "devil" && random() < 0.5) {
+        return { label: "leave-hell", perform: (current) => current.leaveHell() };
+      }
       const items = listUsableItems(store);
       if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
       if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
@@ -234,7 +242,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "target": {
       const challengerId = store.pendingChallenge?.playerId;
       const opponent = pick(
-        store.players.filter((player) => player.id !== challengerId),
+        store.players.filter((player) => player.id !== challengerId && !avoidsHell(player)),
         random,
       );
       if (!opponent) return null;
