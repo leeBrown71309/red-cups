@@ -321,7 +321,8 @@ export function runBotCampaign(options: CampaignOptions): BotGameReport[] {
   return Array.from({ length: options.games }, (_, index) =>
     runBotGame({
       seed: firstSeed + index,
-      playerCount: minPlayers + (index % span),
+      // From the seed, so a campaign played in batches meets the same tables.
+      playerCount: minPlayers + ((firstSeed + index - 1) % span),
       maxSteps: options.maxSteps,
     }),
   );

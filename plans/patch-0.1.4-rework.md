@@ -619,7 +619,15 @@ Demande de l'utilisateur : des bugs n'apparaissent que sur certaines cartes (exe
 - Avant : des milliers de joueurs restaient sur la glace (« Avance d'une case », « Va au Départ » et sorties d'Enfer vers un départ gelé, « Retourne d'où tu viens », Calme-toi, Bouteille d'eau, échanges, blizzard sur un joueur, glissade du Roller sans route libre, Corrupteur dans le cul-de-sac 4 → 0, joueur qui brise la glace sur une case gelée entre-temps).
 - **Corrections** (`ice.ts`, voir la spec 3.2 ter) : `drawSlide` ne s'arrête plus sur la glace (`getSlideChoices`) ; « Avance d'une case » glisse comme une marche (`advanceOneTile`) ; « Va au Départ » et « Retourne d'où tu viens » glissent avant l'arrivée (`arriveAfterSlide`) ; les autres poses sur la glace sont emportées tout de suite (`carryOffIce` : blizzard, sorties d'Enfer, duel, New Cup, Made In Heaven, Monopoly Man, bras de fer, demi-Corde, recul dans la Boue), avec un filet de sécurité après chaque action (`slideOffIce`) ; Calme-toi, Portail et Bouteille d'eau évitent la glace ; la glissade d'un joueur déplacé est oubliée (`forgetBrokenHolds`).
 - **Changement de tour** (`rideGhost`, `game-effects.ts`) : le plateau est réglé au début de chaque tour sur toutes les cartes ; seul Luna Park le faisait, d'où un Toucher d'Enfer en retard d'une action ailleurs.
-- 2 500 parties après corrections : voir le bilan ci-dessous.
+- 2 500 parties après corrections (graine 70 000) : aucune violation, toutes terminées, tout joué.
+
+### Derniers correctifs et bilan final
+
+- **Compteur du diable** : L'Ange-Gardien qui reprend la place de son protégé en Enfer compte comme une entrée, après un forfait comme après un abandon (avant : seulement après un abandon).
+- Faux positifs corrigés : roue d'argent suivie d'une Black Cup ramassée (Goblin), boule de neige lancée juste après la première Red Cup.
+- **Partie longue** : à Luna Park, une partie (graine 7376) a duré 155 tours de table : Made In Heaven avait posé la Cup en case 8, le goulet qu'on n'atteint que par 6, et les bots choisissent au hasard le pas de « Avance d'une case ». Ce n'est pas un bug de règle.
+- **Campagnes finales** (graine 70 000) : 2 500 parties par carte, aucune violation, aucune bloquée, toutes terminées, « Jamais joué : rien » sur les trois cartes.
+- **CI** : chaque carte a son fichier de test (`*-campaign.test.ts`), les campagnes rendent la main entre leurs paquets, et Vitest tourne en processus séparés (`pool: "forks"`) : en threads, un processus saturé manquait les appels de Vitest, ce qui faisait échouer le déploiement de la pré-prod alors que tous les tests passaient.
 
 ## Choix à valider
 

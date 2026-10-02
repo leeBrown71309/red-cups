@@ -6,5 +6,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // The bot campaigns keep their workers busy for minutes: separate processes stay responsive to Vitest
+    // where threads, starved, time out on its calls.
+    pool: "forks",
   },
 });
