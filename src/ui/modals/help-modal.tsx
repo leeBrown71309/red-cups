@@ -1,27 +1,18 @@
 import { useState } from "react";
-import { getStartBonusNodeIds, hasCarousel, hasIce, resolveBoard } from "../../game/board";
+import { getStartBonusNodeIds, resolveBoard } from "../../game/board";
 import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
 import type { MapId } from "../../game/types";
-import {
-  BASE_ENERGY,
-  GHOST_COOLDOWN_ROUNDS,
-  GHOST_EMPTY_LOOT_REWARD,
-  GHOST_LOOT_COINS,
-  GHOST_MAX_DRIFT_STEPS,
-  GHOST_STEAL_COINS,
-  HELL_EXIT_TOLL,
-  HELL_TURN_LIMIT,
-  SNOWBALL_HITS_TO_FREEZE,
-  START_BONUS,
-} from "../../game/types";
+import { BASE_ENERGY, HELL_EXIT_TOLL, HELL_TURN_LIMIT, START_BONUS } from "../../game/types";
 import { BoardMap, TileArrowSwatch } from "../components/board-map";
 import { EnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency, getTileLegend } from "../display/game-display";
+import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
+import { UiIcon } from "../icons/ui-icon";
 import { useMapChoiceStore } from "../lobby/map-choice-store";
 
 type HelpTab = "board" | "turn" | "items" | "passives";
@@ -40,7 +31,7 @@ const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, st
   ice: "legend-road legend-road--ice",
 };
 
-/** The rules of a turn; the start bonus and the carousel depend on the board. */
+/** The rules of a turn; the start bonus depends on the board. */
 function getTurnSteps(mapId: MapId): string[] {
   const board = resolveBoard(mapId);
   const bonusTiles = getStartBonusNodeIds(board).join(" ou ");
@@ -48,7 +39,8 @@ function getTurnSteps(mapId: MapId): string[] {
     "Avant la partie, chacun choisit son passif parmi ses cartes (3, ou 2 au-delà de 6 joueurs), jamais les mêmes " +
       "que celles des autres. En ligne, la table a une minute ; en local, l’écran passe de main en main.",
     "En ligne, ton tour dure 45 secondes, et les décisions des autres 20 : à la fin, le choix par défaut s’applique. " +
-      "Un tour passé sans rien faire te coûte une chance ; à la troisième, tu déclares forfait.",
+      "Un tour passé sans rien faire te coûte une chance ; à la troisième, tu déclares forfait. L’hôte peut " +
+      "mettre la partie en pause : tous les chronos s’arrêtent.",
     `À ton tour, tu as ${BASE_ENERGY} points d’énergie. Utilise d’abord tes objets : chacun coûte son énergie, ` +
       "affichée sur l’objet. La Tomate, la Gomme et le Casque sont gratuits.",
     "Puis avance d’une case : il faut au moins 1 point, le déplacement prend tout ce qui reste et termine ton " +
@@ -83,39 +75,9 @@ function getTurnSteps(mapId: MapId): string[] {
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
     "Quelqu’un doit partir ? Menu pause, puis « Abandonner » : les autres continuent la partie.",
   ];
-  if (hasIce(board)) {
-    steps.push(
-      `${board.map.name} : arrivé sur la glace, tu glisses au hasard vers l’une de ses autres routes, jusqu’à une ` +
-        "case sans glace. Seule la case d’arrivée compte (roue, boutique, Boue, Red Cup).",
-      "Tombée de glace : si ta glissade file vers la Red Cup, la glace a 80 % de chances de te tomber dessus. Tu " +
-        "restes pris sur la route et tu arrives sur la Red Cup au début de ton tour suivant, avant de jouer.",
-      "Blizzard : une troisième case glissante apparaît au hasard, le Départ compris, et se déplace tous les deux " +
-        "tours de table. Un Départ gelé ne paie pas les 200 pièces.",
-    );
-  }
-  if (board.map.snowballs) {
-    steps.push(
-      "Pingouins : dès qu’une Red Cup a été ramassée, ils lancent une boule de neige sur un joueur au hasard à " +
-        `chaque fin de tour (jamais en Enfer), et un tiers ratent. À la ${SNOWBALL_HITS_TO_FREEZE}ᵉ boule reçue, tu ` +
-        "gèles sur place et tu passes ton prochain tour.",
-    );
-  }
-  if (hasCarousel(board)) {
-    steps.push(
-      `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
-        "Corrupteur peut le prendre à contresens.",
-    );
-  }
-  if (board.map.haunted) {
-    steps.push(
-      "Le fantôme rôde sur tout le plateau, sans respecter les routes : à chaque fin de tour, il glisse de 1 à " +
-        `${GHOST_MAX_DRIFT_STEPS} cases, en s’arrêtant sur le premier joueur qu’il croise, ou disparaît pour ` +
-        "réapparaître au loin. S’il tombe sur toi, ou si tu t’arrêtes sur sa case, c’est le duel. Jamais en Enfer.",
-      `Perdu : il t’emporte en Enfer, ou te vole ${GHOST_STEAL_COINS} pièces ou un objet, qu’il garde dans son ` +
-        `butin. Gagné : tu reprends un morceau de ce butin (un objet ou ${GHOST_LOOT_COINS} pièces), ou ` +
-        `${GHOST_EMPTY_LOOT_REWARD} pièces s’il est vide, et il disparaît ${GHOST_COOLDOWN_ROUNDS} tours de table.`,
-      "Clique sur le fantôme pour voir son butin.",
-    );
+  // The board's own rules (ice, carousel, ghost) are presented on the board tab.
+  if (getMapMechanics(mapId).length > 0) {
+    steps.push(`${board.map.name} a ses propres règles : elles sont présentées dans l’onglet Plateau.`);
   }
   return steps;
 }
@@ -169,6 +131,8 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
             <p className="help-board__tagline">{shownMap.tagline}</p>
           </div>
           <div className="help-board__legend">
+            <MapMechanicsList mapId={shownMapId} />
+            <h4 className="help-section-title">Cases</h4>
             <ul className="legend-list">
               {getTileLegend(shownMapId).map((entry) => (
                 <li key={entry.kind}>
@@ -180,6 +144,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
                 </li>
               ))}
             </ul>
+            <h4 className="help-section-title">Routes</h4>
             <ul className="legend-list legend-list--roads">
               {shownMap.roadLegend.map((entry) => (
                 <li key={entry.title}>
@@ -213,24 +178,29 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       )}
 
       {tab === "items" && (
-        <ul className="help-items">
+        <ul className="help-cards">
           {ITEM_ORDER.map((itemId) => {
             const item = ITEM_CATALOG[itemId];
             return (
-              <li key={itemId} className="help-item">
-                <ItemIcon itemId={itemId} size={46} />
-                <div>
-                  <strong>{item.name}</strong>
-                  <p>{item.description}</p>
-                </div>
-                <span className="help-item__chips">
-                  <span className="price-chip">
-                    <CoinIcon size={16} />
-                    {itemId === "boot" ? "dès " : ""}
-                    {formatCurrency(item.price)}
+              <li key={itemId} className="help-card">
+                <header className="help-card__head">
+                  <span className="help-card__art">
+                    <ItemIcon itemId={itemId} size={40} />
                   </span>
-                  <EnergyCost cost={item.energyCost} />
-                </span>
+                  <div className="help-card__title">
+                    <strong>{item.name}</strong>
+                    <span className="help-card__chips">
+                      <span className="price-chip">
+                        <CoinIcon size={14} />
+                        {itemId === "boot" ? "dès " : ""}
+                        {formatCurrency(item.price)}
+                      </span>
+                      <EnergyCost cost={item.energyCost} />
+                      {item.target === "player" && <span className="help-card__tag">Cible un joueur</span>}
+                    </span>
+                  </div>
+                </header>
+                <HelpCardText text={item.description} />
               </li>
             );
           })}
@@ -238,18 +208,66 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       )}
 
       {tab === "passives" && (
-        <ul className="help-passives">
+        <ul className="help-cards">
           {PASSIVE_ORDER.map((passiveId) => {
             const passive = PASSIVE_CATALOG[passiveId];
             return (
-              <li key={passiveId}>
-                <strong>{passive.name}</strong>
-                <p>{passive.description}</p>
+              <li key={passiveId} className="help-card help-card--passive">
+                <header className="help-card__head">
+                  <span className="help-card__art help-card__art--passive" aria-hidden="true">
+                    <UiIcon name="sparkle" size={20} strokeWidth={2.6} />
+                  </span>
+                  <div className="help-card__title">
+                    <strong>{passive.name}</strong>
+                  </div>
+                </header>
+                <HelpCardText text={passive.description} />
               </li>
             );
           })}
         </ul>
       )}
     </ModalShell>
+  );
+}
+
+/** A card's description: long ones scroll inside the card, so every card keeps the same height. */
+function HelpCardText({ text }: { text: string }) {
+  return (
+    <div className="help-card__text scroll-block" tabIndex={0}>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+/** The rules only this board has, one card each; nothing on a board without any. */
+function MapMechanicsList({ mapId }: { mapId: MapId }) {
+  const mechanics = getMapMechanics(mapId);
+  if (mechanics.length === 0) return null;
+  return (
+    <section className="help-mechanics" aria-label="Mécaniques du plateau">
+      <h4 className="help-section-title">Mécaniques du plateau</h4>
+      <ul className="help-mechanics__list">
+        {mechanics.map((mechanic) => (
+          <MapMechanicCard key={mechanic.id} mechanic={mechanic} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function MapMechanicCard({ mechanic }: { mechanic: MapMechanic }) {
+  return (
+    <li className={`help-mechanic help-mechanic--${mechanic.tone}`}>
+      <span className="help-mechanic__icon" aria-hidden="true">
+        {mechanic.icon}
+      </span>
+      <div className="help-mechanic__body">
+        <strong>{mechanic.title}</strong>
+        {mechanic.paragraphs.map((paragraph) => (
+          <p key={paragraph}>{paragraph}</p>
+        ))}
+      </div>
+    </li>
   );
 }

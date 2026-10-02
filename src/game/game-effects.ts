@@ -1,7 +1,7 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
-import { advanceBulletBill, findBulletDodger } from "./bullet-bill";
+import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
@@ -682,9 +682,10 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     if (nextIndex >= seatCount) {
       nextIndex = 0;
       nextRound += 1;
-      // Before anything of the new round, Bullet Bill's victim may answer with Non merci.
-      const dodgerId = answer === null ? findBulletDodger(nextState, nextRound) : null;
-      if (dodgerId) return askToDodgeBulletBill(nextState, dodgerId);
+      // Before anything of the new round, Bullet Bill's victim may answer with Non merci, or their angel
+      // with a Bouclier.
+      const reaction = answer === null ? findBulletReactors(nextState, nextRound) : null;
+      if (reaction) return askToDodgeBulletBill(nextState, reaction.victimId, reaction.reactorIds);
       nextState = advanceBulletBill(nextState, nextRound, answer === "dodged");
       answer = null;
       if (isBlizzardRound(nextState, nextRound)) nextState = blowBlizzard(nextState);
@@ -745,8 +746,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   return rideGhost(nextState);
 }
 
-/** The turn change holds while Bullet Bill's victim decides whether to spend Non merci on it. */
-function askToDodgeBulletBill(state: GameState, victimId: PlayerId): GameState {
+/** The turn change holds while Bullet Bill's victim (Non merci) or their angel (Bouclier) decides. */
+function askToDodgeBulletBill(state: GameState, victimId: PlayerId, reactorIds: PlayerId[]): GameState {
   const victim = findPlayer(state, victimId);
   const nextState: GameState = {
     ...state,
@@ -754,7 +755,7 @@ function askToDodgeBulletBill(state: GameState, victimId: PlayerId): GameState {
     pendingReaction: {
       actorId: null,
       action: { type: "bullet-bill", victimId },
-      reactorIds: [victimId],
+      reactorIds,
       resumeStage: "turn-end",
     },
   };

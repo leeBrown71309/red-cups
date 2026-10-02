@@ -2,7 +2,7 @@ import { countRedCups } from "../../game/rules";
 import { getStandings, isWinnerOf } from "../../game/standings";
 import type { GameState, Player } from "../../game/types";
 import { formatCurrency } from "../display/game-display";
-import { CupPips } from "../hud/players-bar";
+import { CupPips } from "../hud/player-status";
 import { CoinIcon } from "../icons/item-icon";
 import { PlayerAvatar } from "./player-avatar";
 

@@ -12,6 +12,7 @@ import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
 import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
+import { pauseGame, resumeGame } from "./pause";
 import { assignGuardian, rescueProtege } from "./guardian";
 import {
   avoidsHell,
@@ -184,7 +185,10 @@ export type GameAction =
   | { type: "blackjackHit"; playerId: PlayerId }
   | { type: "blackjackStand"; playerId: PlayerId }
   /** Arm wrestle: one side's taps once their ten seconds are over. */
-  | { type: "submitArmTaps"; playerId: PlayerId; taps: number };
+  | { type: "submitArmTaps"; playerId: PlayerId; taps: number }
+  /** Online: the host stops every clock and every action, then lets the table play on. */
+  | { type: "pauseGame"; playerId: PlayerId }
+  | { type: "resumeGame"; playerId: PlayerId };
 
 /** What an action is played with besides the board: online, the server time it was sent at. */
 export interface ReduceContext {
@@ -601,12 +605,25 @@ function resolveReaction(state: GameState, reactorId: PlayerId | null): GameStat
 }
 
 /**
- * Bullet Bill's victim answered as a new round was starting: with Non merci it
- * fizzles out, otherwise it hits. Either way the turn change then goes on.
+ * Bullet Bill's victim answered as a new round was starting: with Non merci,
+ * or their angel's Bouclier, it fizzles out; otherwise it hits. Either way the
+ * turn change then goes on.
  */
 function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: PlayerId | null): GameState {
   if (reactorId === null) return resumeAfterBulletReaction(state, false);
+  const reactor = findPlayer(state, reactorId);
   const victim = findPlayer(state, victimId);
+  if (reactorId !== victimId) {
+    // L'Ange-Gardien raises their Bouclier, which is then spent.
+    const shield = reactor?.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
+    let shielded = updatePlayer(state, reactorId, (player) => spendItemEntry(player, shield?.id ?? ""));
+    shielded = addLog(
+      shielded,
+      `${reactor?.name ?? "L’Ange-Gardien"} lève son Bouclier : Bullet Bill épargne ${victim?.name ?? "son protégé"}.`,
+      "event",
+    );
+    return resumeAfterBulletReaction(shielded, true);
+  }
   // Spent in the round that is starting.
   let nextState = spendNoThanks(state, victimId, state.round + 1);
   nextState = addLog(nextState, `${victim?.name ?? "Un joueur"} utilise Non merci contre Bullet Bill.`, "event");
@@ -918,6 +935,10 @@ function recordPreviousTiles(before: GameState, after: GameState): GameState {
  * the action earned or cost.
  */
 function applyGameAction(state: GameState, action: GameAction, now: number | undefined): GameState {
+  // The pause only touches the clocks: nothing on the board follows from it.
+  if (action.type === "pauseGame" || action.type === "resumeGame") return dispatchGameAction(state, action, now);
+  // Nothing is played while the game is paused, but a player may still leave the table.
+  if (state.pause && action.type !== "abandonGame") return state;
   const prepared = spareHellPlayers(state);
   const dispatched = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
@@ -932,7 +953,8 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;
   const countdown = prepared.phase === "draft" && settled.phase === "playing" ? GAME_COUNTDOWN_MS : 0;
-  return updateClocks(settled, now + countdown);
+  // A player leaving during the pause leaves at the time the clocks stopped, so the resume restores them whole.
+  return updateClocks(settled, (state.pause ? state.pause.since : now) + countdown);
 }
 
 function dispatchGameAction(state: GameState, action: GameAction, now?: number): GameState {
@@ -1018,6 +1040,10 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return blackjackStand(state, action.playerId);
     case "submitArmTaps":
       return submitArmTaps(state, action.playerId, action.taps);
+    case "pauseGame":
+      return pauseGame(state, action.playerId, now);
+    case "resumeGame":
+      return resumeGame(state, action.playerId, now);
   }
 }
 

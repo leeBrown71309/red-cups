@@ -1,4 +1,5 @@
 import { getStartingCurrency, isMalefactor } from "./passive-rules";
+import { spendAllEnergy } from "./energy";
 import { addLog, findPlayer, getActivePlayer, placeInHell, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, Player } from "./types";
 import { HELL_NODE_ID, RESCUE_SKIPPED_TURNS } from "./types";
@@ -48,7 +49,8 @@ export function canRescueProtege(state: GameState): boolean {
 
 /**
  * The angel gives up their next two turns to bring the protégé out of Hell,
- * onto the angel's own tile, without any effect of that tile. Their turn goes on.
+ * onto the angel's own tile, without any effect of that tile. Their turn ends
+ * there (author's answer).
  */
 export function rescueProtege(state: GameState): GameState {
   if (!canRescueProtege(state)) return state;
@@ -60,7 +62,7 @@ export function rescueProtege(state: GameState): GameState {
     skippedTurns: player.skippedTurns + RESCUE_SKIPPED_TURNS,
   }));
   return addLog(
-    { ...nextState, turnActionTaken: true },
+    { ...spendAllEnergy(nextState), turnStage: "turn-end" },
     `${angel.name} sacrifie ses ${RESCUE_SKIPPED_TURNS} prochains tours pour tirer ${protege.name} de l’Enfer.`,
     "good",
   );

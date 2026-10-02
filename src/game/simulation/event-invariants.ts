@@ -59,7 +59,10 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (flight.dodgedBy) {
     const dodger = findPlayer(next, flight.dodgedBy);
     const answered = previous.pendingReaction?.action.type === "bullet-bill";
-    if (next.bulletBill !== null || !answered || dodger?.position !== landing || flight.victimId !== null) {
+    // Banquise: the blizzard of the round that starts may carry the dodger away.
+    const carried = slidOnIce(previous, next, flight.dodgedBy);
+    const onLanding = dodger?.position === landing || carried;
+    if (next.bulletBill !== null || !answered || !onLanding || flight.victimId !== null) {
       found.push(violation("bullet-dodge", `Bullet Bill was dodged by ${flight.dodgedBy} without fizzling out`));
     }
     return;
@@ -151,6 +154,10 @@ export function checkBlessing(previous: GameState, next: GameState, found: RuleV
 export function checkAbandon(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (next.players.length >= previous.players.length) return;
   const gone = previous.players.filter((player) => !findPlayer(next, player.id));
+  // Online, forfeits wait for the table to rest: two players out of chances may leave together.
+  const logs = newLogTexts(previous, next);
+  const forfeits = gone.filter((player) => logs.includes(`${player.name} déclare forfait : trois tours sans jouer.`));
+  if (gone.length > 1 && forfeits.length === gone.length) return;
   if (gone.length !== 1) {
     found.push(violation("abandon-one-seat", `${gone.length} players left in a single action`));
     return;

@@ -92,13 +92,14 @@ export function isSameRules(state: GameState | null): boolean {
  * The first board of an online game: turn order is the order players sat
  * down, each with the avatar they picked, the map the host picked (already
  * drawn if random) and the host's seed so every device draws the same luck
- * from there on.
+ * from there on. The host is remembered as a player: they may pause the game.
  */
 export function buildOnlineGame(
   players: RoomPlayer[],
   seed: number,
   mapId: MapId,
   now?: number,
+  hostUserId?: string | null,
 ): { state: GameState; seatOrder: string[] } {
   const avatarColors: PlayerColor[] = players.map((player) => PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0]);
   const action: GameAction = {
@@ -111,6 +112,9 @@ export function buildOnlineGame(
     draft: true,
   };
   // The draft's clock starts with the game.
-  const state = reduceGame(EMPTY_GAME_STATE, action, { now });
-  return { state, seatOrder: players.map((player) => player.userId) };
+  const started = reduceGame(EMPTY_GAME_STATE, action, { now });
+  const seatOrder = players.map((player) => player.userId);
+  // The host pauses the game for the whole table.
+  const hostPlayerId = hostUserId ? getPlayerIdOfUser(seatOrder, hostUserId) : null;
+  return { state: { ...started, hostPlayerId }, seatOrder };
 }

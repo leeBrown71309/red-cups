@@ -365,17 +365,11 @@
   text-align: center;
 }
 
-.shop-item__chips,
-.help-item__chips {
+.shop-item__chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 4px;
-}
-
-.help-item__chips {
-  flex-direction: column;
-  align-items: flex-end;
 }
 
 .shop-detail__energy {
@@ -1101,41 +1095,183 @@
   font-weight: 700;
 }
 
-.help-items,
-.help-passives {
+/*
+ * Items and passives: cards of one height, the name and the costs on top,
+ * the description below in a block that scrolls when it runs long.
+ */
+.help-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 10px;
 }
 
-.help-item {
+.help-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  height: 172px;
+  padding: 10px 12px 10px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 18px;
   background: var(--white);
+  box-shadow: 0 3px 0 var(--paper-edge);
 }
 
-.help-item strong,
-.help-passives strong {
+.help-card--passive {
+  height: 162px;
+  border-color: color-mix(in srgb, var(--grape) 35%, var(--paper-edge));
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--grape) 35%, var(--paper-edge));
+}
+
+.help-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.help-card__art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--cream-2);
+}
+
+.help-card__art--passive {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--grape);
+  color: var(--white);
+}
+
+.help-card__title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.help-card__title strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.help-card__chips .price-chip {
+  font-size: 0.78rem;
+}
+
+.help-card__tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--grape-light);
+  color: var(--grape-deep);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.help-card__text {
+  min-height: 0;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--cream);
+}
+
+.help-card__text p {
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+/* Board tab: the headings over the mechanics, the tiles and the roads. */
+.help-section-title {
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.help-mechanics {
+  display: grid;
+  gap: 8px;
+}
+
+.help-mechanics__list {
+  display: grid;
+  gap: 8px;
+}
+
+.help-mechanic {
+  --mechanic-color: var(--sky);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid color-mix(in srgb, var(--mechanic-color) 45%, var(--paper-edge));
+  border-left-width: 6px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--mechanic-color) 10%, var(--white));
+}
+
+.help-mechanic--ice {
+  --mechanic-color: #4fa5f2;
+}
+
+.help-mechanic--fair {
+  --mechanic-color: #ff4fa3;
+}
+
+.help-mechanic--night {
+  --mechanic-color: #6038a8;
+}
+
+.help-mechanic__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--mechanic-color);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.help-mechanic__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.help-mechanic__body strong {
   font-family: var(--font-display);
   font-weight: 600;
 }
 
-.help-item p,
-.help-passives p {
+.help-mechanic__body p {
   color: var(--ink-soft);
-  font-size: 0.84rem;
-  line-height: 1.25;
-}
-
-.help-passives > li {
-  padding: 10px 14px;
-  border-left: 5px solid var(--grape);
-  border-radius: 12px;
-  background: var(--white);
+  font-size: 0.82rem;
+  line-height: 1.3;
 }
 
 /* ---------- Pause & journal ---------- */
@@ -1143,6 +1279,59 @@
   display: grid;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/* The host's pause covers every decision left open underneath. */
+.modal-layer:has(> .pause-overlay) {
+  z-index: 45;
+}
+
+.pause-overlay .modal-card__body {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.pause-overlay__badge {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sky);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--white);
+  animation: pause-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes pause-breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.pause-overlay__elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pause-overlay__note {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.pause-overlay .modal-actions {
+  justify-content: center;
 }
 
 .audio-sliders {

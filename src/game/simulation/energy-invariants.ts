@@ -84,7 +84,11 @@ function checkItemCost(previous: GameState, next: GameState, item: AppliedItem, 
   if (previous.energyLeft - cost < kept) {
     found.push(violation("energy-item-affordable", `${item.itemId} used with ${previous.energyLeft} energy`));
   }
-  if (next.energyLeft !== previous.energyLeft - cost || !next.turnActionTaken) {
+  // Only an item that costs energy counts as an action of the turn (author's answer): a Tomate does not.
+  if (
+    next.energyLeft !== previous.energyLeft - cost ||
+    next.turnActionTaken !== (previous.turnActionTaken || cost > 0)
+  ) {
     found.push(violation("energy-item-cost", `${item.itemId} took ${previous.energyLeft} to ${next.energyLeft}`));
   }
   if (["turn-end", "shop"].includes(next.turnStage)) {

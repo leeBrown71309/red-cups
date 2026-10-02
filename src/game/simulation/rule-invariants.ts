@@ -273,8 +273,7 @@ export function checkState(state: GameState): RuleViolation[] {
       const shield =
         reactor?.passiveId === "guardian-angel" &&
         reactor.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield") &&
-        action.type === "item" &&
-        action.targetPlayerId === state.guardian?.protegeId;
+        (action.type === "item" ? action.targetPlayerId : action.victimId) === state.guardian?.protegeId;
       if (shield) continue;
       if (!reactor || reactor.passiveId !== "no-thanks") {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
@@ -368,7 +367,8 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
 
   // Doomsday: the start pays nothing.
   const passedStart = earnsStartBonus(board, movement.from, movement.path) && !isDoomed(previous, mover);
-  const gotBonus = logs.some((text) => text.includes("passe par le départ"));
+  // Another player may pass the start in the same action (out of Hell as the turn changes).
+  const gotBonus = logs.includes(`${mover.name} passe par le départ.`);
   if (passedStart && !gotBonus) {
     found.push(violation("start-bonus", `${mover.name} crossed the start without the 200 coins`));
   }

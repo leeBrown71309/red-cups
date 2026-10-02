@@ -1,0 +1,493 @@
+/* ---------- Players list (left side) ---------- */
+/* No frame: the players' bubbles sit straight on the board, under the button that folds them. */
+.players-panel {
+  position: absolute;
+  top: calc(var(--hud-inset) + var(--safe-top) + 58px);
+  left: calc(var(--hud-inset) + var(--safe-left));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: var(--players-list-width);
+  /* Stops above the dock, and scrolls when the table is bigger than that. */
+  max-height: calc(100% - var(--hud-inset) * 2 - var(--safe-top) - var(--safe-bottom) - 58px - var(--dock-reserve));
+  pointer-events: none;
+  transition: width 220ms var(--ease-out);
+}
+
+.players-panel__head {
+  display: flex;
+  flex: none;
+  padding-left: 2px;
+}
+
+.players-panel.is-folded .players-panel__head {
+  padding-left: 10px;
+}
+
+.players-panel__head,
+.players-panel__list {
+  pointer-events: auto;
+}
+
+/* The small round buttons that fold the panels away and bring them back. */
+.players-panel__toggle,
+.dock-toggle {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: 0 2px 0 var(--ink);
+  transition: transform 160ms var(--ease-bounce);
+}
+
+.players-panel__toggle:hover,
+.dock-toggle:hover {
+  transform: translateY(-1px);
+}
+
+.players-panel__list {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  /* Room for the bubbles' shadow and, on the right, the arrow that flags whose turn it is. */
+  padding: 4px 16px 8px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.players-panel.is-folded .players-panel__list {
+  justify-items: start;
+  padding: 4px 16px 8px 2px;
+}
+
+.player-row {
+  --player-color: var(--cream);
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 50px;
+  padding: 4px 8px 4px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 3px 0 var(--ink);
+  text-align: left;
+  transition:
+    transform 180ms var(--ease-bounce),
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.player-row:hover {
+  transform: translateX(2px);
+}
+
+.player-row > svg {
+  flex: none;
+}
+
+/* Whose turn it is: tinted, ringed in their colour and flagged from the board side, on the right. */
+.player-row.is-active {
+  background: color-mix(in srgb, var(--player-color) 30%, var(--cream));
+  box-shadow:
+    0 0 0 3px var(--player-color),
+    0 3px 0 3px var(--ink);
+}
+
+.player-row.is-active::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: -15px;
+  border-top: 7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right: 9px solid var(--ink);
+  transform: translateY(-50%);
+}
+
+.player-row.is-hell:not(.is-active) {
+  background: color-mix(in srgb, var(--grape) 18%, var(--white));
+}
+
+.player-row.is-open {
+  outline: 3px dashed var(--ink-faint);
+  outline-offset: 2px;
+}
+
+.players-panel.is-folded .player-row {
+  justify-content: center;
+  width: 44px;
+  min-height: 44px;
+  padding: 2px;
+  border-radius: 50%;
+}
+
+/* Folded: a dot says there is more to see in the player's details. */
+.player-row__dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.player-row__main {
+  display: grid;
+  flex: 1;
+  gap: 3px;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.player-row__line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.player-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.player-row__statuses {
+  display: flex;
+  flex: none;
+  gap: 3px;
+}
+
+.player-row__coins {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.player-row__coins.is-negative {
+  color: var(--cup-deep);
+}
+
+.player-row .voice-badge {
+  position: absolute;
+  top: -6px;
+  left: -4px;
+}
+
+/*
+ * One status per token: an icon and, when it counts something, a short count.
+ * The colours tell the families apart: Hell, ice, sleep, chances, roles.
+ */
+.status-token {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cream-2);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.status-token__icon {
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.72rem;
+}
+
+.status-token--hell {
+  background: var(--grape);
+  color: var(--white);
+}
+
+.status-token--devil {
+  background: var(--cup);
+  color: var(--white);
+}
+
+.status-token--angel {
+  background: #fff3c4;
+}
+
+.status-token--frozen {
+  background: #2d5f8f;
+  color: #dff6ff;
+}
+
+.status-token--snow {
+  background: #dff6ff;
+  color: #1f4c73;
+}
+
+.status-token--sleep {
+  background: var(--sky-light);
+}
+
+.status-token--chances {
+  background: #ffe08a;
+}
+
+.status-token--more {
+  background: var(--white);
+  color: var(--ink-soft);
+}
+
+/* ---------- Player details ---------- */
+/*
+ * Fixed and placed left of the row it was opened from, once its height is
+ * known. The frame holds the arrow; only the body inside it scrolls.
+ * It opens right of the row, over the board.
+ */
+.player-details {
+  position: fixed;
+  z-index: 30;
+  width: min(290px, calc(100vw - 16px));
+  transform-origin: left var(--arrow-top, 50%);
+  animation: details-in 200ms var(--ease-out) both;
+}
+
+.player-details::after {
+  content: "";
+  position: absolute;
+  top: calc(var(--arrow-top, 50%) - 8px);
+  left: -9px;
+  width: 16px;
+  height: 16px;
+  border-bottom: var(--border);
+  border-left: var(--border);
+  border-radius: 0 0 0 4px;
+  background: var(--cream);
+  transform: rotate(45deg);
+}
+
+.player-details__body {
+  display: grid;
+  gap: 8px;
+  max-height: calc(100vh - 22px);
+  padding: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+@keyframes details-in {
+  from {
+    opacity: 0;
+    transform: translateX(-8px) scale(0.94);
+  }
+}
+
+.player-details__statuses {
+  display: grid;
+  gap: 4px;
+}
+
+.player-details__statuses li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+
+.player-details__stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.player-details__stat {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.player-details__stat-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.player-details__stat-value.is-negative {
+  color: var(--cup-deep);
+}
+
+.player-details__stat-note {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.clover-pips {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.clover-pips__pip {
+  display: inline-flex;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+
+.clover-pips__pip.is-left {
+  opacity: 1;
+  filter: none;
+}
+
+.player-details__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-details__head strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.player-details__where {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.player-details__passive {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--grape-light);
+}
+
+.player-details__passive strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.player-details__passive-text {
+  max-height: 4.9em;
+}
+
+.player-details__passive p {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+.player-details__passive .player-details__passive-status {
+  margin-top: 2px;
+  color: var(--grape-deep);
+  font-weight: 800;
+}
+
+.mini-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.mini-slot {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--white);
+}
+
+.mini-slot.is-empty {
+  border: 2px dashed var(--paper-edge);
+  background: transparent;
+}
+
+/*
+ * A text block that may be long (passive and item descriptions): it keeps
+ * its height and scrolls instead of pushing everything around it.
+ */
+.scroll-block {
+  padding-right: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--paper-edge) transparent;
+}
+
+.scroll-block:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--sky);
+  outline-offset: 2px;
+}
+
+/* ---------- Compact HUD for landscape phones ---------- */
+@media (max-height: 520px) {
+  .players-panel {
+    top: calc(var(--hud-inset) + var(--safe-top) + 46px);
+    max-height: calc(100% - var(--hud-inset) * 2 - var(--safe-top) - var(--safe-bottom) - 48px - var(--dock-reserve));
+  }
+
+  .player-row {
+    min-height: 42px;
+  }
+
+  .player-row > svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .player-row__name {
+    font-size: 0.8rem;
+  }
+
+  .player-details__body {
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .player-details__head > svg {
+    width: 38px;
+    height: 38px;
+  }
+
+  .player-details__passive p {
+    font-size: 0.76rem;
+  }
+}

@@ -36,9 +36,17 @@ export function canAffordMove(state: GameState): boolean {
   return state.energyLeft >= MOVE_MINIMUM_ENERGY;
 }
 
-/** Pays for an item or the Botte; the player has now done something this turn. */
+/**
+ * Pays for an item, the Botte or le diable's way out of Hell. Only what costs
+ * energy counts as having done something this turn (author's answer): a
+ * Tomate, free, does not let the player end their turn without moving.
+ */
 export function spendEnergy(state: GameState, amount: number): GameState {
-  return { ...state, energyLeft: Math.max(0, state.energyLeft - amount), turnActionTaken: true };
+  return {
+    ...state,
+    energyLeft: Math.max(0, state.energyLeft - amount),
+    turnActionTaken: state.turnActionTaken || amount > 0,
+  };
 }
 
 /** The move, or the Hell wheel: it takes whatever energy is left. */
@@ -52,8 +60,8 @@ function hasLegalMove(state: GameState, player: Player): boolean {
 
 /**
  * The turn ends at any time once the player moved (shop, end of turn). Before
- * moving, only once they did something (an item, the Botte), when too little
- * energy is left to move, or when no road leads anywhere.
+ * moving, only once they did something that cost energy (an item, the Botte),
+ * when too little energy is left to move, or when no road leads anywhere.
  */
 export function canEndTurn(state: GameState): boolean {
   if (state.phase !== "playing") return false;

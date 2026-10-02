@@ -72,6 +72,9 @@ interface GameActions {
   blackjackStand: (playerId: PlayerId) => void;
   /** Arm wrestle: one side's taps once their ten seconds are over. */
   submitArmTaps: (playerId: PlayerId, taps: number) => void;
+  /** Online: the host stops the game and its clocks for the whole table, then resumes it. */
+  pauseGame: (playerId: PlayerId) => void;
+  resumeGame: (playerId: PlayerId) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -148,6 +151,8 @@ export const useGameStore = create<GameStore>()(
       blackjackHit: (playerId) => dispatch({ type: "blackjackHit", playerId }),
       blackjackStand: (playerId) => dispatch({ type: "blackjackStand", playerId }),
       submitArmTaps: (playerId, taps) => dispatch({ type: "submitArmTaps", playerId, taps }),
+      pauseGame: (playerId) => dispatch({ type: "pauseGame", playerId }),
+      resumeGame: (playerId) => dispatch({ type: "resumeGame", playerId }),
     };
   }, createGameSaveOptions<GameStore>()),
 );

@@ -483,7 +483,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
         if (!code || myUserId !== hostId) return;
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
         await measureServerOffset();
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow());
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
         await openRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
@@ -504,7 +504,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
           .filter((player) => !player.absent || player.userId === myUserId)
           .sort((left, right) => rank(left.userId) - rank(right.userId));
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs encore à table.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow());
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
         await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });

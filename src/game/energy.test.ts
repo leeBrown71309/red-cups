@@ -98,6 +98,16 @@ describe("ending a turn before moving", () => {
     const tired: GameState = { ...startTable(), energyLeft: 0 };
     expect(act(tired, { type: "endTurn" }).activePlayerIndex).toBe(1);
   });
+
+  it("is still refused after a free item: a Tomate is no action of the turn (author's answer)", () => {
+    const tomatoes: InventoryEntry = { id: "tomatoes", kind: "item", itemId: "tomato", count: 1 };
+    const thrown = act(editPlayer(startTable(), 0, { inventory: [tomatoes] }), {
+      type: "useItem",
+      entryId: "tomatoes",
+      targetPlayerId: "p2",
+    });
+    expect(canEndTurn(thrown)).toBe(false);
+  });
 });
 
 describe("the Botte", () => {

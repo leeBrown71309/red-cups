@@ -6,6 +6,7 @@ import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
 import { getHandValue } from "../blackjack";
+import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
 import { avoidsHell, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
@@ -234,7 +235,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return chooseMoveTurn(store, random);
 
     case "hell": {
-      if (getActivePlayer(store)?.passiveId === "devil" && random() < 0.5) {
+      if (canLeaveHell(store) && random() < 0.5) {
         return { label: "leave-hell", perform: (current) => current.leaveHell() };
       }
       const items = listUsableItems(store);

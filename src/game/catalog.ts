@@ -217,7 +217,8 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Bouclier",
     price: 500,
     symbol: "⛨",
-    description: "L’Ange-Gardien : quand un objet vise ton protégé, tu peux le bloquer, même hors de ton tour.",
+    description:
+      "L’Ange-Gardien : quand un objet ou Bullet Bill vise ton protégé, tu peux le bloquer, même hors de ton tour.",
     target: "special",
     energyCost: 0,
   },
@@ -390,7 +391,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Diable",
     description:
       "Toute la table le sait. Tu gagnes quand les autres sont entrés assez de fois en Enfer (4 par joueur, moins " +
-      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais tu sors de l’Enfer quand tu veux et tu as ta " +
+      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais tu sors de l’Enfer quand tu veux (1 point " +
+      "d’énergie) et tu as ta " +
       "boutique. Jamais deux fois le même objet.",
   },
   "guardian-angel": {
@@ -399,8 +401,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Ange",
     description:
       "Tu protèges un joueur tiré au sort et tu gagnes avec lui. Ni Red Cup ni Enfer pour toi (tu passes ton tour " +
-      "à la place), 600 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer pour tes 2 " +
-      "prochains tours.",
+      "à la place), 600 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer : ton tour " +
+      "s’arrête et tu perds tes 2 prochains tours.",
   },
   thief: {
     id: "thief",

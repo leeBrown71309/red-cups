@@ -32,6 +32,11 @@ const UI_ICON_PATHS = {
   trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
   flag: "M5 21V4M5 4h12l-2.5 4.5L17 13H5",
   play: "M8 5v14l11-7L8 5z",
+  pause: "M8 5v14M16 5v14",
+  chevronDown: "M6 9l6 6l6-6",
+  chevronUp: "M6 15l6-6l6 6",
+  chevronLeft: "M15 6l-6 6l6 6",
+  chevronRight: "M9 6l6 6l-6 6",
   refresh: "M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6",
   info: "M12 21a9 9 0 1 0 0-18a9 9 0 1 0 0 18M12 11v6M12 7.5h.01",
   hand: [

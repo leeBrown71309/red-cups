@@ -12,7 +12,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { getAvatarExpression } from "../hud/players-bar";
+import { getAvatarExpression } from "../hud/player-status";
 
 export function PlayerPickList({
   players,

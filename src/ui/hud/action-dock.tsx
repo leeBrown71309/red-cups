@@ -2,6 +2,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { formatGambleAmount } from "../../game/gamble";
+import { canLeaveHell, DEVIL_HELL_EXIT_ENERGY } from "../../game/devil";
 import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
 import { useGameStore } from "../../game/store";
@@ -23,15 +24,17 @@ import { getCorrupterHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { getAvatarExpression } from "./players-bar";
+import { getAvatarExpression } from "./player-status";
 import { TurnTimer } from "./turn-timer";
 
 interface ActionDockProps {
   onOpenShop: () => void;
+  /** Folds the dock and the bag away, to see more of the board. */
+  onCollapse: () => void;
 }
 
 /** Tells the active player, in plain words, what to do right now. */
-export function ActionDock({ onOpenShop }: ActionDockProps) {
+export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const activePlayer = useActivePlayer();
   const turnStage = useGameStore((state) => state.turnStage);
   const phase = useGameStore((state) => state.phase);
@@ -48,6 +51,19 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
       aria-live="polite"
       style={{ "--player-color": decider.color } as CSSProperties}
     >
+      {/* Centred on the dock's edge, where everyone at the table sees it first. */}
+      <div className="action-dock__timer">
+        <TurnTimer />
+      </div>
+      <button
+        type="button"
+        className="dock-toggle action-dock__collapse"
+        onClick={onCollapse}
+        aria-label="Réduire le sac et les actions"
+        title="Réduire le sac et les actions"
+      >
+        <UiIcon name="chevronDown" size={16} strokeWidth={3} />
+      </button>
       <div className="action-dock__who">
         <PlayerAvatar color={decider.color} size={56} expression={getAvatarExpression(decider)} />
         <div className="action-dock__identity">
@@ -62,7 +78,6 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
           {decider.id === activePlayer.id && (
             <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
           )}
-          <TurnTimer />
         </div>
       </div>
       <div className="action-dock__content">
@@ -240,6 +255,7 @@ function BlessingContent() {
 function HellContent({ player }: { player: Player }) {
   const spinHellWheel = useGameStore((state) => state.spinHellWheel);
   const leaveHell = useGameStore((state) => state.leaveHell);
+  const canLeave = useGameStore(canLeaveHell);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
   const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
@@ -259,7 +275,8 @@ function HellContent({ player }: { player: Player }) {
           type="button"
           className="btn btn--cup"
           onClick={leaveHell}
-          title="Retour en case 0, sans les 200 pièces"
+          disabled={!canLeave}
+          title={`Retour en case 0, sans les 200 pièces, pour ${DEVIL_HELL_EXIT_ENERGY} point d’énergie`}
         >
           <UiIcon name="flag" size={20} /> Sortir de l’Enfer
         </button>
@@ -378,7 +395,7 @@ function MoveContent({ player }: { player: Player }) {
           type="button"
           className="btn btn--small btn--gold"
           onClick={rescueProtege}
-          title="Il te rejoint sur ta case ; tu perds tes 2 prochains tours"
+          title="Il te rejoint sur ta case ; ton tour s’arrête et tu perds tes 2 prochains tours"
         >
           <UiIcon name="sparkle" size={16} /> Libérer {protegeName}
         </button>

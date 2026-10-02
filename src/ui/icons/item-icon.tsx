@@ -310,3 +310,31 @@ export function CoinIcon({ size, className }: IconProps) {
     </IconFrame>
   );
 }
+
+const CLOVER_LEAVES = [
+  { cx: 32, cy: 19 },
+  { cx: 45, cy: 32 },
+  { cx: 32, cy: 45 },
+  { cx: 19, cy: 32 },
+];
+
+/**
+ * One of a player's online chances, as a four-leaf clover. The leaves are
+ * drawn twice, outlined then plain, so only the outer edge of the clover is inked.
+ */
+export function CloverIcon({ size, className }: IconProps) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M36 38 C42 46 46 52 52 58" fill="none" {...OUTLINE} strokeWidth={6} />
+      <path d="M36 38 C42 46 46 52 52 58" fill="none" stroke="#3f9b4f" strokeWidth={2.5} strokeLinecap="round" />
+      {CLOVER_LEAVES.map((leaf) => (
+        <circle key={`edge-${leaf.cx}-${leaf.cy}`} cx={leaf.cx} cy={leaf.cy} r="12" fill="#5cc96b" {...OUTLINE} />
+      ))}
+      {CLOVER_LEAVES.map((leaf) => (
+        <circle key={`leaf-${leaf.cx}-${leaf.cy}`} cx={leaf.cx} cy={leaf.cy} r="10.2" fill="#5cc96b" />
+      ))}
+      <path d="M32 14 V26 M38 32 H50 M32 38 V50 M14 32 H26" stroke="#3f9b4f" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="28" cy="16" r="3" fill="#ffffff" opacity="0.55" />
+    </IconFrame>
+  );
+}

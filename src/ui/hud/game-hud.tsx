@@ -11,12 +11,13 @@ import { AbandonModal, JournalModal, PauseMenu } from "../modals/menu-modals";
 import { ShopModal } from "../modals/shop-modal";
 import { VictoryModal } from "../modals/victory-modal";
 import { WheelModal } from "../modals/wheel-modal";
-import { ActionDock } from "./action-dock";
 import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
 import { GameCountdown } from "./game-countdown";
-import { InventoryTray } from "./inventory-tray";
+import { PauseOverlay } from "./pause-controls";
+import { PlayerDock } from "./player-dock";
+import { PlayersPanel } from "./players-panel";
 import { TopBar } from "./top-bar";
 import { TurnSplash } from "./turn-splash";
 
@@ -70,14 +71,14 @@ export function GameHud() {
       <TopBar onOpenMenu={() => setOverlay("menu")} onOpenHelp={() => setOverlay("help")} />
       <EventToasts />
       <CameraControls />
-      <div className="hud__bottom">
-        <InventoryTray onRequestTarget={setTargetEntryId} />
-        <ActionDock onOpenShop={() => setShopClosed(false)} />
-      </div>
+      <PlayersPanel />
+      <PlayerDock onRequestTarget={setTargetEntryId} onOpenShop={() => setShopClosed(false)} />
       <TurnSplash />
       <GameCountdown />
       <AlertBannerView />
       {decision}
+      {/* Above every decision; the menu opened from it takes its place until closed. */}
+      {overlay === null && <PauseOverlay onOpenMenu={() => setOverlay("menu")} />}
       {overlay === "menu" && (
         <PauseMenu
           onClose={() => setOverlay(null)}

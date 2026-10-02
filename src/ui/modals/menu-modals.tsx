@@ -7,6 +7,7 @@ import { AudioSliders } from "../components/audio-controls";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
 import { useFullscreenToggle } from "../fullscreen";
+import { usePauseControls } from "../hud/pause-controls";
 import { UiIcon } from "../icons/ui-icon";
 import { PlayerPickList } from "./decision-modals";
 
@@ -25,13 +26,30 @@ export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }:
   // Online, quitting leaves the room and abandons the game, so the others play on.
   const quit = () => (isOnline ? void leaveRoom() : resetGame());
   const fullscreen = useFullscreenToggle();
+  const tablePause = usePauseControls();
+  const paused = useGameStore((state) => state.pause !== null);
 
   return (
     <ModalShell title="Pause" eyebrow="Red Cups" size="small" onClose={onClose} className="pause-menu">
       <div className="pause-menu__list">
         <button type="button" className="btn btn--cup btn--block" onClick={onClose} data-autofocus>
-          <UiIcon name="play" size={20} /> Reprendre
+          <UiIcon name="play" size={20} /> {paused ? "Retour" : "Reprendre"}
         </button>
+        {/* Online, this menu does not stop the game: only the host's pause stops it for everyone. */}
+        {tablePause.offered && !paused && (
+          <button
+            type="button"
+            className="btn btn--sky btn--block"
+            onClick={() => {
+              tablePause.pause();
+              onClose();
+            }}
+            disabled={!tablePause.available}
+            title={tablePause.available ? undefined : "Pause possible à la fin du mini-jeu"}
+          >
+            <UiIcon name="pause" size={20} /> Pause pour toute la table
+          </button>
+        )}
         <button type="button" className="btn btn--cream btn--block" onClick={onOpenHelp}>
           <UiIcon name="help" size={20} /> Comment jouer
         </button>
