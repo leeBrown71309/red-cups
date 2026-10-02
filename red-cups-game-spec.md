@@ -14,24 +14,26 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | --- | --- |
 | Nombre de joueurs | De 2 à 8 joueurs. Huit est la limite du MVP. |
 | Départ | Tous les joueurs commencent sur la case 0. |
-| Déplacement | Aucun dé. Le joueur choisit une case voisine autorisée par le plateau. |
-| Flèches | Une arête fléchée ne peut être empruntée que dans le sens de la flèche. Une arête sans flèche est bidirectionnelle. |
-| Boutique | Toutes les cases bleues représentent une boutique. Il faut être dans son tour et arriver sur une case bleue. |
+| Déplacement | Aucun dé (sauf pour le Roller, voir 8). Le joueur choisit une case voisine autorisée par le plateau ; le déplacement prend l'énergie restante et termine le tour (patch 0.1.4). |
+| Énergie | 3 points par tour (4 avec Red Bull) ; chaque objet a son coût, le déplacement prend le reste (patch 0.1.4, voir 4). |
+| Passifs | Choisis par chaque joueur avant la partie, parmi des cartes distribuées : le draft (patch 0.1.4, voir 4.0). |
+| Flèches | Une case fléchée ne se quitte que par sa ou ses flèches ; on peut y entrer par n'importe quelle route. Une route sans flèche se parcourt dans les deux sens (patch 0.1.4, flèches dessinées sur les cases). |
+| Boutique | Toutes les cases bleues représentent une boutique. Il faut être dans son tour et arriver sur une case bleue (eShop : n'importe quelle case ; le diable y a un second étal). |
 | Achats | Plusieurs objets peuvent être achetés pendant cette visite, dans la limite du solde et des emplacements libres. Les achats se font avant la fin du tour. |
-| Monnaie initiale | 2 000 pièces par joueur. Les « points » du diaporama sont une monnaie, pas un score. |
+| Monnaie initiale | 2 000 pièces par joueur (Nepo Baby 3 000, eShop 1 000, Ange-Gardien 600). Les « points » du diaporama sont une monnaie, pas un score. |
 | Seuil négatif | À −300 pièces ou moins, le solde revient à 0 et le prochain tour du joueur est annulé. |
-| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Nombre fixe pour l’instant ; un autre mode pourra le changer plus tard. |
+| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Trois passifs ont leur propre victoire (patch 0.1.4) : Cupide à 5 000 pièces, le diable quand les autres sont assez entrés en Enfer, et L'Ange-Gardien gagne avec son protégé. |
 | Abandon | Un joueur peut quitter une partie en cours ; les autres continuent. S’il ne reste qu’un joueur, il gagne par abandon (patch 0.1.1). |
 | Tour de Bénédiction | Si, à la fin d’un tour, tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle avant de reprendre la partie (patch 0.1.1). |
 | Cases vertes et rouges | S’arrêter sur une case verte lance la roue du bonheur, sur une case rouge la roue du malheur (règle confirmée par l’auteur du jeu). |
 | Non merci | Fenêtre de réaction : un objet utilisé contre son détenteur, ou Bullet Bill qui fonce sur lui, attend sa réponse avant de s’appliquer ; une roue tournée pour lui s’annule après son résultat (patch 0.1.4). |
 | Sauvegarde | La partie en cours est sauvegardée dans le navigateur et survit au rafraîchissement ; la sauvegarde est effacée à la fin de la partie. |
-| Inventaire | Quatre emplacements. Chaque Red Cup occupe un emplacement. |
+| Inventaire | Quatre emplacements (deux pour L'Ange-Gardien). Chaque Red Cup occupe un emplacement. |
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
 | Duel en Enfer | Quand deux joueurs se trouvent en Enfer, un duel est déclenché. Le gagnant retourne en case 0 ; le perdant reste en Enfer. |
 | Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux, vote des autres joueurs, Basket et Blackjack (patch 0.1.4). |
-| État client | React, Three.js et Zustand. Pas de serveur multijoueur dans le MVP. |
+| État client | React, Three.js et Zustand. Le mode en ligne passe par Supabase (salons, temps réel), sans serveur de jeu : chaque appareil fait tourner le même moteur (voir le README). En ligne, un chrono limite chaque tour (patch 0.1.4, voir 4.3). |
 
 ## 3. Plateau et déplacements
 
@@ -215,8 +217,8 @@ Seulement en ligne : une partie locale n'a pas de chrono.
 - Un solde peut devenir négatif. À −300 ou moins, il est remis à 0 et le joueur passe son prochain tour.
 - Le Casque prévient automatiquement le passage en solde négatif ; sa consommation et son interaction avec le seuil de −300 sont définies avec l’effet de l’objet.
 - Capacité de base : quatre emplacements au total, Red Cups comprises.
-- Les objets ne se stackent pas. Un joueur ne peut pas avoir trois copies du même objet ; l’interprétation par défaut est donc un maximum de deux copies.
-- Un joueur ne peut avoir qu’une Gomme à la fois.
+- Deux exemplaires au plus de chaque objet. Seule la Tomate s'empile : jusqu'à 5 par place, chaque pile comptant comme un exemplaire (Tomato Enjoyer : une pile par place).
+- Une seule Gomme et un seul Made In Heaven à la fois ; le diable ne garde jamais deux fois le même objet.
 - Si un effet impose un objet à un joueur dont l’inventaire est plein, celui-ci sacrifie un objet non-Red Cup de son choix.
 
 ## 6. Boutique et prix de départ
@@ -384,7 +386,7 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 ## 10. Fonctionnalités du MVP
 
 - Écran de préparation d’une partie de 2 à 8 joueurs : nom et couleur par joueur.
-- Attribution de 2 000 pièces et d’un passif par joueur ; départ en case 0.
+- Attribution de 2 000 pièces et d’un passif par joueur ; départ en case 0 (depuis 0.1.4, le passif est choisi au draft et certains changent le solde de départ).
 - Affichage du plateau interactif en 3D, des flèches, des joueurs, de la Red Cup et des cases de boutique.
 - Choix des destinations légales en cliquant sur une case du plateau.
 - Déplacement à une ou deux cases avec la Botte.
@@ -404,7 +406,7 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - **Zustand** : état partagé côté client et actions de partie.
 - **Moteur de règles séparé** : fonctions déterministes pour valider les déplacements et résoudre les effets. Il peut être réutilisé par un futur serveur de partie.
 - Les meshes, matériaux, rendus et autres objets Three.js ne sont jamais placés dans le store Zustand ; le store conserve des données de jeu sérialisables.
-- Le MVP local n’a pas de comptes, lobby réseau ni synchronisation distante. Une couche de transport et une autorité serveur seront étudiées pour le multijoueur en ligne futur.
+- Le mode en ligne n'a pas de serveur de jeu : la base Supabase arbitre l'ordre des actions (compare-and-set sur la version) et donne l'heure commune du chrono (`server_time()`). Chaque action porte l'heure à laquelle elle a été jouée, si bien que tous les appareils calculent le même état, chrono compris.
 
 ## 12. Points à revisiter
 
@@ -412,8 +414,8 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Rééquilibrer les roues et remplacer les résultats provisoires si les anciennes règles sont retrouvées.
 - Confirmer si une Red Cup peut apparaître en Enfer ; le MVP exclut la case 11 du tirage initial pour éviter un objectif inaccessible.
 - Préciser l’effet de la Bouteille d’eau lorsqu’elle est utilisée : la slide indique une destination aléatoire hors Enfer.
-- Lecture des flèches : un nouveau comportement, plus permissif mais contrôlé, est en préparation par l’auteur.
-- Mode en ligne : les réactions (Non merci, Calme-toi, votes, pierre-feuille-ciseaux) devront être prises par chaque joueur sur son appareil, sans maître du jeu.
+- Patch 0.1.4 : relire avec l'auteur tous les **choix à valider**, lot par lot (section 13).
+- Appliquer `supabase/schema.sql` sur le projet Supabase partagé (ajout de `server_time()`) avant de publier le chrono en ligne ; sans lui, chaque appareil suit sa propre horloge.
 - Préciser le comportement des effets touchant simultanément tous les joueurs, notamment Draven et Bullet Bill.
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
 
@@ -508,11 +510,16 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 4. **À valider** — **Égalité au bras de fer** : « reculer » envoie Baraqué sur la case voisine la plus éloignée de l'attaquant, flèches ignorées ; s'il n'y en a pas, il reste. Ces pas ne déclenchent ni roue, ni boutique, ni Boue.
 5. **À valider** — Baraqué qui gagne le bras de fer garde sa case, et le Monopoly Man est perdu avec son énergie, comme un objet annulé.
 
+### Lot 12 — Docs et finitions
+
+1. **À valider** — Le numéro de version passe à 0.1.4 dans `package.json` ; le jeu n'affiche son numéro nulle part.
+2. **À valider** — Les descriptions des objets et des passifs restent les miennes (lot 1) : celles de l'auteur pourront les remplacer dans `src/game/catalog.ts`, où elles sont toutes rassemblées.
+
 ## 14. Historique des versions
 
 ### 0.1.4 — en préparation
 
-Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans `plans/patch-0.1.4-rework.md`.
+Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponses de l'auteur et le bilan de chaque lot sont dans `plans/patch-0.1.4-rework.md`, et les choix qui restent à valider dans la section 13.
 
 - **Fantôme** : sa glissade s’arrête sur la première case occupée par un joueur ; il ne passe plus sur un pion sans l’affronter.
 - **Luna Park** : les cases 5 et 8 sont échangées. La première Red Cup (case 8) est sur la case la plus éloignée du départ, dans le goulet accessible seulement par 6 ; seule l’entrée 8 → 0 paie le bonus du départ.

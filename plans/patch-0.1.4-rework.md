@@ -31,6 +31,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 9** fait et commité.
 - [x] **Lot 10** fait et commité.
 - [x] **Lot 11** fait et commité.
+- [x] **Lot 12** fait et commité : les 12 lots sont livrés sur `patch_0.1.4`, rien n'est poussé.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -576,6 +577,15 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - Campagne `bun run simulate -- --games 1000 --min 2 --max 8`.
 
 ---
+
+### Bilan du lot 12
+
+- **Spec** (`red-cups-game-spec.md`) : décisions de cadrage (énergie, draft, flèches sur les cases, victoires des rôles, soldes de départ, mode en ligne), inventaire (piles de Tomates, objets uniques), MVP et architecture (heure du serveur), points à revisiter (relecture des choix, `server_time()` à appliquer), historique 0.1.4.
+- **README** : déroulé d'une partie 0.1.4, tests par bots (draft, chrono), chrono en ligne et refus des autres versions.
+- **Aide** : le draft et le chrono en ligne ouvrent les règles du tour.
+- **Version** : `package.json` passe à 0.1.4.
+- **Campagne finale** : 1 000 parties, 0 violation, aucune bloquée ; 100 parties avec chrono, 0 violation.
+- **Avant de publier** : appliquer `supabase/schema.sql` (ajout de `server_time()`) sur le projet Supabase partagé, puis ouvrir les PR vers `pre-prod` et `main`.
 
 ## Choix à valider
 
