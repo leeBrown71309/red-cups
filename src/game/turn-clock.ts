@@ -100,8 +100,10 @@ export function updateClocks(state: GameState, now: number): GameState {
   };
 }
 
-/** When the clock that counts right now runs out; null in a local game or once it is over. */
+/** When the clock that counts right now runs out; null in a local game, during a pause or once it is over. */
 export function getClockDeadline(state: GameState): number | null {
+  // Paused: no clock runs, so none can run out.
+  if (state.pause) return null;
   if (state.phase === "draft") return state.draft?.deadline ?? null;
   if (state.phase !== "playing" || !state.turnClock) return null;
   const { remainingMs, runningSince } = state.turnClock;

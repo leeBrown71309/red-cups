@@ -5,7 +5,7 @@ import { useGameStore } from "../../game/store";
 import { HELL_NODE_ID } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { PlayerAvatar } from "../components/player-avatar";
-import { getAvatarExpression } from "./players-bar";
+import { getAvatarExpression } from "./player-status";
 
 const SPLASH_DURATION_MS = 1_600;
 

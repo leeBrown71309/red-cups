@@ -30,6 +30,8 @@ const KEYS_ADDED_BY_PATCH_0_1_4: (keyof GameState)[] = [
   "rulesVersion",
   "draft",
   "pendingArmWrestle",
+  "hostPlayerId",
+  "pause",
 ];
 
 describe("game save upgrade", () => {

@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 20;
+export const GAME_SAVE_VERSION = 21;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -112,7 +112,7 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * L'Ange-Gardien (protégé, co-winner). Version 18 added the online clocks,
  * the chances lost and the rules version, version 19 the passive draft (a
  * game saved during its draft comes back to it), version 20 the mini-games
- * (Blackjack hands, Baraqué's arm wrestle).
+ * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -162,6 +162,8 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     turnClock: save.turnClock ?? null,
     decisionClock: save.decisionClock ?? null,
     idleStrikes: save.idleStrikes ?? {},
+    hostPlayerId: save.hostPlayerId ?? null,
+    pause: save.pause ?? null,
     rulesVersion: save.rulesVersion ?? RULES_VERSION,
     draft: save.draft ?? null,
     pendingArmWrestle: save.pendingArmWrestle ?? null,

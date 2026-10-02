@@ -24,15 +24,17 @@ import { getCorrupterHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { getAvatarExpression } from "./players-bar";
+import { getAvatarExpression } from "./player-status";
 import { TurnTimer } from "./turn-timer";
 
 interface ActionDockProps {
   onOpenShop: () => void;
+  /** Folds the dock and the bag away, to see more of the board. */
+  onCollapse: () => void;
 }
 
 /** Tells the active player, in plain words, what to do right now. */
-export function ActionDock({ onOpenShop }: ActionDockProps) {
+export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const activePlayer = useActivePlayer();
   const turnStage = useGameStore((state) => state.turnStage);
   const phase = useGameStore((state) => state.phase);
@@ -49,6 +51,19 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
       aria-live="polite"
       style={{ "--player-color": decider.color } as CSSProperties}
     >
+      {/* Centred on the dock's edge, where everyone at the table sees it first. */}
+      <div className="action-dock__timer">
+        <TurnTimer />
+      </div>
+      <button
+        type="button"
+        className="dock-toggle action-dock__collapse"
+        onClick={onCollapse}
+        aria-label="Réduire le sac et les actions"
+        title="Réduire le sac et les actions"
+      >
+        <UiIcon name="chevronDown" size={16} strokeWidth={3} />
+      </button>
       <div className="action-dock__who">
         <PlayerAvatar color={decider.color} size={56} expression={getAvatarExpression(decider)} />
         <div className="action-dock__identity">
@@ -63,7 +78,6 @@ export function ActionDock({ onOpenShop }: ActionDockProps) {
           {decider.id === activePlayer.id && (
             <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
           )}
-          <TurnTimer />
         </div>
       </div>
       <div className="action-dock__content">

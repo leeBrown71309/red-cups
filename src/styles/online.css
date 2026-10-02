@@ -413,12 +413,6 @@
   color: var(--ink-faint);
 }
 
-.player-chip .voice-badge {
-  position: absolute;
-  top: -6px;
-  left: -4px;
-}
-
 .voice-setting__status {
   overflow: hidden;
   color: var(--ink-soft);

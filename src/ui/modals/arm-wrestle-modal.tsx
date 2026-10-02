@@ -9,7 +9,7 @@ import { soundEffects } from "../../audio/sound-effects";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
 import { WaitingNote } from "../components/waiting-note";
-import { getAvatarExpression } from "../hud/players-bar";
+import { getAvatarExpression } from "../hud/player-status";
 
 const COUNTDOWN_MS = 3_000;
 const SHARE_EVERY_MS = 200;

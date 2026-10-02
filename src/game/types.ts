@@ -499,6 +499,12 @@ export interface DecisionClock {
   deadline: number;
 }
 
+/** Online: the host stopped the game; every clock stands still from `since` until it resumes. */
+export interface GamePause {
+  byPlayerId: PlayerId;
+  since: number;
+}
+
 /** The passive cards dealt before the game, and the ones picked so far. */
 export interface PassiveDraft {
   offers: Record<PlayerId, PassiveId[]>;
@@ -720,6 +726,9 @@ export interface GameState {
   decisionClock: DecisionClock | null;
   /** Online: turns each player let run out without doing anything; three is a forfeit. */
   idleStrikes: Partial<Record<PlayerId, number>>;
+  /** Online: the player whose device opened the room, who may pause the game; null in a local game. */
+  hostPlayerId: PlayerId | null;
+  pause: GamePause | null;
   rulesVersion: string;
   lastMovement: PlayerMovement | null;
   log: GameLogEntry[];
@@ -793,6 +802,8 @@ export const EMPTY_GAME_STATE: GameState = {
   turnClock: null,
   decisionClock: null,
   idleStrikes: {},
+  hostPlayerId: null,
+  pause: null,
   rulesVersion: RULES_VERSION,
   lastMovement: null,
   log: [],

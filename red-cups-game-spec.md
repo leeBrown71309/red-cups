@@ -210,7 +210,8 @@ Seulement en ligne : une partie locale n'a pas de chrono.
 - **Temps écoulé** : n'importe quel appareil de la table le constate (celui du joueur concerné d'abord, les autres 2 secondes plus tard s'il est parti) et le choix par défaut s'applique :
   - le tour du joueur actif se termine ; ses décisions encore ouvertes prennent leur défaut ;
   - défauts : la réaction laisse passer, New Cup reste, Calme-toi laisse en place, Double or nothing garde la somme, la roue s'applique, « Avance d'une case » prend une case au hasard, l'objet à jeter est tiré au hasard, le défi de l'Enfer vise un joueur au hasard, le duel tire la pièce, une main ou un vote manquant au hasard, et un tireur de Basket absent marque 0.
-- **Chances** : un tour qui se termine au chrono sans que le joueur ait rien fait (ni objet, ni Botte, ni déplacement, ni roue de l'Enfer) lui coûte une chance (réponse Q1). À 2 chances perdues, une bannière l'avertit au début de son tour suivant ; à la **3ᵉ, il déclare forfait** et quitte la partie comme un abandon (voir 4.2), dès que la table est au repos ; si c'était le protégé d'un Ange-Gardien, l'Ange prend sa place. La barre des joueurs affiche « ⚠ 1/3 ».
+- **Chances** : un tour qui se termine au chrono sans que le joueur ait rien fait (ni objet, ni Botte, ni déplacement, ni roue de l'Enfer) lui coûte une chance (réponse Q1). À 2 chances perdues, une bannière l'avertit au début de son tour suivant ; à la **3ᵉ, il déclare forfait** et quitte la partie comme un abandon (voir 4.2), dès que la table est au repos ; si c'était le protégé d'un Ange-Gardien, l'Ange prend sa place. Dès la première chance perdue, la liste des joueurs affiche un trèfle avec les chances restantes (« 2/3 ») ; la fiche du joueur montre ses trois trèfles.
+- **Pause de l'hôte** : l'hôte du salon peut mettre la partie en pause (bouton en haut à gauche, ou menu). Tous les chronos s'arrêtent et personne ne peut jouer, sauf pour quitter la table ; à la reprise, chaque échéance est repoussée du temps passé en pause. Pas de pause pendant une manche de Basket ou un bras de fer, chronométrés sur les appareils des joueurs. Si l'hôte quitte la partie, le premier joueur assis prend son rôle ; s'il reste silencieux, tout le monde peut relancer la partie après 2 minutes de pause.
 - **Horloge commune** : chaque action porte l'heure du serveur à laquelle elle a été jouée, si bien que tous les appareils calculent le même chrono. Une fonction `server_time()` du schéma Supabase donne cette heure ; sans elle, chaque appareil se fie à sa propre horloge.
 - **Versions** : un salon dont la partie suit d'autres règles (une autre version du jeu) est refusé, pour que tous les appareils jouent les mêmes règles.
 
@@ -535,6 +536,18 @@ Les bots jouent maintenant chaque carte à part, à toutes les tables possibles 
 10. **À valider** — L'Ange-Gardien qui reprend la place de son protégé en Enfer compte comme une entrée en Enfer pour le diable, que le protégé ait abandonné ou déclaré forfait.
 11. **À valider** — Les bots achètent d’abord les objets de leur rôle (boutique du diable, Made In Heaven, Bouclier), pour que ces objets soient bien testés ; cela ne change que les bots, pas les règles.
 
+### Interface et pause (après les 12 lots)
+
+Demandes de l’auteur : chrono plus visible, pause de l’hôte, liste des joueurs à gauche, dock rétractable, chances affichées, aide refaite.
+
+1. **À valider** — Le chrono est centré sur le bord haut du dock, en plus grand ; il reste visible sur l’onglet du dock replié.
+2. **À valider** — Seul l’hôte met en pause. Sans nouvelles de lui, n’importe quel joueur peut relancer la partie après **2 minutes** ; s’il quitte la table, le premier joueur assis devient l’hôte de la pause. La pause est refusée pendant une manche de Basket ou un bras de fer.
+3. **À valider** — Le menu ne met plus en pause en ligne (il ne l’a jamais fait) : l’hôte y trouve « Pause pour toute la table ». En local, il n’y a pas de chrono, donc pas de pause de table.
+4. **À valider** — La liste des joueurs (à gauche, sans cadre : seulement les bulles des joueurs et le bouton qui la réduit ; les boutons de caméra restent à droite) montre au plus deux statuts par joueur, les plus urgents d’abord (gel, tour sauté, Enfer, chances, boules de neige, rôle), plus un « +N » ; la fiche du joueur les détaille tous. Réduite, elle ne garde que les avatars, avec une pastille quand un joueur a des statuts.
+5. **À valider** — Le « système de chance » est celui du chrono en ligne : 3 chances, une perdue par tour passé sans jouer. Les trèfles n’apparaissent qu’en ligne, une partie locale n’ayant pas de chrono.
+6. **À valider** — Le dock replié se rouvre de lui-même quand ton tour commence en ligne ; en local, il reste replié jusqu’à ce qu’on le rouvre. Le choix (replié ou non) est retenu sur l’appareil, comme celui de la liste des joueurs.
+7. **À valider** — Les règles propres à une carte (glace, tombée de glace, blizzard, boules de neige, carrousel, fantôme) quittent l’onglet « Un tour » pour l’onglet « Plateau » ; le plateau classique n’en a pas (son tunnel reste dans la légende des routes).
+
 ## 14. Historique des versions
 
 ### 0.1.4 — en préparation
@@ -556,6 +569,8 @@ Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponse
 - **Draft des passifs** (voir 4.0) : 3 cartes par joueur (2 au-delà de 6), une minute en ligne, à tour de rôle sans chrono en local, puis un compte à rebours de 5 secondes.
 - **Mini-jeux** (voir 9.2 et 9.2 bis) : le Blackjack rejoint les duels ; Baraqué affronte le Monopoly Man au bras de fer.
 - **Chrono en ligne** (voir 4.3) : 45 secondes par tour, 20 pour les décisions des autres, choix par défaut à l'échéance, une chance perdue par tour passé sans jouer et forfait à la troisième ; heure du serveur commune ; un salon d'une autre version est refusé.
+- **Pause de l’hôte** (voir 4.3) : en ligne, l’hôte arrête la partie et tous les chronos pour toute la table.
+- **HUD** : liste des joueurs à gauche, sans cadre, réductible et défilante, avec des statuts compacts ; fiche joueur à description de passif défilante et chances en trèfles ; sac et dock rétractables ; chrono centré et agrandi. Dans l’aide, cartes d’objets et de passifs refaites (description défilante) et mécaniques de la carte présentées dans l’onglet Plateau.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 - **Banquise** (voir 3.2 ter) : personne ne reste sur la glace. « Avance d’une case » glisse comme une marche ; le blizzard peut geler la case d’un joueur, que la glace emporte aussitôt ; tout autre déplacement vers la glace (départ gelé, échange, recul dans la Boue…) se fait emporter jusqu’à la première case sans glace ; une glissade sans route libre ne reste plus sur la glace ; un joueur pris dans la glace puis déplacé perd sa glissade pour de bon.
 - **Changement de tour** : sur toutes les cartes, le plateau est réglé dès le début du tour (Toucher d’Enfer du diable sur un joueur assommé par une boule de neige ou Bullet Bill, duel en Enfer). Seul Luna Park le faisait, à cause du fantôme.

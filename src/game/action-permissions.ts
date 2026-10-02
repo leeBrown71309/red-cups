@@ -100,6 +100,11 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "abandonGame":
       return only(action.playerId);
 
+    // The engine then checks that the sender is the host, or that the host has been gone too long.
+    case "pauseGame":
+    case "resumeGame":
+      return only(action.playerId);
+
     case "pickPassive":
       return [];
 

@@ -3,6 +3,7 @@
 @import "./styles/buttons.css";
 @import "./styles/stage-and-lobby.css";
 @import "./styles/hud.css";
+@import "./styles/players-panel.css";
 @import "./styles/modals.css";
 @import "./styles/ghost-and-basket.css";
 @import "./styles/online.css";

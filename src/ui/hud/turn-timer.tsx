@@ -10,11 +10,13 @@ const TICK_MS = 250;
 
 /**
  * Online only: the seconds left to whoever must decide, the active player's
- * turn or somebody else's choice. Nothing in a local game, which has no clock.
+ * turn or somebody else's choice, and the pause while the host holds the
+ * game. Nothing in a local game, which has no clock.
  */
-export function TurnTimer() {
+export function TurnTimer({ className = "" }: { className?: string }) {
   const deadline = useGameStore(getClockDeadline);
   const ownTurn = useGameStore(isActiveDecision);
+  const paused = useGameStore((state) => state.pause !== null);
   const [now, setNow] = useState(() => getServerNow());
 
   useEffect(() => {
@@ -23,16 +25,24 @@ export function TurnTimer() {
     return () => window.clearInterval(timer);
   }, [deadline]);
 
+  if (paused) {
+    return (
+      <span className={`turn-timer is-paused ${className}`} title="Partie en pause : le chrono est arrêté">
+        <UiIcon name="pause" strokeWidth={3} /> Pause
+      </span>
+    );
+  }
   if (deadline === null) return null;
   const seconds = Math.max(0, Math.ceil((deadline - now) / 1_000));
   const hurry = seconds <= HURRY_SECONDS;
   return (
     <span
-      className={`turn-timer ${hurry ? "is-hurry" : ""}`}
+      className={`turn-timer ${hurry ? "is-hurry" : ""} ${className}`}
       title={ownTurn ? "Temps restant pour ce tour" : "Temps restant pour décider"}
       aria-label={`${seconds} secondes restantes`}
+      role="timer"
     >
-      <UiIcon name="clock" size={14} /> {seconds} s
+      <UiIcon name="clock" strokeWidth={2.8} /> {seconds} s
     </span>
   );
 }
