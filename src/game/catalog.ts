@@ -191,55 +191,55 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "new-cup-new-me",
     name: "New Cup, New Me",
     shortName: "New Cup",
-    description: "À chaque nouvelle Cup, choisis ta case avant qu’elle soit révélée.",
+    description: "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es.",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
     name: "Red light, Green light",
     shortName: "Red / Green",
-    description: "+100 pièces par case verte traversée en marchant, −100 par case rouge.",
+    description:
+      "Par Red Cup, tes deux premières cases vertes traversées rapportent 100 pièces, tes deux premières rouges en " +
+      "coûtent 100.",
   },
   "no-thanks": {
     id: "no-thanks",
     name: "Non merci",
     shortName: "Non merci",
-    description: "Une fois tous les 3 tours de table, annule l’action d’un autre joueur.",
+    description:
+      "Une fois tous les 5 tours de table, annule un objet utilisé contre toi, une roue qui t’affecte ou Bullet " +
+      "Bill qui fonce sur toi.",
   },
-  delinquent: {
-    id: "delinquent",
-    name: "Délinquant",
-    shortName: "Délinquant",
+  corrupter: {
+    id: "corrupter",
+    name: "Corrupteur",
+    shortName: "Corrupteur",
     description: "Ignore les sens interdits pour 400 pièces par déplacement.",
   },
-  penta: {
-    id: "penta",
-    name: "Penta",
-    shortName: "Penta",
-    description: "Possède un emplacement d’objet supplémentaire.",
-  },
-  troll: {
-    id: "troll",
-    name: "Troll",
-    shortName: "Troll",
+  goblin: {
+    id: "goblin",
+    name: "Goblin",
+    shortName: "Goblin",
     description: "À chaque nouvelle Cup, vole 100 pièces à deux adversaires au hasard.",
-  },
-  "im-cups": {
-    id: "im-cups",
-    name: "Je suis Cups",
-    shortName: "Cups",
-    description: "Ne gagne jamais les 200 pièces du départ.",
   },
   "i-take-notes": {
     id: "i-take-notes",
     name: "Je note",
     shortName: "Je note",
-    description: "Quand l’objet d’un autre joueur t’affecte, tu en reçois une copie.",
+    description: "Quand un objet à cible unique est utilisé contre toi, une chance sur trois d’en garder une copie.",
   },
   "calm-down": {
     id: "calm-down",
     name: "Calme-toi",
     shortName: "Calme-toi",
-    description: "Fais reculer de trois cases un joueur qui prend une Cup trop près de la nouvelle.",
+    description:
+      "À chaque nouvelle Cup, replace à 3 cases d’elle un joueur qui en est à 1 ou 2 cases, s’il en est plus près " +
+      "que toi.",
+  },
+  lambda: {
+    id: "lambda",
+    name: "Lambda",
+    shortName: "Lambda",
+    description: "Rien de spécial : tu es une personne normale.",
   },
 };
 
@@ -248,12 +248,11 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "new-cup-new-me",
   "red-light-green-light",
   "no-thanks",
-  "delinquent",
-  "penta",
-  "troll",
-  "im-cups",
+  "corrupter",
+  "goblin",
   "i-take-notes",
   "calm-down",
+  "lambda",
 ];
 
 export interface WeightedWheelResult {

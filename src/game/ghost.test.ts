@@ -139,7 +139,7 @@ describe("the Luna Park ghost", () => {
     let state = withGhostOn(startOn("luna-park"), 2);
     state = { ...state, activePlayerIndex: 0, turnStage: "hell", turnActionTaken: false };
     // Nobody holds Non merci, which would hold the swap back for a reaction.
-    state = { ...state, players: state.players.map((player) => ({ ...player, passiveId: "penta" as const })) };
+    state = { ...state, players: state.players.map((player) => ({ ...player, passiveId: "lambda" as const })) };
     state = editPlayer(state, 0, {
       position: HELL_NODE_ID,
       hellTurns: 1,

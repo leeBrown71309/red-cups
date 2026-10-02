@@ -86,7 +86,7 @@ describe("Luna Park board", () => {
     expect(sorted(getNeighbors(reversed, Number(id)))).toEqual(exits);
   });
 
-  it("lets Délinquant ride the carousel and the ghost train backwards", () => {
+  it("lets Corrupteur ride the carousel and the ghost train backwards", () => {
     expect(sorted(getNeighbors(board, 1, true))).toEqual([0, 2, 4]);
     expect(sorted(getNeighbors(board, 12, true))).toEqual([0, 7, 10]);
     expect(sorted(getNeighbors(board, 5, true))).toEqual([3, 7, 9]);
@@ -209,7 +209,7 @@ afterEach(() => {
 
 describe("a game at Luna Park", () => {
   it("starts on the chosen board with the first Cup on tile 8", () => {
-    startTable("luna-park", ["built-like-a-tank", "troll"]);
+    startTable("luna-park", ["built-like-a-tank", "goblin"]);
     expect(store().mapId).toBe("luna-park");
     expect(store().redCupNodeId).toBe(8);
     expect(store().carouselReversed).toBe(false);
@@ -217,7 +217,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("flips the carousel when a new Red Cup appears", () => {
-    startTable("luna-park", ["built-like-a-tank", "troll"]);
+    startTable("luna-park", ["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 6 });
     store().movePlayer(8);
 
@@ -227,7 +227,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("walks the carousel the new way after the flip", () => {
-    startTable("luna-park", ["built-like-a-tank", "troll"]);
+    startTable("luna-park", ["built-like-a-tank", "goblin"]);
     useGameStore.setState({ carouselReversed: true });
     editPlayer(0, { position: 1 });
 
@@ -238,7 +238,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("never flips anything on the classic board", () => {
-    startTable("classic", ["built-like-a-tank", "troll"]);
+    startTable("classic", ["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 10 });
     store().movePlayer(8);
 
@@ -247,13 +247,13 @@ describe("a game at Luna Park", () => {
   });
 
   it("opens Banquise with a third ice tile laid by the blizzard", () => {
-    startTable("banquise", ["built-like-a-tank", "penta"]);
+    startTable("banquise", ["built-like-a-tank", "lambda"]);
     expect(store().iceTileNodeId).not.toBeNull();
     expect([3, 7, 8, 11]).not.toContain(store().iceTileNodeId);
   });
 
   it("slides at random off the ice and stops on the tile it reaches", () => {
-    startTable("banquise", ["built-like-a-tank", "penta"]);
+    startTable("banquise", ["built-like-a-tank", "lambda"]);
     useGameStore.setState({ iceTileNodeId: null });
     editPlayer(0, { position: 1 });
     vi.spyOn(Math, "random").mockReturnValue(0.5);
@@ -266,7 +266,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("freezes a player sliding towards the Red Cup, then finishes the slide on their next turn", () => {
-    startTable("banquise", ["built-like-a-tank", "penta"]);
+    startTable("banquise", ["built-like-a-tank", "lambda"]);
     const exits = getSlideExits(resolveBoard("banquise"), 1, 3);
     useGameStore.setState({ iceTileNodeId: null, redCupNodeId: exits[0] });
     editPlayer(0, { position: 1 });
@@ -291,7 +291,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("lets a sliding player through when the falling ice misses", () => {
-    startTable("banquise", ["built-like-a-tank", "penta"]);
+    startTable("banquise", ["built-like-a-tank", "lambda"]);
     const exits = getSlideExits(resolveBoard("banquise"), 1, 3);
     useGameStore.setState({ iceTileNodeId: null, redCupNodeId: exits[0] });
     editPlayer(0, { position: 1 });
@@ -304,7 +304,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("moves the temporary ice with a blizzard every two rounds", () => {
-    startTable("banquise", ["built-like-a-tank", "penta"]);
+    startTable("banquise", ["built-like-a-tank", "lambda"]);
     const opening = store().iceTileNodeId;
     for (let turn = 0; store().round < 3 && turn < 10; turn += 1) {
       useGameStore.setState({ turnStage: "turn-end" });
@@ -316,7 +316,7 @@ describe("a game at Luna Park", () => {
   });
 
   it("restores a save from before the map choice on the classic board", () => {
-    startTable("classic", ["built-like-a-tank", "troll"]);
+    startTable("classic", ["built-like-a-tank", "goblin"]);
     const { mapId: _map, carouselReversed: _carousel, ...legacy } = pickGameState(store());
     const upgraded = migrateGameSave(legacy, 6);
 

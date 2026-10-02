@@ -1,6 +1,6 @@
 import { getBoard } from "../board";
 import { getEnergyCapacity, getItemEnergyCost } from "../energy";
-import { canUseDelinquent, getUniqueLegalDestinations } from "../rules";
+import { canUseCorrupter, getUniqueLegalDestinations } from "../rules";
 import { getActivePlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { MOVE_MINIMUM_ENERGY } from "../types";
@@ -115,7 +115,7 @@ function checkEndOfTurn(previous: GameState, next: GameState, found: RuleViolati
       getBoard(previous),
       active,
       previous.moveDistance,
-      canUseDelinquent(active, previous.round),
+      canUseCorrupter(active, previous.round),
     ).length === 0;
   if (!stuck) found.push(violation("energy-early-end", `${active.name} ended the turn without doing anything`));
 }

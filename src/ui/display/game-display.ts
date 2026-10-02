@@ -128,8 +128,8 @@ export function getTileLegend(mapId: MapId): TileLegendEntry[] {
       kind: "start",
       title: `Départ · case ${START_NODE_ID}`,
       description:
-        `Y entrer depuis la case ${bonusTiles}, dans le sens de la flèche, rapporte ${START_BONUS} pièces ` +
-        `(sauf Je suis Cups). Sortir de l’Enfer vers le Départ aussi.`,
+        `Y entrer depuis la case ${bonusTiles}, dans le sens de la flèche, rapporte ${START_BONUS} pièces. ` +
+        `Sortir de l’Enfer vers le Départ aussi.`,
       color: TILE_COLORS.start.top,
     },
     {

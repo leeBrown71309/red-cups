@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { getBoard } from "../game/board";
 import { getForwardTiles } from "../game/game-actions";
+import { getCalmDownTiles } from "../game/game-effects";
 import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
-import { canUseDelinquent, useGameStore } from "../game/store";
+import { canUseCorrupter, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
 import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
@@ -29,8 +30,9 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   const paths = new Map<NodeId, NodeId[]>();
   if (state.phase !== "playing" || !activePlayer) return { origin: null, paths };
 
-  if (state.turnStage === "reposition") {
-    for (const nodeId of getBoard(state).normalNodeIds) paths.set(nodeId, [nodeId]);
+  // Calme-toi: the holder sets a player down three steps from the new Red Cup.
+  if (state.turnStage === "passive-choice") {
+    for (const nodeId of getCalmDownTiles(state)) paths.set(nodeId, [nodeId]);
     return { origin: null, paths };
   }
 
@@ -42,7 +44,7 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   }
 
   if (state.turnStage !== "move") return { origin: null, paths };
-  const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer, state.round);
+  const canIgnoreArrows = ignoreArrows && canUseCorrupter(activePlayer, state.round);
   for (const path of getLegalMoveOptions(getBoard(state), activePlayer, state.moveDistance, canIgnoreArrows)) {
     const destination = path[path.length - 1];
     if (!paths.has(destination)) paths.set(destination, path);
@@ -68,7 +70,7 @@ export function useLegalMoves(): LegalMoves {
   );
 }
 
-/** Commits a move (or a New Cup, New Me repositioning, or a step won on a wheel) to the chosen tile. */
+/** Commits a move (or a step won on a wheel, or where Calme-toi sets a player down) to the chosen tile. */
 export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
@@ -80,8 +82,8 @@ export function commitDestination(nodeId: NodeId): void {
 
   ui.setPreviewNodeId(null);
   ui.setHoveredChipNodeId(null);
-  if (game.turnStage === "reposition") {
-    game.repositionBeforeCup(nodeId);
+  if (game.turnStage === "passive-choice") {
+    game.resolveCalmDown(nodeId);
     return;
   }
   if (game.turnStage === "advance") {

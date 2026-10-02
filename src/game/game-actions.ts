@@ -22,11 +22,13 @@ import {
   addStartBonus,
   arriveOnTile,
   beginNextTurn,
+  dropTileWheels,
   finishCupCollection,
+  getCalmDownTiles,
   getWheelArrivalStage,
   itemCopyForPassive,
   normalizeResumeStage,
-  queueTileWheel,
+  resumeAfterBulletReaction,
   sendPlayerToHell,
   settleBoard,
   startDuel,
@@ -36,6 +38,7 @@ import {
 import {
   canAddItem,
   canStartNewSlot,
+  canUseNoThanks,
   getItemPrice,
   getTileWheel,
   getUniqueLegalDestinations,
@@ -65,6 +68,7 @@ import {
   openReactionWindow,
   planItemUse,
   planMove,
+  spendNoThanks,
 } from "./turn-actions";
 import type {
   GameState,
@@ -110,7 +114,8 @@ export type GameAction =
   | { type: "abandonGame"; playerId: PlayerId }
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
   | { type: "resolveWheel" }
-  | { type: "cancelWheel" }
+  /** With the Gomme, or with a ready Non merci when `withNoThanks` is set. */
+  | { type: "cancelWheel"; withNoThanks?: boolean }
   | { type: "challengePlayer"; targetPlayerId: PlayerId }
   | { type: "flipDuelCoin" }
   | { type: "pickDuelHand"; playerId: PlayerId; choice: RpsChoice }
@@ -119,9 +124,11 @@ export type GameAction =
   | { type: "startBasketRound"; playerId: PlayerId }
   | { type: "submitBasketScore"; playerId: PlayerId; score: number }
   | { type: "discardInventoryEntry"; entryId: string }
-  | { type: "repositionBeforeCup"; destination: NodeId }
+  /** New Cup, New Me: off to the start for the start bonus, or stay. */
+  | { type: "resolveNewCup"; goToStart: boolean }
   | { type: "advanceOneTile"; destination: NodeId }
-  | { type: "resolveCalmDown"; useEffect: boolean };
+  /** Calme-toi: the tile the player is set down on, or null to let them be. */
+  | { type: "resolveCalmDown"; destination: NodeId | null };
 
 export type GameActionType = GameAction["type"];
 
@@ -347,11 +354,10 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
   return settleBoard(nextState, resumeStage);
 }
 
+/** Non merci no longer cancels a move (patch 0.1.4): the walk applies at once. */
 function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean): GameState {
   const plan = planMove(state, destination, ignoreArrows);
-  if (!plan) return state;
-  const waiting = openReactionWindow(state, { type: "move", destination, ignoreArrows });
-  return waiting ?? applyMove(state, destination, plan);
+  return plan ? applyMove(state, destination, plan) : state;
 }
 
 /** One Botte per turn: it costs a point and keeps another for the two-tile move. */
@@ -402,9 +408,23 @@ function useItem(
 function resolveReaction(state: GameState, reactorId: PlayerId | null): GameState {
   const pending = state.pendingReaction;
   if (!pending || state.turnStage !== "reaction") return state;
+  if (reactorId !== null && !pending.reactorIds.includes(reactorId)) return state;
+  if (pending.action.type === "bullet-bill") return resolveBulletReaction(state, pending.action.victimId, reactorId);
   if (reactorId === null) return carryOutDeclaredAction(state, pending);
-  if (!pending.reactorIds.includes(reactorId)) return state;
   return cancelDeclaredAction(state, pending, reactorId);
+}
+
+/**
+ * Bullet Bill's victim answered as a new round was starting: with Non merci it
+ * fizzles out, otherwise it hits. Either way the turn change then goes on.
+ */
+function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: PlayerId | null): GameState {
+  if (reactorId === null) return resumeAfterBulletReaction(state, false);
+  const victim = findPlayer(state, victimId);
+  // Spent in the round that is starting.
+  let nextState = spendNoThanks(state, victimId, state.round + 1);
+  nextState = addLog(nextState, `${victim?.name ?? "Un joueur"} utilise Non merci contre Bullet Bill.`, "event");
+  return resumeAfterBulletReaction(nextState, true);
 }
 
 function endTurn(state: GameState): GameState {
@@ -468,15 +488,27 @@ function resolveWheel(state: GameState): GameState {
   return settleBoard(nextState, nextState.turnStage);
 }
 
-function cancelWheel(state: GameState): GameState {
+/**
+ * Rubs out the result of a wheel for its player: with the Gomme, or with a
+ * ready Non merci, which then recharges (patch 0.1.4).
+ */
+function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
   const pending = state.pendingWheel;
   const player = findPlayer(state, pending?.playerId);
-  const eraser = player?.inventory.find((entry) => entry.kind === "item" && entry.itemId === "eraser");
-  if (!pending || !player || !eraser) return state;
+  if (!pending || !player) return state;
 
-  let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, eraser.id));
+  let nextState: GameState;
+  if (withNoThanks) {
+    if (!canUseNoThanks(player, state.round)) return state;
+    nextState = spendNoThanks(state, player.id, state.round);
+    nextState = addLog(nextState, `${player.name} utilise Non merci et annule l’effet de la roue.`, "good");
+  } else {
+    const eraser = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "eraser");
+    if (!eraser) return state;
+    nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, eraser.id));
+    nextState = addLog(nextState, `${player.name} utilise la Gomme et annule l’effet.`, "good");
+  }
   nextState = { ...nextState, pendingWheel: null, turnStage: pending.resumeStage };
-  nextState = addLog(nextState, `${player.name} utilise la Gomme et annule l’effet.`, "good");
   return settleBoard(nextState, pending.resumeStage);
 }
 
@@ -522,61 +554,75 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
   return settleBoard(nextState, nextState.turnStage);
 }
 
-function repositionBeforeCup(state: GameState, destination: NodeId): GameState {
+/**
+ * New Cup, New Me (patch 0.1.4): before the new Red Cup appears, its holder
+ * goes to the start for the start bonus, out of Hell too, or stays. Going
+ * there is no arrival: neither wheel nor shop, and a wheel still owed on the
+ * tile left behind is dropped when the board settles.
+ */
+function resolveNewCup(state: GameState, goToStart: boolean): GameState {
   const playerId = state.pendingCupRepositionPlayerId;
   const player = findPlayer(state, playerId);
-  if (
-    !playerId ||
-    !player ||
-    state.pendingCupRevealNodeId === null ||
-    !getBoard(state).normalNodeIds.includes(destination)
-  ) {
+  if (state.turnStage !== "reposition" || !playerId || !player || state.pendingCupRevealNodeId === null) {
     return state;
   }
 
-  // Repositioning is not an arrival: it earns neither the wheel nor the shop of the new tile.
-  // A wheel already owed on the tile left behind is dropped when the board settles.
-  const moved = destination !== player.position;
   const resumeStage = state.pendingCupRepositionResumeStage ?? "turn-end";
-  const shopLeftBehind = moved && getActivePlayer(state)?.id === playerId && resumeStage === "shop";
-  let nextState = updatePlayer(state, playerId, (current) => ({ ...current, position: destination }));
+  const shopLeftBehind =
+    goToStart && player.position !== START_NODE_ID && getActivePlayer(state)?.id === playerId && resumeStage === "shop";
+  let nextState: GameState = state;
+  if (goToStart && player.position !== START_NODE_ID) nextState = dropTileWheels(nextState, playerId);
+  if (goToStart) {
+    nextState = updatePlayer(nextState, playerId, (current) => ({ ...current, position: START_NODE_ID }));
+    nextState = addLog(nextState, `${player.name} file au Départ avant l’apparition de la Cup.`, "event");
+    nextState = addStartBonus(nextState, playerId);
+  } else {
+    nextState = addLog(nextState, `${player.name} reste où il est avant l’apparition de la Cup.`);
+  }
   nextState = {
     ...nextState,
     redCupNodeId: state.pendingCupRevealNodeId,
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
     pendingCupRepositionResumeStage: null,
-    pendingCupCollectorId: null,
   };
   nextState = {
     ...nextState,
     turnStage: normalizeResumeStage(nextState, shopLeftBehind ? "turn-end" : resumeStage),
   };
-  nextState = addLog(nextState, `${player.name} se repositionne avant l’apparition de la Cup.`, "event");
-  if (state.pendingCupCollectorId) nextState = addCupCycleEffects(nextState, state.pendingCupCollectorId);
+  nextState = addCupCycleEffects(nextState);
   if (nextState.turnStage === "passive-choice") return nextState;
   return settleBoard(nextState, nextState.turnStage);
 }
 
-function resolveCalmDown(state: GameState, useEffect: boolean): GameState {
+/**
+ * Calme-toi: the holder sets the first player of the queue down on a tile
+ * three steps from the Red Cup, or lets them be. The tile does nothing for
+ * them: no wheel, no shop, no mud. The next player of the queue follows.
+ */
+function resolveCalmDown(state: GameState, destination: NodeId | null): GameState {
   const pending = state.pendingCalmDown;
   const holder = findPlayer(state, pending?.passivePlayerId);
-  const collector = findPlayer(state, pending?.collectorId);
-  if (!pending || !holder || !collector) return state;
+  const target = findPlayer(state, pending?.targetIds[0]);
+  if (!pending || !holder || !target) return state;
+  if (destination !== null && !getCalmDownTiles(state).includes(destination)) return state;
 
-  let nextState: GameState = { ...state, pendingCalmDown: null };
-  if (useEffect) {
-    nextState = updatePlayer(nextState, collector.id, (player) => ({ ...player, position: pending.retreatNodeId }));
-    nextState = queueTileWheel(nextState, collector.id);
+  let nextState: GameState = state;
+  if (destination === null) {
+    nextState = addLog(nextState, `${holder.name} laisse ${target.name} où il est.`);
+  } else {
+    nextState = destination === target.position ? nextState : dropTileWheels(nextState, target.id);
+    nextState = updatePlayer(nextState, target.id, (player) => ({ ...player, position: destination }));
     nextState = addLog(
       nextState,
-      `${holder.name} active Calme-toi : ${collector.name} recule de trois cases.`,
+      `${holder.name} active Calme-toi : ${target.name} est replacé en case ${destination}.`,
       "event",
     );
-  } else {
-    nextState = addLog(nextState, `${holder.name} laisse passer Calme-toi.`);
   }
-  return settleBoard(nextState, pending.resumeStage);
+
+  const [, ...waiting] = pending.targetIds;
+  if (waiting.length > 0) return { ...nextState, pendingCalmDown: { ...pending, targetIds: waiting } };
+  return settleBoard({ ...nextState, pendingCalmDown: null }, pending.resumeStage);
 }
 
 /**
@@ -635,7 +681,7 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
     case "resolveWheel":
       return resolveWheel(state);
     case "cancelWheel":
-      return cancelWheel(state);
+      return cancelWheel(state, action.withNoThanks === true);
     case "challengePlayer":
       return challengePlayer(state, action.targetPlayerId);
     case "flipDuelCoin":
@@ -652,12 +698,12 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return submitBasketScore(state, action.playerId, action.score);
     case "discardInventoryEntry":
       return discardInventoryEntry(state, action.entryId);
-    case "repositionBeforeCup":
-      return repositionBeforeCup(state, action.destination);
+    case "resolveNewCup":
+      return resolveNewCup(state, action.goToStart);
     case "advanceOneTile":
       return advanceOneTile(state, action.destination);
     case "resolveCalmDown":
-      return resolveCalmDown(state, action.useEffect);
+      return resolveCalmDown(state, action.destination);
   }
 }
 

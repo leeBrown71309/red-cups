@@ -101,7 +101,7 @@ export function isOneWay(edge: BoardEdge): boolean {
 /**
  * Tiles reachable in one step. Arrows constrain the tile they are drawn on
  * (forced exit), tunnels and the carousel are one-way; `ignoreArrows`
- * (Délinquant) lifts all of them, so any connected road can be taken either way.
+ * (Corrupteur) lifts all of them, so any connected road can be taken either way.
  */
 export function getNeighbors(board: Board, nodeId: NodeId, ignoreArrows = false): NodeId[] {
   const neighbors = new Set<NodeId>();

@@ -5,13 +5,20 @@ import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { getTileWheel } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { DELINQUENT_COST, HELL_EXIT_TOLL, HELL_TURN_LIMIT, MOVE_MINIMUM_ENERGY } from "../../game/types";
+import {
+  CALM_DOWN_DISTANCE,
+  CORRUPTER_COST,
+  HELL_EXIT_TOLL,
+  HELL_TURN_LIMIT,
+  MOVE_MINIMUM_ENERGY,
+  START_BONUS,
+} from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { EnergyGauge } from "../components/energy-meter";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
-import { getDelinquentHint } from "../display/item-availability";
+import { getCorrupterHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -110,7 +117,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
     case "move":
       return <MoveContent player={player} />;
     case "reposition":
-      return <RepositionContent />;
+      return <NewCupContent />;
     case "advance":
       return <AdvanceContent />;
     case "hell":
@@ -144,7 +151,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
     case "blessing":
       return <BlessingContent />;
     case "reaction":
-      return <DockPrompt title="Action annoncée…" hint="Un joueur peut encore répondre « Non merci »." />;
+      return <ReactionContent />;
     case "shop":
       return (
         <DockPrompt title="La boutique est ouverte" hint="Achète autant que tu veux, puis termine ton tour.">
@@ -178,7 +185,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       );
     }
     case "passive-choice":
-      return <DockPrompt title="Un passif se réveille…" hint="Une décision est attendue." />;
+      return <CalmDownContent />;
     case "target":
       return <DockPrompt title="Duel en vue" hint="Choisis l’adversaire qui te rejoint en Enfer." />;
     case "discard":
@@ -258,8 +265,8 @@ function MoveContent({ player }: { player: Player }) {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const isDelinquent = player.passiveId === "delinquent";
-  const delinquentHint = getDelinquentHint(player, round);
+  const isCorrupter = player.passiveId === "corrupter";
+  const corrupterHint = getCorrupterHint(player, round);
 
   if (tired) {
     return (
@@ -320,42 +327,93 @@ function MoveContent({ player }: { player: Player }) {
         </div>
       )}
       {previewNodeId === null && <EndTurnButton />}
-      {isDelinquent && (
+      {isCorrupter && (
         <button
           type="button"
           className={`btn btn--small ${ignoreArrows ? "btn--gold" : "btn--cream"}`}
           onClick={() => setIgnoreArrows(!ignoreArrows)}
-          disabled={delinquentHint !== null}
+          disabled={corrupterHint !== null}
           aria-pressed={ignoreArrows}
           title={
-            delinquentHint?.full ??
-            `Délinquant : ${DELINQUENT_COST} pièces pour ce déplacement, quel que soit le nombre de sens interdits`
+            corrupterHint?.full ??
+            `Corrupteur : ${CORRUPTER_COST} pièces pour ce déplacement, quel que soit le nombre de sens interdits`
           }
         >
           {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} ·{" "}
-          {delinquentHint ? delinquentHint.short : `−${DELINQUENT_COST}`}
+          {corrupterHint ? corrupterHint.short : `−${CORRUPTER_COST}`}
         </button>
       )}
     </DockPrompt>
   );
 }
 
-function RepositionContent() {
-  const repositionerId = useGameStore((state) => state.pendingCupRepositionPlayerId);
+/** Non merci holds an item, or Bullet Bill, until the player it would hit answers in the reaction window. */
+function ReactionContent() {
+  const bullet = useGameStore((state) => state.pendingReaction?.action.type === "bullet-bill");
+  return bullet ? (
+    <DockPrompt title="Bullet Bill fonce…" hint="Sa cible peut encore répondre « Non merci »." />
+  ) : (
+    <DockPrompt title="Objet annoncé…" hint="Sa cible peut encore répondre « Non merci »." />
+  );
+}
+
+/** New Cup, New Me: before the new Red Cup appears, off to the start or stay. */
+function NewCupContent() {
+  const holderId = useGameStore((state) => state.pendingCupRepositionPlayerId);
   const players = useGameStore((state) => state.players);
-  const previewNodeId = useUiStore((state) => state.previewNodeId);
-  const repositioner = players.find((player) => player.id === repositionerId);
+  const resolveNewCup = useGameStore((state) => state.resolveNewCup);
+  const holder = players.find((player) => player.id === holderId);
 
   return (
     <DockPrompt
-      title={`${repositioner?.name ?? "New Cup"}, choisis ta case`}
-      hint="New Cup, New Me : place-toi avant que la nouvelle Red Cup n’apparaisse."
+      title={`${holder?.name ?? "New Cup"}, une nouvelle Cup arrive`}
+      hint="New Cup, New Me : file au Départ pour 200 pièces, ou reste où tu es, avant qu’elle apparaisse."
     >
-      {previewNodeId !== null && (
-        <button type="button" className="btn btn--cup" onClick={() => commitDestination(previewNodeId)}>
-          <UiIcon name="check" size={20} /> Case {previewNodeId}
-        </button>
-      )}
+      <button type="button" className="btn btn--cup" onClick={() => resolveNewCup(true)} data-autofocus>
+        <UiIcon name="flag" size={20} /> Départ · +{START_BONUS}
+      </button>
+      <button type="button" className="btn btn--cream" onClick={() => resolveNewCup(false)}>
+        Rester
+      </button>
+    </DockPrompt>
+  );
+}
+
+/** Calme-toi: the holder sets a player down three tiles from the new Red Cup, or lets them be. */
+function CalmDownContent() {
+  const pending = useGameStore((state) => state.pendingCalmDown);
+  const players = useGameStore((state) => state.players);
+  const resolveCalmDown = useGameStore((state) => state.resolveCalmDown);
+  const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
+  const legalMoves = useLegalMoves();
+  const tiles = [...legalMoves.paths.keys()].sort((left, right) => left - right);
+  const target = players.find((player) => player.id === pending?.targetIds[0]);
+  const waiting = (pending?.targetIds.length ?? 1) - 1;
+
+  return (
+    <DockPrompt
+      title={`Calme-toi : où replacer ${target?.name ?? "ce joueur"} ?`}
+      hint={`Choisis une case à ${CALM_DOWN_DISTANCE} cases de la Red Cup : il n’en tirera rien.${
+        waiting > 0 ? ` Encore ${waiting} joueur${waiting > 1 ? "s" : ""} ensuite.` : ""
+      }`}
+    >
+      <div className="destination-chips" role="group" aria-label="Cases où le replacer">
+        {tiles.map((nodeId) => (
+          <button
+            key={nodeId}
+            type="button"
+            className="destination-chip"
+            onClick={() => commitDestination(nodeId)}
+            onPointerEnter={() => setHoveredChipNodeId(nodeId)}
+            onPointerLeave={() => setHoveredChipNodeId(null)}
+          >
+            <UiIcon name="arrowRight" size={16} /> {nodeId}
+          </button>
+        ))}
+      </div>
+      <button type="button" className="btn btn--cream" onClick={() => resolveCalmDown(null)}>
+        Laisser passer
+      </button>
     </DockPrompt>
   );
 }

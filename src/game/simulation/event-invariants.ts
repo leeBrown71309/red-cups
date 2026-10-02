@@ -47,6 +47,16 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
     landing = step;
   }
 
+  // Non merci: its victim cancelled the hit; it fizzles out on their tile.
+  if (flight.dodgedBy) {
+    const dodger = findPlayer(next, flight.dodgedBy);
+    const answered = previous.pendingReaction?.action.type === "bullet-bill";
+    if (next.bulletBill !== null || !answered || dodger?.position !== landing || flight.victimId !== null) {
+      found.push(violation("bullet-dodge", `Bullet Bill was dodged by ${flight.dodgedBy} without fizzling out`));
+    }
+    return;
+  }
+
   if (!flight.victimId) {
     if (next.bulletBill?.position !== landing) {
       found.push(violation("bullet-lands", `Bullet Bill should hover over tile ${landing}`));
@@ -63,7 +73,7 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
   const releasedFromHell = logs.some((text) => text.startsWith(`${before.name} a purgé`));
   // Banquise: a thaw as the next turn begins may land the victim on a coloured tile, or pick up a
-  // Red Cup whose Troll then steals from the table.
+  // Red Cup whose Goblin then steals from the table.
   const thawed = next.lastMovement?.thawed === true && next.lastMovement.seq !== previous.lastMovement?.seq;
   // The last wheel of a Tour de Bénédiction pays out in the same action that opens the charging round.
   const wheelPaidToo = previous.pendingWheel !== null;
@@ -145,9 +155,14 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
     if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
-  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed && !next.pendingDuel?.ghost) {
+  } else if (
+    !["move", "hell"].includes(next.turnStage) &&
+    !next.lastMovement?.thawed &&
+    !next.pendingDuel?.ghost &&
+    next.pendingReaction?.action.type !== "bullet-bill"
+  ) {
     // The next player's turn opens with their thaw at Banquise, which may owe a wheel first,
-    // or with the Luna Park ghost riding onto somebody.
+    // or with the Luna Park ghost riding onto somebody; or the turn change waits for Non merci on Bullet Bill.
     found.push(violation("abandon-passes-turn", `after ${leaver.name} left the stage is ${next.turnStage}`));
   }
 }

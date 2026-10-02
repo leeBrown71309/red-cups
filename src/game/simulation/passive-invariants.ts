@@ -1,0 +1,161 @@
+import { getBoard, getShortestPath } from "../board";
+import { ITEM_CATALOG } from "../catalog";
+import { findPlayer, getActivePlayer } from "../state-utils";
+import { isThrownItem } from "../turn-actions";
+import type { GameState, NodeId } from "../types";
+import {
+  CALM_DOWN_DISTANCE,
+  HELL_NODE_ID,
+  NO_THANKS_COOLDOWN_ROUNDS,
+  RED_GREEN_TRIGGERS_PER_CUP,
+  START_BONUS,
+  START_NODE_ID,
+} from "../types";
+import { expectedBalance, newLogTexts, violation, type RuleViolation } from "./invariant-helpers";
+
+/**
+ * Checks for the passives reworked in patch 0.1.4: New Cup, New Me, Calme-toi,
+ * Red light, Green light and Non merci.
+ */
+
+function distanceToCup(state: GameState, nodeId: NodeId): number {
+  if (state.redCupNodeId === null) return Infinity;
+  return getShortestPath(getBoard(state), state.redCupNodeId, nodeId, true)?.length ?? Infinity;
+}
+
+/** New Cup, New Me: before the Cup appears, its holder goes to the start with the bonus, or stays put. */
+export function checkNewCup(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const holderId = previous.pendingCupRepositionPlayerId;
+  if (previous.turnStage !== "reposition" || !holderId || next.pendingCupRepositionPlayerId === holderId) return;
+  const before = findPlayer(previous, holderId);
+  const after = findPlayer(next, holderId);
+  if (!before || !after) return;
+
+  const toStart = newLogTexts(previous, next).some((text) => text.startsWith(`${before.name} file au Départ`));
+  if (toStart && (after.position !== START_NODE_ID || after.currency !== expectedBalance(before, START_BONUS))) {
+    found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
+  }
+  if (!toStart && after.position !== before.position) {
+    found.push(violation("new-cup-stay", `${before.name} moved to ${after.position} instead of staying`));
+  }
+  if (next.redCupNodeId !== previous.pendingCupRevealNodeId) {
+    found.push(violation("new-cup-reveal", `the Cup appeared on ${next.redCupNodeId}, not where it was drawn`));
+  }
+  const isActive = getActivePlayer(previous)?.id === holderId;
+  if (after.position !== before.position && isActive && next.turnStage === "shop") {
+    found.push(violation("new-cup-no-shop", `${before.name} shops on tile ${after.position} after leaving`));
+  }
+}
+
+/**
+ * Calme-toi: only players one or two steps from the new Cup, and closer to it
+ * than the holder, may be set down, three steps from it, without a wheel.
+ */
+export function checkCalmDown(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const offered = next.pendingCalmDown;
+  if (offered && previous.pendingCalmDown === null) {
+    const holder = findPlayer(next, offered.passivePlayerId);
+    const holderDistance = holder ? distanceToCup(next, holder.position) : -1;
+    if (holder?.passiveId !== "calm-down") found.push(violation("calm-down-holder", "Calme-toi without its holder"));
+    for (const targetId of offered.targetIds) {
+      const target = findPlayer(next, targetId);
+      const distance = target ? distanceToCup(next, target.position) : Infinity;
+      if (!target || target.id === holder?.id || distance < 1 || distance > 2 || distance >= holderDistance) {
+        found.push(violation("calm-down-target", `${targetId} is offered to Calme-toi from ${distance} steps`));
+      }
+    }
+  }
+
+  const pending = previous.pendingCalmDown;
+  if (
+    !pending ||
+    previous.turnStage !== "passive-choice" ||
+    next.pendingCalmDown?.targetIds.length === pending.targetIds.length
+  ) {
+    return;
+  }
+  const before = findPlayer(previous, pending.targetIds[0]);
+  const after = findPlayer(next, pending.targetIds[0]);
+  if (!before || !after || before.position === after.position) return;
+  if (distanceToCup(previous, after.position) !== CALM_DOWN_DISTANCE || after.position === HELL_NODE_ID) {
+    found.push(violation("calm-down-distance", `${before.name} was set down on ${after.position}`));
+  }
+  // A wheel still owed on the tile left behind is dropped once the board settles.
+  if (next.pendingTileWheels.some((entry) => entry.playerId === after.id && entry.nodeId === after.position)) {
+    found.push(violation("calm-down-no-wheel", `${before.name} spins on the tile Calme-toi set them on`));
+  }
+}
+
+/** Red light, Green light: two green and two red tiles at most per Red Cup, counted afresh with each Cup. */
+export function checkRedGreen(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const { green, red } = next.redGreenTriggers;
+  if (green < 0 || red < 0 || green > RED_GREEN_TRIGGERS_PER_CUP || red > RED_GREEN_TRIGGERS_PER_CUP) {
+    found.push(violation("red-green-limit", `Red light, Green light counted ${green} green and ${red} red`));
+  }
+  const newCup = next.redCupCycle > previous.redCupCycle;
+  const counted = previous.redGreenTriggers;
+  if (newCup && (green !== 0 || red !== 0)) {
+    found.push(violation("red-green-reset", "the new Red Cup did not reset Red light, Green light"));
+  }
+  if (!newCup && (green < counted.green || red < counted.red)) {
+    found.push(violation("red-green-reset", "Red light, Green light was reset without a new Red Cup"));
+  }
+}
+
+/**
+ * Non merci: spent only by its ready holder, on an item used against them,
+ * on a wheel spun for them or on Bullet Bill about to hit them.
+ */
+export function checkNoThanksUsage(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const pending = previous.pendingReaction;
+  for (const player of next.players) {
+    const before = findPlayer(previous, player.id);
+    if (!before || before.noThanksReadyRound === player.noThanksReadyRound) continue;
+    const reacted =
+      previous.turnStage === "reaction" &&
+      pending !== null &&
+      pending.reactorIds.includes(player.id) &&
+      pending.actorId !== player.id;
+    const wheel = previous.turnStage === "wheel-result" && previous.pendingWheel?.playerId === player.id;
+    // Bullet Bill hits as a new round starts: Non merci is spent in that round.
+    const round = reacted && pending?.action.type === "bullet-bill" ? previous.round + 1 : previous.round;
+    const legal =
+      (reacted || wheel) &&
+      player.passiveId === "no-thanks" &&
+      before.noThanksReadyRound <= round &&
+      player.noThanksReadyRound === round + NO_THANKS_COOLDOWN_ROUNDS;
+    if (!legal) found.push(violation("no-thanks-usage", `${player.name} spent Non merci illegally`));
+  }
+
+  const opened = next.pendingReaction;
+  if (opened && opened !== pending && opened.action.type === "item") {
+    const { itemId, targetPlayerId } = opened.action;
+    const ownTarget = (reactorId: string) => itemId === "draven" || reactorId === targetPlayerId;
+    const hurtsSomeone = itemId === "draven" || ITEM_CATALOG[itemId].target === "player";
+    if (isThrownItem(itemId) || !hurtsSomeone || !opened.reactorIds.every(ownTarget)) {
+      found.push(violation("no-thanks-own-target", `Non merci offered on ${itemId} aimed at someone else`));
+    }
+  }
+
+  const cancelled = newLogTexts(previous, next).some((text) => text.includes("utilise Non merci"));
+  if (!pending || !cancelled || pending.action.type !== "item") return;
+  const actorBefore = findPlayer(previous, pending.actorId);
+  const actorAfter = findPlayer(next, pending.actorId);
+  const reactor = next.players.find((player) => pending.reactorIds.includes(player.id));
+  if (pending.action.itemId === "draven") {
+    const reactorBefore = findPlayer(previous, reactor?.id);
+    if (reactor && reactorBefore && reactor.position !== reactorBefore.position) {
+      found.push(violation("no-thanks-spares", `Draven still moved ${reactor.name} after Non merci`));
+    }
+    return;
+  }
+  const target = findPlayer(previous, pending.action.targetPlayerId);
+  const targetAfter = findPlayer(next, pending.action.targetPlayerId);
+  if (actorBefore?.position !== actorAfter?.position || target?.position !== targetAfter?.position) {
+    found.push(violation("no-thanks-cancels", `${actorBefore?.name}'s item still moved someone after Non merci`));
+  }
+  // A cancelled item leaves the actor their turn.
+  if (next.turnStage !== pending.resumeStage) {
+    found.push(violation("no-thanks-keeps-turn", `after Non merci the stage is ${next.turnStage}`));
+  }
+}

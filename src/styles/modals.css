@@ -712,14 +712,6 @@
   font-size: 0.78rem;
 }
 
-.calm-down {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-
 /* ---------- Non merci reaction ---------- */
 .reaction {
   display: grid;

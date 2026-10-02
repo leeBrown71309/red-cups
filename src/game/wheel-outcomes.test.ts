@@ -13,7 +13,7 @@ import { EMPTY_GAME_STATE, FREE_TOMATOES, HELL_NODE_ID, MAXIMUM_BOOT_PRICE, STAR
  */
 function startTable(): GameState {
   const state = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["Ana", "Bo"], seed: 3 });
-  return { ...state, seededRandom: null, players: state.players.map((player) => ({ ...player, passiveId: "troll" })) };
+  return { ...state, seededRandom: null, players: state.players.map((player) => ({ ...player, passiveId: "goblin" })) };
 }
 
 function editPlayer(state: GameState, index: number, changes: Partial<Player>): GameState {

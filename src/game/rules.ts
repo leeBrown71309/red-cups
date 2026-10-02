@@ -2,13 +2,13 @@ import { getBoardNode, getPathsOfLength, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
-import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
+import { BASE_INVENTORY_CAPACITY, CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
-export function getInventoryCapacity(player: Player): number {
-  const passiveBonus = player.passiveId === "penta" ? 1 : 0;
-  return BASE_INVENTORY_CAPACITY + passiveBonus;
+/** Every bag holds four entries, Red Cups included. */
+export function getInventoryCapacity(_player: Player): number {
+  return BASE_INVENTORY_CAPACITY;
 }
 
 export function getOpenInventorySlots(player: Player): number {
@@ -86,23 +86,28 @@ export function findLegalPath(
   );
 }
 
-export type DelinquentBlocker = "not-delinquent" | "too-poor" | "first-round-start";
+export type CorrupterBlocker = "not-corrupter" | "too-poor" | "first-round-start";
 
 /**
- * Délinquant pays for every move that needs it, so the passive is unusable
+ * Corrupteur pays for every move that needs it, so the passive is unusable
  * without the funds. On the first round it may not leave the start against
  * its arrows: on the classic board 0 → 8 would grab the first Red Cup before
  * anybody else could move.
  */
-export function getDelinquentBlocker(player: Player, round: number): DelinquentBlocker | null {
-  if (player.passiveId !== "delinquent") return "not-delinquent";
-  if (player.currency < DELINQUENT_COST) return "too-poor";
+export function getCorrupterBlocker(player: Player, round: number): CorrupterBlocker | null {
+  if (player.passiveId !== "corrupter") return "not-corrupter";
+  if (player.currency < CORRUPTER_COST) return "too-poor";
   if (round <= FIRST_ROUND && player.position === START_NODE_ID) return "first-round-start";
   return null;
 }
 
-export function canUseDelinquent(player: Player, round: number): boolean {
-  return getDelinquentBlocker(player, round) === null;
+export function canUseCorrupter(player: Player, round: number): boolean {
+  return getCorrupterBlocker(player, round) === null;
+}
+
+/** Non merci is ready once its cooldown is over. */
+export function canUseNoThanks(player: Player, round: number): boolean {
+  return player.passiveId === "no-thanks" && player.noThanksReadyRound <= round;
 }
 
 export function getNodeKind(board: Board, nodeId: NodeId): BoardNode["kind"] | undefined {
@@ -127,12 +132,14 @@ export function getItemPrice(itemId: ItemId, bootPrice: number): number {
 
 /**
  * Player who must act right now: usually the active one, except for New Cup,
- * New Me, a step forward won on a wheel, a tile wheel owed by someone who was
- * teleported or pushed there, and the next spinner of a Tour de Bénédiction.
+ * New Me, Calme-toi, a step forward won on a wheel, a tile wheel owed by
+ * someone who was teleported or pushed there, and the next spinner of a Tour
+ * de Bénédiction.
  */
 export function getDecidingPlayer(state: GameState): Player | undefined {
   const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
     reposition: state.pendingCupRepositionPlayerId,
+    "passive-choice": state.pendingCalmDown?.passivePlayerId,
     advance: state.pendingAdvance?.playerId,
     "tile-wheel": state.pendingTileWheels[0]?.playerId,
     blessing: state.blessingQueue[0],

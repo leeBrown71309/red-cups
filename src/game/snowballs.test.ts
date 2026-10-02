@@ -6,8 +6,8 @@ import { EMPTY_GAME_STATE, HELL_NODE_ID, SNOWBALL_HITS_TO_FREEZE } from "./types
 
 function startOn(mapId: MapId): GameState {
   const state = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["Ana", "Bo", "Cy"], mapId });
-  // Troll only acts when a Cup is taken: nobody reacts to a turn change.
-  return { ...state, players: state.players.map((player) => ({ ...player, passiveId: "troll" as const })) };
+  // Goblin only acts when a Cup is taken: nobody reacts to a turn change.
+  return { ...state, players: state.players.map((player) => ({ ...player, passiveId: "goblin" as const })) };
 }
 
 function editPlayer(state: GameState, index: number, changes: Partial<Player>): GameState {

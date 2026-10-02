@@ -17,7 +17,7 @@ import {
   startWheel,
   triggerMud,
 } from "./game-effects";
-import { canUseDelinquent, findLegalPath, isShopNode } from "./rules";
+import { canUseCorrupter, canUseNoThanks, findLegalPath, isShopNode } from "./rules";
 import {
   addLog,
   applyCurrencyChange,
@@ -32,7 +32,7 @@ import {
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
 import {
   CANCELLED_ITEM_IS_CONSUMED,
-  DELINQUENT_COST,
+  CORRUPTER_COST,
   HELL_NODE_ID,
   NO_THANKS_COOLDOWN_ROUNDS,
   TOMATO_STUN_CHANCE,
@@ -41,13 +41,13 @@ import {
 /**
  * What a player does on their turn — use items, then move — split into "plan"
  * (validation, no change) and "apply" (effects), so the Non merci reaction
- * window can sit in between. Items cost energy and leave the turn going; the
- * move takes the energy left and ends it.
+ * window can sit in between an item and the player it targets. Items cost
+ * energy and leave the turn going; the move takes the energy left and ends it.
  */
 
 export interface MovePlan {
   path: NodeId[];
-  /** True when the move goes against an arrow thanks to Délinquant. */
+  /** True when the move goes against an arrow thanks to Corrupteur. */
   rebel: boolean;
 }
 
@@ -59,8 +59,8 @@ export function planMove(state: GameState, destination: NodeId, ignoreArrows: bo
   const regularPath = findLegalPath(board, player, destination, state.moveDistance, false);
   if (regularPath) return { path: regularPath, rebel: false };
 
-  // Délinquant only pays when the destination really requires going against an arrow.
-  if (!ignoreArrows || !canUseDelinquent(player, state.round)) return null;
+  // Corrupteur only pays when the destination really requires going against an arrow.
+  if (!ignoreArrows || !canUseCorrupter(player, state.round)) return null;
   const rebelPath = findLegalPath(board, player, destination, state.moveDistance, true);
   return rebelPath ? { path: rebelPath, rebel: true } : null;
 }
@@ -81,8 +81,8 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
 
   let nextState = state;
   if (plan.rebel) {
-    nextState = addLog(nextState, `${player.name} ignore les flèches grâce à Délinquant.`, "event");
-    nextState = applyCurrencyChange(nextState, player.id, -DELINQUENT_COST);
+    nextState = addLog(nextState, `${player.name} ignore les flèches grâce à Corrupteur.`, "event");
+    nextState = applyCurrencyChange(nextState, player.id, -CORRUPTER_COST);
   }
 
   const board = getBoard(state);
@@ -154,6 +154,8 @@ export interface ItemPlan {
   target?: Player;
   /** Tomates thrown in one go; one for every other item. */
   count: number;
+  /** Draven: players who cancelled it for themselves with Non merci. */
+  sparedIds?: PlayerId[];
 }
 
 /** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
@@ -305,9 +307,12 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "draven": {
+      const spared = plan.sparedIds ?? [];
       nextState = {
         ...nextState,
-        players: nextState.players.map(placeInHell),
+        players: nextState.players.map((candidate) =>
+          spared.includes(candidate.id) ? candidate : placeInHell(candidate),
+        ),
       };
       nextState = addLog(nextState, "Draven envoie toute la table en Enfer.", "bad");
       break;
@@ -372,68 +377,84 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
   return addLog(nextState, `${target.name} résiste à la Corde grâce à Baraqué.`, "event");
 }
 
-/** Players who could cancel the actor's action right now with Non merci. */
-export function getNoThanksReactors(state: GameState, actorId: PlayerId): PlayerId[] {
+/**
+ * Who an item would hurt: its single target, or for Draven everyone else.
+ * The Tomate is only for fun and never asks.
+ */
+function getItemVictims(state: GameState, actorId: PlayerId, itemId: ItemId, targetPlayerId?: PlayerId): PlayerId[] {
+  if (itemId === "draven") return state.players.filter((player) => player.id !== actorId).map((player) => player.id);
+  if (ITEM_CATALOG[itemId].target !== "player" || isThrownItem(itemId)) return [];
+  return targetPlayerId && targetPlayerId !== actorId ? [targetPlayerId] : [];
+}
+
+/** Holders of a ready Non merci among the players an item would hurt. */
+export function getNoThanksReactors(state: GameState, victimIds: PlayerId[]): PlayerId[] {
   return state.players
-    .filter(
-      (player) => player.passiveId === "no-thanks" && player.id !== actorId && player.noThanksReadyRound <= state.round,
-    )
+    .filter((player) => victimIds.includes(player.id) && canUseNoThanks(player, state.round))
     .map((player) => player.id);
 }
 
-/** Holds a declared action until the Non merci holders decide; null when nobody can react. */
+/**
+ * Non merci (patch 0.1.4): an item used against its holder waits for their
+ * answer; null when the item hurts nobody who can cancel it.
+ */
 export function openReactionWindow(state: GameState, action: DeclaredAction): GameState | null {
   const actor = getActivePlayer(state);
-  if (!actor) return null;
-  const reactorIds = getNoThanksReactors(state, actor.id);
+  if (!actor || action.type !== "item") return null;
+  const victimIds = getItemVictims(state, actor.id, action.itemId, action.targetPlayerId);
+  const reactorIds = getNoThanksReactors(state, victimIds);
   if (reactorIds.length === 0) return null;
 
   const pendingReaction: PendingReaction = { actorId: actor.id, action, reactorIds, resumeStage: state.turnStage };
   return addLog({ ...state, turnStage: "reaction", pendingReaction }, `${actor.name} annonce son action…`, "event");
 }
 
+/** Spends the holder's Non merci: it recharges `NO_THANKS_COOLDOWN_ROUNDS` rounds after `round`. */
+export function spendNoThanks(state: GameState, holderId: PlayerId, round: number): GameState {
+  return updatePlayer(state, holderId, (player) => ({
+    ...player,
+    noThanksReadyRound: round + NO_THANKS_COOLDOWN_ROUNDS,
+  }));
+}
+
+/**
+ * A cancelled item is lost with its energy, but the actor's turn goes on.
+ * Draven still sends the rest of the table to Hell: Non merci only spares its
+ * holder.
+ */
 export function cancelDeclaredAction(state: GameState, pending: PendingReaction, reactorId: PlayerId): GameState {
   const reactor = findPlayer(state, reactorId);
   const actor = findPlayer(state, pending.actorId);
-  if (!reactor || !actor) return state;
-
-  let nextState = updatePlayer(state, reactor.id, (player) => ({
-    ...player,
-    noThanksReadyRound: state.round + NO_THANKS_COOLDOWN_ROUNDS,
-  }));
   const { action } = pending;
+  if (!reactor || !actor || action.type !== "item") return state;
 
-  // A cancelled item is lost with its energy, but the actor's turn goes on: other items, then the move.
-  if (action.type === "item") {
-    if (CANCELLED_ITEM_IS_CONSUMED) {
-      nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
-    }
-    nextState = {
-      ...spendEnergy(nextState, getItemEnergyCost(action.itemId)),
-      pendingReaction: null,
-      turnStage: pending.resumeStage,
-      ...(action.itemId === "mud" ? { mudPlacedThisTurn: true } : {}),
-    };
-    const cancelled =
-      action.itemId === "mud" ? `la Boue de ${actor.name} est perdue` : `l’action de ${actor.name} est annulée`;
-    return addLog(nextState, `${reactor.name} utilise Non merci : ${cancelled}.`, "event");
+  let nextState = spendNoThanks(state, reactor.id, state.round);
+  const base: GameState = { ...nextState, pendingReaction: null, turnStage: pending.resumeStage };
+  if (action.itemId === "draven") {
+    const plan = planItemUse(base, action.entryId);
+    if (!plan) return base;
+    const spared = addLog(base, `${reactor.name} utilise Non merci : Draven l’épargne.`, "event");
+    return applyItemUse(spared, action.entryId, { ...plan, sparedIds: [reactor.id] });
   }
 
-  // A cancelled move still took the energy left: the turn is over.
-  nextState = { ...spendAllEnergy(nextState), pendingReaction: null, turnStage: "turn-end", moveDistance: 1 };
-  return addLog(nextState, `${reactor.name} utilise Non merci : l’action de ${actor.name} est annulée.`, "event");
+  nextState = base;
+  if (CANCELLED_ITEM_IS_CONSUMED) {
+    nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
+  }
+  nextState = spendEnergy(nextState, getItemEnergyCost(action.itemId));
+  const itemName = ITEM_CATALOG[action.itemId].name;
+  return addLog(
+    nextState,
+    `${reactor.name} utilise Non merci : l’objet de ${actor.name} (${itemName}) est annulé.`,
+    "event",
+  );
 }
 
-/** Re-plays the declared action once nobody reacted, from the stage it was declared in. */
+/** Re-plays the declared item once nobody reacted, from the stage it was declared in. */
 export function carryOutDeclaredAction(state: GameState, pending: PendingReaction): GameState {
   const base: GameState = { ...state, pendingReaction: null, turnStage: pending.resumeStage };
   const { action } = pending;
-
-  if (action.type === "move") {
-    const plan = planMove(base, action.destination, action.ignoreArrows);
-    return plan ? applyMove(base, action.destination, plan) : base;
-  }
-
+  if (action.type !== "item") return base;
   const plan = planItemUse(base, action.entryId, action.targetPlayerId);
   return plan ? applyItemUse(base, action.entryId, plan) : base;
 }

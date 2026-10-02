@@ -9,7 +9,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID } from "./types";
  * Energy (patch 0.1.4) on the classic board: from the start, roads lead to
  * tiles 2 (neutral) and 4 (red), and 9 lies two tiles away (0 → 4 → 9).
  */
-function startTable(passives: PassiveId[] = ["troll", "troll"]): GameState {
+function startTable(passives: PassiveId[] = ["goblin", "goblin"]): GameState {
   const state = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["Ana", "Bo"], seed: 3 });
   return {
     ...state,
@@ -153,7 +153,7 @@ describe("in Hell", () => {
 
 describe("energy and the rest of the turn", () => {
   it("still spends the energy of an item that Non merci cancels, and the turn goes on", () => {
-    const state = editPlayer(startTable(["troll", "no-thanks"]), 0, { inventory: [item("rope", "rope")] });
+    const state = editPlayer(startTable(["goblin", "no-thanks"]), 0, { inventory: [item("rope", "rope")] });
     const declared = act(state, { type: "useItem", entryId: "rope", targetPlayerId: "p2" });
     expect(declared.turnStage).toBe("reaction");
 

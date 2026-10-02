@@ -24,6 +24,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 2** fait et commité.
 - [x] **Lot 3** fait et commité.
 - [x] **Lot 4** fait et commité.
+- [x] **Lot 5** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -37,7 +38,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 | 3 | Boutique et roues | Prix, Botte ≤ 400, Bullet Bill à 1 case, nouvelles roues | M |
 | 4 | Énergie | Refonte du tour | L |
 | 5 | Passifs existants | Retraits, renommages, ajustements | L |
-| 6 | Socle passifs et passifs simples | Nouvelles victoires, Lambda, Nepo Baby, Red Bull, eShop, Tomato Enjoyer, Roller, Cupide | L |
+| 6 | Socle passifs et passifs simples | Nouvelles victoires, Nepo Baby, Red Bull, eShop, Tomato Enjoyer, Roller, Cupide (Lambda arrivé au lot 5) | L |
 | 7 | Passifs avancés | Double or nothing, Chance aveugle avec Made In Heaven, Voleur | L |
 | 8 | Rôles | Le diable et sa boutique (5 objets), L'Ange-Gardien avec le Bouclier | XL |
 | 9 | Chrono en ligne | Horloge partagée, 45 s, 3 chances, forfait | L |
@@ -285,6 +286,25 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - À réécrire : `addCupCycleEffects` (`game-effects.ts:248-277`) et `resolveCalmDown` avec une case cible.
   - Choix de case à l'écran : réutiliser les surbrillances du repositionnement (`ui/game-hooks.ts:31`).
 
+### Bilan du lot 5
+
+- **Retirés** : Penta et Je suis Cups. **Lambda** (rien de spécial) arrive dès ce lot : il remplace les deux passifs retirés dans les tests et dans les anciennes sauvegardes.
+- **Renommés** : Délinquant → Corrupteur (`corrupter`), Troll → Goblin (`goblin`), identifiants et textes compris.
+- **New Cup, New Me** : avant l'apparition de la Cup, choix « Départ · +200 » ou « Rester » dans le dock (action `resolveNewCup`). Le Départ marche aussi depuis l'Enfer et ne donne ni roue ni boutique.
+- **Red light, Green light** : deux cases vertes payées et deux rouges facturées au plus par Red Cup (`redGreenTriggers`, remis à zéro à chaque Cup).
+- **Non merci** :
+  - les déplacements ne s'annulent plus ;
+  - un objet à cible unique visant le détenteur ouvre la fenêtre ; contre Draven, Non merci n'épargne que son détenteur ; la Tomate ne s'annule toujours pas ;
+  - roues : bouton « Non merci ! » sous le résultat, comme la Gomme (`cancelWheel` avec `withNoThanks`) ;
+  - Bullet Bill : au début du tour de table, le changement de tour attend la réponse de sa victime (`findBulletDodger`, `resumeAfterBulletReaction`) ; avec Non merci il s'écrase sans la toucher ;
+  - recharge en 5 tours de table.
+- **Je note** : une chance sur trois, objets à cible unique seulement ; plus de copie de la Boue.
+- **Calme-toi** : à chaque nouvelle Cup, chaque joueur à 1 ou 2 cases d'elle et plus proche qu'elle que le détenteur peut être replacé sur une case à exactement 3 cases (`getCalmDownTiles`), sans roue, boutique ni Boue, un joueur après l'autre. Choix au dock avec les cases en surbrillance ; « Laisser passer » reste possible.
+- **Bug évité** : un joueur déplacé sans « arrivée » (New Cup, Calme-toi) perd tout de suite la roue qu'il devait sur la case quittée ; avant, revenir sur cette case la faisait revivre (`dropTileWheels`).
+- **Sauvegardes** : version 14. Les anciens passifs sont renommés, Penta et Je suis Cups deviennent Lambda, un Non merci en attente sur un déplacement est levé.
+- **Vérificateur** : nouveau `simulation/passive-invariants.ts` (New Cup, Calme-toi, Red light, Non merci). Deux fausses alertes corrigées : un joueur gelé par une boule de neige peut passer deux tours dans la même action ; une défausse de Je note peut faire attendre une décision (New Cup, Avance d'une case).
+- **Tests** : nouveau `passive-rework.test.ts` (26 tests) ; les anciens tests de Non merci sur les déplacements, de New Cup et de Calme-toi sont remplacés.
+
 ## Lot 6 — Socle passifs, passifs simples, nouvelles victoires
 
 - **Nouveau module `src/game/passives/passive-rules.ts`**, pour ne pas disperser des `passiveId === …` partout. Il regroupe :
@@ -300,7 +320,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - `checkVictory` est appelé après chaque collecte de Cup, gain de pièces et entrée en Enfer.
   - Co-vainqueur pour l'Ange : `winnerIds`.
   - À mettre à jour : `standings.ts`, `victory-modal.tsx:84`, `net/history.ts` `getOutcome`, et l'invariant de fin de partie (`rule-invariants.ts:181-186`).
-- **Lambda / Nepo Baby / Red Bull** : passent par les helpers.
+- **Nepo Baby / Red Bull** : passent par les helpers. Lambda existe déjà (lot 5) ; Red Bull se branche sur `ENERGY_BONUSES` (`energy.ts`).
 - **eShop** : boutique après tout déplacement (`getArrivalStage`, `turn-actions.ts:65`) ; 1000 pièces au départ.
 - **Tomato Enjoyer** : les 4 places peuvent tenir 5 Tomates chacune (20 au plus). Ses Tomates assomment à **5 %** (`throwTomatoes`, `turn-actions.ts:325-348`). Il gagne +5 pièces par Tomate reçue.
 - **Roller** :

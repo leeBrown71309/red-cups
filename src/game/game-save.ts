@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 13;
+export const GAME_SAVE_VERSION = 14;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -60,6 +60,36 @@ const OLDEST_UPGRADABLE_VERSION = 3;
 
 type SaveRecord = Record<string, unknown>;
 
+/** Patch 0.1.4 renamed two passives and removed two, whose holders become Lambda. */
+const REPLACED_PASSIVES: Record<string, string> = {
+  delinquent: "corrupter",
+  troll: "goblin",
+  penta: "lambda",
+  "im-cups": "lambda",
+};
+
+/**
+ * Patch 0.1.4: Non merci no longer holds a move, and Calme-toi now sets a list
+ * of players down; a save caught in the old windows resumes as it stands.
+ */
+function upgradePassiveWindows(save: SaveRecord): SaveRecord {
+  const reaction = save.pendingReaction as { action?: { type?: string }; resumeStage?: string } | null | undefined;
+  const calmDown = save.pendingCalmDown as SaveRecord | null | undefined;
+  const heldMove = reaction?.action?.type === "move";
+  return {
+    ...(heldMove ? { pendingReaction: null, turnStage: reaction.resumeStage ?? "move" } : {}),
+    ...(calmDown && !Array.isArray(calmDown.targetIds)
+      ? {
+          pendingCalmDown: {
+            passivePlayerId: calmDown.passivePlayerId,
+            targetIds: [calmDown.collectorId],
+            resumeStage: calmDown.resumeStage,
+          },
+        }
+      : {}),
+  };
+}
+
 /**
  * Fills in what later versions added, as it stands at the start of a game.
  * Version 4 added the Hell countdown; version 5 (patch 0.1.1) the mud turn
@@ -73,7 +103,9 @@ type SaveRecord = Record<string, unknown>;
  * version 11 the Banquise snowballs. Version 12 (patch 0.1.4) added each
  * player's previous tile and the step forward of the wheel of fortune,
  * version 13 the energy of the turn (a game saved before goes on with a
- * full gauge) and the Tomate stack thrown from this turn.
+ * full gauge) and the Tomate stack thrown from this turn. Version 14 reworked
+ * the passives: renamed and removed ones, Red light, Green light's count,
+ * Non merci and Calme-toi.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -114,8 +146,11 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     winReason: save.winReason ?? null,
     pendingAdvance: save.pendingAdvance ?? null,
     energyLeft: save.energyLeft ?? BASE_ENERGY,
+    redGreenTriggers: save.redGreenTriggers ?? { green: 0, red: 0 },
+    ...upgradePassiveWindows(save),
     players: players.map(({ noThanksUsedCycle: _replaced, ...player }) => ({
       ...player,
+      passiveId: REPLACED_PASSIVES[String(player.passiveId)] ?? player.passiveId,
       hellTurns: player.hellTurns ?? 0,
       noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
       previousNodeId: player.previousNodeId ?? null,

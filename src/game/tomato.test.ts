@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBoard } from "./board";
 import { reduceGame, type GameAction } from "./game-actions";
 import { canAddItem, countItemCopies, countItemUnits } from "./rules";
@@ -8,7 +8,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID } from "./types";
 /** A classic table where nobody holds Non merci, Je note or Penta: a throw lands at once, the bag holds 4. */
 function startTable(): GameState {
   const state = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["Ana", "Bo", "Cy"], seed: 7 });
-  return { ...state, players: state.players.map((player) => ({ ...player, passiveId: "troll" as const })) };
+  return { ...state, players: state.players.map((player) => ({ ...player, passiveId: "goblin" as const })) };
 }
 
 function editPlayer(state: GameState, index: number, changes: Partial<Player>): GameState {
@@ -20,6 +20,16 @@ function editPlayer(state: GameState, index: number, changes: Partial<Player>): 
 
 const tomatoes = (count: number): InventoryEntry => ({ id: "tomatoes", kind: "item", itemId: "tomato", count });
 const act = (state: GameState, action: GameAction) => reduceGame(state, action);
+
+/** Local luck pinned at 0.1: no Tomate knocks anybody out, and Je note keeps every copy (one in three). */
+function withJeNoteLuck(state: GameState): GameState {
+  vi.spyOn(Math, "random").mockReturnValue(0.1);
+  return { ...state, seededRandom: null };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("the Tomate", () => {
   it("costs 10 coins and piles up to 5 per slot, two stacks at most", () => {
@@ -149,7 +159,7 @@ describe("the Tomate", () => {
   });
 
   it("hands Je note one Tomate per Tomate of the volley, starting a second stack once the first is full", () => {
-    let state = editPlayer(startTable(), 0, { inventory: [tomatoes(5)] });
+    let state = editPlayer(withJeNoteLuck(startTable()), 0, { inventory: [tomatoes(5)] });
     state = editPlayer(state, 1, { passiveId: "i-take-notes", inventory: [{ ...tomatoes(3), id: "bo-tomatoes" }] });
     state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2", count: 4 });
     expect(countItemUnits(state.players[1], "tomato")).toBe(7);
@@ -157,12 +167,13 @@ describe("the Tomate", () => {
   });
 
   it("asks a full bag to make room for a second stack, like any second copy", () => {
+    vi.spyOn(Math, "random").mockReturnValue(0.1);
     const others: InventoryEntry[] = ["ndoye", "boot", "rope"].map((itemId, index) => ({
       id: `bo-${index}`,
       kind: "item",
       itemId: itemId as "ndoye",
     }));
-    let state = editPlayer(startTable(), 0, { inventory: [tomatoes(2)] });
+    let state = editPlayer({ ...startTable(), seededRandom: null }, 0, { inventory: [tomatoes(2)] });
     state = editPlayer(state, 1, {
       passiveId: "i-take-notes",
       inventory: [...others, { ...tomatoes(4), id: "bo-tomatoes" }],
@@ -176,7 +187,7 @@ describe("the Tomate", () => {
   });
 
   it("hands Je note one Tomate per hit, on its stack", () => {
-    let state = editPlayer(startTable(), 0, { inventory: [tomatoes(2)] });
+    let state = editPlayer(withJeNoteLuck(startTable()), 0, { inventory: [tomatoes(2)] });
     state = editPlayer(state, 1, { passiveId: "i-take-notes", inventory: [{ ...tomatoes(1), id: "bo-tomatoes" }] });
     state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2" });
     expect(countItemUnits(state.players[1], "tomato")).toBe(2);

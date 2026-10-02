@@ -9,12 +9,18 @@ export const START_BONUS = 200;
 export const MUD_PENALTY = 200;
 /** Paid to whoever laid the mud when somebody else steps in it. */
 export const MUD_OWNER_REWARD = 100;
-/** Délinquant pays this for every move that goes against an arrow. */
-export const DELINQUENT_COST = 400;
-/** The round the game opens with; Délinquant may not break out of the start during it. */
+/** Corrupteur pays this for every move that goes against an arrow. */
+export const CORRUPTER_COST = 400;
+/** The round the game opens with; Corrupteur may not break out of the start during it. */
 export const FIRST_ROUND = 1;
-/** Rounds Non merci needs to recharge after cancelling an action. */
-export const NO_THANKS_COOLDOWN_ROUNDS = 3;
+/** Rounds Non merci needs to recharge after cancelling something (5 since patch 0.1.4). */
+export const NO_THANKS_COOLDOWN_ROUNDS = 5;
+/** Je note: chance of keeping a copy of a single-target item used against its holder. */
+export const JE_NOTE_COPY_CHANCE = 1 / 3;
+/** Red light, Green light: green tiles that pay, and red tiles that cost, per Red Cup. */
+export const RED_GREEN_TRIGGERS_PER_CUP = 2;
+/** Calme-toi: how far from the new Red Cup the holder sets a player down. */
+export const CALM_DOWN_DISTANCE = 3;
 export const BULLET_BILL_DAMAGE = 200;
 /** Tiles Bullet Bill covers per charge: only a target on the next tile is hit (patch 0.1.4). */
 export const BULLET_BILL_CHARGE_STEPS = 1;
@@ -98,12 +104,11 @@ export type PassiveId =
   | "new-cup-new-me"
   | "red-light-green-light"
   | "no-thanks"
-  | "delinquent"
-  | "penta"
-  | "troll"
-  | "im-cups"
+  | "corrupter"
+  | "goblin"
   | "i-take-notes"
-  | "calm-down";
+  | "calm-down"
+  | "lambda";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
@@ -169,9 +174,11 @@ export type TurnStage =
   | "duel"
   | "discard"
   | "target"
+  /** New Cup, New Me: before the new Red Cup appears, off to the start or stay. */
   | "reposition"
   /** Wheel of fortune: the player picks the tile they step forward onto. */
   | "advance"
+  /** Calme-toi: the holder sets a player down three tiles from the new Red Cup, or lets them be. */
   | "passive-choice"
   | "blessing"
   | "finished";
@@ -218,15 +225,17 @@ export interface PendingWheel {
   origin?: WheelOrigin;
 }
 
-/** An action announced by the active player, waiting for a possible Non merci. */
+/** Something about to affect a Non merci holder, waiting for their answer. */
 export type DeclaredAction =
-  | { type: "move"; destination: NodeId; ignoreArrows: boolean }
-  | { type: "item"; entryId: string; itemId: ItemId; targetPlayerId?: PlayerId };
+  | { type: "item"; entryId: string; itemId: ItemId; targetPlayerId?: PlayerId }
+  /** Bullet Bill is about to hit its victim, as a new round starts. */
+  | { type: "bullet-bill"; victimId: PlayerId };
 
 export interface PendingReaction {
-  actorId: PlayerId;
+  /** Whoever declared the action; null for Bullet Bill, which belongs to nobody. */
+  actorId: PlayerId | null;
   action: DeclaredAction;
-  /** Players who may still cancel the action with Non merci this Red Cup cycle. */
+  /** Holders of a ready Non merci the action would affect. */
   reactorIds: PlayerId[];
   resumeStage: TurnStage;
 }
@@ -307,10 +316,11 @@ export interface PendingAdvance {
   resumeStage: TurnStage;
 }
 
+/** Calme-toi: the players the holder may set down three tiles from the new Red Cup, one after the other. */
 export interface PendingCalmDown {
   passivePlayerId: PlayerId;
-  collectorId: PlayerId;
-  retreatNodeId: NodeId;
+  /** The first one is decided now. */
+  targetIds: PlayerId[];
   resumeStage: TurnStage;
 }
 
@@ -342,6 +352,8 @@ export interface BulletFlight {
   targetId: PlayerId;
   /** Set when the charge reached its target. */
   victimId: PlayerId | null;
+  /** Non merci: the player it was about to hit cancelled it, and it fizzled out on their tile. */
+  dodgedBy?: PlayerId;
 }
 
 export type WinReason = "red-cups" | "forfeit";
@@ -469,7 +481,6 @@ export interface GameState {
   pendingCupRepositionPlayerId: PlayerId | null;
   pendingCupRevealNodeId: NodeId | null;
   pendingCupRepositionResumeStage: TurnStage | null;
-  pendingCupCollectorId: PlayerId | null;
   pendingCalmDown: PendingCalmDown | null;
   pendingAdvance: PendingAdvance | null;
   pendingReaction: PendingReaction | null;
@@ -481,6 +492,8 @@ export interface GameState {
   mudTraps: MudTrap[];
   /** Only one mud can be laid per turn. */
   mudPlacedThisTurn: boolean;
+  /** Red light, Green light: green and red tiles that already counted since the last Red Cup. */
+  redGreenTriggers: { green: number; red: number };
   /** Tomates: the stack the active player throws from this turn; another stack waits for the next turn. */
   thrownStackId: string | null;
   bulletBill: BulletBillState | null;
@@ -541,7 +554,6 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingCupRepositionPlayerId: null,
   pendingCupRevealNodeId: null,
   pendingCupRepositionResumeStage: null,
-  pendingCupCollectorId: null,
   pendingCalmDown: null,
   pendingAdvance: null,
   pendingReaction: null,
@@ -549,6 +561,7 @@ export const EMPTY_GAME_STATE: GameState = {
   tileWheelResumeStage: "turn-end",
   mudTraps: [],
   mudPlacedThisTurn: false,
+  redGreenTriggers: { green: 0, red: 0 },
   thrownStackId: null,
   bulletBill: null,
   lastBulletFlight: null,

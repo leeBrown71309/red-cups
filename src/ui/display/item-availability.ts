@@ -1,26 +1,26 @@
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getDelinquentBlocker, getInventoryCapacity, type DelinquentBlocker } from "../../game/rules";
+import { getCorrupterBlocker, getInventoryCapacity, type CorrupterBlocker } from "../../game/rules";
 import { findStackWithRoom } from "../../game/state-utils";
 import type { GameState, ItemId, Player } from "../../game/types";
-import { DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
+import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
 import { formatEnergyCost } from "../components/energy-meter";
 
-const DELINQUENT_HINTS: Record<Exclude<DelinquentBlocker, "not-delinquent">, { short: string; full: string }> = {
+const CORRUPTER_HINTS: Record<Exclude<CorrupterBlocker, "not-corrupter">, { short: string; full: string }> = {
   "too-poor": {
-    short: `${DELINQUENT_COST} pièces requises`,
-    full: `Il faut ${DELINQUENT_COST} pièces pour ignorer une flèche.`,
+    short: `${CORRUPTER_COST} pièces requises`,
+    full: `Il faut ${CORRUPTER_COST} pièces pour ignorer une flèche.`,
   },
   "first-round-start": {
     short: `dès le tour ${FIRST_ROUND + 1}`,
-    full: "Au premier tour, Délinquant ne peut pas quitter le départ à contresens.",
+    full: "Au premier tour, Corrupteur ne peut pas quitter le départ à contresens.",
   },
 };
 
-/** Why the Délinquant toggle is greyed out, or null when the arrows can be ignored. */
-export function getDelinquentHint(player: Player, round: number): { short: string; full: string } | null {
-  const blocker = getDelinquentBlocker(player, round);
-  return blocker === null || blocker === "not-delinquent" ? null : DELINQUENT_HINTS[blocker];
+/** Why the Corrupteur toggle is greyed out, or null when the arrows can be ignored. */
+export function getCorrupterHint(player: Player, round: number): { short: string; full: string } | null {
+  const blocker = getCorrupterBlocker(player, round);
+  return blocker === null || blocker === "not-corrupter" ? null : CORRUPTER_HINTS[blocker];
 }
 
 export type ItemUseKind = "prepare-boot" | "target" | "instant" | "passive";

@@ -53,12 +53,12 @@ function getTurnSteps(mapId: MapId): string[] {
       "Une seule Boue par tour aussi.",
     "Tu t’arrêtes sur une case verte ? Roue du bonheur. Rouge ? Roue du malheur. Téléporté, reculé ou déplacé " +
       "par une roue (« Avance d’une case », « Retourne d’où tu viens »), ça compte, boutique comprise ; tiré par la " +
-      "Corde, échangé par le Monopoly Man ou replacé par New Cup, non.",
+      "Corde, échangé par le Monopoly Man, envoyé au Départ par New Cup ou replacé par Calme-toi, non.",
     "Sur une case bleue, la boutique s’ouvre : achète tant que ton solde et ton sac le permettent, sans " +
       "énergie. Ce que tu achètes sert à partir de ton prochain tour. Deux exemplaires au plus d’un même objet, " +
       "une seule Gomme. Les Tomates s’empilent par 5 : une pile compte comme un exemplaire, et tu ne lances " +
       "qu’une pile par tour.",
-    "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places, 5 avec Penta) ; " +
+    "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places) ; " +
       "sac plein, tu jettes un objet, jamais une Cup.",
     `Entrer au Départ depuis la case ${bonusTiles}, dans le sens de la flèche : +${START_BONUS} pièces. ` +
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
@@ -68,8 +68,9 @@ function getTurnSteps(mapId: MapId): string[] {
       "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
     `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
-    "Non merci : quand un joueur annonce un déplacement ou un objet, le détenteur du passif peut l’annuler, " +
-      "puis attend 3 tours de table.",
+    "Non merci : son détenteur peut annuler un objet utilisé contre lui, une roue tournée pour lui (après le " +
+      "résultat) ou Bullet Bill qui fonce sur lui, puis attend 5 tours de table. Contre Draven, il ne protège que " +
+      "lui. Les déplacements et les Tomates ne s’annulent pas.",
     "Bullet Bill se lance depuis ton sac : il attend au départ, puis avance d’une case vers le joueur le plus " +
       "proche à chaque tour de table. Celui qu’il atteint perd 200 pièces et passe son prochain tour.",
     "Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun tourne la roue du bonheur.",
@@ -95,7 +96,7 @@ function getTurnSteps(mapId: MapId): string[] {
   if (hasCarousel(board)) {
     steps.push(
       `${board.map.name} : le carrousel tourne dans un seul sens et s’inverse à chaque nouvelle Red Cup. ` +
-        "Délinquant peut le prendre à contresens.",
+        "Corrupteur peut le prendre à contresens.",
     );
   }
   if (board.map.haunted) {

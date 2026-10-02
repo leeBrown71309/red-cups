@@ -4,7 +4,8 @@ import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
-import { canAddItem, canUseDelinquent, getItemPrice, getUniqueLegalDestinations } from "../rules";
+import { getCalmDownTiles } from "../game-effects";
+import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getUniqueLegalDestinations } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
@@ -99,7 +100,7 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
 
   const board = getBoard(store);
   const regular = getUniqueLegalDestinations(board, player, store.moveDistance, false);
-  const rebel = canUseDelinquent(player, store.round)
+  const rebel = canUseCorrupter(player, store.round)
     ? getUniqueLegalDestinations(board, player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
     : [];
 
@@ -208,6 +209,9 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       const target = findPlayer(store, store.pendingWheel?.playerId);
       const hasEraser = target?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser");
       if (hasEraser && random() < 0.3) return { label: "cancel-wheel", perform: (current) => current.cancelWheel() };
+      if (target && canUseNoThanks(target, store.round) && random() < 0.3) {
+        return { label: "no-thanks:wheel", perform: (current) => current.cancelWheel(true) };
+      }
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
     }
 
@@ -232,8 +236,11 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "reposition": {
-      const nodeId = pick(getBoard(store).normalNodeIds, random)!;
-      return { label: "reposition", perform: (current) => current.repositionBeforeCup(nodeId) };
+      const goToStart = random() < 0.5;
+      return {
+        label: `new-cup:${goToStart ? "start" : "stay"}`,
+        perform: (current) => current.resolveNewCup(goToStart),
+      };
     }
 
     case "advance": {
@@ -244,21 +251,25 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "passive-choice": {
-      const useEffect = random() < 0.5;
-      return { label: `calm-down:${useEffect}`, perform: (current) => current.resolveCalmDown(useEffect) };
+      const tile = random() < 0.6 ? pick(getCalmDownTiles(store), random) : undefined;
+      if (tile === undefined) return { label: "calm-down:skip", perform: (current) => current.resolveCalmDown(null) };
+      return { label: "calm-down:place", perform: (current) => current.resolveCalmDown(tile) };
     }
 
     case "reaction": {
       const pending = store.pendingReaction;
       if (!pending) return null;
+      const kind = pending.action.type === "bullet-bill" ? "bullet" : "item";
       const reactorId = random() < 0.4 ? pick(pending.reactorIds, random) : undefined;
-      if (reactorId) return { label: "reaction:cancel", perform: (current) => current.resolveReaction(reactorId) };
-      const { action } = pending;
+      if (reactorId) {
+        return { label: `reaction:cancel-${kind}`, perform: (current) => current.resolveReaction(reactorId) };
+      }
+      const { action, actorId } = pending;
       const item =
-        action.type === "item"
-          ? { itemId: action.itemId, userId: pending.actorId, targetPlayerId: action.targetPlayerId }
+        action.type === "item" && actorId
+          ? { itemId: action.itemId, userId: actorId, targetPlayerId: action.targetPlayerId }
           : undefined;
-      return { label: "reaction:allow", perform: (current) => current.resolveReaction(null), item };
+      return { label: `reaction:allow-${kind}`, perform: (current) => current.resolveReaction(null), item };
     }
 
     default:

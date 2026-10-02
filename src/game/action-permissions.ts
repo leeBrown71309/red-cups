@@ -35,7 +35,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "spinTileWheel":
     case "spinBlessingWheel":
-    case "repositionBeforeCup":
+    case "resolveNewCup":
     case "advanceOneTile":
       return only(deciding);
 

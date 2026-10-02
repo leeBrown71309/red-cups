@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useGameStore } from "./store";
-import { BASE_ENERGY, DELINQUENT_COST } from "./types";
+import { BASE_ENERGY, CORRUPTER_COST } from "./types";
 
 function startDeterministicGame(): void {
   useGameStore.getState().startGame(["Ada", "Benoît"]);
@@ -171,10 +171,10 @@ describe("Red Cups game store", () => {
     expect(useGameStore.getState().players.filter((player) => player.position === 11)).toHaveLength(1);
   });
 
-  it("charges Délinquant only when the move really goes against an arrow", () => {
+  it("charges Corrupteur only when the move really goes against an arrow", () => {
     startDeterministicGame();
     useGameStore.setState((state) => ({
-      players: state.players.map((player, index) => (index === 0 ? { ...player, passiveId: "delinquent" } : player)),
+      players: state.players.map((player, index) => (index === 0 ? { ...player, passiveId: "corrupter" } : player)),
     }));
 
     placeActivePlayer(7);
@@ -185,7 +185,7 @@ describe("Red Cups game store", () => {
     useGameStore.setState({ turnStage: "move", energyLeft: BASE_ENERGY });
     useGameStore.getState().movePlayer(0, true);
     expect(useGameStore.getState().players[0].currency).toBe(2_000);
-    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(false);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Corrupteur"))).toBe(false);
 
     // Tile 3 must be left towards 6: reaching 4 from it really ignores an arrow.
     placeActivePlayer(3);
@@ -193,30 +193,8 @@ describe("Red Cups game store", () => {
     useGameStore.getState().movePlayer(4, true);
     const player = useGameStore.getState().players[0];
     expect(player.position).toBe(4);
-    expect(player.currency).toBe(2_000 - DELINQUENT_COST);
-    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Délinquant"))).toBe(true);
-  });
-
-  it("offers Calme-toi as an optional reaction after a Cup spawns nearby", () => {
-    startDeterministicGame();
-    const players = useGameStore.getState().players;
-    useGameStore.setState({
-      players: players.map((player, index) => ({
-        ...player,
-        passiveId: index === 1 ? "calm-down" : "built-like-a-tank",
-      })),
-    });
-    vi.spyOn(Math, "random").mockReturnValue(0);
-
-    placeActivePlayer(10);
-    useGameStore.getState().movePlayer(8);
-    const state = useGameStore.getState();
-    expect(state.turnStage).toBe("passive-choice");
-    expect(state.pendingCalmDown?.passivePlayerId).toBe(players[1].id);
-
-    state.resolveCalmDown(false);
-    expect(useGameStore.getState().turnStage).toBe("shop");
-    expect(useGameStore.getState().pendingCalmDown).toBeNull();
+    expect(player.currency).toBe(2_000 - CORRUPTER_COST);
+    expect(useGameStore.getState().log.some((entry) => entry.text.includes("Corrupteur"))).toBe(true);
   });
 
   it("records the walked path so the board can animate it", () => {

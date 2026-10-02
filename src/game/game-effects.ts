@@ -1,7 +1,7 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getPathsOfLength, getShortestPath, hasCarousel, isIce, type Board } from "./board";
+import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, isBlizzardRound } from "./ice";
-import { advanceBulletBill } from "./bullet-bill";
+import { advanceBulletBill, findBulletDodger } from "./bullet-bill";
 import { createDuel, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
@@ -30,13 +30,16 @@ import {
 import type { DuelMode, GameState, ItemId, NodeId, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
 import {
   BOOT_PRICE_STEP,
+  CALM_DOWN_DISTANCE,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
+  JE_NOTE_COPY_CHANCE,
   MAXIMUM_BOOT_PRICE,
   HELL_TURN_LIMIT,
   MUD_OWNER_REWARD,
   MUD_PENALTY,
   RED_CUP_GOAL,
+  RED_GREEN_TRIGGERS_PER_CUP,
   START_BONUS,
   START_NODE_ID,
 } from "./types";
@@ -114,6 +117,16 @@ export function queueWheelsForMovedPlayers(before: GameState, after: GameState):
     if (previous && previous.position !== player.position) nextState = queueTileWheel(nextState, player.id);
   }
   return nextState;
+}
+
+/**
+ * Set down without arriving (New Cup, New Me, Calme-toi): a wheel still owed
+ * on the tile left is dropped at once, so coming back there later never
+ * revives it.
+ */
+export function dropTileWheels(state: GameState, playerId: PlayerId): GameState {
+  const kept = state.pendingTileWheels.filter((entry) => entry.playerId !== playerId);
+  return kept.length === state.pendingTileWheels.length ? state : { ...state, pendingTileWheels: kept };
 }
 
 /** Drops queued wheels whose player has left the tile since, e.g. after a duel or Calme-toi. */
@@ -232,52 +245,60 @@ function flipCarousel(state: GameState): GameState {
   return addLog(flipped, "Le carrousel change de sens !", "event");
 }
 
-function applyTrollEffects(state: GameState): GameState {
+function applyGoblinEffects(state: GameState): GameState {
   let nextState = state;
-  for (const troll of state.players.filter((player) => player.passiveId === "troll")) {
-    const targets = shuffle(state.players.filter((player) => player.id !== troll.id)).slice(0, 2);
+  for (const goblin of state.players.filter((player) => player.passiveId === "goblin")) {
+    const targets = shuffle(state.players.filter((player) => player.id !== goblin.id)).slice(0, 2);
     for (const target of targets) {
       nextState = applyCurrencyChange(nextState, target.id, -100);
-      nextState = applyCurrencyChange(nextState, troll.id, 100);
+      nextState = applyCurrencyChange(nextState, goblin.id, 100);
     }
   }
   return nextState;
 }
 
-/**
- * Calme-toi: the holder may push back another player who took a Cup and
- * stands one or two steps from the new one. The holder never pushes back
- * themselves: the passive is meant to slow the others down.
- */
-export function addCupCycleEffects(state: GameState, collectorId: PlayerId): GameState {
-  const calmDownPlayer = state.players.find((player) => player.passiveId === "calm-down");
+/** Steps between the Red Cup and a tile, arrows aside; Hell is out of reach. */
+function getDistanceToCup(board: Board, cupNodeId: NodeId, nodeId: NodeId): number {
+  return getShortestPath(board, cupNodeId, nodeId, true)?.length ?? Infinity;
+}
+
+/** Calme-toi: the tiles exactly three steps from the Red Cup, where the holder may set a player down. */
+export function getCalmDownTiles(state: GameState): NodeId[] {
   const cupNodeId = state.redCupNodeId;
-  const collector = findPlayer(state, collectorId);
-  if (!calmDownPlayer || cupNodeId === null || !collector || collector.position === HELL_NODE_ID) return state;
-  if (calmDownPlayer.id === collector.id) return state;
+  if (cupNodeId === null) return [];
+  const board = getBoard(state);
+  return board.normalNodeIds.filter((nodeId) => getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE);
+}
+
+/**
+ * Calme-toi: once the new Red Cup is placed, every other player one or two
+ * steps from it, and closer to it than the holder, may be set down by the
+ * holder three steps from it. The holder decides for each of them in turn.
+ */
+export function addCupCycleEffects(state: GameState): GameState {
+  const holder = state.players.find((player) => player.passiveId === "calm-down");
+  const cupNodeId = state.redCupNodeId;
+  if (!holder || cupNodeId === null || getCalmDownTiles(state).length === 0) return state;
 
   const board = getBoard(state);
-  const distance = getShortestPath(board, cupNodeId, collector.position, true)?.length ?? Infinity;
-  if (distance < 1 || distance >= 3) return state;
-
-  const distanceToCup = (path: NodeId[]) => getShortestPath(board, cupNodeId, path[path.length - 1], true)?.length ?? 0;
-  const retreatPath = getPathsOfLength(board, collector.position, 3, true).sort(
-    (left, right) => distanceToCup(right) - distanceToCup(left),
-  )[0];
-  const retreatNode = retreatPath?.[retreatPath.length - 1];
-  if (retreatNode === undefined) return state;
+  const holderDistance = getDistanceToCup(board, cupNodeId, holder.position);
+  const targets = state.players.filter((player) => {
+    const distance = getDistanceToCup(board, cupNodeId, player.position);
+    return player.id !== holder.id && distance >= 1 && distance <= 2 && distance < holderDistance;
+  });
+  if (targets.length === 0) return state;
 
   const nextState: GameState = {
     ...state,
     turnStage: "passive-choice",
     pendingCalmDown: {
-      passivePlayerId: calmDownPlayer.id,
-      collectorId: collector.id,
-      retreatNodeId: retreatNode,
+      passivePlayerId: holder.id,
+      targetIds: targets.map((player) => player.id),
       resumeStage: state.turnStage,
     },
   };
-  return addLog(nextState, `${calmDownPlayer.name} peut utiliser Calme-toi contre ${collector.name}.`, "event");
+  const names = targets.map((player) => player.name).join(", ");
+  return addLog(nextState, `${holder.name} peut utiliser Calme-toi sur ${names}.`, "event");
 }
 
 export function finishCupCollection(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
@@ -317,14 +338,15 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
     pendingCupRepositionPlayerId: repositioner?.id ?? null,
     pendingCupRevealNodeId: repositioner ? nextCupNodeId : null,
     pendingCupRepositionResumeStage: repositioner ? resumeStage : null,
-    pendingCupCollectorId: repositioner ? playerId : null,
     turnStage: repositioner ? "reposition" : resumeStage,
+    redGreenTriggers: { green: 0, red: 0 },
   };
 
-  nextState = applyTrollEffects(nextState);
+  nextState = applyGoblinEffects(nextState);
   nextState = addLog(nextState, "Une nouvelle Red Cup apparaît sur le plateau.", "event");
   nextState = flipCarousel(nextState);
-  if (!repositioner) nextState = addCupCycleEffects(nextState, playerId);
+  // New Cup, New Me decides before the Cup is shown; Calme-toi then looks around it.
+  if (!repositioner) nextState = addCupCycleEffects(nextState);
   return nextState;
 }
 
@@ -344,9 +366,9 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
 }
 
 /**
- * Je note: suffering another player's item adds a copy of that item,
- * sacrificing another one if needed. `userId` is whoever used the item (or
- * laid the mud).
+ * Je note: a single-target item used against its holder has one chance in
+ * three of leaving them a copy, sacrificing another item if needed. `userId`
+ * is whoever used the item.
  */
 export function itemCopyForPassive(
   state: GameState,
@@ -355,15 +377,15 @@ export function itemCopyForPassive(
   userId: PlayerId | undefined,
 ): GameState {
   const target = findPlayer(state, targetPlayerId);
-  if (!target || target.passiveId !== "i-take-notes") return state;
+  if (!target || target.passiveId !== "i-take-notes" || ITEM_CATALOG[itemId].target !== "player") return state;
 
   // An item used on oneself would come straight back: Ndoye on yourself every turn, for free.
   if (userId === targetPlayerId) {
     return addLog(state, `${target.name} s’est visé lui-même : Je note ne copie pas ${ITEM_CATALOG[itemId].name}.`);
   }
-
-  // Draven hits its own user too: copying it would hand Je note an endless supply.
-  if (itemId === "draven") return state;
+  if (drawEngineRandom() >= JE_NOTE_COPY_CHANCE) {
+    return addLog(state, `${target.name} ne note rien cette fois.`);
+  }
 
   if (canAddItem(target, itemId)) {
     const nextState = updatePlayer(state, targetPlayerId, (player) => appendItem(player, itemId));
@@ -386,11 +408,14 @@ export function itemCopyForPassive(
 
 export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || player.passiveId === "im-cups") return state;
+  if (!player) return state;
   return applyCurrencyChange(addLog(state, `${player.name} passe par le départ.`, "good"), playerId, START_BONUS);
 }
 
-/** Red light, Green light: every green or red tile walked on changes the balance. */
+/**
+ * Red light, Green light: per Red Cup, the first two green tiles walked on pay
+ * 100 coins and the first two red ones cost 100 (patch 0.1.4).
+ */
 export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = findPlayer(state, playerId);
   if (!player || player.passiveId !== "red-light-green-light") return state;
@@ -399,8 +424,13 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
   let nextState = state;
   for (const nodeId of path) {
     const kind = getNodeKind(board, nodeId);
-    if (kind === "green") nextState = applyCurrencyChange(nextState, playerId, 100);
-    if (kind === "red") nextState = applyCurrencyChange(nextState, playerId, -100);
+    if (kind !== "green" && kind !== "red") continue;
+    if (nextState.redGreenTriggers[kind] >= RED_GREEN_TRIGGERS_PER_CUP) continue;
+    nextState = {
+      ...nextState,
+      redGreenTriggers: { ...nextState.redGreenTriggers, [kind]: nextState.redGreenTriggers[kind] + 1 },
+    };
+    nextState = applyCurrencyChange(nextState, playerId, kind === "green" ? 100 : -100);
   }
   return nextState;
 }
@@ -447,9 +477,7 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
     nextState = addLog(nextState, `${owner.name} touche ${MUD_OWNER_REWARD} pièces grâce à sa Boue.`, "good");
     nextState = applyCurrencyChange(nextState, owner.id, MUD_OWNER_REWARD);
   }
-  // A Red Cup on the same tile may already need the only discard slot, so Je note skips the copy there.
-  if (nextState.redCupNodeId === nodeId) return nextState;
-  return itemCopyForPassive(nextState, playerId, "mud", trap.ownerId);
+  return nextState;
 }
 
 /**
@@ -519,18 +547,41 @@ export function beginNextTurn(state: GameState): GameState {
 export function passTurnFrom(state: GameState, fromIndex: number): GameState {
   if (state.players.length === 0) return state;
   // Banquise: the turn that ends draws a snowball, before the next player is found (a freeze skips them).
-  let nextState = throwSnowball(resetHellCountdowns(state));
+  return seatNextPlayer(throwSnowball(resetHellCountdowns(state)), fromIndex, null);
+}
+
+/**
+ * Non merci: Bullet Bill was about to hit its holder as a new round started,
+ * and the turn change waited for their answer. It goes on from that round
+ * start, with Bullet Bill hitting or fizzling out.
+ */
+export function resumeAfterBulletReaction(state: GameState, dodged: boolean): GameState {
+  const paused: GameState = { ...state, pendingReaction: null };
+  return seatNextPlayer(paused, state.players.length - 1, dodged ? "dodged" : "hit");
+}
+
+/**
+ * The search for the next player of `passTurnFrom`. `bulletAnswer` carries the
+ * Non merci holder's answer to the first round start, once they gave it.
+ */
+function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit" | "dodged" | null): GameState {
+  let nextState = state;
   const seatCount = nextState.players.length;
   let nextIndex = fromIndex;
   let nextRound = state.round;
   let attempts = 0;
+  let answer = bulletAnswer;
 
   do {
     nextIndex += 1;
     if (nextIndex >= seatCount) {
       nextIndex = 0;
       nextRound += 1;
-      nextState = advanceBulletBill(nextState, nextRound);
+      // Before anything of the new round, Bullet Bill's victim may answer with Non merci.
+      const dodgerId = answer === null ? findBulletDodger(nextState, nextRound) : null;
+      if (dodgerId) return askToDodgeBulletBill(nextState, dodgerId);
+      nextState = advanceBulletBill(nextState, nextRound, answer === "dodged");
+      answer = null;
       if (isBlizzardRound(nextState, nextRound)) nextState = blowBlizzard(nextState);
       if (nextState.bootFirstPurchased && nextRound > state.bootLastPriceRound) {
         nextState = {
@@ -578,12 +629,27 @@ export function passTurnFrom(state: GameState, fromIndex: number): GameState {
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
     pendingCupRepositionResumeStage: null,
-    pendingCupCollectorId: null,
     pendingCalmDown: null,
     pendingAdvance: null,
   };
   nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);
+}
+
+/** The turn change holds while Bullet Bill's victim decides whether to spend Non merci on it. */
+function askToDodgeBulletBill(state: GameState, victimId: PlayerId): GameState {
+  const victim = findPlayer(state, victimId);
+  const nextState: GameState = {
+    ...state,
+    turnStage: "reaction",
+    pendingReaction: {
+      actorId: null,
+      action: { type: "bullet-bill", victimId },
+      reactorIds: [victimId],
+      resumeStage: "turn-end",
+    },
+  };
+  return addLog(nextState, `Bullet Bill fonce sur ${victim?.name ?? "un joueur"}…`, "event");
 }
 
 /** Luna Park: the ghost rides on at every turn change, and may land on somebody right away. */

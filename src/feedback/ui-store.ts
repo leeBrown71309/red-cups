@@ -26,7 +26,7 @@ interface UiState {
   followActivePlayer: boolean;
   /** Luna Park: the ghost's loot window, opened by clicking the ghost on the board. */
   ghostLootOpen: boolean;
-  /** Délinquant toggle for the current move. */
+  /** Corrupteur toggle for the current move. */
   ignoreArrows: boolean;
   /** Destination selected by a first tap on touch screens, waiting for confirmation. */
   previewNodeId: NodeId | null;

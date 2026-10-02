@@ -1,6 +1,6 @@
 import { getBoard } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { canUseDelinquent, getUniqueLegalDestinations } from "./rules";
+import { canUseCorrupter, getUniqueLegalDestinations } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, ItemId, PassiveId, Player } from "./types";
 import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
@@ -52,7 +52,7 @@ function hasLegalMove(state: GameState, player: Player): boolean {
     getBoard(state),
     player,
     state.moveDistance,
-    canUseDelinquent(player, state.round),
+    canUseCorrupter(player, state.round),
   );
   return destinations.length > 0;
 }

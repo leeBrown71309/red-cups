@@ -24,9 +24,9 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Abandon | Un joueur peut quitter une partie en cours ; les autres continuent. S’il ne reste qu’un joueur, il gagne par abandon (patch 0.1.1). |
 | Tour de Bénédiction | Si, à la fin d’un tour, tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle avant de reprendre la partie (patch 0.1.1). |
 | Cases vertes et rouges | S’arrêter sur une case verte lance la roue du bonheur, sur une case rouge la roue du malheur (règle confirmée par l’auteur du jeu). |
-| Non merci | Fenêtre de réaction : quand un joueur annonce son action, les détenteurs du passif peuvent l’annuler avant qu’elle s’applique. |
+| Non merci | Fenêtre de réaction : un objet utilisé contre son détenteur, ou Bullet Bill qui fonce sur lui, attend sa réponse avant de s’appliquer ; une roue tournée pour lui s’annule après son résultat (patch 0.1.4). |
 | Sauvegarde | La partie en cours est sauvegardée dans le navigateur et survit au rafraîchissement ; la sauvegarde est effacée à la fin de la partie. |
-| Inventaire | Quatre emplacements de base. Chaque Red Cup occupe un emplacement. Le passif Penta ajoute un emplacement. |
+| Inventaire | Quatre emplacements. Chaque Red Cup occupe un emplacement. |
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
 | Duel en Enfer | Quand deux joueurs se trouvent en Enfer, un duel est déclenché. Le gagnant retourne en case 0 ; le perdant reste en Enfer. |
@@ -43,7 +43,7 @@ Le plateau illustré contient douze cases numérotées de 0 à 11 :
 - Cases bleues : boutiques.
 - Cases vertes : s’y arrêter lance la **roue du bonheur**.
 - Cases rouges : s’y arrêter lance la **roue du malheur**.
-- Le passif **Red light, Green light** ajoute ±100 pièces à chaque passage sur ces cases, en plus des roues.
+- Le passif **Red light, Green light** ajoute ±100 pièces au passage sur ces cases, deux fois de chaque par Red Cup, en plus des roues.
 - Case 11, violette : Enfer. Elle n’est pas parcourue comme une case normale ; des effets y téléportent les joueurs.
 - Case 8 : emplacement initial de la première Red Cup.
 
@@ -85,13 +85,13 @@ Transcription vérifiée sur la slide 1 de la présentation (septembre 2026). Su
 - La Botte permet de parcourir deux cases au lieu d’une et doit être utilisée avant le déplacement (1 point d’énergie, plus 1 gardé pour ce déplacement ; une seule par tour, voir 4).
 - Lorsqu’un joueur **termine son déplacement** sur une case verte ou rouge, il tourne la roue correspondante (bonheur ou malheur). Simplement passer dessus avec la Botte ne déclenche pas de roue.
 - Ordre de résolution à l’arrivée : Boue, puis Red Cup (avec ses passifs), puis la roue de la case.
-- Être téléporté par la Bouteille d’eau ou reculé par Calme-toi déclenche aussi la roue de la case d’arrivée.
+- Être téléporté par la Bouteille d’eau déclenche aussi la roue de la case d’arrivée. Depuis le patch 0.1.4, être replacé par Calme-toi ne donne rien.
 - **Patch 0.1.4** : être déplacé par une roue (« Avance d’une case », « Retourne d’où tu viens », « Va au Départ ») compte comme une arrivée complète. On tourne la roue de la case, on prend sa Boue et sa Red Cup, on affronte le fantôme, et la boutique s’ouvre si c’est la fin du tour du joueur actif. « Avance d’une case » est un pas à pied, flèches comprises : il compte pour Red light, Green light et le bonus du départ. « Retourne d’où tu viens » ramène sur la case occupée avant le dernier déplacement subi ou joué, jamais en Enfer ni hors de l’Enfer.
-- **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man ou repositionné par New Cup, New Me ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue ; celui qui se repositionne sur sa propre case garde ce qu’il avait gagné en y arrivant.
+- **Patch 0.1.1** : être tiré par la Corde, échangé par le Monopoly Man, envoyé au Départ par New Cup, New Me ou replacé par Calme-toi (patch 0.1.4) ne donne ni roue ni boutique, ni à la cible ni à l’utilisateur. Une roue déjà due sur la case quittée est perdue, même si le joueur y revient ensuite ; celui qui reste sur sa case garde ce qu’il avait gagné en y arrivant.
 - Si plusieurs joueurs doivent une roue en même temps, chacun tourne la sienne, dans l’ordre d’arrivée. Un joueur ne tourne qu’une roue : celle de la case où il se trouve au final.
-- Le passif **Red light, Green light** modifie le solde à chaque case verte ou rouge traversée.
-- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces, sauf avec le passif **Je suis Cups**. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 8 → 0 paie.
-- Délinquant (400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
+- Le passif **Red light, Green light** modifie le solde sur les cases vertes ou rouges traversées : depuis le patch 0.1.4, deux cases vertes et deux rouges au plus par Red Cup.
+- Entrer dans la case 0 **depuis la case 8** (dans le sens de sa flèche, en bouclant le circuit) donne 200 pièces. Revenir de 4 vers 0 est permis mais ne rapporte rien : sinon un joueur pourrait faire 4 → 0 → 4 → 0 pour empiler les bonus (règle confirmée par l’auteur). Sortir de l’Enfer vers le départ donne toujours le bonus, duel gagné compris (patch 0.1.3). Sur Luna Park, seule l’entrée 8 → 0 paie.
+- Corrupteur (Délinquant avant le patch 0.1.4 ; 400 pièces depuis le patch 0.1.1) permet de sortir d’une case fléchée par une autre route, ou de prendre le tunnel à l’envers. Il ne paie que si la destination choisie l’exige réellement. Au premier tour de table, il ne peut pas quitter le départ à contresens : 0 → 8 lui donnerait la première Red Cup avant que quiconque ait joué.
 
 ### 3.2 bis Seconde carte : Luna Park (patch 0.1.3)
 
@@ -102,7 +102,7 @@ Une fête foraine de nuit, pensée pour jouer autrement que la boucle d’origin
 - **Rayons** libres : 0–1, 2–10, 3–5, 4–7. **Tour extérieur** : 0–12, 12–10, 10–9, 9–5, 5–7, 7–6, 6–8, 8–0.
 - **Flèches** : 0 → 1 ou 12 ; 8 → 0 (seule entrée qui paie les 200 du départ) ; 5 → 3.
 - **Train fantôme** : tunnel à sens unique 7 → 12, un seul pas. Entrer en 0 depuis 12 ne rapporte rien.
-- **Délinquant** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
+- **Corrupteur** ignore aussi le sens du carrousel et prend le train fantôme à l’envers.
 - **Le fantôme** (patch 0.1.3) hante **tout le plateau**, sauf l’Enfer, sans respecter les routes :
   - il apparaît au tour de table 2 ou 3, sur une case libre si possible ;
   - à chaque changement de tour, trois fois sur quatre il **glisse de 1 à 3 cases** le long des routes, dans n’importe quel sens (flèches, sens uniques, carrousel et train fantôme ne le retiennent pas), en choisissant sa route au hasard à chaque carrefour et sans revenir en arrière sauf en cul-de-sac ; sa glissade **s’arrête sur la première case occupée** par un joueur (patch 0.1.4) ; une fois sur quatre il **se téléporte** : il disparaît et réapparaît sur une case éloignée, à 3 routes au moins quand c’est possible ;
@@ -135,7 +135,7 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 - **Cases** : rangée avant 5 boutique, 1 verte, 0 départ, 2 verte, 12 boutique ; rangée du lac 6 rouge, **3 glace**, 4 verte, **7 glace**, 10 rouge ; rangée du fond 13 neutre, 8 boutique (première Red Cup), 9 neutre ; l’Enfer (11) est une crevasse juste derrière le lac.
 - **Routes** : 0 → 1 ou 2 (flèches) ; 4 → 0 (flèche, seule entrée qui paie les 200) ; tour extérieur 1–5–6–13–8–9–10–12–2 ; lac 6–3–4–7–10 ; 1–3, 2–7, 3–8, 7–8.
 - **Tour extérieur** : la Red Cup en 8 est à 5 déplacements, d’un côté comme de l’autre, avec une case rouge en chemin. **Par la glace** : 2 déplacements, puis le hasard.
-- **Glissade** : un déplacement (normal, Botte ou Délinquant) qui s’arrête sur une case de glace continue vers l’une des autres routes réelles de cette case (flèches et sens uniques respectés, jamais en arrière). S’il n’y a qu’une route, elle est imposée ; sinon elle est tirée au hasard, et la glissade continue tant qu’elle arrive sur de la glace. Seule la dernière case de la Botte glisse. Les cases glissées comptent comme traversées (Red light, Green light, bonus du départ) ; seule la case d’arrivée compte pour la roue, la boutique, la Boue et la Red Cup. Corde, échanges, téléportations et reculs ne glissent pas.
+- **Glissade** : un déplacement (normal, Botte ou Corrupteur) qui s’arrête sur une case de glace continue vers l’une des autres routes réelles de cette case (flèches et sens uniques respectés, jamais en arrière). S’il n’y a qu’une route, elle est imposée ; sinon elle est tirée au hasard, et la glissade continue tant qu’elle arrive sur de la glace. Seule la dernière case de la Botte glisse. Les cases glissées comptent comme traversées (Red light, Green light, bonus du départ) ; seule la case d’arrivée compte pour la roue, la boutique, la Boue et la Red Cup. Corde, échanges, téléportations et reculs ne glissent pas.
 - **Tombée de glace** : si la glissade tirée file vers la case de la Red Cup, la glace a 80 % de chances de tomber sur le joueur. Il reste alors pris au milieu de la route, sans rien atteindre, et son tour se termine. Au début de son tour suivant, il brise la glace et arrive sur la case visée (Red Cup, Boue, roue ; pas de boutique), puis joue normalement. Déplacé entre-temps (Corde, échange, Enfer…), sa glissade est perdue.
 - **Boules de neige** : dès qu’une Red Cup a été ramassée, les pingouins lancent une boule de neige à chaque changement de tour, sur un joueur tiré au hasard, jamais en Enfer ni déjà pris dans la glace. Une sur trois rate. À la 3ᵉ boule reçue, le joueur gèle sur place (bloc de glace) et passe son prochain tour ; son compteur repart à zéro. La barre des joueurs affiche le compteur (❄ 1/3, 2/3).
 - **Blizzard** : une troisième case glissante est tirée au lancement, puis déplacée au début de chaque tour de table impair (3, 5, 7…). Elle peut tomber sur n’importe quelle case qui a au moins deux routes, départ compris, sauf l’Enfer, les glaces 3 et 7, la case de la Red Cup et la glace qu’elle remplace. Un départ gelé ne paie pas les 200 pièces. Une Red Cup n’apparaît jamais sur la glace.
@@ -157,14 +157,19 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 Depuis le patch 0.1.4, le tour repose sur l’**énergie**. Il suit ces phases :
 
 1. Le joueur actif commence son tour avec **3 points d’énergie** : la jauge se remplit à chaque tour.
-2. Il utilise d’abord ses objets, autant qu’il veut tant que l’énergie suffit : chaque objet coûte sa propre énergie (tableau en 6). Chaque objet annoncé peut passer par la fenêtre de **Non merci**.
-3. Puis il se déplace. Il faut au moins 1 point ; le déplacement prend toute l’énergie restante et met fin à ses actions. Un déplacement peut aussi passer par Non merci (rechargé : pas utilisé depuis 3 tours de table), qui peut l’annuler ou le laisser passer. Ensuite : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
+2. Il utilise d’abord ses objets, autant qu’il veut tant que l’énergie suffit : chaque objet coûte sa propre énergie (tableau en 6). Un objet utilisé contre un détenteur de **Non merci** attend d’abord sa réponse.
+3. Puis il se déplace. Il faut au moins 1 point ; le déplacement prend toute l’énergie restante et met fin à ses actions. Ensuite : passage sur les cases colorées, Boue, Red Cup, puis roue de la case verte ou rouge.
 4. Si le joueur est arrivé sur une case bleue, la phase boutique s’ouvre. Il peut acheter un ou plusieurs objets tant qu’il possède les pièces et les emplacements nécessaires.
 5. Le joueur termine son tour. Si tous les joueurs ont alors 0 pièce ou moins, le **Tour de Bénédiction** a lieu d’abord (voir 4.1). Les joueurs étourdis ou dont le tour est annulé sont ensuite sautés conformément à leurs statuts.
 
 Les objets ne terminent plus le tour : on en enchaîne plusieurs, puis on se déplace. On peut finir son tour sans bouger après avoir utilisé au moins un objet, quand il reste moins d’1 point d’énergie, ou quand aucune route n’est possible ; sinon il faut se déplacer (réponse de l’auteur ; en ligne, un tour passé sans rien faire coûtera aussi une chance, voir le chrono). La Botte coûte 1 point et en garde 1 pour le déplacement de deux cases : il faut donc 2 points pour la préparer, et une seule Botte par tour. Une seule Boue par tour. La Tomate, la Gomme et le Casque ne coûtent rien. Acheter ne coûte pas d’énergie : un objet acheté sert à partir du tour suivant. En Enfer, la roue de l’Enfer remplace le déplacement (voir 9.1). La Gomme est une réaction à un effet de roue.
 
-Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l’action d’un adversaire et avant son application. Depuis le patch 0.1.1, il sert une fois tous les 3 tours de table : utilisé au tour N, il revient au tour N + 3, quelles que soient les Red Cups. Un objet annulé est perdu avec son énergie (règle confirmée), mais depuis le patch 0.1.4 l’acteur continue son tour ; un déplacement annulé prend toute l’énergie restante et termine le tour. En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 15 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
+Le passif **Non merci** (refait au patch 0.1.4, réponses de l’auteur) annule ce qui devait affecter son détenteur, puis se recharge 5 tours de table : utilisé au tour N, il revient au tour N + 5, quelles que soient les Red Cups.
+
+- **Objet utilisé contre lui** : un objet à cible unique qui le vise (Ndoye, Hollow Purple, Corde, Middle Finger, Monopoly Man) attend sa réponse avant de s’appliquer. L’objet annulé est perdu avec son énergie (règle confirmée), mais l’acteur continue son tour. Contre **Draven**, il ne protège que lui : le reste de la table part quand même en Enfer. La Tomate, pour rire, ne s’annule pas.
+- **Roue tournée pour lui** (case, Ndoye, Enfer, Bénédiction…) : après le résultat, comme la Gomme, un bouton « Non merci ! » l’efface.
+- **Bullet Bill qui fonce sur lui** : au début du tour de table, le changement de tour attend sa réponse. Avec Non merci, Bullet Bill s’écrase sans le toucher ; sinon il frappe comme d’habitude. Le passif est alors compté comme utilisé dans le nouveau tour de table.
+- Les **déplacements** ne s’annulent plus. En local, c’est l’hôte qui valide la réaction au nom du joueur concerné ; sans réponse sous 15 secondes, l’action passe. En ligne, chaque détenteur décidera depuis son propre appareil.
 
 ### 4.1 Tour de Bénédiction (patch 0.1.1)
 
@@ -188,7 +193,6 @@ Le passif **Non merci** ouvre une fenêtre de réaction après l’annonce de l�
 - Un solde peut devenir négatif. À −300 ou moins, il est remis à 0 et le joueur passe son prochain tour.
 - Le Casque prévient automatiquement le passage en solde négatif ; sa consommation et son interaction avec le seuil de −300 sont définies avec l’effet de l’objet.
 - Capacité de base : quatre emplacements au total, Red Cups comprises.
-- Penta ajoute un emplacement.
 - Les objets ne se stackent pas. Un joueur ne peut pas avoir trois copies du même objet ; l’interprétation par défaut est donc un maximum de deux copies.
 - Un joueur ne peut avoir qu’une Gomme à la fois.
 - Si un effet impose un objet à un joueur dont l’inventaire est plein, celui-ci sacrifie un objet non-Red Cup de son choix.
@@ -243,15 +247,14 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Passif | Effet |
 | --- | --- |
 | Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Le Monopoly Man n’a aucun effet sur lui. |
-| New Cup, New Me | À chaque apparition d’une nouvelle Red Cup, le joueur peut se repositionner avant que sa destination ne soit révélée. Ce repositionnement ne donne ni roue ni boutique. |
-| Red light, Green light | Gagne 100 pièces en passant sur une case verte et perd 100 pièces en passant sur une case rouge. |
-| Non merci | Une fois tous les 3 tours de table, le joueur peut annuler l’action d’un autre joueur. |
-| Délinquant | Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
-| Penta | Ajoute un emplacement à l’inventaire. |
-| Troll | À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
-| Je suis Cups | Le joueur ne reçoit pas le bonus de 200 pièces lié au départ. |
-| Je note | Quand le joueur subit l’effet d’un objet utilisé par un autre joueur, il reçoit une copie de cet objet, **sauf Draven** (sinon son utilisateur le récupérerait à l’infini). Depuis le patch 0.1.3, un objet utilisé sur soi-même (Ndoye, Hollow Purple, Middle Finger) ou sa propre Boue ne donne pas de copie. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
-| Calme-toi | Quand un autre joueur obtient une Red Cup à moins de trois cases de la nouvelle, son détenteur peut choisir de le faire reculer de trois cases, vers la case la plus éloignée de la nouvelle Cup. Depuis le patch 0.1.3, il n’est jamais proposé contre son propre détenteur. Le MVP affiche cette décision avant de poursuivre le tour. |
+| New Cup, New Me | À chaque nouvelle Red Cup, avant qu’elle apparaisse, le joueur choisit : filer au Départ et toucher 200 pièces (même depuis l’Enfer), ou rester où il est (patch 0.1.4). Aller au Départ ne donne ni roue ni boutique. |
+| Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 100 (patch 0.1.4, « deux de chaque »). |
+| Non merci | Une fois tous les 5 tours de table, annule un objet utilisé contre lui, une roue tournée pour lui ou Bullet Bill qui fonce sur lui (voir 4). |
+| Corrupteur | Délinquant renommé (patch 0.1.4). Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
+| Goblin | Troll renommé (patch 0.1.4). À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
+| Je note | Quand un objet à cible unique (Ndoye, Hollow Purple, Corde, Middle Finger, Monopoly Man, Tomate) est utilisé contre lui par un autre joueur, il a une chance sur trois d’en garder une copie (patch 0.1.4). Plus de copie de Draven ni de la Boue. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
+| Calme-toi | Quand une nouvelle Red Cup apparaît, chaque autre joueur à une ou deux cases d’elle, et plus proche d’elle que le détenteur, peut être replacé par celui-ci sur n’importe quelle case à exactement trois cases de la Cup, un joueur après l’autre (patch 0.1.4). Le joueur replacé ne tire rien de cette case : ni roue, ni boutique, ni Boue. Le détenteur peut aussi le laisser où il est. |
+| Lambda | Rien de spécial (patch 0.1.4). |
 
 ## 9. Enfer, roues et duels
 
@@ -259,10 +262,10 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 
 - La case 11 représente l’Enfer.
 - Un joueur en Enfer ne suit pas le déplacement normal. À son tour, il tourne la roue de l’Enfer jusqu’à sa libération. Depuis le patch 0.1.4, cette roue remplace le déplacement : il faut au moins 1 point d’énergie, elle prend le reste, et ses objets passent avant. Envoyé en Enfer pendant son propre tour, un joueur à qui il reste de l’énergie peut tourner la roue tout de suite ; ce tour compte alors dans sa peine.
-- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 avec le bonus de 200 pièces du départ (sauf **Je suis Cups**, patch 0.1.3) ; le perdant y reste.
+- Deux joueurs en Enfer déclenchent un duel. Le gagnant revient en case 0 avec le bonus de 200 pièces du départ (patch 0.1.3) ; le perdant y reste.
 - Certains effets spéciaux peuvent aussi faire sortir de l’Enfer. La Bouteille d’eau en est un exemple ; une roue positive peut en devenir un autre.
 - Quand un effet appelle un joueur pour un duel depuis le plateau, ce joueur rejoint l’Enfer pour le duel. Le vainqueur va en case 0 avec le bonus du départ et le perdant reste en Enfer.
-- **Peine maximale (règle confirmée par l’auteur)** : un joueur ne reste jamais plus de **5 de ses tours** en Enfer. Si, à la fin de son 5ᵉ tour, il ne s’est pas échappé (roue, objet, passif, duel), il sort en case 0 et paie **500 pièces**. Comme toute sortie de l’Enfer, il touche le bonus de 200 pièces du départ (sauf **Je suis Cups**) : la roue de l’Enfer peut lui avoir coûté bien plus. Le bonus est versé avant le dû, soit −300 pièces au total. Il rejoue normalement au tour suivant.
+- **Peine maximale (règle confirmée par l’auteur)** : un joueur ne reste jamais plus de **5 de ses tours** en Enfer. Si, à la fin de son 5ᵉ tour, il ne s’est pas échappé (roue, objet, passif, duel), il sort en case 0 et paie **500 pièces**. Comme toute sortie de l’Enfer, il touche le bonus de 200 pièces du départ : la roue de l’Enfer peut lui avoir coûté bien plus. Le bonus est versé avant le dû, soit −300 pièces au total. Il rejoue normalement au tour suivant.
   - Les tours sautés en Enfer comptent dans les 5 tours.
   - Le compteur repart à zéro à chaque nouvel envoi en Enfer. Un joueur déjà en Enfer (Draven, par exemple) garde son compteur.
   - Les règles habituelles de l’argent s’appliquent ensuite au dû : le Casque évite de passer sous zéro ; à −300 pièces, le solde repart à 0 et le joueur saute son prochain tour.
@@ -373,6 +376,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
 - **Énergie** : 3 points par tour. Les objets coûtent de 0 à 3 points et ne terminent plus le tour ; le déplacement (ou la roue de l’Enfer) demande au moins 1 point et prend le reste. La Botte coûte 1 point et en garde 1 pour bouger. Jauge dans le dock et sur la fiche de chaque joueur, bleue pleine, orange à 2 points, rouge au dernier ; coûts affichés dans la boutique, le sac et l’aide (voir 4).
 - **Tomates** : une pile compte comme un exemplaire, deux piles au plus, une seule pile lancée par tour.
+- **Passifs** (voir 8) : Penta et Je suis Cups disparaissent, Lambda arrive. Délinquant devient Corrupteur et Troll devient Goblin. New Cup, New Me choisit entre le Départ (+200) et rester ; Red light, Green light compte deux cases de chaque par Red Cup ; Non merci ne vise plus que ce qui l’affecte (objet, roue, Bullet Bill) et se recharge en 5 tours de table ; Je note garde une copie une fois sur trois ; Calme-toi replace les joueurs trop proches à trois cases de la Cup.
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.
 - **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.

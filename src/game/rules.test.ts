@@ -87,9 +87,8 @@ describe("board transcription", () => {
 });
 
 describe("inventory rules", () => {
-  it("counts Red Cups as inventory entries and applies Penta capacity", () => {
+  it("counts Red Cups as inventory entries in a bag of four", () => {
     const player = makePlayer({
-      passiveId: "penta",
       inventory: [
         { id: "cup-1", kind: "red-cup" },
         { id: "item-1", kind: "item", itemId: "rope" },
@@ -97,8 +96,8 @@ describe("inventory rules", () => {
     });
 
     expect(countRedCups(player)).toBe(1);
-    expect(getInventoryCapacity(player)).toBe(5);
-    expect(getOpenInventorySlots(player)).toBe(3);
+    expect(getInventoryCapacity(player)).toBe(4);
+    expect(getOpenInventorySlots(player)).toBe(2);
   });
 
   it("blocks a third copy of an item and a second Gomme", () => {
