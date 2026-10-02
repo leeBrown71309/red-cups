@@ -1,7 +1,9 @@
 import { PASSIVE_ORDER } from "../catalog";
 import { MAP_ORDER } from "../maps/map-registry";
+import { getEnergyCapacity } from "../energy";
+import { getStartingCurrency } from "../passive-rules";
 import { useGameStore } from "../store";
-import type { MapId, PassiveId, Player, TurnStage } from "../types";
+import type { MapId, PassiveId, Player, TurnStage, WinReason } from "../types";
 import { createSeededRandom } from "../../utils/seeded-random";
 import { chooseBotAction } from "./bot-player";
 import { checkState, checkTransition, type RuleViolation } from "./rule-invariants";
@@ -38,6 +40,8 @@ export interface BotGameReport {
   steps: number;
   rounds: number;
   finished: boolean;
+  /** How the game was won, when it was. */
+  winReason: WinReason | null;
   blocked: boolean;
   violations: SeededViolation[];
   actionCounts: Record<string, number>;
@@ -58,13 +62,14 @@ function increment(counts: Record<string, number>, key: string): void {
 function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
   const used = new Set<PassiveId>(forced);
   return players.map((player, index) => {
+    // The starting balance follows the passive (Nepo Baby, eShop).
     const forcedPassive = forced[index];
-    if (forcedPassive) return { ...player, passiveId: forcedPassive };
+    if (forcedPassive) return { ...player, passiveId: forcedPassive, currency: getStartingCurrency(forcedPassive) };
     const passiveId = used.has(player.passiveId)
       ? (PASSIVE_ORDER.find((candidate) => !used.has(candidate)) ?? player.passiveId)
       : player.passiveId;
     used.add(passiveId);
-    return { ...player, passiveId };
+    return { ...player, passiveId, currency: getStartingCurrency(passiveId) };
   });
 }
 
@@ -84,6 +89,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     steps: 0,
     rounds: 0,
     finished: false,
+    winReason: null,
     blocked: false,
     violations: [],
     actionCounts: {},
@@ -102,7 +108,13 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     store.getState().resetGame();
     const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
     store.getState().startGame(botNames, options.seed, mapId);
-    if (options.passives) store.setState((state) => ({ players: assignPassives(state.players, options.passives!) }));
+    if (options.passives) {
+      // The first turn's gauge follows the passive too (Red Bull).
+      store.setState((state) => {
+        const players = assignPassives(state.players, options.passives!);
+        return { players, energyLeft: getEnergyCapacity(players[state.activePlayerIndex]) };
+      });
+    }
     const { startingCurrency } = options;
     if (startingCurrency !== undefined) {
       store.setState((state) => ({
@@ -154,6 +166,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
 
     const final = store.getState();
     report.finished = final.phase === "finished";
+    report.winReason = final.winReason;
     report.rounds = final.round;
   } finally {
     store.getState().resetGame();

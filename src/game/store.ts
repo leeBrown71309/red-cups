@@ -22,6 +22,8 @@ interface GameActions {
   /** Declares a move; it may wait in a Non merci reaction window before applying. */
   movePlayer: (destination: NodeId, ignoreArrows?: boolean) => void;
   prepareBoot: (entryId: string) => void;
+  /** Roller: throws the die before the move. */
+  rollDice: () => void;
   buyItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
   /** `count`: Tomates thrown at once from their stack. */
@@ -98,6 +100,7 @@ export const useGameStore = create<GameStore>()(
 
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
+      rollDice: () => dispatch({ type: "rollDice" }),
       buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
       useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),

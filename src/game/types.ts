@@ -21,6 +21,14 @@ export const JE_NOTE_COPY_CHANCE = 1 / 3;
 export const RED_GREEN_TRIGGERS_PER_CUP = 2;
 /** Calme-toi: how far from the new Red Cup the holder sets a player down. */
 export const CALM_DOWN_DISTANCE = 3;
+/** Cupide wins as soon as their balance reaches this. */
+export const GREEDY_GOAL = 5_000;
+/** Cupide: what a Red Cup pays them instead of taking a bag slot. */
+export const GREEDY_CUP_REWARD = 1_000;
+/** Cupide: taken from every knocked-out player on the tile they walk onto. */
+export const GREEDY_STUN_THEFT = 50;
+/** Roller: faces of the die thrown for every move. */
+export const ROLLER_DIE_FACES = 6;
 export const BULLET_BILL_DAMAGE = 200;
 /** Tiles Bullet Bill covers per charge: only a target on the next tile is hit (patch 0.1.4). */
 export const BULLET_BILL_CHARGE_STEPS = 1;
@@ -108,7 +116,13 @@ export type PassiveId =
   | "goblin"
   | "i-take-notes"
   | "calm-down"
-  | "lambda";
+  | "lambda"
+  | "nepo-baby"
+  | "red-bull"
+  | "eshop"
+  | "tomato-enjoyer"
+  | "roller"
+  | "greedy";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
@@ -356,7 +370,8 @@ export interface BulletFlight {
   dodgedBy?: PlayerId;
 }
 
-export type WinReason = "red-cups" | "forfeit";
+/** "greedy": Cupide reached its balance goal. */
+export type WinReason = "red-cups" | "forfeit" | "greedy";
 
 /** Last walk on the board, kept so the scene can animate the hops. */
 export interface PlayerMovement {
@@ -496,6 +511,8 @@ export interface GameState {
   redGreenTriggers: { green: number; red: number };
   /** Tomates: the stack the active player throws from this turn; another stack waits for the next turn. */
   thrownStackId: string | null;
+  /** Roller: the die thrown for this turn's move, until the move is played. */
+  diceRoll: number | null;
   bulletBill: BulletBillState | null;
   lastBulletFlight: BulletFlight | null;
   /** Banquise: the temporary ice tile brought by the last blizzard. */
@@ -563,6 +580,7 @@ export const EMPTY_GAME_STATE: GameState = {
   mudPlacedThisTurn: false,
   redGreenTriggers: { green: 0, red: 0 },
   thrownStackId: null,
+  diceRoll: null,
   bulletBill: null,
   lastBulletFlight: null,
   iceTileNodeId: null,

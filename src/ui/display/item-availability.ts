@@ -1,6 +1,7 @@
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getCorrupterBlocker, getInventoryCapacity, type CorrupterBlocker } from "../../game/rules";
+import { getCopyLimit } from "../../game/passive-rules";
+import { getCorrupterBlocker, getInventoryCapacity, getItemPrice, type CorrupterBlocker } from "../../game/rules";
 import { findStackWithRoom } from "../../game/state-utils";
 import type { GameState, ItemId, Player } from "../../game/types";
 import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
@@ -75,6 +76,9 @@ export function getItemAvailability(
   if (notYourTurn) return { usable: false, kind: "instant", actionLabel: "Utiliser", reason: "Attends ton tour." };
 
   if (itemId === "boot") {
+    if (player.passiveId === "roller") {
+      return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Le Roller a son dé." };
+    }
     if (inHell) return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Inutile en Enfer." };
     if (state.turnStage !== "move") {
       return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "À préparer avant de bouger." };
@@ -98,6 +102,9 @@ export function getItemAvailability(
     return { usable: false, kind: "instant", actionLabel: "Boire", reason: "Ne sert qu’à sortir de l’Enfer." };
   }
 
+  if (state.diceRoll !== null && actionStage) {
+    return { usable: false, kind: "instant", actionLabel: "Utiliser", reason: "Le dé est lancé : déplace-toi." };
+  }
   if (!actionStage) {
     return {
       usable: false,
@@ -136,15 +143,18 @@ export interface PurchaseStatus {
 
 /** Explains why an item is greyed out in the shop instead of silently disabling it. */
 export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Player): PurchaseStatus {
-  const price = itemId === "boot" ? state.bootPrice : ITEM_CATALOG[itemId].price;
+  const price = getItemPrice(itemId, state.bootPrice, player);
   const copies = player.inventory.filter((entry) => entry.kind === "item" && entry.itemId === itemId).length;
+  if (itemId === "boot" && player.passiveId === "roller") return { price, canBuy: false, reason: "Pas pour le Roller" };
 
   // A stack with room takes one more without a new slot; a new stack counts as a copy.
   if (!findStackWithRoom(player, itemId)) {
-    if (player.inventory.length >= getInventoryCapacity(player)) return { price, canBuy: false, reason: "Sac plein" };
-    if (itemId === "eraser" && copies >= 1) return { price, canBuy: false, reason: "Une seule Gomme" };
-    if (copies >= 2) {
-      const reason = ITEM_CATALOG[itemId].stackLimit ? "Max 2 piles" : "Max 2 exemplaires";
+    const capacity = getInventoryCapacity(player);
+    const copyLimit = getCopyLimit(player, itemId, capacity);
+    if (player.inventory.length >= capacity) return { price, canBuy: false, reason: "Sac plein" };
+    if (itemId === "eraser" && copies >= copyLimit) return { price, canBuy: false, reason: "Une seule Gomme" };
+    if (copies >= copyLimit) {
+      const reason = ITEM_CATALOG[itemId].stackLimit ? `Max ${copyLimit} piles` : `Max ${copyLimit} exemplaires`;
       return { price, canBuy: false, reason };
     }
   }

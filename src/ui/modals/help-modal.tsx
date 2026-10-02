@@ -58,7 +58,8 @@ function getTurnSteps(mapId: MapId): string[] {
       "énergie. Ce que tu achètes sert à partir de ton prochain tour. Deux exemplaires au plus d’un même objet, " +
       "une seule Gomme. Les Tomates s’empilent par 5 : une pile compte comme un exemplaire, et tu ne lances " +
       "qu’une pile par tour.",
-    "Ramasse 3 Red Cups pour gagner. Chaque Cup prend une place de ton sac (4 places) ; " +
+    "Ramasse 3 Red Cups pour gagner (Cupide, lui, gagne à 5 000 pièces). Chaque Cup prend une place de ton " +
+      "sac (4 places) ; " +
       "sac plein, tu jettes un objet, jamais une Cup.",
     `Entrer au Départ depuis la case ${bonusTiles}, dans le sens de la flèche : +${START_BONUS} pièces. ` +
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",

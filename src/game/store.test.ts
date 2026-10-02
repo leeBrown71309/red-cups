@@ -8,6 +8,7 @@ function startDeterministicGame(): void {
     players: state.players.map((player) => ({
       ...player,
       passiveId: "built-like-a-tank",
+      currency: 2_000,
     })),
   }));
 }

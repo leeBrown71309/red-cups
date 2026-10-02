@@ -257,6 +257,8 @@ function MoveContent({ player }: { player: Player }) {
   const round = useGameStore((state) => state.round);
   const mudPlaced = useGameStore((state) => state.mudPlacedThisTurn);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
+  const diceRoll = useGameStore((state) => state.diceRoll);
+  const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
@@ -276,6 +278,21 @@ function MoveContent({ player }: { player: Player }) {
     );
   }
 
+  // Roller: the die comes first, then the walk it allows.
+  if (player.passiveId === "roller" && diceRoll === null) {
+    return (
+      <DockPrompt
+        title="Lance le dé"
+        hint="Utilise d’abord tes objets si tu veux : une fois le dé lancé, il ne reste que le déplacement."
+      >
+        <button type="button" className="btn btn--gold btn--pulse" onClick={rollDice} data-autofocus>
+          <UiIcon name="dice" size={20} /> Lancer le dé
+        </button>
+        <EndTurnButton />
+      </DockPrompt>
+    );
+  }
+
   if (destinations.length === 0) {
     return (
       <DockPrompt title="Aucune route possible" hint="Utilise un objet de ton sac ou passe ton tour.">
@@ -289,15 +306,19 @@ function MoveContent({ player }: { player: Player }) {
   const title =
     previewNodeId !== null
       ? `Aller en case ${previewNodeId} ?`
-      : moveDistance === 2
-        ? "Botte chaussée : 2 cases !"
-        : "Choisis ta route";
+      : diceRoll !== null
+        ? `Dé : ${diceRoll} ! Choisis ta route`
+        : moveDistance === 2
+          ? "Botte chaussée : 2 cases !"
+          : "Choisis ta route";
   const hint =
     previewNodeId !== null
       ? "Touche à nouveau la case ou confirme."
-      : mudPlaced
-        ? "Boue posée ! Utilise un autre objet, ou déplace-toi pour finir ton tour."
-        : "Utilise d’abord tes objets si tu veux, puis touche une case : le déplacement finit ton tour.";
+      : diceRoll !== null
+        ? "Sans repasser par une case ; sans route assez longue, tu vas le plus loin possible."
+        : mudPlaced
+          ? "Boue posée ! Utilise un autre objet, ou déplace-toi pour finir ton tour."
+          : "Utilise d’abord tes objets si tu veux, puis touche une case : le déplacement finit ton tour.";
 
   return (
     <DockPrompt title={title} hint={hint}>

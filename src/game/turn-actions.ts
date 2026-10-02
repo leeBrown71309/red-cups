@@ -12,12 +12,14 @@ import {
   queueTileWheel,
   queueWheelsForMovedPlayers,
   settleBoard,
+  stealFromKnockedOut,
   randomNormalNode,
   sendPlayerToHell,
   startWheel,
   triggerMud,
 } from "./game-effects";
-import { canUseCorrupter, canUseNoThanks, findLegalPath, isShopNode } from "./rules";
+import { getTomatoStunChance, shopsAnywhere, TOMATO_ENJOYER_HIT_REWARD } from "./passive-rules";
+import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, isShopNode } from "./rules";
 import {
   addLog,
   applyCurrencyChange,
@@ -30,13 +32,7 @@ import {
   updatePlayer,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
-import {
-  CANCELLED_ITEM_IS_CONSUMED,
-  CORRUPTER_COST,
-  HELL_NODE_ID,
-  NO_THANKS_COOLDOWN_ROUNDS,
-  TOMATO_STUN_CHANCE,
-} from "./types";
+import { CANCELLED_ITEM_IS_CONSUMED, CORRUPTER_COST, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS } from "./types";
 
 /**
  * What a player does on their turn — use items, then move — split into "plan"
@@ -55,18 +51,20 @@ export function planMove(state: GameState, destination: NodeId, ignoreArrows: bo
   const player = getActivePlayer(state);
   if (state.phase !== "playing" || state.turnStage !== "move" || !player || !canAffordMove(state)) return null;
 
-  const board = getBoard(state);
-  const regularPath = findLegalPath(board, player, destination, state.moveDistance, false);
+  const findPath = (ignore: boolean) =>
+    getTurnMoveOptions(state, player, ignore).find((path) => path[path.length - 1] === destination) ?? null;
+  const regularPath = findPath(false);
   if (regularPath) return { path: regularPath, rebel: false };
 
   // Corrupteur only pays when the destination really requires going against an arrow.
   if (!ignoreArrows || !canUseCorrupter(player, state.round)) return null;
-  const rebelPath = findLegalPath(board, player, destination, state.moveDistance, true);
+  const rebelPath = findPath(true);
   return rebelPath ? { path: rebelPath, rebel: true } : null;
 }
 
-function getArrivalStage(state: GameState, nodeId: NodeId): TurnStage {
-  return isShopNode(getBoard(state), nodeId) ? "shop" : "turn-end";
+/** A blue tile opens the shop at the end of a walk; for eShop, any tile does. */
+function getArrivalStage(state: GameState, player: Player, nodeId: NodeId): TurnStage {
+  return isShopNode(getBoard(state), nodeId) || shopsAnywhere(player) ? "shop" : "turn-end";
 }
 
 /**
@@ -115,7 +113,8 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   nextState = {
     ...spendAllEnergy(nextState),
     moveDistance: 1,
-    turnStage: interruptedTo === null ? getArrivalStage(state, destination) : "turn-end",
+    diceRoll: null,
+    turnStage: interruptedTo === null ? getArrivalStage(state, player, destination) : "turn-end",
     lastMovement: {
       seq: (state.lastMovement?.seq ?? 0) + 1,
       playerId: player.id,
@@ -137,6 +136,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
     };
   }
 
+  nextState = stealFromKnockedOut(nextState, player.id);
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   nextState = queueTileWheel(nextState, player.id);
   nextState = triggerMud(nextState, player.id, destination);
@@ -184,7 +184,8 @@ export function planItemUse(
   if (!player || state.phase !== "playing") return null;
 
   const inHell = player.position === HELL_NODE_ID;
-  if (state.turnStage !== (inHell ? "hell" : "move")) return null;
+  // Roller: once the die is thrown, only the move is left.
+  if (state.turnStage !== (inHell ? "hell" : "move") || state.diceRoll !== null) return null;
 
   const itemId = getItemEntry(player, entryId);
   if (!itemId || NOT_USED_FROM_BAG.includes(itemId) || !canAffordItem(state, itemId)) return null;
@@ -335,8 +336,9 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
  */
 function throwTomatoes(state: GameState, thrower: Player, target: Player, count: number): GameState {
   let stunned = false;
+  const stunChance = getTomatoStunChance(thrower);
   for (let thrown = 0; thrown < count; thrown += 1) {
-    if (drawEngineRandom() < TOMATO_STUN_CHANCE) stunned = true;
+    if (drawEngineRandom() < stunChance) stunned = true;
   }
   const volley = count === 1 ? "une Tomate" : `${count} Tomates`;
   let nextState: GameState = {
@@ -349,6 +351,10 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
       stunned,
     },
   };
+  // Tomato Enjoyer loves every one of them.
+  if (target.passiveId === "tomato-enjoyer") {
+    nextState = applyCurrencyChange(nextState, target.id, TOMATO_ENJOYER_HIT_REWARD * count);
+  }
   if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
   nextState = updatePlayer(nextState, target.id, (current) => ({ ...current, skippedTurns: current.skippedTurns + 1 }));
   return addLog(

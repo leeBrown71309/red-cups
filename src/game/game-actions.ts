@@ -6,7 +6,9 @@ import { pickBlizzardTile } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
-import { createEngineId, runWithSeededSource } from "./engine-random";
+import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
+import { canBuyItemKind, getStartingCurrency } from "./passive-rules";
+import { checkGreedyVictory } from "./victory";
 import {
   canAffordItem,
   canAffordMove,
@@ -31,6 +33,7 @@ import {
   resumeAfterBulletReaction,
   sendPlayerToHell,
   settleBoard,
+  stealFromKnockedOut,
   startDuel,
   startWheel,
   validTileWheels,
@@ -42,7 +45,7 @@ import {
   getItemPrice,
   getTileWheel,
   getUniqueLegalDestinations,
-  isShopNode,
+  opensShop,
 } from "./rules";
 import {
   addLog,
@@ -89,7 +92,7 @@ import {
   FREE_TOMATOES,
   HELL_NODE_ID,
   PLAYER_COLORS,
-  STARTING_CURRENCY,
+  ROLLER_DIE_FACES,
   START_NODE_ID,
 } from "./types";
 
@@ -103,6 +106,8 @@ export type GameAction =
   | { type: "resetGame" }
   | { type: "movePlayer"; destination: NodeId; ignoreArrows: boolean }
   | { type: "prepareBoot"; entryId: string }
+  /** Roller: throws the die that sets the length of the move. */
+  | { type: "rollDice" }
   | { type: "buyItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
   | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
@@ -143,7 +148,7 @@ function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | unde
     name,
     color: avatarColors?.[index] ?? PLAYER_COLORS[index],
     position: START_NODE_ID,
-    currency: STARTING_CURRENCY,
+    currency: getStartingCurrency(passives[index]),
     inventory: [],
     passiveId: passives[index],
     skippedTurns: 0,
@@ -347,6 +352,7 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
   if (earnsStartBonus(getBoard(state), player.position, [destination])) {
     nextState = addStartBonus(nextState, player.id);
   }
+  nextState = stealFromKnockedOut(nextState, player.id);
   nextState = arriveOnTile(nextState, player.id);
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
@@ -360,10 +366,12 @@ function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean
   return plan ? applyMove(state, destination, plan) : state;
 }
 
-/** One Botte per turn: it costs a point and keeps another for the two-tile move. */
+/** One Botte per turn: it costs a point and keeps another for the two-tile move. The Roller has its die. */
 function prepareBoot(state: GameState, entryId: string): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "move" || state.moveDistance !== 1) return state;
+  if (!player || state.turnStage !== "move" || state.moveDistance !== 1 || player.passiveId === "roller") {
+    return state;
+  }
   if (getItemEntry(player, entryId) !== "boot" || !canAffordItem(state, "boot")) return state;
 
   let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
@@ -371,13 +379,25 @@ function prepareBoot(state: GameState, entryId: string): GameState {
   return addLog(nextState, `${player.name} prépare la Botte pour un déplacement de deux cases.`, "event");
 }
 
+/**
+ * Roller: the die is thrown before the move, which then covers exactly that
+ * many tiles (or as many as the roads allow). No item after it.
+ */
+function rollDice(state: GameState): GameState {
+  const player = getActivePlayer(state);
+  if (!player || player.passiveId !== "roller" || state.turnStage !== "move" || state.diceRoll !== null) return state;
+  if (!canAffordMove(state)) return state;
+  const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
+  return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
+}
+
 function buyItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "shop" || !isShopNode(getBoard(state), player.position)) return state;
+  if (!player || state.turnStage !== "shop" || !opensShop(getBoard(state), player)) return state;
 
   // Shopping costs no energy: what is bought is used from the next turn on, Bullet Bill included.
-  const price = getItemPrice(itemId, state.bootPrice);
-  if (player.currency < price || !canAddItem(player, itemId)) return state;
+  const price = getItemPrice(itemId, state.bootPrice, player);
+  if (player.currency < price || !canAddItem(player, itemId) || !canBuyItemKind(player, itemId)) return state;
 
   let nextState = applyCurrencyChange(state, player.id, -price);
   nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
@@ -480,8 +500,10 @@ function resolveWheel(state: GameState): GameState {
   let nextState: GameState = { ...state, pendingWheel: null, turnStage: pending.resumeStage };
   nextState = applyWheelOutcome(nextState, player, pending.wheelId, pending.result.id, pending.result.amount ?? 0);
   // The item's user is still the active player: its wheel always resolves within their turn.
+  const userId = getActivePlayer(state)?.id;
+  if (pending.sourceItemId === "ndoye") nextState = refundGreedyNdoye(nextState, player, userId);
   if (pending.sourceItemId) {
-    nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, getActivePlayer(state)?.id);
+    nextState = itemCopyForPassive(nextState, pending.playerId, pending.sourceItemId, userId);
   }
   if (nextState.pendingDiscard) return nextState;
   // A wheel that moved its player onto a blue tile has opened its shop in place of the stage it came from.
@@ -492,6 +514,15 @@ function resolveWheel(state: GameState): GameState {
  * Rubs out the result of a wheel for its player: with the Gomme, or with a
  * ready Non merci, which then recharges (patch 0.1.4).
  */
+/** Cupide: whatever their Ndoye's wheel makes its target lose comes back to them. */
+function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | undefined): GameState {
+  const user = findPlayer(state, userId);
+  const lost = target.currency - (findPlayer(state, target.id)?.currency ?? target.currency);
+  if (user?.passiveId !== "greedy" || user.id === target.id || lost <= 0) return state;
+  const nextState = applyCurrencyChange(state, user.id, lost);
+  return addLog(nextState, `${user.name} récupère les ${lost} pièces perdues par ${target.name}.`, "good");
+}
+
 function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
   const pending = state.pendingWheel;
   const player = findPlayer(state, pending?.playerId);
@@ -645,7 +676,8 @@ function applyGameAction(state: GameState, action: GameAction): GameState {
   const prepared = spareHellPlayers(state);
   const result = dispatchGameAction(prepared, action);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
-  return result === prepared ? state : recordPreviousTiles(prepared, result);
+  if (result === prepared) return state;
+  return checkGreedyVictory(recordPreviousTiles(prepared, result));
 }
 
 function dispatchGameAction(state: GameState, action: GameAction): GameState {
@@ -658,6 +690,8 @@ function dispatchGameAction(state: GameState, action: GameAction): GameState {
       return movePlayer(state, action.destination, action.ignoreArrows);
     case "prepareBoot":
       return prepareBoot(state, action.entryId);
+    case "rollDice":
+      return rollDice(state);
     case "buyItem":
       return buyItem(state, action.itemId);
     case "useItem":

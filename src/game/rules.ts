@@ -1,5 +1,6 @@
-import { getBoardNode, getPathsOfLength, type Board } from "./board";
+import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
+import { getCopyLimit, getMudPrice, shopsAnywhere } from "./passive-rules";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { BASE_INVENTORY_CAPACITY, CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
@@ -32,8 +33,7 @@ export function countItemUnits(player: Player, itemId: ItemId): number {
 
 /** At most two copies of an item, a single Gomme: whether one more slot of it may be filled. */
 function isWithinCopyLimit(player: Player, itemId: ItemId): boolean {
-  const copies = countItemCopies(player, itemId);
-  return itemId === "eraser" ? copies < 1 : copies < 2;
+  return countItemCopies(player, itemId) < getCopyLimit(player, itemId, getInventoryCapacity(player));
 }
 
 /** Whether the item may take a slot of its own: room in the bag, within the copy limits. */
@@ -44,7 +44,7 @@ export function canStartNewSlot(player: Player, itemId: ItemId): boolean {
 /**
  * At most two copies of an item and a single Gomme. A stackable item (the
  * Tomate) piles up to its limit in a slot, and each stack counts as one copy:
- * two stacks at most (patch 0.1.4).
+ * two stacks at most (patch 0.1.4), one per slot for Tomato Enjoyer.
  */
 export function canAddItem(player: Player, itemId: ItemId): boolean {
   return findStackWithRoom(player, itemId) !== undefined || canStartNewSlot(player, itemId);
@@ -126,8 +126,35 @@ export function getTileWheel(board: Board, nodeId: NodeId): WheelId | null {
   return null;
 }
 
-export function getItemPrice(itemId: ItemId, bootPrice: number): number {
-  return itemId === "boot" ? bootPrice : ITEM_CATALOG[itemId].price;
+/** What `buyer` pays: the Botte's price climbs over the game, and Cupide gets the mud cheaper. */
+export function getItemPrice(itemId: ItemId, bootPrice: number, buyer?: Player): number {
+  if (itemId === "boot") return bootPrice;
+  if (itemId === "mud") return getMudPrice(buyer);
+  return ITEM_CATALOG[itemId].price;
+}
+
+/** A blue tile opens the shop; for eShop, any tile does. */
+export function opensShop(board: Board, player: Player): boolean {
+  return isShopNode(board, player.position) || shopsAnywhere(player);
+}
+
+/**
+ * The walks open to `player` this turn: for the Roller, those its die allows
+ * once thrown; for everyone else one step, or two with the Botte.
+ */
+export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
+  const board = getBoard(state);
+  if (player.passiveId !== "roller") return getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+  if (state.diceRoll === null || player.position === HELL_NODE_ID) return [];
+  return getSimplePaths(board, player.position, state.diceRoll);
+}
+
+/** Whether a move is still possible this turn; a Roller who has not thrown yet only needs a road. */
+export function hasTurnMove(state: GameState, player: Player, ignoreArrows = false): boolean {
+  if (player.passiveId === "roller" && state.diceRoll === null) {
+    return player.position !== HELL_NODE_ID && getNeighbors(getBoard(state), player.position).length > 0;
+  }
+  return getTurnMoveOptions(state, player, ignoreArrows).length > 0;
 }
 
 /**

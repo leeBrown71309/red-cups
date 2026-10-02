@@ -150,6 +150,7 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 - Une Red Cup utilise un emplacement d’inventaire et ne peut pas être abandonnée pour libérer de la place.
 - Si l’inventaire est plein à la collecte, le joueur choisit quel objet ordinaire abandonner.
 - La collecte de la troisième Red Cup déclenche immédiatement la victoire ; aucune nouvelle Cup n’est générée après cette victoire.
+- **Cupide** (patch 0.1.4) ne garde pas les Red Cups : chacune lui rapporte 1 000 pièces, sans prendre de place, et la suivante apparaît normalement. Il gagne dès que son solde atteint 5 000 pièces, quel que soit le tour et quelle que soit l’origine des pièces.
 - Le diaporama ne précise pas si la case 11 peut recevoir une Red Cup. Pour le MVP, le tirage doit éviter l’Enfer tant que ce point n’est pas confirmé.
 
 ## 4. Tours, actions et boutique
@@ -255,6 +256,12 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Je note | Quand un objet à cible unique (Ndoye, Hollow Purple, Corde, Middle Finger, Monopoly Man, Tomate) est utilisé contre lui par un autre joueur, il a une chance sur trois d’en garder une copie (patch 0.1.4). Plus de copie de Draven ni de la Boue. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
 | Calme-toi | Quand une nouvelle Red Cup apparaît, chaque autre joueur à une ou deux cases d’elle, et plus proche d’elle que le détenteur, peut être replacé par celui-ci sur n’importe quelle case à exactement trois cases de la Cup, un joueur après l’autre (patch 0.1.4). Le joueur replacé ne tire rien de cette case : ni roue, ni boutique, ni Boue. Le détenteur peut aussi le laisser où il est. |
 | Lambda | Rien de spécial (patch 0.1.4). |
+| Nepo Baby | Commence la partie avec 3 000 pièces (patch 0.1.4). |
+| Red Bull | A 4 points d’énergie à chaque tour (patch 0.1.4). |
+| eShop | Après chaque déplacement, la boutique s’ouvre où qu’il soit (y compris après « Avance d’une case » ou « Retourne d’où tu viens » quand son tour est fini). Commence avec 1 000 pièces (patch 0.1.4). |
+| Tomato Enjoyer | Chaque place du sac peut tenir une pile de 5 Tomates (20 au plus). Ses Tomates assomment 5 fois sur 100 au lieu de 2, et chaque Tomate qu’on lui lance lui rapporte 5 pièces (patch 0.1.4). |
+| Roller | Pour se déplacer, il lance d’abord un dé à 6 faces ; après le lancer, plus d’objet, seulement le déplacement. Il parcourt exactement ce nombre de cases, flèches respectées, sans jamais repasser par une case (celle de départ comprise). Si aucun chemin n’est assez long, il va le plus loin possible (réponse de l’auteur). Les cases traversées comptent (bonus du départ, Red light) ; la glace ne fait glisser qu’à l’arrivée. Il ne peut ni acheter ni chausser la Botte (patch 0.1.4). |
+| Cupide | Gagne à 5 000 pièces (voir 3.3). Une Red Cup lui rapporte 1 000 pièces au lieu d’une place. En s’arrêtant sur la case d’un joueur assommé (qui doit passer son tour), il lui prend 50 pièces. Sa Boue lui coûte 100 pièces et lui rapporte 200 quand un autre joueur marche dedans. Les pièces que son Ndoye fait perdre à sa cible lui reviennent (patch 0.1.4). |
 
 ## 9. Enfer, roues et duels
 
@@ -376,6 +383,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Flèches** : elles sont dessinées sur les cases, comme sur le plateau original : une flèche en relief de la couleur de la case sort de son bord vers la route imposée, sur le plateau 3D comme sur le plan de l’aide. Les routes fléchées perdent leurs chevrons ; le tunnel et le carrousel gardent les leurs.
 - **Énergie** : 3 points par tour. Les objets coûtent de 0 à 3 points et ne terminent plus le tour ; le déplacement (ou la roue de l’Enfer) demande au moins 1 point et prend le reste. La Botte coûte 1 point et en garde 1 pour bouger. Jauge dans le dock et sur la fiche de chaque joueur, bleue pleine, orange à 2 points, rouge au dernier ; coûts affichés dans la boutique, le sac et l’aide (voir 4).
 - **Tomates** : une pile compte comme un exemplaire, deux piles au plus, une seule pile lancée par tour.
+- **Nouveaux passifs** (voir 8) : Nepo Baby, Red Bull, eShop, Tomato Enjoyer, Roller et Cupide, avec sa victoire à 5 000 pièces.
 - **Passifs** (voir 8) : Penta et Je suis Cups disparaissent, Lambda arrive. Délinquant devient Corrupteur et Troll devient Goblin. New Cup, New Me choisit entre le Départ (+200) et rester ; Red light, Green light compte deux cases de chaque par Red Cup ; Non merci ne vise plus que ce qui l’affecte (objet, roue, Bullet Bill) et se recharge en 5 tours de table ; Je note garde une copie une fois sur trois ; Calme-toi replace les joueurs trop proches à trois cases de la Cup.
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.

@@ -4,6 +4,7 @@ import { reduceGame, type GameAction } from "./game-actions";
 import { migrateGameSave } from "./game-save";
 import type { GameState, InventoryEntry, ItemId, PassiveId, Player } from "./types";
 import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID } from "./types";
+import { getStartingCurrency } from "./passive-rules";
 
 /**
  * Energy (patch 0.1.4) on the classic board: from the start, roads lead to
@@ -14,7 +15,11 @@ function startTable(passives: PassiveId[] = ["goblin", "goblin"]): GameState {
   return {
     ...state,
     seededRandom: null,
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
+    players: state.players.map((player, index) => ({
+      ...player,
+      passiveId: passives[index],
+      currency: getStartingCurrency(passives[index]),
+    })),
   };
 }
 

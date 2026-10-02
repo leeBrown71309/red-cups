@@ -3,12 +3,15 @@ import { getBoard } from "./board";
 import { reduceGame, type GameAction } from "./game-actions";
 import { canAddItem, countItemCopies, countItemUnits } from "./rules";
 import type { GameState, InventoryEntry, Player } from "./types";
-import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID } from "./types";
+import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
 
 /** A classic table where nobody holds Non merci, Je note or Penta: a throw lands at once, the bag holds 4. */
 function startTable(): GameState {
   const state = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["Ana", "Bo", "Cy"], seed: 7 });
-  return { ...state, players: state.players.map((player) => ({ ...player, passiveId: "goblin" as const })) };
+  return {
+    ...state,
+    players: state.players.map((player) => ({ ...player, passiveId: "goblin" as const, currency: STARTING_CURRENCY })),
+  };
 }
 
 function editPlayer(state: GameState, index: number, changes: Partial<Player>): GameState {

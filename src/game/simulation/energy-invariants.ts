@@ -1,6 +1,5 @@
-import { getBoard } from "../board";
 import { getEnergyCapacity, getItemEnergyCost } from "../energy";
-import { canUseCorrupter, getUniqueLegalDestinations } from "../rules";
+import { canUseCorrupter, hasTurnMove } from "../rules";
 import { getActivePlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { MOVE_MINIMUM_ENERGY } from "../types";
@@ -110,12 +109,6 @@ function checkEndOfTurn(previous: GameState, next: GameState, found: RuleViolati
   const active = getActivePlayer(previous);
   if (!active || previous.turnActionTaken || previous.energyLeft < MOVE_MINIMUM_ENERGY) return;
   const stuck =
-    previous.turnStage === "move" &&
-    getUniqueLegalDestinations(
-      getBoard(previous),
-      active,
-      previous.moveDistance,
-      canUseCorrupter(active, previous.round),
-    ).length === 0;
+    previous.turnStage === "move" && !hasTurnMove(previous, active, canUseCorrupter(active, previous.round));
   if (!stuck) found.push(violation("energy-early-end", `${active.name} ended the turn without doing anything`));
 }

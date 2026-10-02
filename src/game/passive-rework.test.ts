@@ -4,6 +4,7 @@ import { migrateGameSave, pickGameState } from "./game-save";
 import { useGameStore } from "./store";
 import type { InventoryEntry, ItemId, PassiveId, Player, WheelOutcomeId } from "./types";
 import { BASE_ENERGY, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS, START_BONUS, STARTING_CURRENCY } from "./types";
+import { getStartingCurrency } from "./passive-rules";
 
 /**
  * Passives reworked by patch 0.1.4 on the classic board. Roads (arrows aside):
@@ -13,7 +14,11 @@ import { BASE_ENERGY, HELL_NODE_ID, NO_THANKS_COOLDOWN_ROUNDS, START_BONUS, STAR
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
   useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
+    players: state.players.map((player, index) => ({
+      ...player,
+      passiveId: passives[index],
+      currency: getStartingCurrency(passives[index]),
+    })),
   }));
 }
 

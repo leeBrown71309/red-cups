@@ -81,6 +81,26 @@ describe("broke table games", () => {
   );
 });
 
+describe("rich table games", () => {
+  it(
+    "keeps the rules when Cupide reaches its goal",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE }, (_, index) =>
+        runBotGame({
+          seed: 30_000 + index,
+          playerCount: 2 + (index % 7),
+          passives: ["greedy"],
+          startingCurrency: 4_500,
+        }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(reports.filter((report) => report.winReason === "greedy").length).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
 describe("passive stress games", () => {
   it.each(PASSIVE_ORDER)(
     "keeps the rules with %s at the table",

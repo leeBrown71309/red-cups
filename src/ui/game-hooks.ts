@@ -1,8 +1,7 @@
 import { useMemo } from "react";
-import { getBoard } from "../game/board";
 import { getForwardTiles } from "../game/game-actions";
 import { getCalmDownTiles } from "../game/game-effects";
-import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
+import { getDecidingPlayer, getTurnMoveOptions } from "../game/rules";
 import { canUseCorrupter, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
@@ -45,7 +44,7 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
 
   if (state.turnStage !== "move") return { origin: null, paths };
   const canIgnoreArrows = ignoreArrows && canUseCorrupter(activePlayer, state.round);
-  for (const path of getLegalMoveOptions(getBoard(state), activePlayer, state.moveDistance, canIgnoreArrows)) {
+  for (const path of getTurnMoveOptions(state, activePlayer, canIgnoreArrows)) {
     const destination = path[path.length - 1];
     if (!paths.has(destination)) paths.set(destination, path);
   }

@@ -7,6 +7,8 @@ import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
+import { getMudOwnerReward } from "./passive-rules";
+import { endGame } from "./victory";
 import {
   canAddItem,
   canReceiveItem,
@@ -14,7 +16,7 @@ import {
   getInventoryCapacity,
   getNodeKind,
   getTileWheel,
-  isShopNode,
+  opensShop,
 } from "./rules";
 import {
   addLog,
@@ -31,12 +33,13 @@ import type { DuelMode, GameState, ItemId, NodeId, PlayerId, TurnStage, WheelId,
 import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
+  GREEDY_CUP_REWARD,
+  GREEDY_STUN_THEFT,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
   JE_NOTE_COPY_CHANCE,
   MAXIMUM_BOOT_PRICE,
   HELL_TURN_LIMIT,
-  MUD_OWNER_REWARD,
   MUD_PENALTY,
   RED_CUP_GOAL,
   RED_GREEN_TRIGGERS_PER_CUP,
@@ -86,7 +89,7 @@ export function startWheel(
 export function normalizeResumeStage(state: GameState, stage: TurnStage): TurnStage {
   const active = getActivePlayer(state);
   if (!active || state.phase !== "playing") return stage;
-  if (stage === "shop" && !isShopNode(getBoard(state), active.position)) return "turn-end";
+  if (stage === "shop" && !opensShop(getBoard(state), active)) return "turn-end";
   if (stage === "tile-wheel") return state.tileWheelResumeStage;
   // A turn that opens with side effects (Banquise's thaw) must still start where the player now is.
   if (stage === "move" && active.position === HELL_NODE_ID) return "hell";
@@ -313,22 +316,30 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
   nextState = addLog(nextState, `${player.name} récupère une Red Cup (${totalCups}/${RED_CUP_GOAL}).`, "good");
 
   if (totalCups >= RED_CUP_GOAL) {
-    nextState = {
-      ...nextState,
-      phase: "finished",
-      turnStage: "finished",
-      redCupNodeId: null,
-      winnerId: playerId,
-      winReason: "red-cups",
-      pendingCalmDown: null,
-      pendingReaction: null,
-    };
+    nextState = { ...endGame(nextState, playerId, "red-cups"), redCupNodeId: null };
     return addLog(nextState, `${player.name} remporte la partie !`, "good");
   }
+  return placeNextCup(nextState, cupNodeId, state.turnStage);
+}
 
+/** Cupide: a Red Cup pays coins instead of taking a bag slot, and the next one appears as usual. */
+function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  let nextState = addLog(state, `${player.name} encaisse la Red Cup : +${GREEDY_CUP_REWARD} pièces.`, "good");
+  nextState = applyCurrencyChange(nextState, playerId, GREEDY_CUP_REWARD);
+  return placeNextCup(nextState, cupNodeId, state.turnStage);
+}
+
+/**
+ * The Red Cup on `cupNodeId` was taken: the next one is drawn elsewhere, and
+ * the passives of a new Cup wake up. `stageBefore` is where play stood.
+ */
+function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStage): GameState {
+  let nextState = state;
   const nextCupNodeId = createCupNode(getBoard(state), cupNodeId);
   const repositioner = nextState.players.find((candidate) => candidate.passiveId === "new-cup-new-me");
-  const resumeStage = state.turnStage === "discard" ? "turn-end" : state.turnStage;
+  const resumeStage = stageBefore === "discard" ? "turn-end" : stageBefore;
 
   nextState = {
     ...nextState,
@@ -353,6 +364,7 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
 export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
   if (!player || state.redCupNodeId !== nodeId) return state;
+  if (player.passiveId === "greedy") return cashInCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
     return {
@@ -459,8 +471,28 @@ export function arriveOnTile(state: GameState, playerId: PlayerId): GameState {
 export function getWheelArrivalStage(state: GameState, playerId: PlayerId, resumeStage: TurnStage): TurnStage {
   const player = findPlayer(state, playerId);
   const isActive = getActivePlayer(state)?.id === playerId;
-  const onShop = player !== undefined && isShopNode(getBoard(state), player.position);
+  const onShop = player !== undefined && opensShop(getBoard(state), player);
   return isActive && onShop && resumeStage === "turn-end" ? "shop" : resumeStage;
+}
+
+/** Cupide walks onto a tile: every knocked-out player standing there pays them a little. */
+export function stealFromKnockedOut(state: GameState, playerId: PlayerId): GameState {
+  const thief = findPlayer(state, playerId);
+  if (thief?.passiveId !== "greedy") return state;
+  let nextState = state;
+  const victims = state.players.filter(
+    (player) => player.id !== thief.id && player.position === thief.position && player.skippedTurns > 0,
+  );
+  for (const victim of victims) {
+    nextState = applyCurrencyChange(nextState, victim.id, -GREEDY_STUN_THEFT);
+    nextState = applyCurrencyChange(nextState, thief.id, GREEDY_STUN_THEFT);
+    nextState = addLog(
+      nextState,
+      `${thief.name} détrousse ${victim.name}, assommé : ${GREEDY_STUN_THEFT} pièces.`,
+      "event",
+    );
+  }
+  return nextState;
 }
 
 export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
@@ -474,8 +506,9 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId)
   // Stepping in your own mud pays nobody.
   const owner = findPlayer(nextState, trap.ownerId);
   if (owner && owner.id !== playerId) {
-    nextState = addLog(nextState, `${owner.name} touche ${MUD_OWNER_REWARD} pièces grâce à sa Boue.`, "good");
-    nextState = applyCurrencyChange(nextState, owner.id, MUD_OWNER_REWARD);
+    const reward = getMudOwnerReward(owner);
+    nextState = addLog(nextState, `${owner.name} touche ${reward} pièces grâce à sa Boue.`, "good");
+    nextState = applyCurrencyChange(nextState, owner.id, reward);
   }
   return nextState;
 }
@@ -620,6 +653,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     moveDistance: 1,
     mudPlacedThisTurn: false,
     thrownStackId: null,
+    diceRoll: null,
     blessingQueue: [],
     pendingWheel: null,
     pendingChallenge: null,

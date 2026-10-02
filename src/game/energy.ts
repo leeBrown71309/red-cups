@@ -1,6 +1,5 @@
-import { getBoard } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { canUseCorrupter, getUniqueLegalDestinations } from "./rules";
+import { canUseCorrupter, hasTurnMove } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, ItemId, PassiveId, Player } from "./types";
 import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
@@ -11,8 +10,8 @@ import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
  * up whatever is left and ends the turn. In Hell the wheel stands for the move.
  */
 
-/** Passives that enlarge the gauge (none yet: Red Bull comes with the new passives). */
-const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = {};
+/** Passives that enlarge the gauge. */
+const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
 
 /** Energy a player's turn opens with. */
 export function getEnergyCapacity(player: Player): number {
@@ -48,13 +47,7 @@ export function spendAllEnergy(state: GameState): GameState {
 }
 
 function hasLegalMove(state: GameState, player: Player): boolean {
-  const destinations = getUniqueLegalDestinations(
-    getBoard(state),
-    player,
-    state.moveDistance,
-    canUseCorrupter(player, state.round),
-  );
-  return destinations.length > 0;
+  return hasTurnMove(state, player, canUseCorrupter(player, state.round));
 }
 
 /**

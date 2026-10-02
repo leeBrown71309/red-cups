@@ -81,7 +81,11 @@ export function VictoryModal() {
             <PlayerAvatar color={winner.color} size={120} />
           </div>
           <span className="modal-card__eyebrow">
-            {winReason === "forfeit" ? "Dernière personne à table" : "Trois Red Cups. Une légende."}
+            {winReason === "forfeit"
+              ? "Dernière personne à table"
+              : winReason === "greedy"
+                ? "5 000 pièces. Cupide rafle la mise."
+                : "Trois Red Cups. Une légende."}
           </span>
           <h2 id="victory-title" className="victory__title">
             {winner.name} gagne la partie !

@@ -1,4 +1,5 @@
-import { earnsStartBonus, getBoard, getNeighbors, hasCarousel, isIce } from "../board";
+import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
+import { getCopyLimit, shopsAnywhere } from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
@@ -15,6 +16,7 @@ import {
   BOOT_PRICE_STEP,
   CURRENCY_RESET_THRESHOLD,
   FIRST_ROUND,
+  GREEDY_GOAL,
   HELL_NODE_ID,
   HELL_TURN_LIMIT,
   RED_CUP_GOAL,
@@ -82,7 +84,9 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   for (const itemId of ITEM_ORDER) {
     // A stack counts as one copy: two stacks of Tomates at most.
     const copies = countItemCopies(player, itemId);
-    if (copies > 2) found.push(violation("no-third-copy", `${name} has ${copies} × ${itemId}`));
+    if (copies > getCopyLimit(player, itemId, getInventoryCapacity(player))) {
+      found.push(violation("no-third-copy", `${name} has ${copies} × ${itemId}`));
+    }
     if (itemId === "eraser" && copies > 1) found.push(violation("single-eraser", `${name} has ${copies} Gommes`));
   }
   if (player.currency <= CURRENCY_RESET_THRESHOLD) {
@@ -123,7 +127,7 @@ export function checkState(state: GameState): RuleViolation[] {
     const inHell = active.position === HELL_NODE_ID;
     if (state.turnStage === "hell" && !inHell) found.push(violation("hell-stage", `${active.name} is not in Hell`));
     if (state.turnStage === "move" && inHell) found.push(violation("move-stage", `${active.name} walks from Hell`));
-    if (state.turnStage === "shop" && !isShopNode(getBoard(state), active.position)) {
+    if (state.turnStage === "shop" && !isShopNode(getBoard(state), active.position) && !shopsAnywhere(active)) {
       found.push(violation("shop-stage", `${active.name} shops on tile ${active.position}`));
     }
     const nextWheel = state.pendingTileWheels[0];
@@ -189,8 +193,15 @@ export function checkState(state: GameState): RuleViolation[] {
     found.push(violation("instant-victory", `${champions[0].name} has 3 Cups but the game goes on`));
   }
   const wonByForfeit = state.winReason === "forfeit" && state.players.length === 1;
-  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit) {
-    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner or a forfeit"));
+  const greedyWinner = findPlayer(state, state.winnerId);
+  const wonByGreed =
+    state.winReason === "greedy" && greedyWinner?.passiveId === "greedy" && greedyWinner.currency >= GREEDY_GOAL;
+  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed) {
+    found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or Cupide's goal"));
+  }
+  const rich = state.players.find((player) => player.passiveId === "greedy" && player.currency >= GREEDY_GOAL);
+  if (rich && state.phase === "playing") {
+    found.push(violation("greedy-victory", `${rich.name} holds ${rich.currency} coins but the game goes on`));
   }
   if (state.winReason === "forfeit" && state.players.length !== 1) {
     found.push(violation("forfeit-last-player", `a forfeit win with ${state.players.length} players left`));
@@ -254,9 +265,17 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const stepForward = previous.turnStage === "advance";
   // The walk itself is exactly the move's distance; anything after it was slid on ice.
   const walkedLength = movement.slideStart ?? movement.path.length;
-  const expectedLength = stepForward ? 1 : previous.moveDistance;
+  // Roller: the die's count, or as far as a walk that never comes back to a tile can go.
+  const roll = previous.diceRoll;
+  const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
+  const rolled = !stepForward && mover.passiveId === "roller";
+  const expectedLength = stepForward ? 1 : rolled ? rollerReach : previous.moveDistance;
   if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
+  }
+  const walked = [movement.from, ...movement.path.slice(0, walkedLength)];
+  if (rolled && new Set(walked).size !== walked.length) {
+    found.push(violation("roller-no-loop", `${mover.name} came back to a tile: ${walked.join(" → ")}`));
   }
   checkSlide(previous, next, movement, found);
 
@@ -295,10 +314,10 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     movement.interruptedTo !== undefined ||
     ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
   if (!interrupted) {
-    const expected: TurnStage = isShopNode(board, destination)
-      ? "shop"
-      : getTileWheel(board, destination)
-        ? "tile-wheel"
+    const expected: TurnStage = getTileWheel(board, destination)
+      ? "tile-wheel"
+      : isShopNode(board, destination) || shopsAnywhere(mover)
+        ? "shop"
         : "turn-end";
     if (next.turnStage !== expected) {
       found.push(violation("arrival-stage", `landing on ${destination} led to ${next.turnStage}, not ${expected}`));

@@ -3,13 +3,18 @@ import { isRestorableGame, migrateGameSave, pickGameState } from "./game-save";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
 import { EMPTY_GAME_STATE, HELL_EXIT_TOLL, HELL_NODE_ID, HELL_TURN_LIMIT, START_BONUS } from "./types";
+import { getStartingCurrency } from "./passive-rules";
 
 /** Hand-written situations for the rules that matter most at the table. */
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
   useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
+    players: state.players.map((player, index) => ({
+      ...player,
+      passiveId: passives[index],
+      currency: getStartingCurrency(passives[index]),
+    })),
   }));
 }
 

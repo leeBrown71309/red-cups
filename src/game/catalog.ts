@@ -241,6 +241,47 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Lambda",
     description: "Rien de spécial : tu es une personne normale.",
   },
+  "nepo-baby": {
+    id: "nepo-baby",
+    name: "Nepo Baby",
+    shortName: "Nepo Baby",
+    description: "Tu commences la partie avec 3 000 pièces.",
+  },
+  "red-bull": {
+    id: "red-bull",
+    name: "Red Bull",
+    shortName: "Red Bull",
+    description: "Tu as 4 points d’énergie à chaque tour.",
+  },
+  eshop: {
+    id: "eshop",
+    name: "eShop",
+    shortName: "eShop",
+    description: "Après chaque déplacement, la boutique s’ouvre où que tu sois. Tu commences avec 1 000 pièces.",
+  },
+  "tomato-enjoyer": {
+    id: "tomato-enjoyer",
+    name: "Tomato Enjoyer",
+    shortName: "Tomato",
+    description:
+      "Chaque place de ton sac tient une pile de 5 Tomates. Tes Tomates assomment 5 fois sur 100, et chaque " +
+      "Tomate reçue te rapporte 5 pièces.",
+  },
+  roller: {
+    id: "roller",
+    name: "Roller",
+    shortName: "Roller",
+    description:
+      "Tu lances un dé à 6 faces pour chaque déplacement, sans repasser par une case. Pas de Botte pour toi.",
+  },
+  greedy: {
+    id: "greedy",
+    name: "Cupide",
+    shortName: "Cupide",
+    description:
+      "Tu gagnes à 5 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
+      "assommé lui vole 50 pièces, ta Boue coûte 100 et rapporte 200, et ce que ton Ndoye fait perdre te revient.",
+  },
 };
 
 export const PASSIVE_ORDER: PassiveId[] = [
@@ -253,6 +294,12 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "i-take-notes",
   "calm-down",
   "lambda",
+  "nepo-baby",
+  "red-bull",
+  "eshop",
+  "tomato-enjoyer",
+  "roller",
+  "greedy",
 ];
 
 export interface WeightedWheelResult {

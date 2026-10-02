@@ -13,6 +13,7 @@ import { useGameStore } from "../store";
 import type { MapId, PassiveId, Player } from "../types";
 import { HELL_NODE_ID, START_NODE_ID } from "../types";
 import { MAP_ORDER, getBoardMap, resolveMapChoice } from "./map-registry";
+import { getStartingCurrency } from "../passive-rules";
 
 const sorted = (values: number[]) => [...values].sort((left, right) => left - right);
 
@@ -192,7 +193,11 @@ function startTable(mapId: MapId, passives: PassiveId[]): void {
     mapId,
   );
   useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
+    players: state.players.map((player, index) => ({
+      ...player,
+      passiveId: passives[index],
+      currency: getStartingCurrency(passives[index]),
+    })),
   }));
 }
 

@@ -160,6 +160,25 @@ export function getPathsOfLength(
   return paths.map((path) => path.slice(1));
 }
 
+/**
+ * Roller: walks of `distance` steps that never come back to a tile already
+ * stood on, the starting one included. When no walk is that long, the longest
+ * ones open (answer of the game's author).
+ */
+export function getSimplePaths(board: Board, startNodeId: NodeId, distance: number): NodeId[][] {
+  let paths: NodeId[][] = [[startNodeId]];
+  for (let step = 0; step < distance; step += 1) {
+    const longer = paths.flatMap((path) =>
+      getNeighbors(board, path[path.length - 1])
+        .filter((neighbor) => !path.includes(neighbor))
+        .map((neighbor) => [...path, neighbor]),
+    );
+    if (longer.length === 0) break;
+    paths = longer;
+  }
+  return paths.map((path) => path.slice(1)).filter((path) => path.length > 0);
+}
+
 export function getShortestPath(
   board: Board,
   fromNodeId: NodeId,

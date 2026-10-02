@@ -5,7 +5,8 @@ import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
-import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getUniqueLegalDestinations } from "../rules";
+import { canBuyItemKind } from "../passive-rules";
+import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
@@ -89,7 +90,8 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (!player) return null;
 
   const boot = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "boot");
-  if (boot && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
+  const roller = player.passiveId === "roller";
+  if (boot && !roller && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
     return { label: "prepare-boot", perform: (current) => current.prepareBoot(boot.id) };
   }
 
@@ -97,11 +99,14 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (items.length > 0 && random() < 0.35) return useItemAction(store, pick(items, random)!);
   if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
   if (store.turnActionTaken && random() < EARLY_END_CHANCE) return endTurnAction("end-turn-early");
+  if (roller && store.diceRoll === null) return { label: "roll-dice", perform: (current) => current.rollDice() };
 
-  const board = getBoard(store);
-  const regular = getUniqueLegalDestinations(board, player, store.moveDistance, false);
+  const destinationsOf = (ignoreArrows: boolean) => [
+    ...new Set(getTurnMoveOptions(store, player, ignoreArrows).map((path) => path[path.length - 1])),
+  ];
+  const regular = destinationsOf(false);
   const rebel = canUseCorrupter(player, store.round)
-    ? getUniqueLegalDestinations(board, player, store.moveDistance, true).filter((nodeId) => !regular.includes(nodeId))
+    ? destinationsOf(true).filter((nodeId) => !regular.includes(nodeId))
     : [];
 
   if (rebel.length > 0 && random() < 0.25) {
@@ -126,7 +131,10 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
   const player = getActivePlayer(store);
   const affordable = player
     ? ITEM_ORDER.filter(
-        (itemId) => player.currency >= getItemPrice(itemId, store.bootPrice) && canAddItem(player, itemId),
+        (itemId) =>
+          player.currency >= getItemPrice(itemId, store.bootPrice, player) &&
+          canAddItem(player, itemId) &&
+          canBuyItemKind(player, itemId),
       )
     : [];
 

@@ -1,8 +1,9 @@
 import { isTableBroke } from "../blessing";
 import { getBoard, getNeighbors } from "../board";
+import { getMudOwnerReward } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
-import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
+import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
 import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 
 /**
@@ -178,7 +179,7 @@ export function checkMudReward(previous: GameState, next: GameState, found: Rule
   for (const trap of triggered) {
     const owner = findPlayer(previous, trap.ownerId);
     if (!owner) continue;
-    const paid = logs.includes(`${owner.name} touche ${MUD_OWNER_REWARD} pièces grâce à sa Boue.`);
+    const paid = logs.includes(`${owner.name} touche ${getMudOwnerReward(owner)} pièces grâce à sa Boue.`);
     if (owner.id !== victimId && !paid) found.push(violation("mud-pays-owner", `${owner.name} got nothing`));
     if (owner.id === victimId && paid) found.push(violation("mud-own-trap", `${owner.name} was paid by their own mud`));
   }

@@ -25,6 +25,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 3** fait et commité.
 - [x] **Lot 4** fait et commité.
 - [x] **Lot 5** fait et commité.
+- [x] **Lot 6** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -335,6 +336,22 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - marcher sur la case d'un joueur assommé lui vole 50 pièces (`skippedTurns > 0`) ;
   - la Boue lui coûte 100 et lui rapporte 200 : il faut un prix par acheteur (`getItemPrice`, `rules.ts:110`) ;
   - après son Ndoye, les pièces perdues par la cible lui reviennent (`pendingWheel.sourceItemId`).
+
+### Bilan du lot 6
+
+- **Module `game/passive-rules.ts`** : solde de départ, boutique partout (eShop), objets interdits (Botte du Roller), prix et gain de la Boue (Cupide), chance d'assommer et gain des Tomates (Tomato Enjoyer), nombre de piles. Red Bull passe par `ENERGY_BONUSES` (`energy.ts`). Les helpers des passifs à venir (Ange, Diable, Chance aveugle) s'y ajouteront.
+- **Victoires** : nouveau module `game/victory.ts` (`endGame`, `checkGreedyVictory`, vérifiée après chaque action). `WinReason` gagne `greedy`. Le classement met le vainqueur en tête, l'écran de victoire a son texte pour Cupide. Les raisons `devil` et `guardian` viendront avec le lot 8.
+- **Nepo Baby** 3 000 pièces, **eShop** 1 000 pièces et la boutique après chaque déplacement, **Red Bull** 4 points d'énergie.
+- **Tomato Enjoyer** : une pile par place, Tomates à 5 %, +5 pièces par Tomate reçue.
+- **Roller** :
+  - action `rollDice` (dé tiré par le moteur, `diceRoll` dans l'état) ; après le lancer, plus d'objet ;
+  - `getSimplePaths` (`board.ts`) : chemins sans retour sur une case, le plus loin possible si aucun n'atteint le dé (Q12) ;
+  - `getTurnMoveOptions` / `hasTurnMove` (`rules.ts`) remplacent les calculs de déplacement éparpillés (moteur, fin de tour, dock, bots, vérificateur) ;
+  - ni Botte achetée, ni Botte chaussée ; bouton « Lancer le dé » dans le dock, puis « Dé : N ! ».
+- **Cupide** : Red Cup → +1 000 pièces sans place ; 50 pièces prises à chaque joueur assommé sur la case où il s'arrête (en marchant ou avec « Avance d'une case ») ; Boue à 100, gain de 200 ; pièces perdues sur la roue de son Ndoye remboursées ; victoire à 5 000.
+- **Sauvegardes** : version 15 (`diceRoll`).
+- **Bots et vérificateur** : le Roller lance son dé ; les passifs imposés aux bots reprennent leur solde et leur jauge ; nouvelles règles vérifiées (boutique eShop, longueur et absence de boucle du Roller, victoire de Cupide, piles de Tomato Enjoyer, gain de Boue de Cupide).
+- **Tests** : nouveau `new-passives.test.ts` (13 tests) ; les tests qui imposent un passif lui donnent son solde de départ.
 
 ## Lot 7 — Passifs avancés
 
