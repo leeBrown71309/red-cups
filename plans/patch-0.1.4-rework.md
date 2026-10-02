@@ -538,6 +538,10 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 
 ---
 
+## Choix à valider
+
+Les choix pris sans l'auteur, lot par lot, sont rassemblés dans la spec, section 13 « Choix à valider du patch 0.1.4 » : chaque ligne dit ce que fait le jeu et si le choix est déjà validé. Chaque nouveau lot y ajoute les siens, pour une relecture d'ensemble avec l'auteur une fois tous les lots faits.
+
 ## Réponses de l'auteur aux 20 questions
 
 Les réponses sont reçues. Le « Lot » indique où chacune s'applique.

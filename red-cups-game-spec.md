@@ -389,7 +389,72 @@ Après la révélation d’un effet de roue, un joueur qui détient une Gomme pe
 - Préciser le comportement des effets touchant simultanément tous les joueurs, notamment Draven et Bullet Bill.
 - Les images de la présentation sont des références. Le MVP utilise des éléments graphiques originaux ; les assets tiers devront être vérifiés avant une publication publique.
 
-## 13. Historique des versions
+## 13. Choix à valider du patch 0.1.4
+
+Pendant le rework, chaque lot a demandé des choix que le document de l'auteur ne tranchait pas. Ils sont appliqués dans le jeu tel quel, mais restent à confirmer avec l'auteur. Chaque ligne dit ce que fait le jeu aujourd'hui. Les choix déjà tranchés sont marqués **Validé** ; les questions Q1 à Q20 et leurs réponses sont dans la cartographie (`plans/patch-0.1.4-rework.md`).
+
+### Lot 1 — Corrections rapides
+
+1. **À valider** — **Boue** : posée dans le quart avant droit de la case, avec la pastille du numéro de la case affichée par-dessus.
+2. **À valider** — **Fantôme** : un joueur qui sort de l'Enfer reste protégé du fantôme jusqu'au prochain déplacement du fantôme, pas jusqu'au sien (lecture de la spec, rien n'a changé).
+3. **À valider** — **Descriptions** des objets et des passifs : réécrites en une phrase générale chacune ; l'auteur avait proposé d'écrire les siennes.
+4. **À valider** — **Son d'achat** : une caisse enregistreuse synthétisée (clac, tiroir, « ka-ching »).
+
+### Lot 2 — Flèches attachées aux cases
+
+1. **À valider** — **Forme des flèches** : en relief, de la couleur de la case, avec un contour encre et une petite poussée animée vers la sortie ; leur taille est un choix visuel.
+
+### Lot 3 — Boutique et roues
+
+1. **À valider** — La boutique de la case d'arrivée (après « Avance d'une case » ou « Retourne d'où tu viens ») ne s'ouvre que pour le joueur dont c'est le tour, et seulement si son tour était fini. Un joueur visé par un Ndoye qui atterrit sur une boutique n'achète pas.
+2. **À valider** — « Avance d'une case » compte comme un pas à pied : bonus du départ et Red light s'appliquent. « Retourne d'où tu viens » est un retour en arrière, sans bonus.
+3. **À valider** — Les roues peuvent s'enchaîner : roue du bonheur, une case, puis la roue de la nouvelle case (conséquence de la réponse Q2).
+
+### Lot 4 — Énergie
+
+1. **Validé** — **Bullet Bill va dans le sac** à l'achat et se lance pendant son tour pour 2 points.
+2. **Validé** — Envoyé en Enfer pendant son propre tour avec de l'énergie, un joueur peut tourner la roue de l'Enfer tout de suite ; ce tour compte dans sa peine.
+3. **Validé** — **Tomates** (retour de l'auteur) : une pile compte comme un objet, plusieurs piles possibles, une seule pile lancée par tour.
+4. **À valider** — Lancer une Tomate ou poser une Boue compte comme « utiliser un objet » : cela suffit pour finir son tour sans bouger.
+
+### Lot 5 — Passifs existants
+
+1. **À valider** — **Lambda** est arrivé dès le lot 5 (au lieu du lot 6) et se tire au sort comme les autres passifs.
+2. **À valider** — **New Cup, New Me** : aller au Départ marche aussi depuis l'Enfer, c'est donc une sortie d'Enfer à chaque nouvelle Cup.
+3. **À valider** — **Non merci** ne peut pas annuler la Tomate, objet « pour rire ».
+4. **À valider** — Contre **Bullet Bill**, Non merci compte comme utilisé dans le tour de table qui commence ; il revient 5 tours après celui-là.
+5. **À valider** — **Calme-toi** peut replacer un joueur sur n'importe quelle case à 3 de la Cup, Départ et boutiques compris ; il n'en tire rien (ni roue, ni boutique, ni Boue, ni bonus).
+
+### Lot 6 — Passifs simples et victoire de Cupide
+
+1. **À valider** — **Cupide** ne vole les 50 pièces que s'il s'arrête sur la case d'un joueur assommé (en marchant ou avec « Avance d'une case ») ; passer dessus ne suffit pas.
+2. **À valider** — **Cupide** n'accumule pas de Red Cups : il ne gagne qu'à 5 000 pièces.
+3. **À valider** — **eShop** a aussi la boutique après « Avance d'une case » ou « Retourne d'où tu viens », quand son tour est fini.
+4. **À valider** — **Roller** : une fois le dé lancé, il ne peut plus utiliser d'objet ; il ne peut pas chausser une Botte reçue gratuitement.
+
+### Lot 7 — Passifs avancés
+
+1. **À valider** — **Double or nothing** propose chaque somme à part : un passage au Départ avec une case verte donne deux invites. L'invite vient dès que la table est au repos, même pendant le tour d'un autre.
+2. **À valider** — **Chance aveugle et la Boue** : le poseur ne touche rien ; si Chance aveugle a été téléporté sur la Boue, il reste sur place au lieu de reculer.
+3. **À valider** — **Chance aveugle** est protégé de ses propres objets aussi : son Draven l'épargne, et il ne peut pas se viser lui-même.
+4. **À valider** — **Made In Heaven** déjà acheté reste utilisable même si la Cup est arrivée en case 8 entre-temps ; la boutique dit seulement « Pas en vente pour l'instant », sans révéler où est la Cup.
+5. **À valider** — **Voleur pris** : ses objets les plus chers partent d'abord, sans rendu de monnaie ; un vol de Tomate raté (1 % de risque) peut lui coûter un Draven.
+6. **À valider** — Une **Botte volée** ne lance pas la hausse de son prix, réservée au premier achat.
+
+### Lot 8 — Le diable et L'Ange-Gardien
+
+1. **À valider** — **Doomsday** touche tout le monde, le diable compris (seul Chance aveugle y échappe), et dure jusqu'au prochain tour du diable.
+2. **À valider** — Les **2 tours de table** du Portail et de la Black Cup se terminent au tour du diable.
+3. **À valider** — **Sortir de l'Enfer** ne coûte pas d'énergie au diable, et son tour continue depuis la case 0.
+4. **À valider** — **Boue de l'Ange** : il perd son prochain tour, et le poseur touche quand même ses 100 pièces.
+5. **À valider** — Le **Bouclier** ne bloque que les objets à cible unique visant le protégé, ni Draven ni Bullet Bill.
+6. **À valider** — **Libérer le protégé** ne coûte pas d'énergie à l'Ange, et son tour continue.
+7. **À valider** — La **Black Cup** reste rouge sur le plateau pendant son séjour en Enfer (pas de modèle noir).
+8. **À valider** — Le **protégé** est tiré au lancement ; il le sera après le draft une fois le lot 10 fait.
+9. **À valider** — L'Ange ne peut pas être **défié** depuis l'Enfer ; à 2 joueurs avec l'Ange, la roue « Choisis un joueur à affronter » ne fait rien. Le **fantôme** lui prend des pièces ou un objet au lieu de l'emporter en Enfer.
+10. **À valider** — Le **Toucher d'Enfer** agit dès que le diable et un joueur assommé se retrouvent sur la même case, quel que soit celui qui bouge.
+
+## 14. Historique des versions
 
 ### 0.1.4 — en préparation
 
