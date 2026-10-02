@@ -29,6 +29,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 7** fait et commité.
 - [x] **Lot 8** fait et commité.
 - [x] **Lot 9** fait et commité.
+- [x] **Lot 10** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -524,6 +525,15 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - `game-save.ts`, qui doit accepter la phase `draft` ;
   - bots (`run-bot-game.ts:104`) ;
   - textes « passifs tirés au hasard » (`lobby-screen.tsx:167`, `online-screen.tsx:332`).
+
+### Bilan du lot 10
+
+- **Moteur** (`game/draft.ts`) : phase `draft` et état `draft` (offres, choix, échéance) ; `startGame` prend `draft: true` ; `createDraft` distribue un paquet mélangé (`getDraftOfferSize`, `getDraftPool` : pas d'Ange sous 4 joueurs) ; action `pickPassive` (modifiable, le dernier choix ferme) ; `closeDraft` (au hasard pour les retardataires, puis pièces, jauge, protégé, annonce du diable).
+- **En ligne** : `buildOnlineGame` ouvre sur le draft, échéance d'une minute sur l'horloge du lot 9 ; `expireClock` ferme le draft ; chacun ne choisit que pour lui (`action-permissions.ts`) ; le chrono du premier tour attend les 5 s du compte à rebours (`GAME_COUNTDOWN_MS`).
+- **Interface** : `ui/draft/draft-screen.tsx` (passage de l'écran en local ; cartes, « a choisi ✓ » et secondes en ligne) ; `GameCountdown` dans le HUD ; textes du salon (« Chacun choisit son passif ») ; la revanche locale repasse par le draft.
+- **Sauvegardes** : version 19, une partie sauvegardée pendant son draft y revient.
+- **Bots et vérificateur** : les bots choisissent leurs cartes ; nouveau `draft-invariants.ts` (cartes uniques, taille des offres, choix parmi ses cartes, passifs et pièces à la clôture) ; séries « draft games » et draft dans la moitié des « online clock games ».
+- **Tests** : nouveau `draft.test.ts` (5 tests) ; les tests en ligne suivent le draft (une partie en ligne et une revanche s'ouvrent dessus).
 
 ## Lot 11 — Mini-jeux
 

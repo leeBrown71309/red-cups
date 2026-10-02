@@ -33,6 +33,8 @@ export interface BotGameOptions {
    * now and then a bot lets the clock run out instead of playing.
    */
   clock?: boolean;
+  /** Opens on the passive draft, as every game the table plays. */
+  draft?: boolean;
   maxSteps?: number;
 }
 
@@ -129,7 +131,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     store.getState().resetGame();
     if (options.clock) setActionRelay(relay);
     const botNames = Array.from({ length: options.playerCount }, (_, index) => `Bot ${index + 1}`);
-    store.getState().startGame(botNames, options.seed, mapId);
+    store.getState().startGame(botNames, options.seed, mapId, options.draft);
     if (options.passives) {
       // The first turn's gauge follows the passive too (Red Bull).
       store.setState((state) => {
@@ -150,7 +152,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
     for (let step = 0; step < maxSteps; step += 1) {
       const before = store.getState();
       record(checkState(before), step, "state", before.turnStage);
-      if (before.phase !== "playing") break;
+      if (before.phase !== "playing" && before.phase !== "draft") break;
 
       increment(report.stageCounts, before.turnStage);
       const deadline = options.clock ? getClockDeadline(before) : null;

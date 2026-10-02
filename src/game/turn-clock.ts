@@ -31,6 +31,9 @@ export const IDLE_STRIKES_WARNING = 2;
  */
 export function getClockDeciderIds(state: GameState): PlayerId[] {
   const only = (playerId: PlayerId | null | undefined) => (playerId ? [playerId] : []);
+  if (state.phase === "draft") {
+    return state.players.filter((player) => state.draft?.picks[player.id] === undefined).map((player) => player.id);
+  }
   switch (state.turnStage) {
     case "wheel-result":
       return only(state.pendingWheel?.playerId);
@@ -93,6 +96,7 @@ export function updateClocks(state: GameState, now: number): GameState {
 
 /** When the clock that counts right now runs out; null in a local game or once it is over. */
 export function getClockDeadline(state: GameState): number | null {
+  if (state.phase === "draft") return state.draft?.deadline ?? null;
   if (state.phase !== "playing" || !state.turnClock) return null;
   const { remainingMs, runningSince } = state.turnClock;
   if (isActiveDecision(state)) return runningSince === null ? null : runningSince + remainingMs;

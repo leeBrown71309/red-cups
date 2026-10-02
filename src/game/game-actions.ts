@@ -8,6 +8,7 @@ import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
 import { announceDevil, countHellEntries, leaveHell } from "./devil";
+import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
 import { assignGuardian, rescueProtege } from "./guardian";
 import {
@@ -98,6 +99,7 @@ import type {
   ItemId,
   MapId,
   NodeId,
+  PassiveId,
   Player,
   PlayerColor,
   PlayerId,
@@ -110,6 +112,7 @@ import {
   EMPTY_GAME_STATE,
   FIRST_ROUND,
   FREE_TOMATOES,
+  GAME_COUNTDOWN_MS,
   GUARDIAN_MIN_PLAYERS,
   HELL_NODE_ID,
   PLAYER_COLORS,
@@ -123,7 +126,17 @@ import {
  * device, which all reduce it the same way.
  */
 export type GameAction =
-  | { type: "startGame"; playerNames: string[]; seed?: number; avatarColors?: PlayerColor[]; mapId?: MapId }
+  /** `draft`: the players pick their passive first (patch 0.1.4); otherwise passives are drawn. */
+  | {
+      type: "startGame";
+      playerNames: string[];
+      seed?: number;
+      avatarColors?: PlayerColor[];
+      mapId?: MapId;
+      draft?: boolean;
+    }
+  /** The passive draft: a player's pick, which may change until the draft closes. */
+  | { type: "pickPassive"; playerId: PlayerId; passiveId: PassiveId }
   | { type: "resetGame" }
   | { type: "movePlayer"; destination: NodeId; ignoreArrows: boolean }
   | { type: "prepareBoot"; entryId: string }
@@ -213,6 +226,7 @@ function startGame(
   seed: number | undefined,
   avatarColors: PlayerColor[] | undefined,
   mapId: MapId | undefined,
+  draft: { now: number | undefined } | null,
 ): GameState {
   if (playerNames.length < 2) return state;
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
@@ -234,8 +248,15 @@ function startGame(
         ),
       ],
     };
-    // Both roles are public: le diable is announced, L'Ange-Gardien's protégé drawn and named.
-    const withRoles = announceDevil(assignGuardian(opening));
+    // A draft deals the passive cards first; without one, both roles are public at once: le diable
+    // is announced, L'Ange-Gardien's protégé drawn and named.
+    const withRoles = draft
+      ? {
+          ...opening,
+          phase: "draft" as const,
+          draft: createDraft(players, draft.now === undefined ? null : draft.now + DRAFT_TIME_MS),
+        }
+      : announceDevil(assignGuardian(opening));
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
     const withIce =
       map.blizzardEveryRounds === undefined ? withRoles : { ...withRoles, iceTileNodeId: pickBlizzardTile(withRoles) };
@@ -572,6 +593,8 @@ const MAX_DEFAULT_STEPS = 24;
 function expireClock(state: GameState, now: number | undefined): GameState {
   const deadline = getClockDeadline(state);
   if (now === undefined || deadline === null || now < deadline) return state;
+  // The draft's minute is over: whoever has not picked gets a card at random.
+  if (state.phase === "draft") return closeDraft(state);
   if (isActiveDecision(state)) return expireTurn(state);
 
   const stage = state.turnStage;
@@ -856,14 +879,26 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   if (result === prepared) return state;
   const counted = countHellEntries(prepared, recordPreviousTiles(prepared, result));
   const settled = offerGamble(checkVictories(applyForfeits(counted)));
-  // Online, the clocks follow every action, at the time it was sent.
-  return now === undefined || settled.seededRandom === null ? settled : updateClocks(settled, now);
+  // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
+  // countdown that follows the draft.
+  if (now === undefined || settled.seededRandom === null) return settled;
+  const countdown = prepared.phase === "draft" && settled.phase === "playing" ? GAME_COUNTDOWN_MS : 0;
+  return updateClocks(settled, now + countdown);
 }
 
 function dispatchGameAction(state: GameState, action: GameAction, now?: number): GameState {
   switch (action.type) {
     case "startGame":
-      return startGame(state, action.playerNames, action.seed, action.avatarColors, action.mapId);
+      return startGame(
+        state,
+        action.playerNames,
+        action.seed,
+        action.avatarColors,
+        action.mapId,
+        action.draft ? { now } : null,
+      );
+    case "pickPassive":
+      return pickPassive(state, action.playerId, action.passiveId);
     case "resetGame":
       return EMPTY_GAME_STATE;
     case "movePlayer":

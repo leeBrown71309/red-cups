@@ -187,6 +187,14 @@ Le passif **Non merci** (refait au patch 0.1.4, réponses de l’auteur) annule 
 - Si c’était son tour, la main passe au joueur suivant. S’il ne reste qu’un joueur, celui-ci gagne par abandon.
 - Les joueurs partis figurent en bas du classement final.
 
+### 4.0 Choix des passifs avant la partie (patch 0.1.4)
+
+- Chaque partie commence par un **draft** : chaque joueur reçoit des cartes de passif et en choisit une. Jusqu'à 6 joueurs, 3 cartes chacun ; au-delà, 2. Aucune carte n'est distribuée deux fois à la table. L'Ange-Gardien n'est distribué qu'à partir de 4 joueurs.
+- Un choix peut changer tant que la table n'a pas fini ; dès que tout le monde a choisi, le draft se termine.
+- **En ligne** : chacun voit ses cartes sur son appareil, et les autres seulement « a choisi ✓ ». La table a une minute ; à la fin, qui n'a pas choisi reçoit une de ses cartes au hasard.
+- **En local** : l'écran passe d'un joueur à l'autre (« Passe l'écran à X », puis « Je suis X »), cartes cachées, sans chrono (réponse Q15).
+- Ensuite, les passifs prennent effet comme au lancement (pièces de départ, jauge du premier joueur, protégé de l'Ange, annonce du diable), puis un compte à rebours de 5 secondes, « La partie commence dans 5… », ouvre la partie ; en ligne, le chrono du premier tour attend sa fin.
+
 ### 4.3 Chrono de tour en ligne (patch 0.1.4)
 
 Seulement en ligne : une partie locale n'a pas de chrono.
@@ -463,7 +471,7 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 5. **À valider** — Le **Bouclier** ne bloque que les objets à cible unique visant le protégé, ni Draven ni Bullet Bill.
 6. **À valider** — **Libérer le protégé** ne coûte pas d'énergie à l'Ange, et son tour continue.
 7. **À valider** — La **Black Cup** reste rouge sur le plateau pendant son séjour en Enfer (pas de modèle noir).
-8. **À valider** — Le **protégé** est tiré au lancement ; il le sera après le draft une fois le lot 10 fait.
+8. **À valider** — Le **protégé** est tiré dès la fin du draft (lot 10), parmi les passifs choisis, et annoncé tout de suite à la table.
 9. **À valider** — L'Ange ne peut pas être **défié** depuis l'Enfer ; à 2 joueurs avec l'Ange, la roue « Choisis un joueur à affronter » ne fait rien. Le **fantôme** lui prend des pièces ou un objet au lieu de l'emporter en Enfer.
 10. **À valider** — Le **Toucher d'Enfer** agit dès que le diable et un joueur assommé se retrouvent sur la même case, quel que soit celui qui bouge.
 
@@ -476,6 +484,14 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 5. **À valider** — Les chances perdues ne se regagnent jamais pendant la partie ; le forfait tombe à la 3ᵉ, une fois la table au repos.
 6. **À valider** — Un joueur qui quitte le salon pendant une décision (roue, duel) n'abandonne pas tout de suite : le chrono ferme ses décisions et ses tours, et il déclare forfait au bout de 3 tours.
 7. **À valider** — La fonction `server_time()` est dans `supabase/schema.sql` mais n'est pas encore appliquée sur le projet Supabase partagé : tant qu'elle ne l'est pas, chaque appareil se fie à sa propre horloge, et un appareil mal réglé peut fermer un tour un peu trop tôt ou trop tard.
+
+### Lot 10 — Draft des passifs
+
+1. **À valider** — En **local**, chaque joueur choisit à son tour et ne peut plus changer d'avis ensuite : le dernier choix ferme le draft. En ligne, on peut changer jusqu'à la clôture.
+2. **À valider** — Les cartes sont tirées au hasard dans tous les passifs : un même draft peut proposer plusieurs malfaiteurs ; l'Ange-Gardien choisi sans protégé possible devient Lambda (Q13).
+3. **À valider** — En ligne, les cartes des autres ne sont cachées que par l'écran : l'état du jeu est partagé par tous les appareils.
+4. **À valider** — Une revanche repasse par le draft, en local comme en ligne.
+5. **À valider** — Le compte à rebours de 5 secondes passe aussi en local ; pendant ce temps, le dock du premier joueur est déjà affiché derrière.
 
 ## 14. Historique des versions
 
@@ -495,6 +511,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Boutique** : nouveaux prix (Ndoye 250, Corde 400, Gomme 200, Bullet Bill 550, Monopoly Man 600, Casque 200) ; la Botte plafonne à 400.
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.
 - **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.
+- **Draft des passifs** (voir 4.0) : 3 cartes par joueur (2 au-delà de 6), une minute en ligne, à tour de rôle sans chrono en local, puis un compte à rebours de 5 secondes.
 - **Chrono en ligne** (voir 4.3) : 45 secondes par tour, 20 pour les décisions des autres, choix par défaut à l'échéance, une chance perdue par tour passé sans jouer et forfait à la troisième ; heure du serveur commune ; un salon d'une autre version est refusé.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 

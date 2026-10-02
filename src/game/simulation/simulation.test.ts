@@ -106,12 +106,27 @@ describe("rich table games", () => {
   );
 });
 
+describe("draft games", () => {
+  it(
+    "deals and closes the passive draft, then keeps the rules",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE }, (_, index) =>
+        runBotGame({ seed: 50_000 + index, playerCount: 2 + (index % 7), draft: true }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(mergeCounts(reports, "actionCounts")["draft:pick"]).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
 describe("online clock games", () => {
   it(
     "keeps the rules when clocks run out at every kind of decision",
     () => {
       const reports = Array.from({ length: GAMES_PER_PASSIVE * 2 }, (_, index) =>
-        runBotGame({ seed: 40_000 + index, playerCount: 2 + (index % 7), clock: true }),
+        runBotGame({ seed: 40_000 + index, playerCount: 2 + (index % 7), clock: true, draft: index % 2 === 0 }),
       );
       expect(summarizeViolations(reports)).toEqual([]);
       expect(reports.filter((report) => report.blocked)).toHaveLength(0);

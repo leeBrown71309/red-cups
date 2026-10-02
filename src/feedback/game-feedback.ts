@@ -5,7 +5,7 @@ import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
 import { countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
-import { GHOST_ID, HELL_NODE_ID } from "../game/types";
+import { GAME_COUNTDOWN_MS, GHOST_ID, HELL_NODE_ID } from "../game/types";
 import {
   ALERT_BANNER_MS,
   BULLET_IMPACT_PAUSE_MS,
@@ -63,7 +63,10 @@ export function startGameFeedback(): () => void {
     // Timed on the board the walk was played on: a Cup picked up on arrival may flip the carousel.
     const walkDuration = walked && movement ? estimateMovementMs(getBoard(previous), movement) : 0;
     const gameJustStarted = previous.phase !== "playing" && state.phase === "playing";
-    const introDelay = gameJustStarted ? GAME_INTRO_MS : 0;
+    // After a draft, the table first reads a five-second countdown.
+    const afterDraft = gameJustStarted && previous.phase === "draft";
+    const introDelay = gameJustStarted ? GAME_INTRO_MS + (afterDraft ? GAME_COUNTDOWN_MS : 0) : 0;
+    if (afterDraft) ui.setCountdownUntil(now + GAME_COUNTDOWN_MS);
     const flight = getNewBulletFlight(state, previous);
     const flightMs = flight ? estimateBulletFlightMs(flight.path) : 0;
     const impactPauseMs = flight ? (flight.victimId ? BULLET_IMPACT_PAUSE_MS : BULLET_LANDING_PAUSE_MS) : 0;

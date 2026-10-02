@@ -193,8 +193,18 @@ function chooseDuelAction(store: GameStore, random: Random): BotAction | null {
   return { label: "duel:vote", perform: (current) => current.castDuelVote(voterId, candidateId) };
 }
 
+/** The passive draft: the next player still to pick takes one of their cards; now and then a pick changes. */
+function chooseDraftPick(store: GameStore, random: Random): BotAction | null {
+  const draft = store.draft;
+  const chooser = store.players.find((player) => draft?.picks[player.id] === undefined) ?? pick(store.players, random);
+  const passiveId = chooser && draft ? pick(draft.offers[chooser.id] ?? [], random) : undefined;
+  if (!chooser || !passiveId) return null;
+  return { label: "draft:pick", perform: (current) => current.pickPassive(chooser.id, passiveId) };
+}
+
 /** Returns the bot's next decision, or null when the game offers none (a blocked state). */
 export function chooseBotAction(store: GameStore, random: Random): BotAction | null {
+  if (store.phase === "draft") return chooseDraftPick(store, random);
   if (store.phase !== "playing") return null;
   const abandon = chooseAbandon(store, random);
   if (abandon) return abandon;

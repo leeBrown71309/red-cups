@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 18;
+export const GAME_SAVE_VERSION = 19;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -19,7 +19,8 @@ export function isRestorableGame(value: unknown): value is GameState {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<GameState>;
   return (
-    candidate.phase === "playing" &&
+    // A game is restored during its draft too.
+    (candidate.phase === "playing" || candidate.phase === "draft") &&
     Array.isArray(candidate.players) &&
     candidate.players.length >= 2 &&
     typeof candidate.activePlayerIndex === "number" &&
@@ -46,7 +47,7 @@ const gameSaveStorage: PersistStorage<GameState> = {
   setItem: (name, value) => {
     // An online game lives in its room; saving it here would clobber a local game.
     if (value.state.seededRandom) return;
-    if (value.state.phase !== "playing") {
+    if (value.state.phase !== "playing" && value.state.phase !== "draft") {
       removeStorage(name);
       return;
     }
@@ -109,7 +110,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * stakes of Double or nothing and the Voleur's theft of the turn. Version 17
  * added le diable (count of Hell entries, Portails, Black Cup, Doomsday) and
  * L'Ange-Gardien (protégé, co-winner). Version 18 added the online clocks,
- * the chances lost and the rules version.
+ * the chances lost and the rules version, version 19 the passive draft (a
+ * game saved during its draft comes back to it).
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -159,6 +161,7 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     decisionClock: save.decisionClock ?? null,
     idleStrikes: save.idleStrikes ?? {},
     rulesVersion: save.rulesVersion ?? RULES_VERSION,
+    draft: save.draft ?? null,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
     abandonedPlayers: save.abandonedPlayers ?? [],

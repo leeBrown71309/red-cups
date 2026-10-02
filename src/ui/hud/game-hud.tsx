@@ -14,6 +14,7 @@ import { ActionDock } from "./action-dock";
 import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
+import { GameCountdown } from "./game-countdown";
 import { InventoryTray } from "./inventory-tray";
 import { TopBar } from "./top-bar";
 import { TurnSplash } from "./turn-splash";
@@ -72,6 +73,7 @@ export function GameHud() {
         <ActionDock onOpenShop={() => setShopClosed(false)} />
       </div>
       <TurnSplash />
+      <GameCountdown />
       <AlertBannerView />
       {decision}
       {overlay === "menu" && (

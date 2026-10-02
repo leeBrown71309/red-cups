@@ -46,6 +46,7 @@ import {
 } from "./invariant-helpers";
 import { checkDevilItem, checkHellEntries, checkRoleState } from "./role-invariants";
 import { checkClockState } from "./clock-invariants";
+import { checkDraftState, checkDraftTransition } from "./draft-invariants";
 import { findDevil, getDevilGoalFor } from "../devil";
 
 export type { RuleViolation } from "./invariant-helpers";
@@ -120,6 +121,7 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
 /** Checks that must hold in any state, whatever happened before. */
 export function checkState(state: GameState): RuleViolation[] {
   if (state.phase === "setup") return [];
+  if (state.phase === "draft") return checkDraftState(state);
   const found = state.players.flatMap((player) => checkPlayer(state, player));
   const active = getActivePlayer(state);
 
@@ -894,6 +896,7 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
  * checks look at the stage underneath, and its answer only has its own checks.
  */
 export function checkTransition(previous: GameState, nextState: GameState, appliedItem?: AppliedItem): RuleViolation[] {
+  if (previous.phase === "draft") return checkDraftTransition(previous, nextState);
   if (previous.phase !== "playing") return [];
   const found: RuleViolation[] = [];
   checkAdvancedPassives(previous, nextState, found);

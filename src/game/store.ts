@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reduceGame, type GameAction } from "./game-actions";
 import { createGameSaveOptions, pickGameState } from "./game-save";
-import type { GameState, ItemId, MapId, NodeId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
+import type { GameState, ItemId, MapId, NodeId, PassiveId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
 import { EMPTY_GAME_STATE } from "./types";
 
 interface GameActions {
@@ -17,7 +17,10 @@ interface GameActions {
    * Starts a local game on the given board (classic by default); an online
    * game passes the room's seed so every device draws the same.
    */
-  startGame: (playerNames: string[], seed?: number, mapId?: MapId) => void;
+  /** `draft`: the players pick their passive before the first turn. */
+  startGame: (playerNames: string[], seed?: number, mapId?: MapId, draft?: boolean) => void;
+  /** The passive draft: this player's card, until the draft closes. */
+  pickPassive: (playerId: PlayerId, passiveId: PassiveId) => void;
   resetGame: () => void;
   /** Declares a move; it may wait in a Non merci reaction window before applying. */
   movePlayer: (destination: NodeId, ignoreArrows?: boolean) => void;
@@ -103,7 +106,9 @@ export const useGameStore = create<GameStore>()(
       adoptGame: (state) => set({ ...EMPTY_GAME_STATE, ...pickGameState(state) }),
 
       // Setting up and leaving a game stay on this device: an online room builds its own start.
-      startGame: (playerNames, seed, mapId) => get().applyLocally({ type: "startGame", playerNames, seed, mapId }),
+      startGame: (playerNames, seed, mapId, draft) =>
+        get().applyLocally({ type: "startGame", playerNames, seed, mapId, ...(draft ? { draft } : {}) }),
+      pickPassive: (playerId, passiveId) => dispatch({ type: "pickPassive", playerId, passiveId }),
       resetGame: () => set({ ...EMPTY_GAME_STATE }),
 
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),

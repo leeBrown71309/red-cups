@@ -44,6 +44,7 @@ export function VictoryModal() {
         players.map((player) => player.name),
         undefined,
         nextMapId,
+        true,
       );
   };
 

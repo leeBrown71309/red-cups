@@ -12,6 +12,12 @@ import type { GameState, PlayerId } from "./types";
  * A local game skips this: one device plays every seat.
  */
 export function getActionActorIds(state: GameState, action: GameAction): PlayerId[] {
+  // The draft: each player picks for themselves; anybody may close it once its minute is over.
+  if (state.phase === "draft") {
+    if (action.type === "pickPassive") return state.draft?.offers[action.playerId] ? [action.playerId] : [];
+    if (action.type === "expireClock") return state.players.map((player) => player.id);
+    return [];
+  }
   if (state.phase !== "playing") return [];
   const active = getActivePlayer(state)?.id;
   const deciding = getDecidingPlayer(state)?.id;
@@ -82,6 +88,9 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "abandonGame":
       return only(action.playerId);
+
+    case "pickPassive":
+      return [];
 
     // Whoever sees a clock run out may close it: a device gone quiet must not hold the table.
     case "expireClock":

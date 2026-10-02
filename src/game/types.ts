@@ -459,6 +459,17 @@ export interface DecisionClock {
   deadline: number;
 }
 
+/** The passive cards dealt before the game, and the ones picked so far. */
+export interface PassiveDraft {
+  offers: Record<PlayerId, PassiveId[]>;
+  picks: Partial<Record<PlayerId, PassiveId>>;
+  /** Online: when the draft closes on its own; null at a local table, which has no clock. */
+  deadline: number | null;
+}
+
+/** The countdown shown once the draft is over, before the first turn's clock starts. */
+export const GAME_COUNTDOWN_MS = 5_000;
+
 /** Rules this game runs on: an online room refuses a device on other rules. */
 export const RULES_VERSION = "0.1.4";
 
@@ -572,7 +583,10 @@ export interface SeededRandomState {
 }
 
 export interface GameState {
-  phase: "setup" | "playing" | "finished";
+  /** "draft": the players pick their passive before the first turn (patch 0.1.4). */
+  phase: "setup" | "draft" | "playing" | "finished";
+  /** The passive draft, while it lasts. */
+  draft: PassiveDraft | null;
   /** Board the game is played on. */
   mapId: MapId;
   /** Luna Park: the carousel turns the other way, flipped at every new Red Cup. */
@@ -674,6 +688,7 @@ export interface GameState {
 
 export const EMPTY_GAME_STATE: GameState = {
   phase: "setup",
+  draft: null,
   mapId: "classic",
   carouselReversed: false,
   turnStage: "move",

@@ -305,7 +305,8 @@ describe("a whole online game", () => {
       chosen = action;
     });
     try {
-      for (let step = 0; step < 250 && devices[0].state.phase === "playing"; step += 1) {
+      const live = () => devices[0].state.phase === "playing" || devices[0].state.phase === "draft";
+      for (let step = 0; step < 250 && live(); step += 1) {
         useGameStore.getState().adoptGame(devices[0].state);
         chosen = null;
         chooseBotAction(useGameStore.getState(), botRandom)?.perform(useGameStore.getState());
@@ -422,7 +423,8 @@ describe("history", () => {
     await db.query(`delete from rooms where code = $1`, [code]);
     const [game] = await myGames(account);
     expect(game.status).toBe("unfinished");
-    expect(game.final?.phase).toBe("playing");
+    // Expired before anybody played: the board kept is the one of the passive draft.
+    expect(game.final?.phase).toBe("draft");
   });
 
   it("closes a finished room with its last player, and keeps the game finished", async () => {

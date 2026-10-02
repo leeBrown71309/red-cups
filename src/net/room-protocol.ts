@@ -107,8 +107,10 @@ export function buildOnlineGame(
     seed,
     avatarColors,
     mapId,
+    // Online games open on the passive draft, under the table's minute.
+    draft: true,
   };
-  // The first turn's clock starts with the game.
+  // The draft's clock starts with the game.
   const state = reduceGame(EMPTY_GAME_STATE, action, { now });
   return { state, seatOrder: players.map((player) => player.userId) };
 }

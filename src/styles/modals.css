@@ -126,6 +126,156 @@
   }
 }
 
+/* ---------- Passive draft ---------- */
+.draft-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.draft-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  width: 100%;
+  min-height: 150px;
+  padding: 14px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 4px 0 var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.draft-card:hover {
+  transform: translateY(-2px);
+}
+
+.draft-card.is-selected {
+  background: #f3e8ff;
+  box-shadow:
+    0 0 0 3px #9b5de5,
+    0 4px 0 var(--ink);
+}
+
+.draft-card__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.draft-card__text {
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.draft-card__picked {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #9b5de5;
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.draft-handover {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.draft-note {
+  margin: 12px 0 8px;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.draft-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.draft-roster li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-size: 0.82rem;
+}
+
+.draft-roster li.is-picked small {
+  color: #2f8f46;
+  font-weight: 700;
+}
+
+/* After the draft: the countdown before the first turn. */
+.game-countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  background: rgba(30, 18, 40, 0.35);
+  color: var(--white);
+  text-shadow: 0 3px 0 var(--ink);
+  pointer-events: none;
+}
+
+.game-countdown__label {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+  font-weight: 700;
+}
+
+.game-countdown__number {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 14vw, 8rem);
+  line-height: 1;
+  animation: countdown-pop 1s ease-out;
+}
+
+@keyframes countdown-pop {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-countdown__number {
+    animation: none;
+  }
+}
+
 /* ---------- Shop ---------- */
 .shop-status {
   display: flex;
