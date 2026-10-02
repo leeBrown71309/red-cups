@@ -2,6 +2,7 @@ import { getDuelVoterIds, getHumanDuellistIds } from "./duel";
 import { getDecidingPlayer } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, PlayerId } from "./types";
+import { GHOST_ID } from "./types";
 
 /**
  * Online turn clock (patch 0.1.4): 45 seconds of the active player's own
@@ -46,7 +47,12 @@ export function getClockDeciderIds(state: GameState): PlayerId[] {
     case "duel": {
       const duel = state.pendingDuel;
       if (!duel) return [];
+      if (duel.mode === "blackjack") return only(duel.blackjack?.turnId === GHOST_ID ? null : duel.blackjack?.turnId);
       return duel.mode === "player-vote" ? getDuelVoterIds(state, duel) : getHumanDuellistIds(duel);
+    }
+    case "arm-wrestle": {
+      const wrestle = state.pendingArmWrestle;
+      return wrestle ? [wrestle.attackerId, wrestle.defenderId].filter((id) => wrestle.taps[id] === undefined) : [];
     }
     default:
       return only(getDecidingPlayer(state)?.id);
@@ -55,15 +61,15 @@ export function getClockDeciderIds(state: GameState): PlayerId[] {
 
 /** Whether the decision on hand belongs to the active player alone: their turn's 45 seconds run. */
 export function isActiveDecision(state: GameState): boolean {
-  if (state.phase !== "playing" || state.turnStage === "duel" || state.turnStage === "reaction") return false;
+  const shared = ["duel", "reaction", "arm-wrestle"].includes(state.turnStage);
+  if (state.phase !== "playing" || shared) return false;
   const deciders = getClockDeciderIds(state);
   return deciders.length === 1 && deciders[0] === getActivePlayer(state)?.id;
 }
 
 function getDecisionTime(state: GameState): number {
-  return state.turnStage === "duel" && state.pendingDuel?.mode === "basket"
-    ? BASKET_DECISION_TIME_MS
-    : DECISION_TIME_MS;
+  const basket = state.turnStage === "duel" && state.pendingDuel?.mode === "basket";
+  return basket || state.turnStage === "arm-wrestle" ? BASKET_DECISION_TIME_MS : DECISION_TIME_MS;
 }
 
 /**

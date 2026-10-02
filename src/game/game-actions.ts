@@ -8,6 +8,8 @@ import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
 import { announceDevil, countHellEntries, leaveHell } from "./devil";
+import { submitArmTaps } from "./arm-wrestle";
+import { blackjackHit, blackjackStand } from "./blackjack";
 import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
 import { assignGuardian, rescueProtege } from "./guardian";
@@ -177,7 +179,12 @@ export type GameAction =
   /** Double or nothing: stake the gain or loss on offer, or keep it. */
   | { type: "resolveGamble"; accept: boolean }
   /** Online: the clock that counts ran out; any seated device may close it. */
-  | { type: "expireClock" };
+  | { type: "expireClock" }
+  /** Blackjack duel: the duellist whose turn it is draws a card, or keeps their hand. */
+  | { type: "blackjackHit"; playerId: PlayerId }
+  | { type: "blackjackStand"; playerId: PlayerId }
+  /** Arm wrestle: one side's taps once their ten seconds are over. */
+  | { type: "submitArmTaps"; playerId: PlayerId; taps: number };
 
 /** What an action is played with besides the board: online, the server time it was sent at. */
 export interface ReduceContext {
@@ -963,6 +970,12 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return resolveGamble(state, action.accept);
     case "expireClock":
       return expireClock(state, now);
+    case "blackjackHit":
+      return blackjackHit(state, action.playerId);
+    case "blackjackStand":
+      return blackjackStand(state, action.playerId);
+    case "submitArmTaps":
+      return submitArmTaps(state, action.playerId, action.taps);
   }
 }
 

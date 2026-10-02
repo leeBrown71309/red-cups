@@ -64,6 +64,7 @@ const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
   "rock-paper-scissors": "pierre-feuille-ciseaux",
   "player-vote": "vote",
   basket: "Basket",
+  blackjack: "Blackjack",
 };
 
 /** Draws the wheel result now; the UI only animates towards it. */

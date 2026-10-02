@@ -4,6 +4,7 @@ import { launchBulletBill } from "./bullet-bill";
 import { drawSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
 import { castBlackCup, dropBlackCup, openPortal, passSentence, startDoomsday, triggerPortal } from "./devil";
+import { startArmWrestle } from "./arm-wrestle";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
   addRedGreenBonuses,
@@ -306,10 +307,8 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
 
     case "monopoly-man":
       if (!target) return state;
-      if (target.passiveId === "built-like-a-tank") {
-        nextState = addLog(nextState, `Baraqué annule l’effet du Monopoly Man sur ${target.name}.`, "event");
-        break;
-      }
+      // Baraqué does not let go: an arm wrestle decides (patch 0.1.4).
+      if (target.passiveId === "built-like-a-tank") return startArmWrestle(nextState, player, target);
       // A swap into Hell is a trip to Hell: L'Ange-Gardien then stays put and loses a turn.
       nextState = {
         ...nextState,

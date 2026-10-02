@@ -66,8 +66,9 @@ function getTurnSteps(mapId: MapId): string[] {
       "À −300 pièces, ton solde repart à 0 et tu sautes ton tour.",
     "En Enfer, sa roue remplace le déplacement : au moins 1 point, et elle prend le reste. Tes objets passent " +
       `avant. Deux joueurs en Enfer = duel : le gagnant repart du Départ avec ${START_BONUS} pièces.`,
-    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table ou Basket. " +
-      "Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; égalité, la pièce départage.",
+    "Le mini-jeu du duel est tiré au sort : pile ou face, pierre-feuille-ciseaux, vote de la table, Basket ou " +
+      "Blackjack. Au Basket, chacun a 15 secondes pour marquer le plus de paniers ; au Blackjack, le plus proche de " +
+      "21 sans le dépasser gagne. Égalité : la pièce départage.",
     `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
       `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
     "Non merci : son détenteur peut annuler un objet utilisé contre lui, une roue tournée pour lui (après le " +

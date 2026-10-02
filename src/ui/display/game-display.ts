@@ -107,6 +107,7 @@ export const DUEL_MODE_LABELS: Record<DuelMode, string> = {
   "rock-paper-scissors": "Pierre · Feuille · Ciseaux",
   "player-vote": "Vote de la table",
   basket: "Basket",
+  blackjack: "Blackjack",
 };
 
 export interface TileLegendEntry {

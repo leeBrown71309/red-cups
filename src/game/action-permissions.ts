@@ -71,6 +71,17 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "submitBasketScore":
       return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 
+    // Only the duellist whose hand it is draws or stands.
+    case "blackjackHit":
+    case "blackjackStand":
+      return duel?.blackjack?.turnId === action.playerId ? [action.playerId] : [];
+
+    // Each side of the arm wrestle sends their own taps.
+    case "submitArmTaps": {
+      const wrestle = state.pendingArmWrestle;
+      return wrestle && [wrestle.attackerId, wrestle.defenderId].includes(action.playerId) ? [action.playerId] : [];
+    }
+
     case "pickDuelHand":
       return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 

@@ -1,4 +1,5 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
+import { createBlackjack } from "./blackjack";
 import { randomChoice } from "./state-utils";
 import type { BasketShot, DuelMode, PendingDuel, PlayerId, TurnStage } from "./types";
 import { BASKET_DURATION_MS } from "./types";
@@ -12,7 +13,7 @@ import { BASKET_DURATION_MS } from "./types";
 
 /** Every mini-game a duel may draw; the vote needs somebody left to vote. */
 export function getDuelModes(hasVoters: boolean): DuelMode[] {
-  const modes: DuelMode[] = ["coin-flip", "rock-paper-scissors", "basket"];
+  const modes: DuelMode[] = ["coin-flip", "rock-paper-scissors", "basket", "blackjack"];
   if (hasVoters) modes.push("player-vote");
   return modes;
 }
@@ -39,6 +40,7 @@ export function createDuel(
       mode === "basket"
         ? { id: createEngineId(), shooterId: null, scores: {}, ghostShots: [], tieBroken: false }
         : null,
+    blackjack: mode === "blackjack" ? createBlackjack(playerOneId, playerTwoId) : null,
     ghost: null,
   };
 }

@@ -30,6 +30,7 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
 - [x] **Lot 8** fait et commité.
 - [x] **Lot 9** fait et commité.
 - [x] **Lot 10** fait et commité.
+- [x] **Lot 11** fait et commité.
 - Source : `docs/Updates Red Cups-1.docx` (non suivi par Git).
 
 ---
@@ -552,6 +553,16 @@ Le patch 0.1.3 est mergé dans `origin/pre-prod` et `origin/main` (5531f78). Dé
   - le plus proche de 21 sans dépasser gagne ; en cas d'égalité, pile ou face ;
   - le fantôme joue comme un croupier (il tire sous 17) ;
   - à mettre à jour : arène dans `duel-modal.tsx`, `DUEL_MODE_LABELS`/`LOG_NAMES`, bots et `simulation.test.ts:47`.
+
+### Bilan du lot 11
+
+- **Blackjack** (`game/blackjack.ts`) : nouveau mode de duel tiré comme les autres (`getDuelModes`), y compris contre le fantôme ; `PendingDuel.blackjack` (paquet mélangé, mains, tour) ; actions `blackjackHit` / `blackjackStand` (seul le duelliste dont c'est le tour) ; le fantôme tire sous 17 ; égalité à pile ou face ; arène dans la fenêtre de duel (`blackjack-game.tsx`).
+- **Bras de fer** (`game/arm-wrestle.ts`) : le Monopoly Man sur Baraqué ouvre l'étape `arm-wrestle` (`pendingArmWrestle`) ; action `submitArmTaps` (chaque côté pour lui, plafond 150) ; Baraqué ×1,2 ; égalité selon Q20 ; fenêtre `arm-wrestle-modal.tsx` (deux zones et touches A/L en local, bouton et espace en ligne) ; barre en direct par le canal `arm` (`net/arm-live.ts`).
+- **Chrono** : le bras de fer est une décision partagée (45 s, un côté absent compte 0) ; au Blackjack, un duelliste absent reste.
+- **Bots et vérificateur** : les bots tirent sous 15 à 18 et tapent 20 à 90 fois ; étape `arm-wrestle` et mode `blackjack` exigés par la campagne ; les pas du bras de fer ne sont pas des arrivées.
+- **Textes** : Baraqué, Monopoly Man et l'aide (mini-jeux) à jour.
+- **Sauvegardes** : version 20. Un oubli rattrapé : le lot 10 avait ajouté des champs sans monter la version, ce qui aurait fait rejeter une partie sauvegardée en cours ; le nouveau `game-save.test.ts` vérifie maintenant, champ par champ, qu'une sauvegarde de la version précédente revient toujours.
+- **Tests** : nouveau `minigames.test.ts` (8 tests) et `game-save.test.ts` (22 tests).
 
 ## Lot 12 — Docs et finitions
 

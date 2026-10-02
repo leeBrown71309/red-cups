@@ -3,6 +3,7 @@ import { useGameStore } from "../../game/store";
 import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
+import { ArmWrestleModal } from "../modals/arm-wrestle-modal";
 import { DuelModal } from "../modals/duel-modal";
 import { GhostLootModal } from "../modals/ghost-loot-modal";
 import { HelpModal } from "../modals/help-modal";
@@ -53,6 +54,7 @@ export function GameHud() {
   if (settled) {
     if (game.phase === "finished") decision = <VictoryModal />;
     else if (game.pendingReaction) decision = <ReactionModal />;
+    else if (game.pendingArmWrestle) decision = <ArmWrestleModal />;
     else if (game.pendingDiscard) decision = <DiscardModal />;
     else if (game.pendingWheel) decision = <WheelModal />;
     else if (game.pendingDuel) decision = <DuelModal />;

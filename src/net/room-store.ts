@@ -32,6 +32,7 @@ import {
   prepareLocalAction,
   type RoomWire,
 } from "./room-protocol";
+import { attachArmLive, handleArmWire, type ArmWire } from "./arm-live";
 import { attachBasketLive, handleBasketWire, type BasketWire } from "./basket-live";
 import { ensureSession, getSupabase } from "./supabase-client";
 import {
@@ -307,6 +308,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     // Live Basket shots are only for the show: they skip the game queue too.
     channel.on("broadcast", { event: "basket" }, ({ payload }) => handleBasketWire(payload as BasketWire));
     attachBasketLive((wire) => void channel?.send({ type: "broadcast", event: "basket", payload: wire }));
+    // The arm wrestle's running taps, for the bar only.
+    channel.on("broadcast", { event: "arm" }, ({ payload }) => handleArmWire(payload as ArmWire));
+    attachArmLive((wire) => void channel?.send({ type: "broadcast", event: "arm", payload: wire }));
     channel.on("presence", { event: "sync" }, () => {
       const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
@@ -347,6 +351,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
     setActionRelay(null);
     detachVoice();
     attachBasketLive(null);
+    attachArmLive(null);
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
     if (clockCheck !== null) window.clearInterval(clockCheck);

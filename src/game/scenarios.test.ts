@@ -342,6 +342,7 @@ describe("duel winner (patch 0.1.3)", () => {
         voteTieBroken: false,
         winnerId: store().players[0].id,
         basket: null,
+        blackjack: null,
         ghost: null,
       },
     });

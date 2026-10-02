@@ -54,6 +54,12 @@ export function getDefaultAction(state: GameState): GameAction | null {
     }
     case "duel":
       return state.pendingDuel ? getDuelDefault(state, state.pendingDuel) : null;
+    case "arm-wrestle": {
+      // A side whose count never came pulled with no strength at all.
+      const wrestle = state.pendingArmWrestle;
+      const missing = wrestle && [wrestle.attackerId, wrestle.defenderId].find((id) => wrestle.taps[id] === undefined);
+      return missing ? { type: "submitArmTaps", playerId: missing, taps: 0 } : null;
+    }
     default:
       return null;
   }
@@ -82,6 +88,11 @@ function getDuelDefault(state: GameState, duel: PendingDuel): GameAction | null 
       if (!shooterId) return null;
       if (duel.basket?.shooterId !== shooterId) return { type: "startBasketRound", playerId: shooterId };
       return { type: "submitBasketScore", playerId: shooterId, score: 0 };
+    }
+    case "blackjack": {
+      // An absent duellist keeps their hand.
+      const turnId = duel.blackjack?.turnId;
+      return turnId ? { type: "blackjackStand", playerId: turnId } : null;
     }
   }
 }

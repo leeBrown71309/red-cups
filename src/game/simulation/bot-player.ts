@@ -5,6 +5,7 @@ import { ITEM_CATALOG } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
 import { getCalmDownTiles } from "../game-effects";
+import { getHandValue } from "../blackjack";
 import { canRescueProtege } from "../guardian";
 import { avoidsHell, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
@@ -171,6 +172,15 @@ function chooseDuelAction(store: GameStore, random: Random): BotAction | null {
   if (winnerId) return { label: `duel:${duel.mode}`, perform: (current) => current.resolveDuel(winnerId) };
 
   if (duel.mode === "coin-flip") return { label: "duel:flip", perform: (current) => current.flipDuelCoin() };
+  if (duel.mode === "blackjack") {
+    const turnId = duel.blackjack?.turnId;
+    if (!turnId) return null;
+    // Like most players: draw below 17, sometimes a little bolder or shyer.
+    const hit = getHandValue(duel.blackjack?.hands[turnId] ?? []) < 15 + Math.floor(random() * 4);
+    return hit
+      ? { label: "duel:blackjack-hit", perform: (current) => current.blackjackHit(turnId) }
+      : { label: "duel:blackjack-stand", perform: (current) => current.blackjackStand(turnId) };
+  }
   if (duel.mode === "basket") {
     const shooterId = duel.basket?.shooterId ?? getNextBasketShooterId(duel);
     if (!shooterId) return null;
@@ -279,6 +289,14 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       const nodeId = walker ? pick(getForwardTiles(store, walker), random) : undefined;
       if (nodeId === undefined) return null;
       return { label: "advance", perform: (current) => current.advanceOneTile(nodeId) };
+    }
+
+    case "arm-wrestle": {
+      const wrestle = store.pendingArmWrestle;
+      const side = wrestle && [wrestle.attackerId, wrestle.defenderId].find((id) => wrestle.taps[id] === undefined);
+      if (!side) return null;
+      const taps = 20 + Math.floor(random() * 70);
+      return { label: "arm-wrestle", perform: (current) => current.submitArmTaps(side, taps) };
     }
 
     case "gamble": {

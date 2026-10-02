@@ -68,6 +68,10 @@ interface GameActions {
   resolveCalmDown: (destination: NodeId | null) => void;
   /** Double or nothing: stakes the gain or loss on offer on a coin flip, or keeps it. */
   resolveGamble: (accept: boolean) => void;
+  blackjackHit: (playerId: PlayerId) => void;
+  blackjackStand: (playerId: PlayerId) => void;
+  /** Arm wrestle: one side's taps once their ten seconds are over. */
+  submitArmTaps: (playerId: PlayerId, taps: number) => void;
 }
 
 export type GameStore = GameState & GameActions;
@@ -141,6 +145,9 @@ export const useGameStore = create<GameStore>()(
       advanceOneTile: (destination) => dispatch({ type: "advanceOneTile", destination }),
       resolveCalmDown: (destination) => dispatch({ type: "resolveCalmDown", destination }),
       resolveGamble: (accept) => dispatch({ type: "resolveGamble", accept }),
+      blackjackHit: (playerId) => dispatch({ type: "blackjackHit", playerId }),
+      blackjackStand: (playerId) => dispatch({ type: "blackjackStand", playerId }),
+      submitArmTaps: (playerId, taps) => dispatch({ type: "submitArmTaps", playerId, taps }),
     };
   }, createGameSaveOptions<GameStore>()),
 );

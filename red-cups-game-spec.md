@@ -30,7 +30,7 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Inventaire plein à la collecte d’une Cup | Le joueur choisit lui-même un objet non-Red Cup à abandonner. La Red Cup est ensuite ajoutée à l’inventaire. |
 | Enfer | La case 11 représente l’Enfer. Les sorties peuvent venir d’un duel, de la roue de l’Enfer, de la Bouteille d’eau ou d’un autre effet explicitement prévu. |
 | Duel en Enfer | Quand deux joueurs se trouvent en Enfer, un duel est déclenché. Le gagnant retourne en case 0 ; le perdant reste en Enfer. |
-| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux, vote des autres joueurs et Basket. |
+| Mode de duel | Le jeu tire au sort entre pile ou face, pierre-feuille-ciseaux, vote des autres joueurs, Basket et Blackjack (patch 0.1.4). |
 | État client | React, Three.js et Zustand. Pas de serveur multijoueur dans le MVP. |
 
 ## 3. Plateau et déplacements
@@ -261,7 +261,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Gomme | Annule l’effet d’une roue après son résultat. Une seule Gomme peut être détenue à la fois. |
 | Bullet Bill | S’achète comme un objet et se lance depuis le sac pendant son tour, pour 2 points d’énergie, s’il n’y en a pas déjà un sur le plateau (patch 0.1.4 ; avant, il partait dès l’achat). Lancé, il n’appartient à personne et attend au départ, bien visible. Au début du tour de table suivant, il s’active et fonce vers le joueur le plus proche (hors Enfer) sans tenir compte du sens des flèches, puis recommence à chaque début de tour de table. Il avance d’une seule case par charge (patch 0.1.4) : seule une cible sur la case voisine, ou sur sa propre case, est touchée. Il retire 200 pièces à sa victime, l’étourdit pendant un tour, puis disparaît. Son arrivée, chaque charge et l’impact (explosion) sont annoncés à toute la table. |
 | Middle Finger | Empêche une cible de jouer son prochain tour ; peut cibler son utilisateur. |
-| Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Baraqué n’est pas affecté par cet échange. Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
+| Monopoly Man | Échange la position de l’utilisateur avec celle d’un autre joueur. Contre Baraqué, un bras de fer décide de l'échange (voir 9.2 bis). Ni roue ni boutique pour ce déplacement, pour aucun des deux. |
 | Bouteille d’eau | Permet de sortir de l’Enfer et de rejoindre une case aléatoire autre que l’Enfer. |
 | Tomate | Objet pour rire, accessible à tous (patch 0.1.3). Se lance sur n’importe quel autre joueur, même en Enfer et même depuis l’Enfer, avant son déplacement et sans énergie : on peut en lancer autant qu’on en a. On choisit la Tomate, la cible, puis combien en lancer d’un coup (toute la pile au plus) : la volée part en rafale. Chaque Tomate a 2 chances sur 100 d’assommer la cible, qui passe alors son prochain tour (un seul tour, même si plusieurs l’assomment) ; sinon, rien qu’une tomate écrasée. Jusqu’à 5 Tomates s’empilent dans une place du sac. Depuis le patch 0.1.4, une pile compte comme un exemplaire : deux piles au plus (comme deux exemplaires de tout objet), et on ne lance que d’**une seule pile par tour**, soit 5 Tomates au plus. Une Tomate gratuite de la roue arrive en nouvelle pile de 5 quand le sac a la place. Non merci ne peut pas l’annuler. Je note en reçoit une à chaque tomate reçue. Une roue « perds un objet » ou le fantôme n’en prennent qu’une à la pile. |
 | Casque | S’active automatiquement pour éviter un solde négatif. |
@@ -282,7 +282,7 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 
 | Passif | Effet |
 | --- | --- |
-| Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Le Monopoly Man n’a aucun effet sur lui. |
+| Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Contre le Monopoly Man, un bras de fer décide de l'échange, et ses coups comptent 1,2 fois (patch 0.1.4, voir 9.2 bis). |
 | New Cup, New Me | À chaque nouvelle Red Cup, avant qu’elle apparaisse, le joueur choisit : filer au Départ et toucher 200 pièces (même depuis l’Enfer), ou rester où il est (patch 0.1.4). Aller au Départ ne donne ni roue ni boutique. |
 | Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 100 (patch 0.1.4, « deux de chaque »). |
 | Non merci | Une fois tous les 5 tours de table, annule un objet utilisé contre lui, une roue tournée pour lui ou Bullet Bill qui fonce sur lui (voir 4). |
@@ -327,8 +327,15 @@ Le système tire uniformément un mode disponible :
 3. **Vote** : les duellistes ne votent pas ; les autres joueurs choisissent un vainqueur. Une égalité est départagée par pile ou face.
 4. **Basket** (patch 0.1.3, sur toutes les cartes) : un panier, une balle, 15 secondes pour marquer le plus de paniers. Le chrono ne part qu’après « Commencer le mini-jeu ». On tire quand le curseur de la jauge passe dans la zone verte ; la jauge accélère vers la fin. Entre deux joueurs, chacun a ses 15 secondes, l’un après l’autre ; contre le fantôme, il tire en même temps. Égalité : pile ou face. En ligne, les autres regardent les tirs en direct ; seul le score final, envoyé par l’appareil du tireur, compte (plafonné à 30).
    - Le fantôme n’est pas une machine : sa forme du jour (40 à 70 % de réussite), ses séries chaudes ou froides, ses hésitations et son excès de confiance après 4 paniers d’affilée lui font marquer environ 6 paniers, de 0 à 12 selon les manches.
+5. **Blackjack** (patch 0.1.4, dans tous les duels) : un paquet de 52 cartes mélangé par le moteur, deux cartes chacun, visibles. Le premier duelliste tire ou reste, puis le second ; dépasser 21 fait perdre la main, et 21 l'arrête aussitôt. L'as vaut 11 ou 1, les figures 10. Le plus proche de 21 sans le dépasser gagne ; égalité (y compris deux mains sautées) : pile ou face. Le fantôme joue comme un croupier : il tire tant qu'il a moins de 17.
 
 Si aucun joueur extérieur n’est disponible pour voter, le mode vote est retiré du tirage. Dans le MVP sur un seul écran, l’hôte entre les choix et votes. Les entrées de pierre-feuille-ciseaux sont masquées successivement avant révélation.
+
+### 9.2 bis Bras de fer (patch 0.1.4)
+
+- Un Monopoly Man utilisé sur Baraqué ouvre un bras de fer au lieu de l'échange. Chacun a 10 secondes pour taper le plus vite possible, après un décompte de 3 secondes : en local sur le même écran (moitié gauche ou touche A pour l'attaquant, moitié droite ou touche L pour Baraqué), en ligne chacun sur son appareil (bouton ou barre d'espace), la barre bougeant en direct. Le compte de chacun est plafonné à 150.
+- Les coups de Baraqué comptent 1,2 fois. L'attaquant plus fort : l'échange a lieu. Baraqué plus fort : pas d'échange, le Monopoly Man est perdu quand même.
+- **Égalité** (réponse Q20) : s'il y a au moins une case entre eux, l'attaquant avance d'une case vers Baraqué et Baraqué recule d'une case ; côte à côte, seul Baraqué recule. Reculer veut dire aller sur la case voisine la plus éloignée de l'attaquant ; sans case plus éloignée, Baraqué reste. Personne ne bouge depuis ou vers l'Enfer. Aucun de ces déplacements n'est une arrivée (ni roue ni boutique).
 
 ### 9.3 Roues (patch 0.1.4)
 
@@ -493,6 +500,14 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 4. **À valider** — Une revanche repasse par le draft, en local comme en ligne.
 5. **À valider** — Le compte à rebours de 5 secondes passe aussi en local ; pendant ce temps, le dock du premier joueur est déjà affiché derrière.
 
+### Lot 11 — Mini-jeux
+
+1. **À valider** — **Blackjack** : les cartes des deux joueurs sont visibles (pas de carte cachée) ; le premier duelliste joue toute sa main avant le second ; deux mains sautées comptent comme une égalité, tranchée à pile ou face.
+2. **À valider** — Le **fantôme** au Blackjack tire tant qu'il a moins de 17, sans regarder la main de son adversaire.
+3. **À valider** — **Bras de fer** : 3 secondes de décompte, puis 10 secondes ; en ligne, chaque appareil lance ses 10 secondes quand son joueur appuie sur « C'est parti ! », les deux ne sont donc pas forcément simultanés. Un côté qui n'envoie rien dans les délais du chrono compte 0.
+4. **À valider** — **Égalité au bras de fer** : « reculer » envoie Baraqué sur la case voisine la plus éloignée de l'attaquant, flèches ignorées ; s'il n'y en a pas, il reste. Ces pas ne déclenchent ni roue, ni boutique, ni Boue.
+5. **À valider** — Baraqué qui gagne le bras de fer garde sa case, et le Monopoly Man est perdu avec son énergie, comme un objet annulé.
+
 ## 14. Historique des versions
 
 ### 0.1.4 — en préparation
@@ -512,6 +527,7 @@ Rework demandé par l’auteur du jeu ; le plan et les points ouverts sont dans 
 - **Bullet Bill** : une seule case par charge. Il va dans le sac à l’achat et se lance pendant son tour, pour 2 points d’énergie.
 - **Roues** : roues du bonheur et du malheur refaites en huit secteurs (voir 9.3), avec « Avance d’une case », « Retourne d’où tu viens », « Va au Départ » et −300 ; ces déplacements donnent la roue et la boutique de la case d’arrivée.
 - **Draft des passifs** (voir 4.0) : 3 cartes par joueur (2 au-delà de 6), une minute en ligne, à tour de rôle sans chrono en local, puis un compte à rebours de 5 secondes.
+- **Mini-jeux** (voir 9.2 et 9.2 bis) : le Blackjack rejoint les duels ; Baraqué affronte le Monopoly Man au bras de fer.
 - **Chrono en ligne** (voir 4.3) : 45 secondes par tour, 20 pour les décisions des autres, choix par défaut à l'échéance, une chance perdue par tour passé sans jouer et forfait à la troisième ; heure du serveur commune ; un salon d'une autre version est refusé.
 - **Interface** : le carrousel de détails (zone orange) disparaît de la fiche joueur, de la boutique et de l’aide ; chaque objet et chaque passif garde une description générale.
 

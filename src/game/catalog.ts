@@ -104,7 +104,9 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Monopoly Man",
     price: 600,
     symbol: "⇄",
-    description: "Échange ta position avec celle d’un autre joueur, sans roue ni boutique.",
+    description:
+      "Échange ta position avec celle d’un autre joueur, sans roue ni boutique. Contre Baraqué, un bras de fer " +
+      "décide.",
     target: "player",
     energyCost: 3,
   },
@@ -267,7 +269,9 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "built-like-a-tank",
     name: "Baraqué",
     shortName: "Baraqué",
-    description: "La Corde te déplace de moitié. Le Monopoly Man ne t’affecte pas.",
+    description:
+      "La Corde te déplace de moitié. Contre le Monopoly Man, un bras de fer décide de l’échange, et tes coups " +
+      "comptent 1,2 fois.",
   },
   "new-cup-new-me": {
     id: "new-cup-new-me",

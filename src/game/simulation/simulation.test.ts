@@ -44,7 +44,8 @@ describe("bot campaign", () => {
     const outcomes = new Set(Object.values(WHEEL_RESULTS).flatMap((results) => results.map((result) => result.id)));
     expect([...outcomes].filter((outcome) => !actions[`wheel:${outcome}`])).toEqual([]);
 
-    expect(["coin-flip", "rock-paper-scissors", "player-vote"].filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
+    const modes = ["coin-flip", "rock-paper-scissors", "player-vote", "blackjack"];
+    expect(modes.filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
     expect(actions.abandon).toBeGreaterThan(0);
     // The Voleur's tries, caught or not; le diable leaving Hell; L'Ange-Gardien freeing their protégé.
     expect(Object.keys(actions).some((label) => label.startsWith("steal:"))).toBe(true);
@@ -66,6 +67,7 @@ describe("bot campaign", () => {
       "advance",
       "passive-choice",
       "gamble",
+      "arm-wrestle",
     ];
     expect(expectedStages.filter((stage) => !stages[stage])).toEqual([]);
   });

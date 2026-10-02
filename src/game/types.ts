@@ -91,6 +91,12 @@ export const GHOST_TELEPORT_MIN_DISTANCE = 3;
 export const BASKET_DURATION_MS = 15_000;
 /** Basket: no score above this is believed (a shot takes well over half a second). */
 export const BASKET_MAX_SCORE = 30;
+/** Arm wrestle: each side taps for this long. */
+export const ARM_WRESTLE_DURATION_MS = 10_000;
+/** Arm wrestle: no count above this is believed (fifteen taps a second). */
+export const ARM_WRESTLE_MAX_TAPS = 150;
+/** Arm wrestle: Baraqué's strength. */
+export const TANK_ARM_STRENGTH = 1.2;
 
 export const PLAYER_COLORS = [
   "#f16a53",
@@ -156,7 +162,7 @@ export type PassiveId =
   | "guardian-angel";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
-export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket";
+export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket" | "blackjack";
 export type RpsChoice = "rock" | "paper" | "scissors";
 
 export type InventoryEntry =
@@ -227,6 +233,8 @@ export type TurnStage =
   | "passive-choice"
   /** Double or nothing: the holder may stake a gain or a loss of coins on a coin flip. */
   | "gamble"
+  /** Baraqué against the Monopoly Man: ten seconds of arm wrestling. */
+  | "arm-wrestle"
   | "blessing"
   | "finished";
 
@@ -309,6 +317,25 @@ export interface BasketDuel {
   tieBroken: boolean;
 }
 
+/** A playing card: rank 1 (ace) to 13 (king), suit 0 to 3 (♠ ♥ ♦ ♣). */
+export interface PlayingCard {
+  rank: number;
+  suit: number;
+}
+
+/**
+ * Blackjack (patch 0.1.4): each duellist draws in turn, the first one first,
+ * from a deck shuffled when the duel starts. The ghost plays as a dealer.
+ */
+export interface BlackjackDuel {
+  deck: PlayingCard[];
+  hands: Partial<Record<PlayerId, PlayingCard[]>>;
+  /** Whose hand it is; null once both are done. */
+  turnId: PlayerId | null;
+  /** Equal hands are settled by a coin the engine flips. */
+  tieBroken: boolean;
+}
+
 /** Luna Park: what the ghost takes if it wins, drawn when the duel starts. */
 export type GhostPenalty =
   { kind: "hell" } | { kind: "coins"; amount: number } | { kind: "item"; entryId: string; itemId: ItemId };
@@ -341,6 +368,7 @@ export interface PendingDuel {
   /** Set once the duel is decided; resolving it then has to name this player. */
   winnerId: PlayerId | null;
   basket: BasketDuel | null;
+  blackjack: BlackjackDuel | null;
   /** Luna Park: set when the duel is against the ghost. */
   ghost: GhostStakes | null;
 }
@@ -380,6 +408,18 @@ export interface PendingCalmDown {
 export interface PendingGamble {
   playerId: PlayerId;
   amount: number;
+}
+
+/**
+ * Baraqué (patch 0.1.4): a Monopoly Man used on them opens an arm wrestle.
+ * Each side taps for ten seconds; Baraqué's taps count 1.2 times.
+ */
+export interface PendingArmWrestle {
+  id: string;
+  attackerId: PlayerId;
+  defenderId: PlayerId;
+  taps: Partial<Record<PlayerId, number>>;
+  resumeStage: TurnStage;
 }
 
 /** A player who arrived on a green or red tile and still has to spin its wheel. */
@@ -608,6 +648,7 @@ export interface GameState {
   pendingCalmDown: PendingCalmDown | null;
   pendingAdvance: PendingAdvance | null;
   pendingReaction: PendingReaction | null;
+  pendingArmWrestle: PendingArmWrestle | null;
   /** Tile wheels still to spin, in arrival order; filled by walks and teleports alike. */
   pendingTileWheels: PendingTileWheel[];
   /** Stage to return to once every queued tile wheel has spun. */
@@ -708,6 +749,7 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingCalmDown: null,
   pendingAdvance: null,
   pendingReaction: null,
+  pendingArmWrestle: null,
   pendingTileWheels: [],
   tileWheelResumeStage: "turn-end",
   mudTraps: [],

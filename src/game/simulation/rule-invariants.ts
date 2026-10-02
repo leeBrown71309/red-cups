@@ -65,6 +65,7 @@ const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
   reposition: "pendingCupRepositionPlayerId",
   advance: "pendingAdvance",
   reaction: "pendingReaction",
+  "arm-wrestle": "pendingArmWrestle",
 };
 
 /** Stages where the table is "at rest": no effect is half-resolved. */
@@ -609,6 +610,9 @@ function playersMovedWithoutArrival(previous: GameState, appliedItem?: AppliedIt
   }
   const calmed = previous.turnStage === "passive-choice" ? previous.pendingCalmDown?.targetIds[0] : undefined;
   if (calmed) exempt.add(calmed);
+  // The arm wrestle swaps or nudges like the Monopoly Man: no arrival.
+  const wrestle = previous.turnStage === "arm-wrestle" ? previous.pendingArmWrestle : null;
+  if (wrestle) [wrestle.attackerId, wrestle.defenderId].forEach((id) => exempt.add(id));
   return exempt;
 }
 
