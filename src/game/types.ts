@@ -79,6 +79,8 @@ export const GHOST_STEAL_COINS = 300;
 export const GHOST_LOOT_COINS = 200;
 /** Luna Park: what beating a ghost with an empty loot pays. */
 export const GHOST_EMPTY_LOOT_REWARD = 300;
+/** Luna Park: what a player other than L'Ange-Gardien wins instead of the Bouclier the ghost stole. */
+export const GHOST_SHIELD_COINS = 400;
 /** Luna Park: rounds the ghost stays away after being beaten. */
 export const GHOST_COOLDOWN_ROUNDS = 3;
 /** Luna Park: chance that the ghost vanishes and reappears far away instead of drifting along the roads. */
@@ -342,7 +344,14 @@ export type GhostPenalty =
 
 /** Luna Park: what beating the ghost gives, drawn when the duel starts. */
 export type GhostReward =
-  { kind: "coins"; amount: number; fromLoot: boolean } | { kind: "item"; entryId: string; itemId: ItemId };
+  | {
+      kind: "coins";
+      amount: number;
+      fromLoot: boolean;
+      /** The loot's item paid out in coins instead (the Bouclier, kept for L'Ange-Gardien), which leaves the loot. */
+      replacesEntryId?: string;
+    }
+  | { kind: "item"; entryId: string; itemId: ItemId };
 
 export interface GhostStakes {
   penalty: GhostPenalty;
@@ -716,7 +725,7 @@ export interface GameState {
   /** Players at the table when the game started: le diable's goal depends on it. */
   startingPlayerCount: number;
   /** Times a player other than le diable entered Hell; only counted while le diable plays. */
-  devilHellEntries: number;
+  devilHellTurns: number;
   hellPortals: HellPortal[];
   blackCup: BlackCup | null;
   doomsday: Doomsday | null;
@@ -794,7 +803,7 @@ export const EMPTY_GAME_STATE: GameState = {
   winReason: null,
   coWinnerId: null,
   startingPlayerCount: 0,
-  devilHellEntries: 0,
+  devilHellTurns: 0,
   hellPortals: [],
   blackCup: null,
   doomsday: null,

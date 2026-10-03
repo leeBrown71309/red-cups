@@ -7,7 +7,7 @@ import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
-import { applyHellTouch, expireDevilSpells, triggerPortal } from "./devil";
+import { applyHellTouch, countDevilHellTurn, expireDevilSpells, triggerPortal } from "./devil";
 import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems } from "./passive-rules";
 import { endGame } from "./victory";
 import {
@@ -178,7 +178,8 @@ export function startDuel(
 function countHellTurnStartedThere(state: GameState, resumeStage: TurnStage): GameState {
   const active = getActivePlayer(state);
   if (resumeStage !== "move" || !active || active.position !== HELL_NODE_ID || active.hellTurns > 0) return state;
-  return updatePlayer(state, active.id, (player) => ({ ...player, hellTurns: 1 }));
+  const started = updatePlayer(state, active.id, (player) => ({ ...player, hellTurns: 1 }));
+  return countDevilHellTurn(started, active.id);
 }
 
 /**
@@ -609,7 +610,8 @@ export function releaseFromHellWithToll(state: GameState, playerId: PlayerId): G
 function serveHellTurn(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
   if (!player || player.position !== HELL_NODE_ID) return state;
-  return updatePlayer(state, playerId, (current) => ({ ...current, hellTurns: current.hellTurns + 1 }));
+  const served = updatePlayer(state, playerId, (current) => ({ ...current, hellTurns: current.hellTurns + 1 }));
+  return countDevilHellTurn(served, playerId);
 }
 
 /**
@@ -698,6 +700,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
       }
     }
 
+    // Le diable's Toucher d'Enfer strikes before a knocked-out player's skipped turn is used up.
+    nextState = applyHellTouch(nextState);
     const nextPlayer = nextState.players[nextIndex];
     if (nextPlayer.skippedTurns <= 0) break;
     nextState = updatePlayer(nextState, nextPlayer.id, (player) => ({

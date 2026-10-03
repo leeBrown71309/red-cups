@@ -144,7 +144,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "✺",
     description:
       "Lance-la sur un joueur pour rire, sans énergie : 2 chances sur 100 de l’assommer un tour. " +
-      "5 par pile, une seule pile lancée par tour.",
+      "Une seule pile de 5 dans le sac.",
     target: "player",
     energyCost: 0,
     stackLimit: 5,
@@ -351,8 +351,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Tomato Enjoyer",
     shortName: "Tomato",
     description:
-      "Chaque place de ton sac tient une pile de 5 Tomates. Tes Tomates assomment 5 fois sur 100, et chaque " +
-      "Tomate reçue te rapporte 5 pièces.",
+      "Chaque place de ton sac tient une pile de 5 Tomates, et tu en lances autant de piles que tu veux par " +
+      "tour. Tes Tomates assomment 5 fois sur 100, et chaque Tomate reçue te rapporte 5 pièces.",
   },
   roller: {
     id: "roller",
@@ -390,10 +390,9 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Le diable",
     shortName: "Diable",
     description:
-      "Toute la table le sait. Tu gagnes quand les autres sont entrés assez de fois en Enfer (4 par joueur, moins " +
-      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais tu sors de l’Enfer quand tu veux (1 point " +
-      "d’énergie) et tu as ta " +
-      "boutique. Jamais deux fois le même objet.",
+      "Toute la table le sait. Tu gagnes quand les autres ont passé assez de tours en Enfer (4 par joueur, moins " +
+      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais chaque descente en Enfer te rapporte 100 " +
+      "pièces, tu en sors quand tu veux (1 point d’énergie) et tu as ta boutique. Jamais deux fois le même objet.",
   },
   "guardian-angel": {
     id: "guardian-angel",

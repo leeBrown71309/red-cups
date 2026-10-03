@@ -20,6 +20,7 @@ import { PlayerDock } from "./player-dock";
 import { PlayersPanel } from "./players-panel";
 import { TopBar } from "./top-bar";
 import { TurnSplash } from "./turn-splash";
+import { useClockBeeps } from "./use-clock-beeps";
 
 type Overlay = "menu" | "help" | "journal" | "abandon" | null;
 
@@ -29,6 +30,7 @@ type Overlay = "menu" | "help" | "journal" | "abandon" | null;
  */
 export function GameHud() {
   useHudFeedback();
+  useClockBeeps();
   const game = useGameStore();
   const settled = useBoardSettled();
   const setPreviewNodeId = useUiStore((state) => state.setPreviewNodeId);

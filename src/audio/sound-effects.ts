@@ -625,6 +625,23 @@ export const soundEffects = {
     audioEngine.tone({ type: "triangle", frequency: 1_250, frequencyEnd: 950, duration: 0.05, gain: 0.07 });
   },
 
+  /**
+   * Online turn clock, once a second over its last ten: a short beep that
+   * climbs as the seconds run out, and a longer, higher one on the last.
+   */
+  clockBeep(secondsLeft: number): void {
+    const last = secondsLeft <= 1;
+    audioEngine.tone({
+      type: "square",
+      frequency: last ? 1_320 : 880 + (10 - secondsLeft) * 30,
+      duration: last ? 0.32 : 0.08,
+      attack: 0.004,
+      release: 0.04,
+      gain: last ? 0.07 : 0.05,
+      filterFrequency: 3_200,
+    });
+  },
+
   reveal(): void {
     audioEngine.tone({ type: "triangle", frequency: NOTE.D5, duration: 0.1, gain: 0.1 });
     audioEngine.tone({ type: "triangle", frequency: NOTE.F5, start: at(0.08), duration: 0.18, gain: 0.1 });

@@ -7,6 +7,7 @@ import { getServerNow, useLocalPlayerId } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
+import { useClockBeeps } from "../hud/use-clock-beeps";
 
 /**
  * The passive draft before the game. Online, every device shows its own cards
@@ -15,6 +16,7 @@ import { UiIcon } from "../icons/ui-icon";
  */
 export function DraftScreen() {
   const localPlayerId = useLocalPlayerId();
+  useClockBeeps();
   return localPlayerId === null ? <LocalDraft /> : <OnlineDraft playerId={localPlayerId} />;
 }
 

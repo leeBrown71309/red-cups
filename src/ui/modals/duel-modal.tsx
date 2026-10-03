@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getHumanDuellistIds, isDuellist } from "../../game/duel";
+import { describeCoinReward } from "../../game/ghost";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
 import type { GhostStakes, PendingDuel, PlayerId, RpsChoice } from "../../game/types";
@@ -153,9 +154,7 @@ function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; play
     const text =
       reward.kind === "item"
         ? `${player.name} reprend ${ITEM_CATALOG[reward.itemId].name} dans le butin du fantôme.`
-        : reward.fromLoot
-          ? `${player.name} reprend ${reward.amount} pièces dans le butin du fantôme.`
-          : `Son butin est vide : ${player.name} gagne ${reward.amount} pièces.`;
+        : describeCoinReward(player.name, reward);
     return <p>{text} Le fantôme s’évapore pour quelques tours.</p>;
   }
   const { penalty } = stakes;

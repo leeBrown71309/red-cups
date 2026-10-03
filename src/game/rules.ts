@@ -37,6 +37,11 @@ export function countItemUnits(player: Player, itemId: ItemId): number {
     .reduce((total, entry) => total + getEntryUnits(entry), 0);
 }
 
+/** Everything in a bag, every Tomate of a stack and every Red Cup counted. */
+export function countBagUnits(player: Player): number {
+  return player.inventory.reduce((total, entry) => total + getEntryUnits(entry), 0);
+}
+
 /** At most two copies of an item, a single Gomme: whether one more slot of it may be filled. */
 function isWithinCopyLimit(player: Player, itemId: ItemId): boolean {
   return countItemCopies(player, itemId) < getCopyLimit(player, itemId, getInventoryCapacity(player));

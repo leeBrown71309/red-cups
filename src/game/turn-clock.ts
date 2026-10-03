@@ -15,8 +15,16 @@ import { GHOST_ID } from "./types";
 export const TURN_TIME_MS = 45_000;
 /** Whoever else decides (a reaction, a vote, Calme-toi, a gamble…) gets this long before the default applies. */
 export const DECISION_TIME_MS = 20_000;
-/** Basket needs its two 15-second rounds and a little more. */
-export const BASKET_DECISION_TIME_MS = 45_000;
+/** The arm wrestle needs its countdown and both sides' ten seconds, and a little more. */
+export const ARM_WRESTLE_DECISION_TIME_MS = 45_000;
+/**
+ * A duel holds the turn clock and shows no countdown: only a duellist or a
+ * voter gone quiet for this long lets the default play for them, so a duel
+ * never blocks the table (author's request: the clock pauses for the duel).
+ */
+export const DUEL_SAFETY_TIME_MS = 120_000;
+/** The duel's safety clock shows up once this little is left. */
+export const DUEL_COUNTDOWN_SHOWN_MS = 15_000;
 /** Animations play after every action: the clock waits this long before it runs again. */
 export const CLOCK_GRACE_MS = 3_000;
 /** Devices other than the decider's wait this long past a deadline before closing it themselves. */
@@ -67,9 +75,16 @@ export function isActiveDecision(state: GameState): boolean {
   return deciders.length === 1 && deciders[0] === getActivePlayer(state)?.id;
 }
 
+/** Whose clock counts right now: the active player's turn, or whoever else has to decide. */
+export function getClockOwnerIds(state: GameState): PlayerId[] {
+  if (!isActiveDecision(state)) return getClockDeciderIds(state);
+  const active = getActivePlayer(state);
+  return active ? [active.id] : [];
+}
+
 function getDecisionTime(state: GameState): number {
-  const basket = state.turnStage === "duel" && state.pendingDuel?.mode === "basket";
-  return basket || state.turnStage === "arm-wrestle" ? BASKET_DECISION_TIME_MS : DECISION_TIME_MS;
+  if (state.turnStage === "duel") return DUEL_SAFETY_TIME_MS;
+  return state.turnStage === "arm-wrestle" ? ARM_WRESTLE_DECISION_TIME_MS : DECISION_TIME_MS;
 }
 
 /**

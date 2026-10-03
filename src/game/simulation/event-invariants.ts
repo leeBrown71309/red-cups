@@ -59,8 +59,12 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (flight.dodgedBy) {
     const dodger = findPlayer(next, flight.dodgedBy);
     const answered = previous.pendingReaction?.action.type === "bullet-bill";
-    // Banquise: the blizzard of the round that starts may carry the dodger away.
-    const carried = slidOnIce(previous, next, flight.dodgedBy);
+    // Banquise: the blizzard of the round that starts may carry the dodger away, or their own turn may begin
+    // with them breaking out of fallen ice onto the tile they were sliding to.
+    const thawed =
+      previous.frozenSlides.some((slide) => slide.playerId === flight.dodgedBy) &&
+      !next.frozenSlides.some((slide) => slide.playerId === flight.dodgedBy);
+    const carried = slidOnIce(previous, next, flight.dodgedBy) || thawed;
     const onLanding = dodger?.position === landing || carried;
     if (next.bulletBill !== null || !answered || !onLanding || flight.victimId !== null) {
       found.push(violation("bullet-dodge", `Bullet Bill was dodged by ${flight.dodgedBy} without fizzling out`));

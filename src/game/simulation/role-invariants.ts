@@ -1,4 +1,4 @@
-import { findDevil, getDevilGoalFor } from "../devil";
+import { DEVIL_HELL_REWARD, findDevil, getDevilGoalFor } from "../devil";
 import { avoidsHell, isImmuneToItems, isMalefactor } from "../passive-rules";
 import { countRedCups } from "../rules";
 import { findPlayer } from "../state-utils";
@@ -19,8 +19,8 @@ export function checkRoleState(state: GameState, found: RuleViolation[]): void {
   }
 
   const devil = findDevil(state);
-  if (devil && state.phase === "playing" && state.devilHellEntries >= getDevilGoalFor(state)) {
-    found.push(violation("devil-victory", `${state.devilHellEntries} Hell entries but the game goes on`));
+  if (devil && state.phase === "playing" && state.devilHellTurns >= getDevilGoalFor(state)) {
+    found.push(violation("devil-victory", `${state.devilHellTurns} turns in Hell but the game goes on`));
   }
   if (state.redCupNodeId === HELL_NODE_ID && !state.blackCup) {
     found.push(violation("black-cup", "the Red Cup lies in Hell without a Black Cup"));
@@ -50,35 +50,30 @@ export function checkRoleState(state: GameState, found: RuleViolation[]): void {
   }
 }
 
-/** Every player but le diable stepping into Hell counts once towards their goal. */
-export function checkHellEntries(previous: GameState, next: GameState, found: RuleViolation[]): void {
-  if (!findDevil(previous) || !findDevil(next)) return;
-  const logs = newLogTexts(previous, next);
-  // L'Ange-Gardien taking over a leaving protégé's seat, from Hell, enters it like anybody else.
-  const entries = next.players.filter((player) => {
-    const before = findPlayer(previous, player.id);
-    return (
-      before !== undefined &&
-      player.passiveId !== "devil" &&
-      before.position !== HELL_NODE_ID &&
-      player.position === HELL_NODE_ID
-    );
-  }).length;
-  // A player sent to Hell who forfeits in the same action still entered it.
-  const forfeited = previous.players.filter(
-    (player) =>
-      !findPlayer(next, player.id) &&
-      player.passiveId !== "devil" &&
-      player.position !== HELL_NODE_ID &&
-      logs.includes(`${player.name} est envoyé en Enfer.`),
-  ).length;
-  if (next.devilHellEntries - previous.devilHellEntries !== entries + forfeited) {
-    found.push(
-      violation(
-        "devil-count",
-        `${entries + forfeited} entries counted as ${next.devilHellEntries - previous.devilHellEntries}`,
-      ),
-    );
+/**
+ * Le diable's count of the turns the others spend in Hell: it never goes
+ * back, and a turn handed to another player who starts it in Hell adds to it.
+ * Their own trips to Hell pay them.
+ */
+export function checkDevilHellTurns(previous: GameState, next: GameState, found: RuleViolation[]): void {
+  const devil = findDevil(next);
+  if (!findDevil(previous) || !devil) return;
+  const added = next.devilHellTurns - previous.devilHellTurns;
+  if (added < 0) found.push(violation("devil-count", `the count went back by ${-added}`));
+
+  const active = next.players[next.activePlayerIndex];
+  const before = active && findPlayer(previous, active.id);
+  // An earlier seat leaving shifts the index of the same player: only another player, or a new round, is a new turn.
+  const previousActive = previous.players[previous.activePlayerIndex];
+  const newTurn = active?.id !== previousActive?.id || next.round !== previous.round;
+  if (newTurn && active?.passiveId !== "devil" && active?.position === HELL_NODE_ID && before && added < 1) {
+    found.push(violation("devil-count", `${active.name} began a turn in Hell without it being counted`));
+  }
+
+  const devilBefore = findPlayer(previous, devil.id);
+  const entered = devilBefore && devilBefore.position !== HELL_NODE_ID && devil.position === HELL_NODE_ID;
+  if (entered && !newLogTexts(previous, next).some((text) => text.includes("est chez lui en Enfer"))) {
+    found.push(violation("devil-hell-reward", `${devil.name} went to Hell without their ${DEVIL_HELL_REWARD} coins`));
   }
 }
 

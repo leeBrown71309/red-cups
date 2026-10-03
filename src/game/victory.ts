@@ -44,9 +44,13 @@ export function checkVictories(state: GameState): GameState {
     return addLog(ended, `${greedy.name} atteint ${GREEDY_GOAL} pièces et remporte la partie !`, "good");
   }
   const devil = findDevil(state);
-  if (devil && state.devilHellEntries >= getDevilGoalFor(state)) {
+  if (devil && state.devilHellTurns >= getDevilGoalFor(state)) {
     const ended = endGame(state, devil.id, "devil");
-    return addLog(ended, `${state.devilHellEntries} entrées en Enfer : ${devil.name}, le diable, l’emporte !`, "bad");
+    return addLog(
+      ended,
+      `${state.devilHellTurns} tours passés en Enfer : ${devil.name}, le diable, l’emporte !`,
+      "bad",
+    );
   }
   return state;
 }

@@ -100,11 +100,14 @@ describe("the wheels of patch 0.1.4", () => {
     expect(state.players[0].inventory).toHaveLength(1);
   });
 
-  it("hands a free Tomate as a new stack beside a started one, the stack being one item", () => {
+  it("hands a free Tomate as a whole stack, or fills the single one already started", () => {
     vi.spyOn(Math, "random").mockReturnValue(4.5 / FREE_ITEM_POOL.length);
+    const fresh = resolve(landWheel(startTable(), "fortune", "free-item"));
+    expect(fresh.players[0].inventory.map((entry) => (entry.kind === "item" ? entry.count : 0))).toEqual([5]);
+
     const started: InventoryEntry = { id: "tomatoes", kind: "item", itemId: "tomato", count: 2 };
     const state = resolve(landWheel(editPlayer(startTable(), 0, { inventory: [started] }), "fortune", "free-item"));
-    expect(state.players[0].inventory.map((entry) => (entry.kind === "item" ? entry.count : 0))).toEqual([2, 5]);
+    expect(state.players[0].inventory.map((entry) => (entry.kind === "item" ? entry.count : 0))).toEqual([5]);
   });
 
   it("fills a started stack of Tomates up to five when nothing else fits", () => {

@@ -124,7 +124,9 @@ function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
   const item = ITEM_CATALOG[entry.itemId];
   const availability = getItemAvailability(entry.itemId, game, player, entry.id);
   const usable = ownTurn && availability.usable;
-  const reason = ownTurn ? availability.reason : "Attends ton tour pour l’utiliser.";
+  // The Casque, the Gomme, the Toucher d'Enfer and the Bouclier act on their own: no button, just when.
+  const automatic = availability.kind === "passive";
+  const reason = ownTurn || automatic ? availability.reason : "Attends ton tour pour l’utiliser.";
 
   return (
     <>
@@ -138,13 +140,16 @@ function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
           <span className="item-card__tags">
             <EnergyCost cost={item.energyCost} />
             {item.target === "player" && <span className="item-card__tag">Cible un joueur</span>}
+            {automatic && <span className="item-card__tag item-card__tag--auto">{availability.actionLabel}</span>}
           </span>
         </div>
       </div>
       <p>{item.description}</p>
-      <button type="button" className="btn btn--cup btn--small btn--block" disabled={!usable} onClick={onUse}>
-        {availability.actionLabel}
-      </button>
+      {!automatic && (
+        <button type="button" className="btn btn--cup btn--small btn--block" disabled={!usable} onClick={onUse}>
+          {availability.actionLabel}
+        </button>
+      )}
       {reason && <small className="item-card__reason">{reason}</small>}
     </>
   );

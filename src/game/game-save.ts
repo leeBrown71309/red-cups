@@ -6,7 +6,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 21;
+export const GAME_SAVE_VERSION = 22;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -112,7 +112,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * L'Ange-Gardien (protégé, co-winner). Version 18 added the online clocks,
  * the chances lost and the rules version, version 19 the passive draft (a
  * game saved during its draft comes back to it), version 20 the mini-games
- * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause.
+ * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause, version
+ * 22 le diable's count of turns spent in Hell instead of entries.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -154,7 +155,8 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     theftAttempted: save.theftAttempted ?? false,
     coWinnerId: save.coWinnerId ?? null,
     startingPlayerCount: save.startingPlayerCount ?? players.length,
-    devilHellEntries: save.devilHellEntries ?? 0,
+    // Version 22 counts the turns spent in Hell where version 21 counted the entries: the count carries on.
+    devilHellTurns: save.devilHellTurns ?? save.devilHellEntries ?? 0,
     hellPortals: save.hellPortals ?? [],
     blackCup: save.blackCup ?? null,
     doomsday: save.doomsday ?? null,

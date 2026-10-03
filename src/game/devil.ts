@@ -3,7 +3,7 @@ import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
 import { avoidsHell, getDevilGoal, isImmuneToItems } from "./passive-rules";
 import { carryOffIce } from "./ice";
-import { addLog, findPlayer, randomChoice, sendPlayerToHell, updatePlayer } from "./state-utils";
+import { addLog, applyCurrencyChange, findPlayer, randomChoice, sendPlayerToHell, updatePlayer } from "./state-utils";
 import type { DevilSpell, GameState, Player, PlayerId } from "./types";
 import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_NODE_ID } from "./types";
 
@@ -17,30 +17,38 @@ export function findDevil(state: GameState): Player | undefined {
   return state.players.find((player) => player.passiveId === "devil");
 }
 
+/** Coins le diable earns each time they go to Hell themselves (author's buff). */
+export const DEVIL_HELL_REWARD = 100;
+
 /** At the start, the whole table learns who le diable is and what they need. */
 export function announceDevil(state: GameState): GameState {
   const devil = findDevil(state);
   if (!devil) return state;
   return addLog(
     state,
-    `${devil.name} est le diable ! Il gagne dès que les autres seront entrés ${getDevilGoalFor(state)} fois en Enfer.`,
+    `${devil.name} est le diable ! Il gagne dès que les autres auront passé ${getDevilGoalFor(state)} tours en Enfer.`,
     "bad",
   );
 }
 
-/** Players stepping into Hell between two states, le diable aside: each one brings them closer to winning. */
-export function countHellEntries(before: GameState, after: GameState): GameState {
-  if (!findDevil(after)) return after;
-  const entries = after.players.filter((player) => {
-    const previous = findPlayer(before, player.id);
-    return (
-      player.passiveId !== "devil" &&
-      player.position === HELL_NODE_ID &&
-      previous !== undefined &&
-      previous.position !== HELL_NODE_ID
-    );
-  }).length;
-  return entries === 0 ? after : { ...after, devilHellEntries: after.devilHellEntries + entries };
+/**
+ * A player other than le diable begins one more of their turns in Hell,
+ * played or skipped: it brings le diable closer to winning (author's buff,
+ * which replaced the count of entries).
+ */
+export function countDevilHellTurn(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!findDevil(state) || !player || player.passiveId === "devil") return state;
+  return { ...state, devilHellTurns: state.devilHellTurns + 1 };
+}
+
+/** Le diable stepping into Hell between two states earns their coins (author's buff). */
+export function rewardDevilInHell(before: GameState, after: GameState): GameState {
+  const devil = findDevil(after);
+  const previous = devil && findPlayer(before, devil.id);
+  if (!devil || !previous || devil.position !== HELL_NODE_ID || previous.position === HELL_NODE_ID) return after;
+  const paid = applyCurrencyChange(after, devil.id, DEVIL_HELL_REWARD);
+  return addLog(paid, `${devil.name} est chez lui en Enfer : +${DEVIL_HELL_REWARD} pièces.`, "good");
 }
 
 export function getDevilGoalFor(state: GameState): number {

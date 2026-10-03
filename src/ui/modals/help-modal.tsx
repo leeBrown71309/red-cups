@@ -54,7 +54,7 @@ function getTurnSteps(mapId: MapId): string[] {
       "énergie. Ce que tu achètes sert à partir de ton prochain tour. Deux exemplaires au plus d’un même objet, " +
       "une seule Gomme. Les Tomates s’empilent par 5 : une pile compte comme un exemplaire, et tu ne lances " +
       "qu’une pile par tour.",
-    "Ramasse 3 Red Cups pour gagner (Cupide gagne à 5 000 pièces, le diable avec assez d’entrées en Enfer, " +
+    "Ramasse 3 Red Cups pour gagner (Cupide gagne à 5 000 pièces, le diable quand les autres ont passé assez de tours en Enfer, " +
       "L’Ange-Gardien avec son protégé). Chaque Cup prend une place de ton " +
       "sac (4 places) ; " +
       "sac plein, tu jettes un objet, jamais une Cup.",

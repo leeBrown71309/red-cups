@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
 import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
+import { getMaxPurchaseCount } from "../../game/shopping";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
 import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
@@ -31,19 +32,27 @@ export function ShopModal({ onClose }: ShopModalProps) {
   const player = useActivePlayer();
   const [selectedId, setSelectedId] = useState<ItemId>("boot");
   const [tab, setTab] = useState<ShopTab>("shop");
+  const [wantedCount, setWantedCount] = useState(1);
   if (!player) return null;
 
   const isDevil = player.passiveId === "devil";
   const shelf = getShopItems(player).filter((itemId) => DEVIL_ITEMS.includes(itemId) === (tab === "devil"));
+  const selectItem = (itemId: ItemId) => {
+    setSelectedId(itemId);
+    setWantedCount(1);
+  };
   const openTab = (next: ShopTab) => {
     setTab(next);
-    setSelectedId(next === "devil" ? DEVIL_ITEMS[0] : "boot");
+    selectItem(next === "devil" ? DEVIL_ITEMS[0] : "boot");
   };
 
   const capacity = getInventoryCapacity(player);
   const selected = ITEM_CATALOG[selectedId];
   const selectedStatus = getPurchaseStatus(selectedId, game, player);
   const theftStatus = getTheftStatus(selectedId, game, player);
+  // Several copies at once when the bag and the purse allow it; the count follows what is still possible.
+  const maxCount = getMaxPurchaseCount(game, selectedId);
+  const count = Math.max(1, Math.min(wantedCount, maxCount));
 
   return (
     <ModalShell
@@ -106,7 +115,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
                   className={["shop-item", selectedId === itemId && "is-selected", !status.canBuy && "is-unavailable"]
                     .filter(Boolean)
                     .join(" ")}
-                  onClick={() => setSelectedId(itemId)}
+                  onClick={() => selectItem(itemId)}
                   aria-pressed={selectedId === itemId}
                 >
                   <ItemIcon itemId={itemId} size={40} />
@@ -131,15 +140,19 @@ export function ShopModal({ onClose }: ShopModalProps) {
           <span className="shop-detail__energy">
             <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
           </span>
+          {selectedStatus.canBuy && maxCount > 1 && (
+            <QuantityPicker value={count} max={maxCount} onChange={setWantedCount} />
+          )}
           <button
             type="button"
             className="btn btn--gold btn--block"
             disabled={!selectedStatus.canBuy}
-            onClick={() => game.buyItem(selectedId)}
+            onClick={() => game.buyItem(selectedId, count)}
           >
             {selectedStatus.canBuy ? (
               <>
-                Acheter · <CoinIcon size={18} /> {formatCurrency(selectedStatus.price)}
+                Acheter{count > 1 ? ` ×${count}` : ""} · <CoinIcon size={18} />{" "}
+                {formatCurrency(selectedStatus.price * count)}
               </>
             ) : (
               selectedStatus.reason
@@ -159,5 +172,44 @@ export function ShopModal({ onClose }: ShopModalProps) {
         </aside>
       </div>
     </ModalShell>
+  );
+}
+
+interface QuantityPickerProps {
+  value: number;
+  max: number;
+  onChange: (value: number) => void;
+}
+
+/** How many copies to buy in one go, from one to what the bag and the purse allow. */
+function QuantityPicker({ value, max, onChange }: QuantityPickerProps) {
+  return (
+    <div className="quantity-picker" role="group" aria-label="Quantité">
+      <span className="quantity-picker__label">Quantité</span>
+      <button
+        type="button"
+        className="quantity-picker__step"
+        onClick={() => onChange(value - 1)}
+        disabled={value <= 1}
+        aria-label="Un de moins"
+      >
+        <UiIcon name="minus" size={16} strokeWidth={3} />
+      </button>
+      <output className="quantity-picker__value" aria-live="polite">
+        {value}
+      </output>
+      <button
+        type="button"
+        className="quantity-picker__step"
+        onClick={() => onChange(value + 1)}
+        disabled={value >= max}
+        aria-label="Un de plus"
+      >
+        <UiIcon name="plus" size={16} strokeWidth={3} />
+      </button>
+      <button type="button" className="quantity-picker__max" onClick={() => onChange(max)} disabled={value >= max}>
+        Max · {max}
+      </button>
+    </div>
   );
 }

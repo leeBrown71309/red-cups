@@ -2,7 +2,7 @@ import { getBoard } from "../game/board";
 import { ITEM_ORDER } from "../game/catalog";
 import { findDevil, getDevilGoalFor } from "../game/devil";
 import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
-import { countItemUnits, countRedCups } from "../game/rules";
+import { countBagUnits, countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
 import { GAME_COUNTDOWN_MS, GHOST_ID, HELL_NODE_ID } from "../game/types";
@@ -183,7 +183,8 @@ function collectEvents(
     previous.turnStage === "shop" &&
     activePlayer !== undefined &&
     previousActive !== undefined &&
-    activePlayer.inventory.length > previousActive.inventory.length;
+    // A Tomate bought onto its stack adds no slot: the bag's units tell a purchase.
+    countBagUnits(activePlayer) > countBagUnits(previousActive);
 
   for (const player of state.players) {
     const before = previous.players.find((candidate) => candidate.id === player.id);
