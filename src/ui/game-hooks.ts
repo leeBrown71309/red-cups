@@ -1,7 +1,9 @@
 import { useMemo } from "react";
-import { getBoard } from "../game/board";
-import { getDecidingPlayer, getLegalMoveOptions } from "../game/rules";
-import { canUseDelinquent, useGameStore } from "../game/store";
+import { getForwardTiles } from "../game/game-actions";
+import { getCalmDownTiles } from "../game/game-effects";
+import { isBlindToRedCup } from "../game/passive-rules";
+import { getDecidingPlayer, getTurnMoveOptions } from "../game/rules";
+import { canUseCorrupter, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
 import { useUiStore } from "../feedback/ui-store";
 import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
@@ -28,18 +30,41 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   const paths = new Map<NodeId, NodeId[]>();
   if (state.phase !== "playing" || !activePlayer) return { origin: null, paths };
 
-  if (state.turnStage === "reposition") {
-    for (const nodeId of getBoard(state).normalNodeIds) paths.set(nodeId, [nodeId]);
+  // Calme-toi: the holder sets a player down three steps from the new Red Cup.
+  if (state.turnStage === "passive-choice") {
+    for (const nodeId of getCalmDownTiles(state)) paths.set(nodeId, [nodeId]);
     return { origin: null, paths };
   }
 
+  // Wheel of fortune: the spinner, active or not, steps onto a neighbouring tile.
+  const walker = state.players.find((player) => player.id === state.pendingAdvance?.playerId);
+  if (state.turnStage === "advance" && walker) {
+    for (const nodeId of getForwardTiles(state, walker)) paths.set(nodeId, [nodeId]);
+    return { origin: walker.position, paths };
+  }
+
   if (state.turnStage !== "move") return { origin: null, paths };
-  const canIgnoreArrows = ignoreArrows && canUseDelinquent(activePlayer, state.round);
-  for (const path of getLegalMoveOptions(getBoard(state), activePlayer, state.moveDistance, canIgnoreArrows)) {
+  const canIgnoreArrows = ignoreArrows && canUseCorrupter(activePlayer, state.round);
+  for (const path of getTurnMoveOptions(state, activePlayer, canIgnoreArrows)) {
     const destination = path[path.length - 1];
     if (!paths.has(destination)) paths.set(destination, path);
   }
   return { origin: activePlayer.position, paths };
+}
+
+/**
+ * Chance aveugle never sees the Red Cup: online on their own device, and on a
+ * shared screen whenever they are the one deciding.
+ */
+export function isRedCupHiddenFor(state: GameState, localPlayerId: string | null): boolean {
+  const viewer =
+    localPlayerId === null ? getDecidingPlayer(state) : state.players.find((player) => player.id === localPlayerId);
+  return viewer !== undefined && state.phase === "playing" && isBlindToRedCup(viewer);
+}
+
+export function useRedCupHidden(): boolean {
+  const localPlayerId = useLocalPlayerId();
+  return useGameStore((state) => isRedCupHiddenFor(state, localPlayerId));
 }
 
 /** In an online game, only the device of the deciding player sees and walks the paths. */
@@ -60,7 +85,7 @@ export function useLegalMoves(): LegalMoves {
   );
 }
 
-/** Commits a move (or a New Cup, New Me repositioning) to the chosen tile. */
+/** Commits a move (or a step won on a wheel, or where Calme-toi sets a player down) to the chosen tile. */
 export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
@@ -72,8 +97,12 @@ export function commitDestination(nodeId: NodeId): void {
 
   ui.setPreviewNodeId(null);
   ui.setHoveredChipNodeId(null);
-  if (game.turnStage === "reposition") {
-    game.repositionBeforeCup(nodeId);
+  if (game.turnStage === "passive-choice") {
+    game.resolveCalmDown(nodeId);
+    return;
+  }
+  if (game.turnStage === "advance") {
+    game.advanceOneTile(nodeId);
     return;
   }
   game.movePlayer(nodeId, ui.ignoreArrows);

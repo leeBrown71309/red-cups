@@ -103,6 +103,14 @@ beforeAll(async () => {
   await db.exec(SCHEMA);
 }, 60_000);
 
+describe("server clock", () => {
+  it("tells every device the same time, in milliseconds", async () => {
+    const before = Date.now();
+    const [row] = await as<{ t: number }>(await person(), `select server_time() t`);
+    expect(Math.abs(Number(row.t) - before)).toBeLessThan(60_000);
+  });
+});
+
 describe("lobby", () => {
   it("seats players with their avatar and shows the roster to a newcomer", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);
@@ -297,7 +305,8 @@ describe("a whole online game", () => {
       chosen = action;
     });
     try {
-      for (let step = 0; step < 250 && devices[0].state.phase === "playing"; step += 1) {
+      const live = () => devices[0].state.phase === "playing" || devices[0].state.phase === "draft";
+      for (let step = 0; step < 250 && live(); step += 1) {
         useGameStore.getState().adoptGame(devices[0].state);
         chosen = null;
         chooseBotAction(useGameStore.getState(), botRandom)?.perform(useGameStore.getState());
@@ -414,7 +423,8 @@ describe("history", () => {
     await db.query(`delete from rooms where code = $1`, [code]);
     const [game] = await myGames(account);
     expect(game.status).toBe("unfinished");
-    expect(game.final?.phase).toBe("playing");
+    // Expired before anybody played: the board kept is the one of the passive draft.
+    expect(game.final?.phase).toBe("draft");
   });
 
   it("closes a finished room with its last player, and keeps the game finished", async () => {
@@ -523,8 +533,11 @@ describe("history of simulated accounts, with bots playing whole games", () => {
       [secondGame, second, 1],
     ] as const) {
       expect(getWinnerName(game)).toBe(winnerOf(table.final));
-      const won = table.final.winnerId === `p${seat + 1}`;
-      expect(getOutcome(game).kind).toBe(won ? "won" : "placed");
+      const playerId = `p${seat + 1}`;
+      const won = table.final.winnerId === playerId;
+      // Bots sometimes leave a table on their own, so the outcome is read from the board they ended on.
+      const left = table.final.abandonedPlayers.some((player) => player.id === playerId);
+      expect(getOutcome(game).kind).toBe(won ? "won" : left ? "abandoned" : "placed");
     }
     expect(getOutcome(leftGame)).toEqual({ kind: "abandoned" });
     expect(getWinnerName(leftGame)).toBe("Malik");

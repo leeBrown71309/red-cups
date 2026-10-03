@@ -14,6 +14,7 @@ import {
   GHOST_ID,
   GHOST_LOOT_COINS,
   GHOST_MAX_DRIFT_STEPS,
+  GHOST_SHIELD_COINS,
   HELL_NODE_ID,
 } from "./types";
 
@@ -79,20 +80,20 @@ describe("the Luna Park ghost", () => {
     const reached = new Set<number>();
 
     for (let seed = 0; seed < 400; seed += 1) {
-      // Tile 8 is left by an arrow towards 3 only: a ghost takes its other roads too.
-      const state = { ...withGhostOn(startOn("luna-park"), 8), seededRandom: { rngState: seed * 7_919, nextId: 0 } };
+      // Tile 5 is left by an arrow towards 3 only: a ghost takes its other roads too.
+      const state = { ...withGhostOn(startOn("luna-park"), 5), seededRandom: { rngState: seed * 7_919, nextId: 0 } };
       const deed = advanceGhost(state).lastGhostEvent!;
       reached.add(deed.to!);
       expect(deed.to).not.toBe(HELL_NODE_ID);
       if (deed.kind === "teleport") {
         kinds.teleport += 1;
-        expect(deed.to).not.toBe(8);
+        expect(deed.to).not.toBe(5);
         continue;
       }
       kinds.move += 1;
       expect(deed.path!.length).toBeGreaterThanOrEqual(1);
       expect(deed.path!.length).toBeLessThanOrEqual(GHOST_MAX_DRIFT_STEPS);
-      let from = 8;
+      let from = 5;
       for (const step of deed.path!) {
         expect(linked(from, step)).toBe(true);
         from = step;
@@ -101,9 +102,27 @@ describe("the Luna Park ghost", () => {
     }
     expect(kinds.teleport / 400).toBeGreaterThan(0.15);
     expect(kinds.teleport / 400).toBeLessThan(0.35);
-    // Against the arrow (8 → 7, 8 → 9): no road rule holds a ghost back.
+    // Against the arrow (5 → 7, 5 → 9): no road rule holds a ghost back.
     expect(reached.has(7) || reached.has(9)).toBe(true);
     expect(reached.size).toBeGreaterThan(6);
+  });
+
+  it("stops its drift on the first tile where somebody stands", () => {
+    let stoppedShort = 0;
+    for (let seed = 0; seed < 300; seed += 1) {
+      // Players stand on 0 (the start), 3 and 10: two of the ghost's three ways out of 2.
+      let state = withGhostOn(startOn("luna-park"), 2);
+      state = editPlayer(state, 1, { position: 3 });
+      state = editPlayer(state, 2, { position: 10 });
+      state = { ...state, seededRandom: { rngState: seed * 7_919, nextId: 0 } };
+      const occupied = new Set(state.players.map((player) => player.position));
+      const deed = advanceGhost(state).lastGhostEvent!;
+      if (deed.kind !== "move") continue;
+      const crossed = deed.path!.slice(0, -1);
+      expect(crossed.filter((nodeId) => occupied.has(nodeId))).toEqual([]);
+      if (occupied.has(deed.to!) && deed.path!.length < GHOST_MAX_DRIFT_STEPS) stoppedShort += 1;
+    }
+    expect(stoppedShort).toBeGreaterThan(0);
   });
 
   it("duels a player it lands on before the tile's wheel", () => {
@@ -121,7 +140,7 @@ describe("the Luna Park ghost", () => {
     let state = withGhostOn(startOn("luna-park"), 2);
     state = { ...state, activePlayerIndex: 0, turnStage: "hell", turnActionTaken: false };
     // Nobody holds Non merci, which would hold the swap back for a reaction.
-    state = { ...state, players: state.players.map((player) => ({ ...player, passiveId: "penta" as const })) };
+    state = { ...state, players: state.players.map((player) => ({ ...player, passiveId: "lambda" as const })) };
     state = editPlayer(state, 0, {
       position: HELL_NODE_ID,
       hellTurns: 1,
@@ -216,6 +235,29 @@ describe("the Luna Park ghost", () => {
     });
     const after = act(decided, { type: "resolveDuel", winnerId: "p1" });
     expect(after.ghost?.loot.coins).toBe(600 - GHOST_LOOT_COINS);
+  });
+
+  it("pays the Bouclier it stole in coins to anybody but L'Ange-Gardien", () => {
+    const loot = { coins: 0, items: [{ id: "shield-1", itemId: "shield" as const }] };
+    const state = editPlayer(withGhostOn(startOn("luna-park"), 1, loot), 1, { position: 1 });
+    const reward = startGhostDuel(state, "p2", "turn-end").pendingDuel?.ghost?.reward;
+    expect(reward).toEqual({ kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" });
+
+    const angel = editPlayer(state, 1, { passiveId: "guardian-angel" });
+    expect(startGhostDuel(angel, "p2", "turn-end").pendingDuel?.ghost?.reward).toEqual({
+      kind: "item",
+      entryId: "shield-1",
+      itemId: "shield",
+    });
+
+    const decided = decidedGhostDuel(editPlayer(state, 0, { position: 1 }), "p1", {
+      penalty: { kind: "hell" },
+      reward: { kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" },
+    });
+    const after = act(decided, { type: "resolveDuel", winnerId: "p1" });
+    expect(after.ghost?.loot.items).toEqual([]);
+    expect(after.players[0].currency).toBe(decided.players[0].currency + GHOST_SHIELD_COINS);
+    expect(after.players[0].inventory).toEqual([]);
   });
 
   it("hands a stolen item to whoever beats it, making room in a full bag", () => {

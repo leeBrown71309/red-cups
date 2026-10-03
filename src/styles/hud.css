@@ -1,7 +1,20 @@
 .hud {
+  /* Height kept free at the bottom for the bag and the action dock. */
+  --dock-reserve: 128px;
+  /* Width of the players list on the left, folded or not: the toasts sit beside it. */
+  --players-list-width: 228px;
   position: absolute;
   inset: 0;
   pointer-events: none;
+}
+
+.hud:has(.players-panel.is-folded) {
+  --players-list-width: 66px;
+}
+
+.pause-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ---------- Top bar ---------- */
@@ -13,6 +26,10 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
+}
+
+.top-bar__right {
+  margin-left: auto;
 }
 
 .top-bar__left,
@@ -56,148 +73,6 @@
   font-weight: 700;
 }
 
-.players-bar {
-  display: flex;
-  flex: 1;
-  justify-content: center;
-  gap: 6px;
-  min-width: 0;
-  padding: 0 2px 8px;
-  pointer-events: auto;
-}
-
-.player-chip-wrap {
-  position: relative;
-  min-width: 0;
-}
-
-.player-chip {
-  --player-color: var(--cream);
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 176px;
-  height: 48px;
-  padding: 2px 12px 2px 3px;
-  border: var(--border);
-  border-radius: 999px;
-  background: var(--cream);
-  box-shadow: var(--shadow-chunky);
-  text-align: left;
-  transition:
-    transform 200ms var(--ease-bounce),
-    background-color 200ms ease;
-}
-
-.player-chip:hover {
-  transform: translateY(-1px);
-}
-
-.player-chip.is-active {
-  height: 54px;
-  background: color-mix(in srgb, var(--player-color) 32%, var(--cream));
-  box-shadow:
-    0 0 0 3px var(--player-color),
-    0 5px 0 3px var(--ink);
-  transform: translateY(2px);
-}
-
-.player-chip.is-active::after {
-  content: "À toi";
-  position: absolute;
-  bottom: -11px;
-  left: 50%;
-  padding: 0 8px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--gold);
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  font-weight: 600;
-  line-height: 16px;
-  transform: translateX(-50%);
-}
-
-.player-chip.is-hell {
-  background: color-mix(in srgb, var(--grape) 22%, var(--cream));
-}
-
-.player-chip > svg {
-  flex: none;
-}
-
-.player-chip__info {
-  display: grid;
-  min-width: 0;
-  line-height: 1.1;
-}
-
-.player-chip__name {
-  overflow: hidden;
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.player-chip__stats {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.player-chip__coins {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 0.8rem;
-  font-weight: 800;
-}
-
-.player-chip__coins.is-negative {
-  color: var(--cup-deep);
-}
-
-.player-chip__badge {
-  position: absolute;
-  top: -6px;
-  right: -4px;
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: var(--sky-light);
-}
-
-/* Banquise: frozen solid by the penguins' snowballs, and how close the next freeze is. */
-.player-chip__badge--frozen {
-  background: #dff6ff;
-  font-size: 0.8rem;
-  line-height: 1;
-}
-
-.player-chip__snow {
-  position: absolute;
-  bottom: -8px;
-  left: 50%;
-  padding: 0 6px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: #dff6ff;
-  color: #1f4c73;
-  font-family: var(--font-display);
-  font-size: 0.68rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-  transform: translateX(-50%);
-}
-
 .cup-pips {
   display: inline-flex;
   gap: 1px;
@@ -219,130 +94,12 @@
   transform: scale(1.1);
 }
 
-/*
- * Fixed and positioned from the chip when it opens. The old version centred
- * itself with a transform that the pop-in animation overwrote, hence the jump.
- */
-.player-details {
-  position: fixed;
-  z-index: 30;
-  display: grid;
-  gap: 10px;
-  width: min(280px, calc(100vw - 16px));
-  padding: 12px;
-  transform-origin: var(--arrow-left, 50%) top;
-  animation: details-in 200ms var(--ease-out) both;
-}
-
-.player-details::before {
-  content: "";
-  position: absolute;
-  top: -9px;
-  left: calc(var(--arrow-left, 50%) - 9px);
-  width: 16px;
-  height: 16px;
-  border-top: var(--border);
-  border-left: var(--border);
-  border-radius: 4px 0 0 0;
-  background: var(--cream);
-  transform: rotate(45deg);
-}
-
-@keyframes details-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px) scale(0.94);
-  }
-}
-
-.player-details__stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.player-details__stat {
-  display: grid;
-  gap: 2px;
-  padding: 8px 10px;
-  border: 2px solid var(--paper-edge);
-  border-radius: 12px;
-  background: var(--white);
-}
-
-.player-details__stat-value {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-}
-
-.player-details__stat-value.is-negative {
-  color: var(--cup-deep);
-}
-
-.player-details__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.player-details__head strong {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 1.2rem;
-  font-weight: 600;
-}
-
-.player-details__where {
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-}
-
-.player-details__passive {
-  padding: 8px 10px;
-  border-radius: 12px;
-  background: var(--grape-light);
-}
-
-.player-details__passive strong {
-  font-family: var(--font-display);
-  font-weight: 600;
-}
-
-.player-details__passive p {
-  color: var(--ink-soft);
-  font-size: 0.85rem;
-}
-
-.mini-slots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.mini-slot {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  background: var(--white);
-}
-
-.mini-slot.is-empty {
-  border: 2px dashed var(--paper-edge);
-  background: transparent;
-}
-
 /* ---------- Toasts ---------- */
 .event-toasts {
   position: absolute;
   top: calc(var(--hud-inset) + var(--safe-top) + 64px);
-  left: calc(var(--hud-inset) + var(--safe-left));
+  /* Beside the players list, which holds the left edge. */
+  left: calc(var(--hud-inset) + var(--safe-left) + var(--players-list-width) + 6px);
   display: grid;
   gap: 6px;
   width: min(330px, 34vw);
@@ -542,12 +299,25 @@
   font-weight: 600;
 }
 
+.item-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
 .item-card__tag {
   display: inline-block;
   padding: 0 8px;
   border-radius: 999px;
   background: var(--grape-light);
   font-size: 0.72rem;
+}
+
+.item-card__tag--auto {
+  background: var(--mint-light);
+  color: var(--mint-deep);
+  font-weight: 800;
 }
 
 .item-card p {
@@ -638,6 +408,201 @@
   gap: 3px;
   font-size: 0.86rem;
   font-weight: 800;
+}
+
+/* Online turn clock: seconds left to whoever decides, or the host's pause. */
+.turn-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  padding: 1px 9px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.turn-timer svg {
+  width: 1.05em;
+  height: 1.05em;
+}
+
+.turn-timer.is-hurry {
+  background: var(--cup);
+  color: var(--white);
+}
+
+.turn-timer.is-paused {
+  background: var(--sky-light);
+  color: var(--sky-deep);
+}
+
+/* Centred on the top edge of the dock, bigger than the rest of the dock. */
+.action-dock__timer {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 1;
+  transform: translate(-50%, -72%);
+}
+
+/* The clock sits on the edge: the dock's content starts below it. */
+.action-dock:has(.action-dock__timer > .turn-timer) {
+  padding-top: 18px;
+}
+
+.action-dock__timer .turn-timer {
+  gap: 6px;
+  padding: 3px 16px;
+  border-width: 3px;
+  box-shadow: 0 3px 0 var(--ink);
+  font-size: 1.25rem;
+}
+
+.action-dock__timer .turn-timer.is-hurry {
+  animation: timer-hurry 1s ease-in-out infinite;
+}
+
+@keyframes timer-hurry {
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+.action-dock__collapse {
+  position: absolute;
+  top: 0;
+  right: 16px;
+  z-index: 1;
+  transform: translateY(-55%);
+}
+
+.action-dock__collapse:hover {
+  transform: translateY(-62%);
+}
+
+/* The folded dock: a tab at the bottom of the screen, the clock still in view. */
+.dock-tab-layer {
+  position: absolute;
+  right: 0;
+  bottom: calc(var(--hud-inset) + var(--safe-bottom));
+  left: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.dock-tab {
+  --player-color: var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 4px 6px 4px 6px;
+  border: var(--border);
+  border-radius: 999px;
+  background: rgba(255, 248, 238, 0.97);
+  box-shadow:
+    inset 0 0 0 3px var(--player-color),
+    0 4px 0 var(--ink);
+  pointer-events: auto;
+  text-align: left;
+  animation: pop-in 260ms var(--ease-out);
+}
+
+.dock-tab.is-calling {
+  animation:
+    pop-in 260ms var(--ease-out),
+    dock-tab-call 1.6s ease-in-out 260ms infinite;
+}
+
+@keyframes dock-tab-call {
+  50% {
+    box-shadow:
+      inset 0 0 0 3px var(--player-color),
+      0 4px 0 var(--ink),
+      0 0 0 6px rgba(255, 196, 77, 0.55);
+  }
+}
+
+.dock-tab > svg {
+  flex: none;
+}
+
+.dock-tab__text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.1;
+}
+
+.dock-tab__text strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dock-tab__text small {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Energy left this turn: one pip per point. */
+.energy-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  cursor: help;
+}
+
+.energy-gauge__pip {
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  background: var(--cream-3);
+  transition:
+    background-color 200ms ease,
+    transform 200ms var(--ease-bounce);
+}
+
+.energy-gauge__pip.is-full {
+  background: var(--sky);
+  box-shadow: inset 0 -3px 0 var(--sky-deep);
+  transform: scale(1.08);
+}
+
+/* Blue while the gauge is full, orange at two points, red at the last one. */
+.energy-gauge--mid .energy-gauge__pip.is-full {
+  background: var(--orange);
+  box-shadow: inset 0 -3px 0 var(--orange-deep);
+}
+
+.energy-gauge--low .energy-gauge__pip.is-full {
+  background: var(--cup);
+  box-shadow: inset 0 -3px 0 var(--cup-deep);
+}
+
+.energy-gauge--large {
+  gap: 4px;
+}
+
+.energy-gauge--large .energy-gauge__pip {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
 }
 
 .action-dock__content {
@@ -826,6 +791,20 @@
     linear-gradient(135deg, var(--gold), var(--mint));
 }
 
+/* Le diable: their announcement and their spells. */
+.alert-banner--devil {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 196, 77, 0.35), transparent 45%),
+    linear-gradient(135deg, #b92f2c, #4a1020);
+}
+
+/* Online: a player's last chance before a forfeit. */
+.alert-banner--chances {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 255, 255, 0.4), transparent 45%),
+    linear-gradient(135deg, #f7913a, #c8671c);
+}
+
 /* Banquise: blizzard and falling ice. */
 .alert-banner--blizzard {
   background:
@@ -976,12 +955,6 @@
   }
 }
 
-.player-details__passive .player-details__passive-status {
-  margin-top: 2px;
-  color: var(--grape-deep);
-  font-weight: 800;
-}
-
 /* ---------- Compact HUD for landscape phones ---------- */
 @media (max-height: 520px) {
   .alert-banner-layer {
@@ -1042,44 +1015,9 @@
     display: none;
   }
 
-  .player-chip {
-    height: 40px;
-    padding-right: 8px;
-  }
-
-  .player-chip.is-active {
-    height: 44px;
-  }
-
-  .player-chip > svg {
-    width: 30px;
-    height: 30px;
-  }
-
-  .player-chip__name {
-    font-size: 0.8rem;
-  }
-
-  .player-chip:not(.is-active) .player-chip__name {
-    max-width: 6ch;
-  }
-
-  .player-details {
-    gap: 6px;
-    padding: 8px 10px;
-  }
-
-  .player-details__head > svg {
-    width: 40px;
-    height: 40px;
-  }
-
-  .player-details__passive p {
-    font-size: 0.78rem;
-  }
-
   .event-toasts {
     top: calc(var(--hud-inset) + var(--safe-top) + 54px);
+    left: calc(var(--hud-inset) + var(--safe-left) + var(--players-list-width) + 6px);
     width: min(260px, 30vw);
   }
 
@@ -1152,27 +1090,19 @@
     min-width: 46px;
     font-size: 1rem;
   }
+
+  .hud {
+    --dock-reserve: 96px;
+  }
+
+  .action-dock__timer .turn-timer {
+    padding: 1px 12px;
+    font-size: 1.05rem;
+  }
 }
 
-/* Big tables: other players shrink to their avatar; a tap still opens their details. */
-.players-bar[data-crowded="true"] .player-chip:not(.is-active) {
-  padding-right: 3px;
-}
-
-.players-bar[data-crowded="true"] .player-chip:not(.is-active) .player-chip__info {
-  display: none;
-}
-
-/* Narrow landscape phones: only the active player keeps a name in the top bar. */
+/* Narrow landscape phones: the dock keeps its prompt and drops the identity block. */
 @media (max-width: 760px) {
-  .player-chip:not(.is-active) .player-chip__name {
-    display: none;
-  }
-
-  .player-chip:not(.is-active) {
-    padding-right: 8px;
-  }
-
   .action-dock__identity {
     display: none;
   }

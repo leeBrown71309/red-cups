@@ -5,7 +5,7 @@ import { AudioToggles } from "../components/audio-controls";
 import { VoiceMicButton } from "../components/voice-controls";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { PlayersBar } from "./players-bar";
+import { PauseButton } from "./pause-controls";
 
 interface TopBarProps {
   onOpenMenu: () => void;
@@ -21,6 +21,7 @@ export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
         <button type="button" className="icon-button icon-button--solid" onClick={onOpenMenu} aria-label="Menu pause">
           <UiIcon name="menu" />
         </button>
+        <PauseButton />
         <span className="round-chip" title="Tour de table">
           <small>Tour</small>
           <strong>{round}</strong>
@@ -28,7 +29,6 @@ export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
         <BulletChip />
         <OnlineChip />
       </div>
-      <PlayersBar />
       <div className="top-bar__right">
         <AudioToggles />
         {/* Outside the audio toggles, which small screens hide: the mic stays at hand on a phone. */}

@@ -185,6 +185,22 @@ ul {
   background: var(--white);
 }
 
+/* What an item costs in energy, next to its price. */
+.energy-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 1px 7px 1px 2px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sky-light);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .segmented {
   display: flex;
   gap: 4px;

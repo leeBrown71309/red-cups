@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { ITEM_ORDER, PASSIVE_ORDER, WHEEL_RESULTS } from "../catalog";
 import type { TurnStage } from "../types";
+import { CAMPAIGN_TIMEOUT_MS, runInBatches } from "./map-campaign";
 import { mergeCounts, runBotCampaign, runBotGame, summarizeViolations, type BotGameReport } from "./run-bot-game";
 
 /**
@@ -10,13 +11,11 @@ import { mergeCounts, runBotCampaign, runBotGame, summarizeViolations, type BotG
 
 const CAMPAIGN_SIZE = 400;
 const GAMES_PER_PASSIVE = 30;
-/** Hundreds of full games take a few seconds; slow CI machines get headroom. */
-const CAMPAIGN_TIMEOUT_MS = 120_000;
 
 describe("bot campaign", () => {
   let campaign: BotGameReport[] = [];
-  beforeAll(() => {
-    campaign = runBotCampaign({ games: CAMPAIGN_SIZE, firstSeed: 1 });
+  beforeAll(async () => {
+    campaign = await runInBatches(CAMPAIGN_SIZE, (games, firstSeed) => runBotCampaign({ games, firstSeed }), 1);
   }, CAMPAIGN_TIMEOUT_MS);
 
   it("never breaks a rule across hundreds of games", () => {
@@ -44,8 +43,13 @@ describe("bot campaign", () => {
     const outcomes = new Set(Object.values(WHEEL_RESULTS).flatMap((results) => results.map((result) => result.id)));
     expect([...outcomes].filter((outcome) => !actions[`wheel:${outcome}`])).toEqual([]);
 
-    expect(["coin-flip", "rock-paper-scissors", "player-vote"].filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
+    const modes = ["coin-flip", "rock-paper-scissors", "player-vote", "blackjack"];
+    expect(modes.filter((mode) => !actions[`duel:${mode}`])).toEqual([]);
     expect(actions.abandon).toBeGreaterThan(0);
+    // The Voleur's tries, caught or not; le diable leaving Hell; L'Ange-Gardien freeing their protégé.
+    expect(Object.keys(actions).some((label) => label.startsWith("steal:"))).toBe(true);
+    expect(actions["leave-hell"]).toBeGreaterThan(0);
+    expect(actions["rescue-protege"]).toBeGreaterThan(0);
 
     const expectedStages: TurnStage[] = [
       "move",
@@ -59,7 +63,10 @@ describe("bot campaign", () => {
       "discard",
       "target",
       "reposition",
+      "advance",
       "passive-choice",
+      "gamble",
+      "arm-wrestle",
     ];
     expect(expectedStages.filter((stage) => !stages[stage])).toEqual([]);
   });
@@ -75,6 +82,56 @@ describe("broke table games", () => {
       expect(summarizeViolations(reports)).toEqual([]);
       expect(reports.filter((report) => report.blocked)).toHaveLength(0);
       expect(mergeCounts(reports, "stageCounts").blessing).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
+describe("rich table games", () => {
+  it(
+    "keeps the rules when Cupide reaches its goal",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE }, (_, index) =>
+        runBotGame({
+          seed: 30_000 + index,
+          playerCount: 2 + (index % 7),
+          passives: ["greedy"],
+          startingCurrency: 4_500,
+        }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(reports.filter((report) => report.winReason === "greedy").length).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
+describe("draft games", () => {
+  it(
+    "deals and closes the passive draft, then keeps the rules",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE }, (_, index) =>
+        runBotGame({ seed: 50_000 + index, playerCount: 2 + (index % 7), draft: true }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(mergeCounts(reports, "actionCounts")["draft:pick"]).toBeGreaterThan(0);
+    },
+    CAMPAIGN_TIMEOUT_MS,
+  );
+});
+
+describe("online clock games", () => {
+  it(
+    "keeps the rules when clocks run out at every kind of decision",
+    () => {
+      const reports = Array.from({ length: GAMES_PER_PASSIVE * 2 }, (_, index) =>
+        runBotGame({ seed: 40_000 + index, playerCount: 2 + (index % 7), clock: true, draft: index % 2 === 0 }),
+      );
+      expect(summarizeViolations(reports)).toEqual([]);
+      expect(reports.filter((report) => report.blocked)).toHaveLength(0);
+      expect(mergeCounts(reports, "actionCounts")["expire-clock"]).toBeGreaterThan(0);
     },
     CAMPAIGN_TIMEOUT_MS,
   );

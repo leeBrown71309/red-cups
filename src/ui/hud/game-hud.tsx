@@ -2,7 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useGameStore } from "../../game/store";
 import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
-import { CalmDownModal, ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
+import { ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
+import { ArmWrestleModal } from "../modals/arm-wrestle-modal";
 import { DuelModal } from "../modals/duel-modal";
 import { GhostLootModal } from "../modals/ghost-loot-modal";
 import { HelpModal } from "../modals/help-modal";
@@ -10,13 +11,16 @@ import { AbandonModal, JournalModal, PauseMenu } from "../modals/menu-modals";
 import { ShopModal } from "../modals/shop-modal";
 import { VictoryModal } from "../modals/victory-modal";
 import { WheelModal } from "../modals/wheel-modal";
-import { ActionDock } from "./action-dock";
 import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
-import { InventoryTray } from "./inventory-tray";
+import { GameCountdown } from "./game-countdown";
+import { PauseOverlay } from "./pause-controls";
+import { PlayerDock } from "./player-dock";
+import { PlayersPanel } from "./players-panel";
 import { TopBar } from "./top-bar";
 import { TurnSplash } from "./turn-splash";
+import { useClockBeeps } from "./use-clock-beeps";
 
 type Overlay = "menu" | "help" | "journal" | "abandon" | null;
 
@@ -26,6 +30,7 @@ type Overlay = "menu" | "help" | "journal" | "abandon" | null;
  */
 export function GameHud() {
   useHudFeedback();
+  useClockBeeps();
   const game = useGameStore();
   const settled = useBoardSettled();
   const setPreviewNodeId = useUiStore((state) => state.setPreviewNodeId);
@@ -52,11 +57,11 @@ export function GameHud() {
   if (settled) {
     if (game.phase === "finished") decision = <VictoryModal />;
     else if (game.pendingReaction) decision = <ReactionModal />;
+    else if (game.pendingArmWrestle) decision = <ArmWrestleModal />;
     else if (game.pendingDiscard) decision = <DiscardModal />;
     else if (game.pendingWheel) decision = <WheelModal />;
     else if (game.pendingDuel) decision = <DuelModal />;
     else if (game.pendingChallenge) decision = <ChallengeModal />;
-    else if (game.pendingCalmDown) decision = <CalmDownModal />;
     else if (targetEntryId)
       decision = <ItemTargetModal entryId={targetEntryId} onClose={() => setTargetEntryId(null)} />;
     else if (game.turnStage === "shop" && !shopClosed && isOwnTurn)
@@ -68,13 +73,14 @@ export function GameHud() {
       <TopBar onOpenMenu={() => setOverlay("menu")} onOpenHelp={() => setOverlay("help")} />
       <EventToasts />
       <CameraControls />
-      <div className="hud__bottom">
-        <InventoryTray onRequestTarget={setTargetEntryId} />
-        <ActionDock onOpenShop={() => setShopClosed(false)} />
-      </div>
+      <PlayersPanel />
+      <PlayerDock onRequestTarget={setTargetEntryId} onOpenShop={() => setShopClosed(false)} />
       <TurnSplash />
+      <GameCountdown />
       <AlertBannerView />
       {decision}
+      {/* Above every decision; the menu opened from it takes its place until closed. */}
+      {overlay === null && <PauseOverlay onOpenMenu={() => setOverlay("menu")} />}
       {overlay === "menu" && (
         <PauseMenu
           onClose={() => setOverlay(null)}

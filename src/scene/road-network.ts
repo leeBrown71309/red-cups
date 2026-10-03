@@ -24,10 +24,10 @@ function edgeKey(first: NodeId, second: NodeId): string {
 }
 
 /**
- * Stepping-stone roads between tiles. An arrow tile's forced exit carries
- * animated chevrons on the half of the road next to that tile (the road itself
- * can still be walked in), tunnels and the carousel carry them all the way;
- * free roads stay plain. Carousel chevrons turn around when the carousel does.
+ * Stepping-stone roads between tiles. Tunnels and the carousel, the roads that
+ * run one way, carry animated chevrons all the way; every other road stays
+ * plain, arrow tiles drawing their forced exit on the tile itself. Carousel
+ * chevrons turn around when the carousel does.
  */
 export class RoadNetwork {
   readonly group = new THREE.Group();
@@ -145,12 +145,10 @@ export class RoadNetwork {
     const direction = segment.end.clone().sub(segment.start);
     direction.normalize();
     const from = segment.start.clone().addScaledVector(direction, startClearance);
-    const roadEnd = segment.end.clone().addScaledVector(direction, -endClearance);
-    const fullLength = segment.tunnel || segment.carousel;
-    const to = fullLength ? roadEnd : from.clone().lerp(roadEnd, 0.55);
+    const to = segment.end.clone().addScaledVector(direction, -endClearance);
     const count = Math.max(2, Math.round(from.distanceTo(to) / CHEVRON_SPACING));
     const shapeGeometry = kit.geometry("chevron", () => new THREE.ShapeGeometry(createChevronShape()));
-    const color = segment.tunnel ? this.colors.tunnel : segment.carousel ? this.colors.carousel : this.colors.arrow;
+    const color = segment.tunnel ? this.colors.tunnel : this.colors.carousel;
 
     for (let index = 0; index < count; index += 1) {
       const holder = new THREE.Group();

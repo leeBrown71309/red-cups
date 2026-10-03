@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
+import { canBeChallenged, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
@@ -11,7 +12,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { getAvatarExpression } from "../hud/players-bar";
+import { getAvatarExpression } from "../hud/player-status";
 
 export function PlayerPickList({
   players,
@@ -59,6 +60,7 @@ export function PlayerPickList({
  */
 export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose: () => void }) {
   const players = useGameStore((state) => state.players);
+  const guardian = useGameStore((state) => state.guardian);
   const activePlayer = useGameStore((state) => state.players[state.activePlayerIndex]);
   const useItem = useGameStore((state) => state.useItem);
   const [targetId, setTargetId] = useState<PlayerId | null>(null);
@@ -85,7 +87,8 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <div className="target-modal__item">
           <PlayerAvatar color={target.color} size={46} expression={getAvatarExpression(target)} />
           <p>
-            Chaque {item.name} a 2 chances sur 100 d’assommer {target.name}. Tu en as {units}.
+            Chaque {item.name} a {Math.round(getTomatoStunChance(activePlayer) * 100)} chances sur 100 d’assommer{" "}
+            {target.name}. Tu en as {units}.
           </p>
         </div>
         <div className="volley-picker" role="radiogroup" aria-label={`Nombre de ${item.name}s`}>
@@ -126,8 +129,9 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <ItemIcon itemId={entry.itemId} size={46} />
         <p>{item.description}</p>
       </div>
+      {/* Chance aveugle is out of every item's reach; L'Ange-Gardien only aims at their protégé. */}
       <PlayerPickList
-        players={players}
+        players={players.filter((player) => canTargetPlayer({ guardian }, activePlayer, player))}
         isDisabled={(player) => (player.id === activePlayer.id && !item.canTargetSelf ? "Pas sur toi" : null)}
         onPick={(playerId) => {
           // A single Tomate needs no count: it flies at once.
@@ -156,7 +160,10 @@ export function ChallengeModal() {
     <ModalShell title="Choisis ton adversaire" eyebrow={`${challenger.name} appelle en duel`} tone="grape">
       <p className="modal-lead">L’adversaire te rejoint en Enfer. Le gagnant repart du Départ.</p>
       {canAct ? (
-        <PlayerPickList players={players.filter((player) => player.id !== challenger.id)} onPick={challengePlayer} />
+        <PlayerPickList
+          players={players.filter((player) => canBeChallenged(challenger.id, player))}
+          onPick={challengePlayer}
+        />
       ) : (
         <WaitingNote player={challenger} text={`${challenger.name} choisit son adversaire…`} />
       )}
@@ -213,56 +220,21 @@ export function DiscardModal() {
   );
 }
 
-export function CalmDownModal() {
-  const pending = useGameStore((state) => state.pendingCalmDown);
-  const players = useGameStore((state) => state.players);
-  const resolveCalmDown = useGameStore((state) => state.resolveCalmDown);
-  const holder = players.find((player) => player.id === pending?.passivePlayerId);
-  const collector = players.find((player) => player.id === pending?.collectorId);
-  const canAct = useCanActFor([pending?.passivePlayerId]);
-  if (!pending || !holder || !collector) return null;
-
-  return (
-    <ModalShell title="Calme-toi !" eyebrow={`Passif de ${holder.name}`} tone="gold">
-      <div className="calm-down">
-        <PlayerAvatar color={holder.color} size={64} />
-        <UiIcon name="arrowRight" size={28} />
-        <PlayerAvatar color={collector.color} size={64} expression="worried" />
-      </div>
-      <p className="modal-lead">
-        <strong>{collector.name}</strong> est trop près de la nouvelle Red Cup. {holder.name}, tu le fais reculer de 3
-        cases (case {pending.retreatNodeId}) ?
-      </p>
-      {canAct ? (
-        <div className="modal-actions">
-          <button type="button" className="btn btn--cream" onClick={() => resolveCalmDown(false)}>
-            Laisser passer
-          </button>
-          <button type="button" className="btn btn--cup" onClick={() => resolveCalmDown(true)} data-autofocus>
-            Recule !
-          </button>
-        </div>
-      ) : (
-        <WaitingNote player={holder} text={`${holder.name} décide…`} />
-      )}
-    </ModalShell>
-  );
-}
-
 const REACTION_COUNTDOWN_SECONDS = 15;
 
-function describeDeclaredAction(action: DeclaredAction, actorId: PlayerId, players: Player[]): string {
-  if (action.type === "move") return `aller en case ${action.destination}`;
+/** What is about to hit the Non merci holder, in a sentence. */
+function describeDeclaredAction(action: DeclaredAction, actor: Player | undefined, players: Player[]): string {
+  const name = (playerId: PlayerId | undefined) => players.find((player) => player.id === playerId)?.name;
+  if (action.type === "bullet-bill") return `Bullet Bill fonce sur ${name(action.victimId) ?? "un joueur"} !`;
   const itemName = ITEM_CATALOG[action.itemId].name;
-  if (!action.targetPlayerId) return `utiliser ${itemName}`;
-  if (action.targetPlayerId === actorId) return `utiliser ${itemName} sur lui-même`;
-  const target = players.find((player) => player.id === action.targetPlayerId);
-  return `utiliser ${itemName} sur ${target?.name ?? "un joueur"}`;
+  if (action.itemId === "draven") return `${actor?.name} veut envoyer toute la table en Enfer avec Draven.`;
+  return `${actor?.name} veut utiliser ${itemName} sur ${name(action.targetPlayerId) ?? "un joueur"}.`;
 }
 
 /**
- * Non merci: before an action applies, its holders may cancel it. In local
- * play the host asks them aloud; without an answer the action goes through.
+ * Non merci: an item used against its holder, or Bullet Bill about to hit
+ * them, waits for their answer. In local play the host asks them aloud;
+ * without an answer it goes through.
  */
 export function ReactionModal() {
   const pending = useGameStore((state) => state.pendingReaction);
@@ -284,17 +256,26 @@ export function ReactionModal() {
   }, [countdownActive, canReact, secondsLeft, resolveReaction]);
 
   const actor = players.find((player) => player.id === pending?.actorId);
-  if (!pending || !actor) return null;
+  if (!pending) return null;
   const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
+  // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci.
+  const shieldOnly = reactors.every((reactor) => reactor.passiveId === "guardian-angel");
 
   return (
-    <ModalShell title="Non merci ?" eyebrow="Réaction possible" tone="grape" className="reaction-modal">
+    <ModalShell
+      title={shieldOnly ? "Bouclier ?" : "Non merci ?"}
+      eyebrow="Réaction possible"
+      tone="grape"
+      className="reaction-modal"
+    >
       <div className="reaction" onPointerDown={() => setCountdownActive(false)}>
         <div className="reaction__announce">
-          <PlayerAvatar color={actor.color} size={54} expression={getAvatarExpression(actor)} />
-          <p>
-            <strong>{actor.name}</strong> veut {describeDeclaredAction(pending.action, actor.id, players)}.
-          </p>
+          {actor ? (
+            <PlayerAvatar color={actor.color} size={54} expression={getAvatarExpression(actor)} />
+          ) : (
+            <ItemIcon itemId="bullet-bill" size={54} />
+          )}
+          <p>{describeDeclaredAction(pending.action, actor, players)}</p>
         </div>
 
         {!canReact && (
@@ -307,7 +288,15 @@ export function ReactionModal() {
                 <PlayerAvatar color={reactor.color} size={44} />
                 <span className="reaction__reactor-name">{reactor.name}</span>
                 <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                  <UiIcon name="hand" size={18} /> Non merci !
+                  {reactor.passiveId === "guardian-angel" ? (
+                    <>
+                      <UiIcon name="shield" size={18} /> Bouclier !
+                    </>
+                  ) : (
+                    <>
+                      <UiIcon name="hand" size={18} /> Non merci !
+                    </>
+                  )}
                 </button>
               </li>
             ))}

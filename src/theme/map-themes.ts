@@ -23,7 +23,6 @@ export interface SceneTheme {
     stone: string;
     tunnelStone: string;
     carouselStone: string;
-    arrow: string;
     tunnel: string;
     carousel: string;
   };
@@ -57,7 +56,6 @@ export const MAP_THEMES: Record<MapThemeId, SceneTheme> = {
       stone: SCENE_COLORS.stone,
       tunnelStone: SCENE_COLORS.stoneTunnel,
       carouselStone: SCENE_COLORS.stone,
-      arrow: "#ff8f3f",
       tunnel: SCENE_COLORS.chevronTunnel,
       carousel: "#ff4fa3",
     },
@@ -87,7 +85,6 @@ export const MAP_THEMES: Record<MapThemeId, SceneTheme> = {
       stone: "#a7abd8",
       tunnelStone: "#6fd8c9",
       carouselStone: "#7a4fb3",
-      arrow: "#ffb020",
       tunnel: "#7dffb2",
       carousel: "#ff6fb8",
     },
@@ -112,7 +109,6 @@ export const MAP_THEMES: Record<MapThemeId, SceneTheme> = {
       stone: "#8ea9c9",
       tunnelStone: "#b7c4d8",
       carouselStone: "#8ea9c9",
-      arrow: "#ff8f3f",
       tunnel: "#7fe3ff",
       carousel: "#ff4fa3",
     },

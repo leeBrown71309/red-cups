@@ -30,6 +30,8 @@ export interface PawnInput {
   frozenTo?: NodeId;
   /** Banquise: frozen solid on its tile by the penguins' snowballs. */
   snowFrozen?: boolean;
+  /** L'Ange-Gardien's protégé wears a halo, for the whole table to see. */
+  halo?: boolean;
 }
 
 type PawnAction =
@@ -76,9 +78,13 @@ interface Pawn {
   baseScale: number;
   /** Banquise: the ice block around a frozen pawn, grown by "freeze", burst by "shatter". */
   iceBlock: THREE.Mesh;
+  /** L'Ange-Gardien's protégé: a golden ring floating over the head. */
+  halo: THREE.Mesh;
 }
 
 const LANDING_MS = 150;
+/** Where the protégé's halo floats, over the pawn's head. */
+const HALO_HEIGHT = 1.08;
 
 /**
  * Animates chibi pawns. The game store teleports positions instantly; this
@@ -134,6 +140,7 @@ export class PawnController {
       pawn.logicalNode = input.position;
       pawn.active = input.isActive;
       pawn.sleeping = input.isSleeping;
+      pawn.halo.visible = input.halo === true;
       pawn.baseScale = slot.scale;
     }
 
@@ -210,6 +217,15 @@ export class PawnController {
     iceBlock.rotation.y = 0.35;
     iceBlock.scale.setScalar(0.001);
     visual.root.add(iceBlock);
+
+    const halo = new THREE.Mesh(
+      this.kit.geometry("pawn-halo", () => new THREE.TorusGeometry(0.2, 0.045, 8, 24)),
+      this.kit.flat("#ffd166", { emissive: "#ffb800", emissiveIntensity: 0.6 }),
+    );
+    halo.rotation.x = Math.PI / 2;
+    halo.position.y = HALO_HEIGHT;
+    halo.visible = input.halo === true;
+    visual.root.add(halo);
     return {
       id: input.id,
       visual,
@@ -226,6 +242,7 @@ export class PawnController {
       sleeping: input.isSleeping,
       baseScale: 1,
       iceBlock,
+      halo,
     };
   }
 
@@ -456,6 +473,7 @@ export class PawnController {
     activeArrow.visible = pawn.active && !moving;
     activeArrow.position.y = 1.6 + Math.sin(elapsed * 3.5) * 0.12;
     activeArrow.rotation.y = elapsed * 2;
+    pawn.halo.position.y = HALO_HEIGHT + Math.sin(elapsed * 2 + pawn.phase) * 0.04;
     sleepLabel.visible = pawn.sleeping && !moving;
     sleepLabel.position.y = 1.25 + Math.sin(elapsed * 1.5 + pawn.phase) * 0.08;
   }

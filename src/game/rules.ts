@@ -1,14 +1,21 @@
-import { getBoardNode, getPathsOfLength, type Board } from "./board";
+import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { getEntryUnits } from "./state-utils";
+import { getBagSlots, getCopyLimit, getMudPrice, isDoomed, shopsAnywhere } from "./passive-rules";
+import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
-import { BASE_INVENTORY_CAPACITY, DELINQUENT_COST, FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
+import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "./types";
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
+/** Tiles a player may step forward onto: one step along the roads, arrows obeyed; none from Hell. */
+export function getForwardTiles(state: GameState, player: Player): NodeId[] {
+  if (player.position === HELL_NODE_ID) return [];
+  return getUniqueLegalDestinations(getBoard(state), player, 1, false);
+}
+
+/** Every bag holds four entries, Red Cups included; L'Ange-Gardien's two. */
 export function getInventoryCapacity(player: Player): number {
-  const passiveBonus = player.passiveId === "penta" ? 1 : 0;
-  return BASE_INVENTORY_CAPACITY + passiveBonus;
+  return getBagSlots(player);
 }
 
 export function getOpenInventorySlots(player: Player): number {
@@ -30,20 +37,38 @@ export function countItemUnits(player: Player, itemId: ItemId): number {
     .reduce((total, entry) => total + getEntryUnits(entry), 0);
 }
 
+/** Everything in a bag, every Tomate of a stack and every Red Cup counted. */
+export function countBagUnits(player: Player): number {
+  return player.inventory.reduce((total, entry) => total + getEntryUnits(entry), 0);
+}
+
+/** At most two copies of an item, a single Gomme: whether one more slot of it may be filled. */
+function isWithinCopyLimit(player: Player, itemId: ItemId): boolean {
+  return countItemCopies(player, itemId) < getCopyLimit(player, itemId, getInventoryCapacity(player));
+}
+
+/** Whether the item may take a slot of its own: room in the bag, within the copy limits. */
+export function canStartNewSlot(player: Player, itemId: ItemId): boolean {
+  return getOpenInventorySlots(player) > 0 && isWithinCopyLimit(player, itemId);
+}
+
 /**
- * At most two copies of an item and a single Gomme; a stackable item (the
- * Tomate) fills one slot only, up to its limit.
+ * At most two copies of an item and a single Gomme. A stackable item (the
+ * Tomate) piles up to its limit in a slot, and each stack counts as one copy:
+ * two stacks at most (patch 0.1.4), one per slot for Tomato Enjoyer.
  */
 export function canAddItem(player: Player, itemId: ItemId): boolean {
-  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
-  if (stackLimit) {
-    const units = countItemUnits(player, itemId);
-    return units > 0 ? units < stackLimit : getOpenInventorySlots(player) > 0;
-  }
-  if (getOpenInventorySlots(player) === 0) return false;
-  const itemCount = countItemCopies(player, itemId);
-  if (itemId === "eraser" && itemCount >= 1) return false;
-  return itemCount < 2;
+  return findStackWithRoom(player, itemId) !== undefined || canStartNewSlot(player, itemId);
+}
+
+/**
+ * Whether an item handed to the player (Je note, the ghost's loot) can end up
+ * in the bag, once an ordinary item is thrown away to make room. The copy
+ * limits hold whatever is thrown away.
+ */
+export function canReceiveItem(player: Player, itemId: ItemId): boolean {
+  if (canAddItem(player, itemId)) return true;
+  return isWithinCopyLimit(player, itemId) && player.inventory.some((entry) => entry.kind === "item");
 }
 
 export function getLegalMoveOptions(board: Board, player: Player, distance = 1, ignoreArrows = false): NodeId[][] {
@@ -72,23 +97,28 @@ export function findLegalPath(
   );
 }
 
-export type DelinquentBlocker = "not-delinquent" | "too-poor" | "first-round-start";
+export type CorrupterBlocker = "not-corrupter" | "too-poor" | "first-round-start";
 
 /**
- * Délinquant pays for every move that needs it, so the passive is unusable
+ * Corrupteur pays for every move that needs it, so the passive is unusable
  * without the funds. On the first round it may not leave the start against
  * its arrows: on the classic board 0 → 8 would grab the first Red Cup before
  * anybody else could move.
  */
-export function getDelinquentBlocker(player: Player, round: number): DelinquentBlocker | null {
-  if (player.passiveId !== "delinquent") return "not-delinquent";
-  if (player.currency < DELINQUENT_COST) return "too-poor";
+export function getCorrupterBlocker(player: Player, round: number): CorrupterBlocker | null {
+  if (player.passiveId !== "corrupter") return "not-corrupter";
+  if (player.currency < CORRUPTER_COST) return "too-poor";
   if (round <= FIRST_ROUND && player.position === START_NODE_ID) return "first-round-start";
   return null;
 }
 
-export function canUseDelinquent(player: Player, round: number): boolean {
-  return getDelinquentBlocker(player, round) === null;
+export function canUseCorrupter(player: Player, round: number): boolean {
+  return getCorrupterBlocker(player, round) === null;
+}
+
+/** Non merci is ready once its cooldown is over. */
+export function canUseNoThanks(player: Player, round: number): boolean {
+  return player.passiveId === "no-thanks" && player.noThanksReadyRound <= round;
 }
 
 export function getNodeKind(board: Board, nodeId: NodeId): BoardNode["kind"] | undefined {
@@ -107,18 +137,61 @@ export function getTileWheel(board: Board, nodeId: NodeId): WheelId | null {
   return null;
 }
 
-export function getItemPrice(itemId: ItemId, bootPrice: number): number {
-  return itemId === "boot" ? bootPrice : ITEM_CATALOG[itemId].price;
+/** What `buyer` pays: the Botte's price climbs over the game, and Cupide gets the mud cheaper. */
+export function getItemPrice(itemId: ItemId, bootPrice: number, buyer?: Player): number {
+  if (itemId === "boot") return bootPrice;
+  if (itemId === "mud") return getMudPrice(buyer);
+  return ITEM_CATALOG[itemId].price;
+}
+
+/** The wheel `player` spins on `nodeId`: during Doomsday, the wheel of misfortune on every tile. */
+export function getTileWheelFor(state: GameState, player: Player, nodeId: NodeId): WheelId | null {
+  if (nodeId !== HELL_NODE_ID && isDoomed(state, player)) return "misfortune";
+  return getTileWheel(getBoard(state), nodeId);
+}
+
+/** Made In Heaven is only sold while the Red Cup stands away from the tile it would set it down on. */
+export function isOnSale(state: Pick<GameState, "redCupNodeId">, itemId: ItemId): boolean {
+  return itemId !== "made-in-heaven" || state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
+}
+
+/** A blue tile opens the shop, for eShop any tile does; never in Hell, nor during Doomsday. */
+export function opensShop(state: GameState, player: Player, nodeId: NodeId = player.position): boolean {
+  if (nodeId === HELL_NODE_ID || isDoomed(state, player)) return false;
+  return isShopNode(getBoard(state), nodeId) || shopsAnywhere(player);
+}
+
+/**
+ * The walks open to `player` this turn: for the Roller, those its die allows
+ * once thrown; for everyone else one step, or two with the Botte.
+ */
+export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
+  const board = getBoard(state);
+  if (player.passiveId !== "roller") return getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+  if (state.diceRoll === null || player.position === HELL_NODE_ID) return [];
+  return getSimplePaths(board, player.position, state.diceRoll);
+}
+
+/** Whether a move is still possible this turn; a Roller who has not thrown yet only needs a road. */
+export function hasTurnMove(state: GameState, player: Player, ignoreArrows = false): boolean {
+  if (player.passiveId === "roller" && state.diceRoll === null) {
+    return player.position !== HELL_NODE_ID && getNeighbors(getBoard(state), player.position).length > 0;
+  }
+  return getTurnMoveOptions(state, player, ignoreArrows).length > 0;
 }
 
 /**
  * Player who must act right now: usually the active one, except for New Cup,
- * New Me, a tile wheel owed by someone who was teleported or pushed there,
- * and the next spinner of a Tour de Bénédiction.
+ * New Me, Calme-toi, Double or nothing, a step forward won on a wheel, a tile
+ * wheel owed by someone who was teleported or pushed there, and the next
+ * spinner of a Tour de Bénédiction.
  */
 export function getDecidingPlayer(state: GameState): Player | undefined {
   const deciderIds: Partial<Record<GameState["turnStage"], PlayerId | null | undefined>> = {
     reposition: state.pendingCupRepositionPlayerId,
+    "passive-choice": state.pendingCalmDown?.passivePlayerId,
+    gamble: state.pendingGambles[0]?.playerId,
+    advance: state.pendingAdvance?.playerId,
     "tile-wheel": state.pendingTileWheels[0]?.playerId,
     blessing: state.blessingQueue[0],
   };

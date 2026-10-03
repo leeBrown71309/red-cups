@@ -4,6 +4,7 @@ import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { setActionRelay, useGameStore } from "../game/store";
 import type { MapId, PlayerId } from "../game/types";
+import { EXPIRY_MARGIN_MS, getClockDeadline, getClockOwnerIds } from "../game/turn-clock";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
 import { createRandomSeed } from "../utils/seeded-random";
@@ -12,6 +13,7 @@ import {
   claimSeat,
   createRoom,
   fetchRoom,
+  fetchServerTime,
   leaveRoom,
   openRoom,
   rematchRoom,
@@ -26,9 +28,11 @@ import {
   buildOnlineGame,
   getPlayerIdOfUser,
   hasLeftRoom,
+  isSameRules,
   prepareLocalAction,
   type RoomWire,
 } from "./room-protocol";
+import { attachArmLive, handleArmWire, type ArmWire } from "./arm-live";
 import { attachBasketLive, handleBasketWire, type BasketWire } from "./basket-live";
 import { ensureSession, getSupabase } from "./supabase-client";
 import {
@@ -87,11 +91,39 @@ interface RoomState {
 
 const ROOM_MEMORY_KEY = "red-cups-room";
 const HEARTBEAT_MS = 20_000;
+/** How often this device looks at the clocks of the game. */
+const CLOCK_CHECK_MS = 500;
 /** A refused write is retried on the fresh board, e.g. when both duellists picked a hand at once. */
 const MAX_SEND_ATTEMPTS = 3;
 
 let channel: RealtimeChannel | null = null;
 let heartbeat: number | null = null;
+let clockCheck: number | null = null;
+/** The last deadline this device closed, so it asks once per deadline. */
+let lastExpiredDeadline: number | null = null;
+/** Server time minus device time, measured at every heartbeat. */
+let serverOffsetMs = 0;
+
+/** The server's time as this device best knows it; the device's own clock until the first measure. */
+export function getServerNow(): number {
+  return Date.now() + serverOffsetMs;
+}
+
+/**
+ * Measures the gap between this device's clock and the server's, halfway
+ * through the round trip. Without the server function (an older database),
+ * the device's clock stands in.
+ */
+async function measureServerOffset(): Promise<void> {
+  try {
+    const sentAt = Date.now();
+    const serverTime = await fetchServerTime();
+    const receivedAt = Date.now();
+    if (Number.isFinite(serverTime)) serverOffsetMs = serverTime - (sentAt + receivedAt) / 2;
+  } catch {
+    // Kept as it was: one failed measure does not move the clocks.
+  }
+}
 /** Incoming and outgoing actions run one at a time, so the board and the version never interleave. */
 let queue: Promise<void> = Promise.resolve();
 
@@ -128,6 +160,11 @@ function toast(text: string, tone: "good" | "bad" | "neutral" = "neutral"): void
 
 export const useRoomStore = create<RoomState>((set, get) => {
   const applySnapshot = (room: RoomSnapshot) => {
+    // A game on other rules (another version of the game) would never land on the same boards.
+    if (room.status !== "lobby" && !isSameRules(room.state)) {
+      void closeRoom("Ce salon joue sur une autre version de Red Cups : mets le jeu à jour ou rejoins un autre salon.");
+      return;
+    }
     set({
       code: room.code,
       status: room.status,
@@ -169,7 +206,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
     for (let attempt = 0; attempt < MAX_SEND_ATTEMPTS; attempt += 1) {
       const { version, seatOrder } = get();
       const state = pickGameState(useGameStore.getState());
-      const nextState = prepareLocalAction(state, action, getPlayerIdOfUser(seatOrder, myUserId));
+      const issuedAt = getServerNow();
+      const nextState = prepareLocalAction(state, action, getPlayerIdOfUser(seatOrder, myUserId), issuedAt);
       if (!nextState) {
         if (attempt === 0) soundEffects.error();
         return;
@@ -178,7 +216,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
         useGameStore.getState().adoptGame(nextState);
         set({ version: version + 1, status: nextState.phase === "finished" ? "over" : "playing" });
         if (nextState.phase === "finished") rememberRoom(null);
-        broadcast({ kind: "action", action, fromVersion: version, senderId: myUserId });
+        broadcast({ kind: "action", action, fromVersion: version, senderId: myUserId, issuedAt });
         return;
       }
       await resync();
@@ -209,9 +247,27 @@ export const useRoomStore = create<RoomState>((set, get) => {
     }
   };
 
+  /**
+   * Closes a clock that ran out: the device of whoever had to decide first,
+   * the others a little later, should that device be gone. The database lets
+   * only one of them through.
+   */
+  const checkClocks = () => {
+    const { view, myUserId, seatOrder } = get();
+    const game = useGameStore.getState();
+    const deadline = getClockDeadline(game);
+    if (view !== "playing" || !myUserId || deadline === null || deadline === lastExpiredDeadline) return;
+    const playerId = getPlayerIdOfUser(seatOrder, myUserId);
+    const margin = playerId && getClockOwnerIds(game).includes(playerId) ? 0 : EXPIRY_MARGIN_MS;
+    if (getServerNow() < deadline + margin) return;
+    lastExpiredDeadline = deadline;
+    enqueue(() => sendAction({ type: "expireClock" }));
+  };
+
   const beat = async () => {
     const code = get().code;
     if (!code) return;
+    void measureServerOffset();
     let storedVersion: number | null;
     try {
       storedVersion = await touchSeat(code);
@@ -251,6 +307,9 @@ export const useRoomStore = create<RoomState>((set, get) => {
     // Live Basket shots are only for the show: they skip the game queue too.
     channel.on("broadcast", { event: "basket" }, ({ payload }) => handleBasketWire(payload as BasketWire));
     attachBasketLive((wire) => void channel?.send({ type: "broadcast", event: "basket", payload: wire }));
+    // The arm wrestle's running taps, for the bar only.
+    channel.on("broadcast", { event: "arm" }, ({ payload }) => handleArmWire(payload as ArmWire));
+    attachArmLive((wire) => void channel?.send({ type: "broadcast", event: "arm", payload: wire }));
     channel.on("presence", { event: "sync" }, () => {
       const presence = channel?.presenceState<{ voice?: unknown; muted?: unknown }>() ?? {};
       set({ connectedUserIds: Object.keys(presence) });
@@ -282,6 +341,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
     });
 
     heartbeat = window.setInterval(() => void beat(), HEARTBEAT_MS);
+    clockCheck = window.setInterval(checkClocks, CLOCK_CHECK_MS);
+    void measureServerOffset();
     setActionRelay((action) => enqueue(() => sendAction(action)));
   };
 
@@ -289,8 +350,11 @@ export const useRoomStore = create<RoomState>((set, get) => {
     setActionRelay(null);
     detachVoice();
     attachBasketLive(null);
+    attachArmLive(null);
     if (heartbeat !== null) window.clearInterval(heartbeat);
     heartbeat = null;
+    if (clockCheck !== null) window.clearInterval(clockCheck);
+    clockCheck = null;
     if (channel) await getSupabase().removeChannel(channel);
     channel = null;
     set({ connection: "offline", connectedUserIds: [] });
@@ -417,7 +481,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
         const { code, players, myUserId, hostId } = get();
         if (!code || myUserId !== hostId) return;
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
+        await measureServerOffset();
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
         await openRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
@@ -438,7 +503,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
           .filter((player) => !player.absent || player.userId === myUserId)
           .sort((left, right) => rank(left.userId) - rank(right.userId));
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs encore à table.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId);
+        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
         await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });

@@ -84,8 +84,9 @@ export const BANQUISE_MAP: BoardMap = {
     },
     {
       style: "arrow",
-      title: "Sortie fléchée",
-      description: "Sur les cases 0 et 4, tu dois sortir par la flèche. Seule la route 4 → 0 paie les 200 du départ.",
+      title: "Case fléchée",
+      description:
+        "La flèche sort de la case : arrêté sur 0 ou 4, tu repars par la route qu’elle montre. Seule la route 4 → 0 paie les 200 du départ.",
     },
     { style: "road", title: "Chemin libre", description: "Praticable dans les deux sens." },
   ],

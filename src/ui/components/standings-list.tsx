@@ -1,12 +1,13 @@
 import { countRedCups } from "../../game/rules";
-import { getStandings } from "../../game/standings";
+import { getStandings, isWinnerOf } from "../../game/standings";
 import type { GameState, Player } from "../../game/types";
 import { formatCurrency } from "../display/game-display";
-import { CupPips } from "../hud/players-bar";
+import { CupPips } from "../hud/player-status";
 import { CoinIcon } from "../icons/item-icon";
 import { PlayerAvatar } from "./player-avatar";
 
-type StandingsSource = Pick<GameState, "players" | "abandonedPlayers" | "winnerId">;
+type StandingsSource = Pick<GameState, "players" | "abandonedPlayers" | "winnerId"> &
+  Partial<Pick<GameState, "coWinnerId">>;
 
 /** The final table of a game: the victory screen and the game history show the same list. */
 export function StandingsList({ state }: { state: StandingsSource }) {
@@ -14,7 +15,7 @@ export function StandingsList({ state }: { state: StandingsSource }) {
   return (
     <ol className="standings">
       {ranked.map((player, index) => (
-        <StandingRow key={player.id} player={player} rank={index + 1} isWinner={player.id === state.winnerId} />
+        <StandingRow key={player.id} player={player} rank={index + 1} isWinner={isWinnerOf(state, player.id)} />
       ))}
       {leavers.map((player) => (
         <StandingRow key={player.id} player={player} rank={null} isWinner={false} />

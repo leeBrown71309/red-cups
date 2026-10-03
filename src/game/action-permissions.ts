@@ -12,6 +12,12 @@ import type { GameState, PlayerId } from "./types";
  * A local game skips this: one device plays every seat.
  */
 export function getActionActorIds(state: GameState, action: GameAction): PlayerId[] {
+  // The draft: each player picks for themselves; anybody may close it once its minute is over.
+  if (state.phase === "draft") {
+    if (action.type === "pickPassive") return state.draft?.offers[action.playerId] ? [action.playerId] : [];
+    if (action.type === "expireClock") return state.players.map((player) => player.id);
+    return [];
+  }
   if (state.phase !== "playing") return [];
   const active = getActivePlayer(state)?.id;
   const deciding = getDecidingPlayer(state)?.id;
@@ -27,7 +33,11 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "movePlayer":
     case "prepareBoot":
+    case "rollDice":
+    case "leaveHell":
+    case "rescueProtege":
     case "buyItem":
+    case "stealItem":
     case "useItem":
     case "endTurn":
     case "spinHellWheel":
@@ -35,7 +45,8 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "spinTileWheel":
     case "spinBlessingWheel":
-    case "repositionBeforeCup":
+    case "resolveNewCup":
+    case "advanceOneTile":
       return only(deciding);
 
     case "resolveReaction":
@@ -60,6 +71,17 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "submitBasketScore":
       return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 
+    // Only the duellist whose hand it is draws or stands.
+    case "blackjackHit":
+    case "blackjackStand":
+      return duel?.blackjack?.turnId === action.playerId ? [action.playerId] : [];
+
+    // Each side of the arm wrestle sends their own taps.
+    case "submitArmTaps": {
+      const wrestle = state.pendingArmWrestle;
+      return wrestle && [wrestle.attackerId, wrestle.defenderId].includes(action.playerId) ? [action.playerId] : [];
+    }
+
     case "pickDuelHand":
       return duel && getHumanDuellistIds(duel).includes(action.playerId) ? [action.playerId] : [];
 
@@ -72,8 +94,23 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "resolveCalmDown":
       return only(state.pendingCalmDown?.passivePlayerId);
 
+    case "resolveGamble":
+      return state.turnStage === "gamble" ? only(state.pendingGambles[0]?.playerId) : [];
+
     case "abandonGame":
       return only(action.playerId);
+
+    // The engine then checks that the sender is the host, or that the host has been gone too long.
+    case "pauseGame":
+    case "resumeGame":
+      return only(action.playerId);
+
+    case "pickPassive":
+      return [];
+
+    // Whoever sees a clock run out may close it: a device gone quiet must not hold the table.
+    case "expireClock":
+      return state.players.map((player) => player.id);
   }
 }
 

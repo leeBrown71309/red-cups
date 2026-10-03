@@ -2,22 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { isRestorableGame, migrateGameSave, pickGameState } from "./game-save";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
-import {
-  EMPTY_GAME_STATE,
-  HELL_EXIT_TOLL,
-  HELL_NODE_ID,
-  HELL_TURN_LIMIT,
-  NO_THANKS_COOLDOWN_ROUNDS,
-  START_BONUS,
-} from "./types";
+import { EMPTY_GAME_STATE, HELL_EXIT_TOLL, HELL_NODE_ID, HELL_TURN_LIMIT, START_BONUS } from "./types";
+import { withPassives } from "./forced-passives";
 
 /** Hand-written situations for the rules that matter most at the table. */
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {
@@ -33,94 +25,9 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("Non merci reaction window", () => {
-  it("asks the holder, not the active player, before a move happens", () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    store().movePlayer(2);
-
-    expect(store().turnStage).toBe("reaction");
-    expect(store().pendingReaction?.reactorIds).toEqual([store().players[1].id]);
-    expect(store().players[0].position).toBe(0);
-  });
-
-  it(`cancels the move and recharges the passive for ${NO_THANKS_COOLDOWN_ROUNDS} rounds`, () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    store().movePlayer(2);
-    store().resolveReaction(store().players[1].id);
-
-    expect(store().players[0].position).toBe(0);
-    expect(store().turnStage).toBe("turn-end");
-    expect(store().players[1].noThanksReadyRound).toBe(store().round + NO_THANKS_COOLDOWN_ROUNDS);
-  });
-
-  it("lets the move happen when nobody reacts", () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    store().movePlayer(2);
-    store().resolveReaction(null);
-
-    expect(store().players[0].position).toBe(2);
-    expect(store().pendingReaction).toBeNull();
-  });
-
-  it("does not open for the holder's own actions", () => {
-    startTable(["no-thanks", "built-like-a-tank"]);
-    store().movePlayer(2);
-    expect(store().players[0].position).toBe(2);
-  });
-
-  it("stays closed for three rounds once used, whatever the Red Cups do", () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    store().movePlayer(2);
-    store().resolveReaction(store().players[1].id);
-
-    for (const round of [2, 3]) {
-      useGameStore.setState({ round, redCupCycle: round, turnStage: "move", activePlayerIndex: 0 });
-      editPlayer(0, { position: 0 });
-      store().movePlayer(4);
-      expect(store().turnStage).not.toBe("reaction");
-    }
-
-    useGameStore.setState({ round: 1 + NO_THANKS_COOLDOWN_ROUNDS, turnStage: "move", activePlayerIndex: 0 });
-    editPlayer(0, { position: 0 });
-    store().movePlayer(4);
-    expect(store().turnStage).toBe("reaction");
-  });
-
-  it("cancelling a mud loses it, but the actor still moves this turn", () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    editPlayer(0, { inventory: [{ id: "mud-1", kind: "item", itemId: "mud" }] });
-    store().useItem("mud-1");
-    store().resolveReaction(store().players[1].id);
-
-    expect(store().mudTraps).toEqual([]);
-    expect(store().players[0].inventory).toEqual([]);
-    expect(store().turnStage).toBe("move");
-    store().movePlayer(2);
-    expect(store().players[0].position).toBe(2);
-  });
-
-  it("refuses a cancel from a player who was not offered the reaction", () => {
-    startTable(["built-like-a-tank", "no-thanks", "troll"]);
-    store().movePlayer(2);
-    store().resolveReaction(store().players[2].id);
-    expect(store().turnStage).toBe("reaction");
-  });
-
-  it("can cancel an item: the item is spent and its effect never happens", () => {
-    startTable(["built-like-a-tank", "no-thanks"]);
-    editPlayer(0, { inventory: [{ id: "purple-1", kind: "item", itemId: "hollow-purple" }] });
-    store().useItem("purple-1", store().players[1].id);
-    expect(store().turnStage).toBe("reaction");
-
-    store().resolveReaction(store().players[1].id);
-    expect(store().players[1].position).toBe(0);
-    expect(store().players[0].inventory).toHaveLength(0);
-  });
-});
-
 describe("green and red tile wheels", () => {
   it("spins the wheel of fortune after stopping on a green tile", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 4 });
     store().movePlayer(7);
 
@@ -130,14 +37,14 @@ describe("green and red tile wheels", () => {
   });
 
   it("spins the wheel of misfortune after stopping on a red tile", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     store().movePlayer(4);
     store().spinTileWheel();
     expect(store().pendingWheel?.wheelId).toBe("misfortune");
   });
 
   it("does not spin when only passing over a colored tile with the Botte", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { inventory: [{ id: "boot-1", kind: "item", itemId: "boot" }] });
     store().prepareBoot("boot-1");
     store().movePlayer(3);
@@ -148,7 +55,7 @@ describe("green and red tile wheels", () => {
   });
 
   it("collects the Red Cup first, then spins the tile wheel", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     vi.spyOn(Math, "random").mockReturnValue(0.5);
     useGameStore.setState({ redCupNodeId: 4 });
     store().movePlayer(4);
@@ -158,7 +65,7 @@ describe("green and red tile wheels", () => {
   });
 
   it("does not spin the wheel on a neutral, shop or start tile", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     store().movePlayer(2);
     expect(store().turnStage).toBe("turn-end");
   });
@@ -166,7 +73,7 @@ describe("green and red tile wheels", () => {
 
 describe("arrow tiles and the start bonus", () => {
   it("lets a player walk into an arrow tile backwards, then forces its exit", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 6 });
     store().movePlayer(3);
     expect(store().players[0].position).toBe(3);
@@ -179,14 +86,14 @@ describe("arrow tiles and the start bonus", () => {
   });
 
   it("pays the 200 coins when entering the start from 8", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 8, currency: 500 });
     store().movePlayer(0);
     expect(store().players[0].currency).toBe(700);
   });
 
   it("lets a player step back from 4 to the start without the bonus", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 4, currency: 500 });
     store().movePlayer(0);
 
@@ -197,7 +104,7 @@ describe("arrow tiles and the start bonus", () => {
 
 describe("tile wheels after being moved by someone else", () => {
   it("spins no wheel for a player pulled onto a red tile by the Corde", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 4, inventory: [{ id: "rope-1", kind: "item", itemId: "rope" }] });
     editPlayer(1, { position: 2 });
     useGameStore.setState({ turnStage: "move" });
@@ -205,11 +112,12 @@ describe("tile wheels after being moved by someone else", () => {
 
     expect(store().players[1].position).toBe(4);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    // The turn goes on: the Corde cost 2 of the 3 points, one is left to move.
+    expect(store().turnStage).toBe("move");
   });
 
   it("gives neither player a wheel nor the shop after a Monopoly Man swap", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 5, inventory: [{ id: "swap-1", kind: "item", itemId: "monopoly-man" }] });
     editPlayer(1, { position: 9 });
     useGameStore.setState({ turnStage: "move" });
@@ -217,11 +125,11 @@ describe("tile wheels after being moved by someone else", () => {
 
     expect(store().players.map((player) => player.position)).toEqual([9, 5]);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    expect(store().turnStage).toBe("move");
   });
 
   it("still spins the wheel when the Bouteille d’eau lands on a colored tile", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, inventory: [{ id: "bottle-1", kind: "item", itemId: "water-bottle" }] });
     useGameStore.setState({ turnStage: "hell" });
     // Tile 4 (red) is the fifth of the eleven walkable tiles.
@@ -233,12 +141,12 @@ describe("tile wheels after being moved by someone else", () => {
   });
 
   it("does not spin for a player sent to Hell", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { inventory: [{ id: "purple-1", kind: "item", itemId: "hollow-purple" }] });
     editPlayer(1, { position: 4 });
     store().useItem("purple-1", store().players[1].id);
     expect(store().pendingTileWheels).toEqual([]);
-    expect(store().turnStage).toBe("turn-end");
+    expect(store().turnStage).toBe("move");
   });
 });
 
@@ -250,7 +158,7 @@ describe("Hell sentence", () => {
   }
 
   it("counts every turn a player starts in Hell", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: 0 });
     passToFirstPlayer();
 
@@ -259,7 +167,7 @@ describe("Hell sentence", () => {
   });
 
   it(`releases the player at the start, with the start bonus, for ${HELL_EXIT_TOLL} coins after 5 turns`, () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT, currency: 1_000 });
     useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end" });
     store().endTurn();
@@ -272,7 +180,7 @@ describe("Hell sentence", () => {
   });
 
   it("keeps a player in Hell before the last turn", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT - 1 });
     useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end" });
     store().endTurn();
@@ -280,7 +188,7 @@ describe("Hell sentence", () => {
   });
 
   it("counts a turn skipped in Hell towards the sentence", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT - 1, skippedTurns: 1 });
     passToFirstPlayer();
 
@@ -289,7 +197,7 @@ describe("Hell sentence", () => {
   });
 
   it("cushions the toll with the start bonus before the usual −300 reset", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT, currency: 100 });
     useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end" });
     store().endTurn();
@@ -297,7 +205,7 @@ describe("Hell sentence", () => {
     expect(store().players[0].skippedTurns).toBe(0);
 
     store().resetGame();
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT, currency: -100 });
     useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end" });
     store().endTurn();
@@ -305,16 +213,8 @@ describe("Hell sentence", () => {
     expect(store().players[0].skippedTurns).toBe(1);
   });
 
-  it("gives no start bonus to Je suis Cups on the way out", () => {
-    startTable(["im-cups", "troll"]);
-    editPlayer(0, { position: HELL_NODE_ID, hellTurns: HELL_TURN_LIMIT, currency: 1_000 });
-    useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end" });
-    store().endTurn();
-    expect(store().players[0].currency).toBe(1_000 - HELL_EXIT_TOLL);
-  });
-
   it("restarts the countdown on a new trip to Hell, but not for a player already there", () => {
-    startTable(["built-like-a-tank", "troll", "troll"]);
+    startTable(["built-like-a-tank", "goblin", "goblin"]);
     editPlayer(0, { position: 4, hellTurns: 3 });
     editPlayer(1, { position: HELL_NODE_ID, hellTurns: 2 });
     editPlayer(2, { inventory: [{ id: "draven-1", kind: "item", itemId: "draven" }] });
@@ -329,7 +229,7 @@ describe("Hell sentence", () => {
 
 describe("Hell sentence after a Monopoly Man swap", () => {
   it("starts a fresh countdown for a player swapped back into Hell", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     // Player 2 left Hell by a swap with 5 turns served, then gets swapped back in before their turn.
     editPlayer(1, { position: 5, hellTurns: HELL_TURN_LIMIT });
     useGameStore.setState({ activePlayerIndex: 1, turnStage: "turn-end" });
@@ -345,7 +245,7 @@ describe("Hell sentence after a Monopoly Man swap", () => {
 
 describe("Je note and the no-stacking rule", () => {
   it("never copies Draven, even for its own user", () => {
-    startTable(["i-take-notes", "troll"]);
+    startTable(["i-take-notes", "goblin"]);
     editPlayer(0, { inventory: [{ id: "draven-1", kind: "item", itemId: "draven" }] });
     store().useItem("draven-1");
     expect(store().players[0].inventory).toHaveLength(0);
@@ -353,6 +253,8 @@ describe("Je note and the no-stacking rule", () => {
 
   it("never gives a third copy of an item", () => {
     startTable(["built-like-a-tank", "i-take-notes"]);
+    // Below one in three: Je note keeps its copy.
+    vi.spyOn(Math, "random").mockReturnValue(0.1);
     editPlayer(0, { inventory: [{ id: "finger-1", kind: "item", itemId: "middle-finger" }] });
     editPlayer(1, {
       inventory: [
@@ -372,9 +274,9 @@ describe("Je note and the no-stacking rule", () => {
 
 describe("Je note on its own items (patch 0.1.3)", () => {
   it("gives no copy of a Ndoye its holder spins on themselves", () => {
-    startTable(["i-take-notes", "troll"]);
+    startTable(["i-take-notes", "goblin"]);
     editPlayer(0, { inventory: [{ id: "ndoye-1", kind: "item", itemId: "ndoye" }] });
-    // 0.99 lands on "Rien" on the wheel of misfortune.
+    // 0.99 lands on « Perds ton prochain tour » on the wheel of misfortune.
     vi.spyOn(Math, "random").mockReturnValue(0.99);
 
     store().useItem("ndoye-1", store().players[0].id);
@@ -384,7 +286,7 @@ describe("Je note on its own items (patch 0.1.3)", () => {
   });
 
   it("gives no copy of a Hollow Purple its holder fires at themselves", () => {
-    startTable(["i-take-notes", "troll"]);
+    startTable(["i-take-notes", "goblin"]);
     editPlayer(0, { inventory: [{ id: "purple-1", kind: "item", itemId: "hollow-purple" }] });
 
     store().useItem("purple-1", store().players[0].id);
@@ -393,17 +295,9 @@ describe("Je note on its own items (patch 0.1.3)", () => {
     expect(store().players[0].inventory).toHaveLength(0);
   });
 
-  it("gives no copy of its own mud", () => {
-    startTable(["i-take-notes", "troll"]);
-    useGameStore.setState({ mudTraps: [{ id: "mud-1", nodeId: 2, ownerId: store().players[0].id }] });
-
-    store().movePlayer(2);
-
-    expect(store().players[0].inventory).toHaveLength(0);
-  });
-
   it("still copies an item somebody else used on its holder", () => {
     startTable(["built-like-a-tank", "i-take-notes"]);
+    vi.spyOn(Math, "random").mockReturnValue(0.1);
     editPlayer(0, { inventory: [{ id: "finger-1", kind: "item", itemId: "middle-finger" }] });
 
     store().useItem("finger-1", store().players[1].id);
@@ -416,7 +310,7 @@ describe("Je note on its own items (patch 0.1.3)", () => {
 
 describe("Calme-toi (patch 0.1.3)", () => {
   it("is never offered to the holder against themselves", () => {
-    startTable(["calm-down", "troll"]);
+    startTable(["calm-down", "goblin"]);
     editPlayer(0, { position: 10 });
     // The next Cup lands on tile 1, two steps from 8.
     vi.spyOn(Math, "random").mockReturnValue(0);
@@ -448,31 +342,25 @@ describe("duel winner (patch 0.1.3)", () => {
         voteTieBroken: false,
         winnerId: store().players[0].id,
         basket: null,
+        blackjack: null,
         ghost: null,
       },
     });
   }
 
   it("pays the start bonus to the winner going back to the start", () => {
-    startDuelInHell(["built-like-a-tank", "troll"]);
+    startDuelInHell(["built-like-a-tank", "goblin"]);
     store().resolveDuel(store().players[0].id);
 
     expect(store().players[0].position).toBe(0);
     expect(store().players[0].currency).toBe(2_000 + START_BONUS);
     expect(store().players[1].currency).toBe(2_000);
   });
-
-  it("pays nothing to a winner with Je suis Cups", () => {
-    startDuelInHell(["im-cups", "troll"]);
-    store().resolveDuel(store().players[0].id);
-
-    expect(store().players[0].currency).toBe(2_000);
-  });
 });
 
 describe("Bullet Bill", () => {
   it("hits a player standing on its own tile at the end of the round", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(1, { position: 5 });
     useGameStore.setState({
       activePlayerIndex: 1,
@@ -489,7 +377,7 @@ describe("Bullet Bill", () => {
 
 describe("game save", () => {
   it("upgrades a version 3 save by starting everybody's Hell countdown at zero", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const legacy = pickGameState(store());
     const upgraded = migrateGameSave(
       { ...legacy, players: legacy.players.map(({ hellTurns: _unused, ...player }) => player) },
@@ -529,7 +417,7 @@ describe("game save", () => {
   });
 
   it("only restores a game in progress", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     expect(isRestorableGame(pickGameState(store()))).toBe(true);
     expect(isRestorableGame({ ...EMPTY_GAME_STATE })).toBe(false);
     expect(isRestorableGame({ ...pickGameState(store()), phase: "finished" })).toBe(false);
@@ -538,7 +426,7 @@ describe("game save", () => {
   });
 
   it("saves only game data, never the store actions", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const saved = pickGameState(store());
     expect(Object.values(saved).some((value) => typeof value === "function")).toBe(false);
     expect(JSON.parse(JSON.stringify(saved)).players).toHaveLength(2);

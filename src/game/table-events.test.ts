@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ITEM_CATALOG } from "./catalog";
 import { useGameStore } from "./store";
 import type { PassiveId, Player } from "./types";
-import { BULLET_BILL_DAMAGE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
+import { BASE_ENERGY, BULLET_BILL_DAMAGE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
+import { withPassives } from "./forced-passives";
 
 /** Patch 0.1.1: Bullet Bill, the Tour de Bénédiction and players leaving a game. */
 
 function startTable(passives: PassiveId[]): void {
   useGameStore.getState().startGame(passives.map((_, index) => `Joueur ${index + 1}`));
-  useGameStore.setState((state) => ({
-    players: state.players.map((player, index) => ({ ...player, passiveId: passives[index] })),
-  }));
+  useGameStore.setState((state) => withPassives(state, passives));
 }
 
 function editPlayer(index: number, changes: Partial<Player>): void {
@@ -34,36 +34,51 @@ afterEach(() => {
 });
 
 describe("Bullet Bill", () => {
-  function buyBulletBill(): void {
+  /** The first player launches it from the bag, on their turn. */
+  function launchBulletBill(entryId = "bill-1"): void {
+    editPlayer(0, { inventory: [{ id: entryId, kind: "item", itemId: "bullet-bill" }] });
+    store().useItem(entryId);
+  }
+
+  it("goes into the bag when bought: nothing flies yet", () => {
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(0, { position: 8 });
     useGameStore.setState({ turnStage: "shop" });
     store().buyItem("bullet-bill");
-  }
 
-  it("waits on the start as soon as it is bought", () => {
-    startTable(["built-like-a-tank", "troll"]);
-    buyBulletBill();
+    expect(store().bulletBill).toBeNull();
+    expect(store().players[0].inventory).toEqual([expect.objectContaining({ itemId: "bullet-bill" })]);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY - ITEM_CATALOG["bullet-bill"].price);
+  });
 
+  it("waits on the start once launched, for 2 energy, and flies alone", () => {
+    startTable(["built-like-a-tank", "goblin"]);
+    launchBulletBill();
     expect(store().bulletBill).toEqual({ status: "waiting", position: 0, spawnRound: 2 });
-    expect(store().players[0].currency).toBe(STARTING_CURRENCY - 500);
+    expect(store()).toMatchObject({ turnStage: "move", energyLeft: BASE_ENERGY - 2 });
+
+    useGameStore.setState({ energyLeft: BASE_ENERGY });
+    launchBulletBill("bill-2");
+    expect(store().players[0].inventory).toHaveLength(1);
+    expect(store().energyLeft).toBe(BASE_ENERGY);
   });
 
   it("wakes up and charges the nearest player at the start of the next round", () => {
-    startTable(["built-like-a-tank", "troll"]);
-    buyBulletBill();
-    // Both players three tiles away: the first seat is chased, two tiles at a time.
+    startTable(["built-like-a-tank", "goblin"]);
+    launchBulletBill();
+    // Both players three tiles away: the first seat is chased, one tile at a time.
     editPlayer(0, { position: 6 });
     editPlayer(1, { position: 1 });
     playUntilRound(2);
 
-    expect(store().bulletBill).toEqual(expect.objectContaining({ status: "active", position: 3 }));
+    expect(store().bulletBill).toEqual(expect.objectContaining({ status: "active", position: 4 }));
     expect(store().lastBulletFlight).toEqual(
-      expect.objectContaining({ from: 0, path: [4, 3], targetId: store().players[0].id, victimId: null }),
+      expect.objectContaining({ from: 0, path: [4], targetId: store().players[0].id, victimId: null }),
     );
   });
 
-  it("hits a player two tiles away in a single charge", () => {
-    startTable(["built-like-a-tank", "troll"]);
+  it("only closes in on a player two tiles away: one tile per charge", () => {
+    startTable(["built-like-a-tank", "goblin"]);
     // Tile 9 is two tiles from the start (0 → 4 → 9), tile 6 three.
     editPlayer(0, { position: 6 });
     editPlayer(1, { position: 9 });
@@ -74,14 +89,14 @@ describe("Bullet Bill", () => {
     });
     store().endTurn();
 
-    const victim = store().players[1];
-    expect(store().lastBulletFlight).toEqual(expect.objectContaining({ from: 0, path: [4, 9], victimId: victim.id }));
-    expect(store().bulletBill).toBeNull();
-    expect(victim.currency).toBe(STARTING_CURRENCY - BULLET_BILL_DAMAGE);
+    const target = store().players[1];
+    expect(store().lastBulletFlight).toEqual(expect.objectContaining({ from: 0, path: [4], victimId: null }));
+    expect(store().bulletBill).toEqual(expect.objectContaining({ position: 4 }));
+    expect(target.currency).toBe(STARTING_CURRENCY);
   });
 
   it("records the hit so the board can play the explosion", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     editPlayer(1, { position: 5 });
     useGameStore.setState({
       activePlayerIndex: 1,
@@ -110,7 +125,7 @@ describe("Tour de Bénédiction", () => {
   }
 
   it("makes everybody spin the wheel of fortune, starting after the player whose turn ends", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     const [first, second, third] = store().players;
     breakTheBank();
     store().endTurn();
@@ -124,7 +139,7 @@ describe("Tour de Bénédiction", () => {
   });
 
   it("hands the turn on once the whole table has spun", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     breakTheBank();
     store().endTurn();
     // Every wheel lands on its first wedge: +100 on the wheel of fortune.
@@ -143,7 +158,7 @@ describe("Tour de Bénédiction", () => {
   });
 
   it("does not start while a single player still has coins", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     breakTheBank();
     editPlayer(1, { currency: 1 });
     store().endTurn();
@@ -155,7 +170,7 @@ describe("Tour de Bénédiction", () => {
 
 describe("abandoning a game", () => {
   it("lets another player leave without interrupting the current turn", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     const [active, leaver, third] = store().players;
     store().abandonGame(leaver.id);
 
@@ -167,7 +182,7 @@ describe("abandoning a game", () => {
   });
 
   it("passes the turn to the next seat when the active player leaves", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     const [, second, third] = store().players;
     useGameStore.setState({ activePlayerIndex: 1 });
     store().abandonGame(second.id);
@@ -178,7 +193,7 @@ describe("abandoning a game", () => {
   });
 
   it("starts a new round when the last seat leaves on their turn", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     const [first, , third] = store().players;
     useGameStore.setState({ activePlayerIndex: 2 });
     store().abandonGame(third.id);
@@ -188,7 +203,7 @@ describe("abandoning a game", () => {
   });
 
   it("keeps pointing at the active player when an earlier seat leaves", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     const [first, , third] = store().players;
     useGameStore.setState({ activePlayerIndex: 2, turnStage: "shop" });
     editPlayer(2, { position: 8 });
@@ -199,7 +214,7 @@ describe("abandoning a game", () => {
   });
 
   it("crowns the last player standing", () => {
-    startTable(["built-like-a-tank", "troll"]);
+    startTable(["built-like-a-tank", "goblin"]);
     const [first, second] = store().players;
     store().abandonGame(first.id);
 
@@ -209,7 +224,7 @@ describe("abandoning a game", () => {
   });
 
   it("waits until no wheel, duel or decision is pending", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     editPlayer(0, { position: 9 });
     store().movePlayer(4);
     expect(store().turnStage).toBe("tile-wheel");
@@ -219,7 +234,7 @@ describe("abandoning a game", () => {
   });
 
   it("frees the leaver's seat in Hell too", () => {
-    startTable(["built-like-a-tank", "troll", "penta"]);
+    startTable(["built-like-a-tank", "goblin", "lambda"]);
     editPlayer(1, { position: HELL_NODE_ID });
     store().abandonGame(store().players[1].id);
     expect(store().players.some((player) => player.position === HELL_NODE_ID)).toBe(false);

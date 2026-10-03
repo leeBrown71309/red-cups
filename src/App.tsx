@@ -9,6 +9,7 @@ import { onlineAvailable } from "./net/supabase-client";
 import { BoardStage } from "./scene/board-stage";
 import { FullscreenGate } from "./ui/components/fullscreen-gate";
 import { OrientationHint } from "./ui/components/orientation-hint";
+import { DraftScreen } from "./ui/draft/draft-screen";
 import { GameHud } from "./ui/hud/game-hud";
 import { LobbyScreen } from "./ui/lobby/lobby-screen";
 import { OnlineScreen } from "./ui/online/online-screen";
@@ -49,12 +50,15 @@ export default function App() {
 
   return (
     <div className={`app app--${phase}`}>
-      <BoardStage mode={phase === "setup" ? "attract" : "play"} />
-      {phase !== "setup" ? (
+      <BoardStage mode={phase === "setup" || phase === "draft" ? "attract" : "play"} />
+      {phase === "draft" ? (
+        <DraftScreen />
+      ) : phase !== "setup" ? (
         <GameHud />
       ) : roomView === "closed" ? (
         <LobbyScreen
-          onStart={(names, mapId) => startGame(names, undefined, mapId)}
+          // Every game opens on the passive draft (patch 0.1.4).
+          onStart={(names, mapId) => startGame(names, undefined, mapId, true)}
           onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}
         />
       ) : (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { canUseNoThanks } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { PendingWheel, WheelOutcomeId } from "../../game/types";
 import { soundEffects } from "../../audio/sound-effects";
@@ -39,11 +40,16 @@ export function WheelModal() {
 
 function WheelSpin({ pending }: { pending: PendingWheel }) {
   const player = useGameStore((state) => state.players.find((candidate) => candidate.id === pending.playerId));
+  const round = useGameStore((state) => state.round);
   const resolveWheel = useGameStore((state) => state.resolveWheel);
   const cancelWheel = useGameStore((state) => state.cancelWheel);
   // Everybody watches the wheel; only its player applies the result or rubs it out.
   const canAct = useCanActFor([pending.playerId]);
-  const segments = useMemo(() => getWheelSegments(pending.wheelId), [pending.wheelId]);
+  const passiveId = player?.passiveId;
+  const segments = useMemo(
+    () => getWheelSegments(pending.wheelId, passiveId && { passiveId }),
+    [pending.wheelId, passiveId],
+  );
   const [rotation, setRotation] = useState(0);
   const [done, setDone] = useState(false);
   const skipRef = useRef(false);
@@ -90,6 +96,8 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
   }, [finalRotation, segments.length, pending.result.id]);
 
   const hasEraser = player?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser") ?? false;
+  // Non merci cancels any wheel spun for its holder, once recharged.
+  const hasNoThanks = player !== undefined && canUseNoThanks(player, round);
   const positive = isPositiveOutcome(pending.result.id);
 
   return (
@@ -130,8 +138,13 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
                     <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
                   </button>
                   {hasEraser && (
-                    <button type="button" className="btn btn--cream btn--block" onClick={cancelWheel}>
+                    <button type="button" className="btn btn--cream btn--block" onClick={() => cancelWheel()}>
                       <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
+                    </button>
+                  )}
+                  {hasNoThanks && (
+                    <button type="button" className="btn btn--grape btn--block" onClick={() => cancelWheel(true)}>
+                      <UiIcon name="hand" size={20} /> Non merci !
                     </button>
                   )}
                 </div>

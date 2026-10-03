@@ -1,5 +1,6 @@
 import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
+import { avoidsHell, offersGamble } from "./passive-rules";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
@@ -45,9 +46,24 @@ export function updatePlayer(state: GameState, playerId: PlayerId, updater: (pla
   };
 }
 
-/** A fresh trip to Hell restarts the countdown; a player already there keeps theirs. */
+/**
+ * A fresh trip to Hell restarts the countdown; a player already there keeps
+ * theirs. L'Ange-Gardien never goes: they lose their next turn instead.
+ */
 export function placeInHell(player: Player): Player {
+  if (avoidsHell(player)) return { ...player, skippedTurns: player.skippedTurns + 1 };
   return player.position === HELL_NODE_ID ? player : { ...player, position: HELL_NODE_ID, hellTurns: 0 };
+}
+
+/** Sends a player to Hell; L'Ange-Gardien loses their next turn instead. */
+export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  const nextState = updatePlayer(state, playerId, placeInHell);
+  if (avoidsHell(player)) {
+    return addLog(nextState, `${player.name} ne va jamais en Enfer : il perd son prochain tour à la place.`, "bad");
+  }
+  return addLog(nextState, `${player.name} est envoyé en Enfer.`, "bad");
 }
 
 /** How many items an entry stands for: a stack of Tomates counts several, anything else one. */
@@ -56,10 +72,18 @@ export function getEntryUnits(entry: InventoryEntry): number {
 }
 
 /** Adds one item; a stackable one joins its stack when there is one (callers check the stack's limit). */
-export function appendItem(player: Player, itemId: ItemId): Player {
-  const stack = ITEM_CATALOG[itemId].stackLimit
-    ? player.inventory.find((entry) => entry.kind === "item" && entry.itemId === itemId)
-    : undefined;
+/** A stack of this item that still has room, if the bag holds one; never for an item that does not stack. */
+export function findStackWithRoom(player: Player, itemId: ItemId): InventoryEntry | undefined {
+  const stackLimit = ITEM_CATALOG[itemId].stackLimit;
+  if (!stackLimit) return undefined;
+  return player.inventory.find(
+    (entry) => entry.kind === "item" && entry.itemId === itemId && getEntryUnits(entry) < stackLimit,
+  );
+}
+
+/** Adds one item: onto a stack that has room, otherwise into a slot of its own (`entryId` names that slot). */
+export function appendItem(player: Player, itemId: ItemId, entryId: string = createEngineId()): Player {
+  const stack = findStackWithRoom(player, itemId);
   if (stack) {
     return {
       ...player,
@@ -68,7 +92,7 @@ export function appendItem(player: Player, itemId: ItemId): Player {
       ),
     };
   }
-  const entry: InventoryEntry = { id: createEngineId(), kind: "item", itemId };
+  const entry: InventoryEntry = { id: entryId, kind: "item", itemId };
   return { ...player, inventory: [...player.inventory, entry] };
 }
 
@@ -94,15 +118,32 @@ export function getItemEntry(player: Player, entryId: string): ItemId | undefine
   return entry?.kind === "item" ? entry.itemId : undefined;
 }
 
+export interface CurrencyChangeOptions {
+  /**
+   * False for what Double or nothing may not stake: voluntary spending (a
+   * purchase, Corrupteur, a theft gone wrong) and the coin flip's own outcome.
+   */
+  gamble?: boolean;
+}
+
 /**
  * Applies a coin change with the two money rules: the Casque absorbs a drop
  * below zero, and reaching −300 resets the balance and cancels the next turn.
+ * A Double or nothing holder may then stake the amount, once the table is at rest.
  */
-export function applyCurrencyChange(state: GameState, playerId: PlayerId, amount: number): GameState {
+export function applyCurrencyChange(
+  state: GameState,
+  playerId: PlayerId,
+  amount: number,
+  options: CurrencyChangeOptions = {},
+): GameState {
   const player = findPlayer(state, playerId);
   if (!player || amount === 0) return state;
 
   let nextState = state;
+  if (options.gamble !== false && offersGamble(player) && state.phase === "playing") {
+    nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
+  }
   let nextCurrency = player.currency + amount;
   let nextInventory = player.inventory;
 

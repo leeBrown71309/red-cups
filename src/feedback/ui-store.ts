@@ -11,7 +11,8 @@ export interface Toast {
 /** Table-wide announcement (Bullet Bill, Tour de Bénédiction) that nobody should miss. */
 export interface AlertBanner {
   key: number;
-  tone: "danger" | "blessing" | "carousel" | "blizzard" | "ghost";
+  /** Picks the banner's colours and icon: Bullet Bill for "danger", le diable's face for "devil"… */
+  tone: "danger" | "devil" | "chances" | "blessing" | "carousel" | "blizzard" | "ghost";
   eyebrow: string;
   title: string;
   detail: string;
@@ -20,19 +21,22 @@ export interface AlertBanner {
 interface UiState {
   /** Timestamp (performance.now) until which the board is still animating. */
   boardBusyUntil: number;
+  /** Timestamp (performance.now) the countdown after the draft ends at. */
+  countdownUntil: number;
   toasts: Toast[];
   splash: { playerId: PlayerId; key: number } | null;
   alert: AlertBanner | null;
   followActivePlayer: boolean;
   /** Luna Park: the ghost's loot window, opened by clicking the ghost on the board. */
   ghostLootOpen: boolean;
-  /** Délinquant toggle for the current move. */
+  /** Corrupteur toggle for the current move. */
   ignoreArrows: boolean;
   /** Destination selected by a first tap on touch screens, waiting for confirmation. */
   previewNodeId: NodeId | null;
   /** Destination hovered in the HUD chips, highlighted on the board without selecting it. */
   hoveredChipNodeId: NodeId | null;
   setBoardBusyUntil: (timestamp: number) => void;
+  setCountdownUntil: (timestamp: number) => void;
   setIgnoreArrows: (ignoreArrows: boolean) => void;
   setPreviewNodeId: (nodeId: NodeId | null) => void;
   setHoveredChipNodeId: (nodeId: NodeId | null) => void;
@@ -57,6 +61,7 @@ function prefersFollowCamera(): boolean {
 /** Presentation-only state. Nothing here affects the rules of the game. */
 export const useUiStore = create<UiState>((set) => ({
   boardBusyUntil: 0,
+  countdownUntil: 0,
   toasts: [],
   splash: null,
   alert: null,
@@ -66,6 +71,7 @@ export const useUiStore = create<UiState>((set) => ({
   previewNodeId: null,
   hoveredChipNodeId: null,
   setBoardBusyUntil: (boardBusyUntil) => set({ boardBusyUntil }),
+  setCountdownUntil: (countdownUntil) => set({ countdownUntil }),
   setIgnoreArrows: (ignoreArrows) => set({ ignoreArrows, previewNodeId: null }),
   setPreviewNodeId: (previewNodeId) => set({ previewNodeId, hoveredChipNodeId: null }),
   setHoveredChipNodeId: (hoveredChipNodeId) => set({ hoveredChipNodeId }),
@@ -84,6 +90,7 @@ export const useUiStore = create<UiState>((set) => ({
   resetUi: () =>
     set({
       boardBusyUntil: 0,
+      countdownUntil: 0,
       toasts: [],
       splash: null,
       alert: null,

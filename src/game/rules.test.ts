@@ -16,6 +16,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: 1,
+    previousNodeId: null,
     ...overrides,
   };
 }
@@ -86,9 +87,8 @@ describe("board transcription", () => {
 });
 
 describe("inventory rules", () => {
-  it("counts Red Cups as inventory entries and applies Penta capacity", () => {
+  it("counts Red Cups as inventory entries in a bag of four", () => {
     const player = makePlayer({
-      passiveId: "penta",
       inventory: [
         { id: "cup-1", kind: "red-cup" },
         { id: "item-1", kind: "item", itemId: "rope" },
@@ -96,8 +96,8 @@ describe("inventory rules", () => {
     });
 
     expect(countRedCups(player)).toBe(1);
-    expect(getInventoryCapacity(player)).toBe(5);
-    expect(getOpenInventorySlots(player)).toBe(3);
+    expect(getInventoryCapacity(player)).toBe(4);
+    expect(getOpenInventorySlots(player)).toBe(2);
   });
 
   it("blocks a third copy of an item and a second Gomme", () => {
@@ -118,8 +118,13 @@ describe("inventory rules", () => {
 
 describe("random event selection", () => {
   it("selects wheel results according to weighted ranges", () => {
+    // Fortune and misfortune: eight equal wedges.
     expect(chooseWheelResult("fortune", 0).id).toBe("gain-100");
-    expect(chooseWheelResult("fortune", 0.45).id).toBe("gain-300");
-    expect(chooseWheelResult("fortune", 0.999).id).toBe("escape");
+    expect(chooseWheelResult("fortune", 0.45).id).toBe("gain-400");
+    expect(chooseWheelResult("fortune", 0.999).id).toBe("go-to-start");
+    expect(chooseWheelResult("misfortune", 0.999).id).toBe("skip-turn");
+    // Hell keeps its weights: two wedges of −100 out of nine.
+    expect(chooseWheelResult("hell", 2 / 9 - 0.001).id).toBe("lose-100");
+    expect(chooseWheelResult("hell", 2 / 9 + 0.001).id).toBe("lose-200");
   });
 });

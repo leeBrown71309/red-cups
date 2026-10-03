@@ -177,6 +177,92 @@ const ITEM_ARTWORK: Record<ItemId, () => ReactElement> = {
       <path d="M32 9 L33 4" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
+  // A winged clock under a halo, its hands racing: time speeds up and everyone else starts over.
+  "made-in-heaven": () => (
+    <>
+      <ellipse cx="32" cy="9" rx="14" ry="4.5" fill="none" stroke={INK} strokeWidth="7.5" />
+      <ellipse cx="32" cy="9" rx="14" ry="4.5" fill="none" stroke="#ffd166" strokeWidth="3.5" />
+      <path d="M15 33 C6 31 2 23 4 16 C9 21 13 22 18 23 Z" fill="#fff4ec" {...OUTLINE} />
+      <path d="M49 33 C58 31 62 23 60 16 C55 21 51 22 46 23 Z" fill="#fff4ec" {...OUTLINE} />
+      <circle cx="32" cy="38" r="19" fill="#8fd3ff" {...OUTLINE} />
+      <circle cx="32" cy="38" r="13" fill="#fff4ec" stroke={INK} strokeWidth="3" />
+      <path d="M32 38 L32 28 M32 38 L40 43" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M21 29 A15 15 0 0 1 30 25" fill="none" stroke="#62c7ff" strokeWidth="3" strokeLinecap="round" />
+      <circle cx="32" cy="38" r="2.5" fill="#e8453c" />
+    </>
+  ),
+  // Le diable's shop: a swirl onto Hell, a burning hand, a dark Cup, a gavel and a falling comet.
+  portal: () => (
+    <>
+      <ellipse cx="32" cy="36" rx="25" ry="20" fill="#3d2654" {...OUTLINE} />
+      <ellipse cx="32" cy="36" rx="17" ry="13" fill="#8e5bd9" />
+      <ellipse cx="32" cy="36" rx="9" ry="7" fill="#e8453c" />
+      <path
+        d="M14 30 C22 18 44 18 50 32 M50 42 C42 54 22 54 14 40"
+        fill="none"
+        stroke="#c86bff"
+        strokeWidth="3"
+        strokeLinecap="round"
+      />
+      <path d="M26 12 L29 4 L32 11 L36 3 L38 13" fill="none" stroke="#ff9f43" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  "hell-touch": () => (
+    <>
+      <path
+        d="M18 58 V34 C18 31 22 31 22 34 V22 C22 19 26 19 26 22 V18 C26 15 30 15 30 18 V21 C30 18 34 18 34 21 V34 L38 29 C40 26 45 29 43 32 L36 46 C34 53 30 58 24 58 Z"
+        fill="#e8453c"
+        {...OUTLINE}
+      />
+      <path
+        d="M46 6 C52 12 52 18 47 22 C48 17 44 15 42 12 C42 16 39 18 38 20 C35 14 40 9 46 6 Z"
+        fill="#ff9f43"
+        {...OUTLINE}
+        strokeWidth={3}
+      />
+    </>
+  ),
+  "black-cup": () => (
+    <>
+      <path d="M14 15 H50 L45 56 C45 58 43 60 41 60 H23 C21 60 19 58 19 56 Z" fill="#2b2230" {...OUTLINE} />
+      <rect x="10" y="8" width="44" height="9" rx="3.5" fill="#5e3a99" {...OUTLINE} />
+      <path d="M17 29 H47 M18.5 41 H45.5" stroke="#e8453c" strokeWidth="3" />
+      <path d="M24 22 L27 52" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity="0.25" />
+    </>
+  ),
+  sentence: () => (
+    <>
+      <rect x="8" y="50" width="34" height="9" rx="3" fill="#8f5d2c" {...OUTLINE} />
+      <path d="M30 34 L54 58" stroke={INK} strokeWidth="9" strokeLinecap="round" />
+      <path d="M30 34 L54 58" stroke="#b27a3e" strokeWidth="4" strokeLinecap="round" />
+      <rect x="10" y="10" width="34" height="18" rx="5" transform="rotate(45 27 19)" fill="#6d4f96" {...OUTLINE} />
+    </>
+  ),
+  doomsday: () => (
+    <>
+      <path
+        d="M8 8 L36 30 M4 22 L30 38 M20 4 L42 26"
+        stroke="#ff9f43"
+        strokeWidth="5"
+        strokeLinecap="round"
+        opacity="0.8"
+      />
+      <circle cx="42" cy="42" r="16" fill="#e8453c" {...OUTLINE} />
+      <circle cx="37" cy="38" r="4" fill="#3a2530" />
+      <circle cx="48" cy="46" r="3" fill="#3a2530" />
+      <circle cx="44" cy="35" r="2" fill="#ffd166" />
+    </>
+  ),
+  // L'Ange-Gardien's shield, under a halo.
+  shield: () => (
+    <>
+      <ellipse cx="32" cy="8" rx="13" ry="4" fill="none" stroke={INK} strokeWidth="7" />
+      <ellipse cx="32" cy="8" rx="13" ry="4" fill="none" stroke="#ffd166" strokeWidth="3.5" />
+      <path d="M32 16 L52 23 V36 C52 48 43 56 32 60 C21 56 12 48 12 36 V23 Z" fill="#8fd3ff" {...OUTLINE} />
+      <path d="M32 22 L46 27 V36 C46 44 40 50 32 53 Z" fill="#fff4ec" />
+      <path d="M32 26 V48 M24 35 H40" stroke="#4fa5f2" strokeWidth="3.5" strokeLinecap="round" />
+    </>
+  ),
 };
 
 export function ItemIcon({ itemId, size, className }: IconProps & { itemId: ItemId }) {
@@ -199,6 +285,16 @@ export function RedCupIcon({ size, className }: IconProps) {
   );
 }
 
+/** One point of energy: a toy lightning bolt, blue by default so it never reads as a coin. */
+export function EnergyIcon({ size, className, fill = "#62c7ff" }: IconProps & { fill?: string }) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M37 5 L13 36 H29 L25 59 L51 26 H34 L37 5 Z" fill={fill} {...OUTLINE} />
+      <path d="M33 14 L21 31" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" opacity="0.6" />
+    </IconFrame>
+  );
+}
+
 export function CoinIcon({ size, className }: IconProps) {
   return (
     <IconFrame size={size} className={className}>
@@ -211,6 +307,50 @@ export function CoinIcon({ size, className }: IconProps) {
         strokeWidth="2"
         strokeLinejoin="round"
       />
+    </IconFrame>
+  );
+}
+
+const CLOVER_LEAVES = [
+  { cx: 32, cy: 19 },
+  { cx: 45, cy: 32 },
+  { cx: 32, cy: 45 },
+  { cx: 19, cy: 32 },
+];
+
+/**
+ * One of a player's online chances, as a four-leaf clover. The leaves are
+ * drawn twice, outlined then plain, so only the outer edge of the clover is inked.
+ */
+export function CloverIcon({ size, className }: IconProps) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M36 38 C42 46 46 52 52 58" fill="none" {...OUTLINE} strokeWidth={6} />
+      <path d="M36 38 C42 46 46 52 52 58" fill="none" stroke="#3f9b4f" strokeWidth={2.5} strokeLinecap="round" />
+      {CLOVER_LEAVES.map((leaf) => (
+        <circle key={`edge-${leaf.cx}-${leaf.cy}`} cx={leaf.cx} cy={leaf.cy} r="12" fill="#5cc96b" {...OUTLINE} />
+      ))}
+      {CLOVER_LEAVES.map((leaf) => (
+        <circle key={`leaf-${leaf.cx}-${leaf.cy}`} cx={leaf.cx} cy={leaf.cy} r="10.2" fill="#5cc96b" />
+      ))}
+      <path d="M32 14 V26 M38 32 H50 M32 38 V50 M14 32 H26" stroke="#3f9b4f" strokeWidth="2.5" strokeLinecap="round" />
+      <circle cx="28" cy="16" r="3" fill="#ffffff" opacity="0.55" />
+    </IconFrame>
+  );
+}
+
+/** Le diable's face, horns and grin: their banners and their count. */
+export function DevilIcon({ size, className }: IconProps) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M15 27 C9 18 10 9 16 4 C17 12 21 17 27 20 Z" fill="#8f1f1d" {...OUTLINE} />
+      <path d="M49 27 C55 18 54 9 48 4 C47 12 43 17 37 20 Z" fill="#8f1f1d" {...OUTLINE} />
+      <circle cx="32" cy="37" r="21" fill="#e8453c" {...OUTLINE} />
+      <path d="M19 29 L28 33.5 M45 29 L36 33.5" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="25" cy="38" r="3.2" fill={INK} />
+      <circle cx="39" cy="38" r="3.2" fill={INK} />
+      <path d="M21 45 Q32 56 43 45 Z" fill="#fff4ec" stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M26 21 C28 19 31 18 33 18" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity="0.45" />
     </IconFrame>
   );
 }

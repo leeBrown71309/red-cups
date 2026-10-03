@@ -34,6 +34,8 @@ export const SCENE_COLORS = {
   cupRed: "#e8453c",
   cupInner: "#fff4ec",
   mud: "#8a5a3c",
+  mudWet: "#4f2c17",
+  mudBubble: "#b07a52",
   wood: "#c98e5a",
   awningStripe: "#ffffff",
   highlight: "#fff3b0",

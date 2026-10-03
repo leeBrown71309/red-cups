@@ -1,16 +1,24 @@
 import { isTableBroke } from "../blessing";
 import { getBoard, getNeighbors } from "../board";
+import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
-import { BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_OWNER_REWARD, START_NODE_ID } from "../types";
-import { expectedBalance, newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
+import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
+import {
+  expectedBalance,
+  newLogTexts,
+  slidOnIce,
+  turnChanged,
+  violation,
+  type RuleViolation,
+} from "./invariant-helpers";
 
 /**
  * Checks for the table-wide events: Bullet Bill, the Tour de Bénédiction,
  * players leaving and mud paying whoever laid it.
  */
 
-/** Bullet Bill lands on the start when bought, then charges one or two tiles at the start of each round. */
+/** Bullet Bill lands on the start when bought, then charges one tile at the start of each round. */
 export function checkBulletBill(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (!previous.bulletBill && next.bulletBill) {
     const { status, position, spawnRound } = next.bulletBill;
@@ -23,16 +31,21 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const flew = flight !== null && flight.seq !== previous.lastBulletFlight?.seq;
   const bullet = previous.bulletBill;
   const due = bullet !== null && (bullet.status === "active" || bullet.spawnRound <= next.round);
-  const reachable = previous.players.some((player) => player.position !== HELL_NODE_ID);
+  const reachable = previous.players.some((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player));
   if (next.round > previous.round && due && reachable && !flew) {
     found.push(violation("bullet-charges", `Bullet Bill stayed put at the start of round ${next.round}`));
   }
   if (!flew || !flight) return;
 
-  if (!bullet || flight.from !== bullet.position) {
+  // When every seat skips, several rounds start within one action and Bullet Bill charges at each of
+  // them: only the first charge leaves from where it stood before the action.
+  const charges = flight.seq - (previous.lastBulletFlight?.seq ?? 0);
+  if (!bullet || (charges === 1 && flight.from !== bullet.position)) {
     found.push(violation("bullet-flight-start", `Bullet Bill took off from ${flight.from}`));
   }
-  if (flight.path.length > 2) found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  if (flight.path.length > BULLET_BILL_CHARGE_STEPS) {
+    found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
+  }
   const board = getBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
@@ -40,6 +53,23 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
       found.push(violation("bullet-follows-roads", `Bullet Bill flew ${landing} → ${step} off the roads`));
     }
     landing = step;
+  }
+
+  // Non merci: its victim cancelled the hit; it fizzles out on their tile.
+  if (flight.dodgedBy) {
+    const dodger = findPlayer(next, flight.dodgedBy);
+    const answered = previous.pendingReaction?.action.type === "bullet-bill";
+    // Banquise: the blizzard of the round that starts may carry the dodger away, or their own turn may begin
+    // with them breaking out of fallen ice onto the tile they were sliding to.
+    const thawed =
+      previous.frozenSlides.some((slide) => slide.playerId === flight.dodgedBy) &&
+      !next.frozenSlides.some((slide) => slide.playerId === flight.dodgedBy);
+    const carried = slidOnIce(previous, next, flight.dodgedBy) || thawed;
+    const onLanding = dodger?.position === landing || carried;
+    if (next.bulletBill !== null || !answered || !onLanding || flight.victimId !== null) {
+      found.push(violation("bullet-dodge", `Bullet Bill was dodged by ${flight.dodgedBy} without fizzling out`));
+    }
+    return;
   }
 
   if (!flight.victimId) {
@@ -54,18 +84,28 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const after = findPlayer(next, flight.victimId);
   if (!before || !after) return;
   const logs = newLogTexts(previous, next);
-  if (after.position !== landing) found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
+  // Knocked out on le diable's tile, the victim may go straight to Hell through their Toucher d'Enfer.
+  const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
+  // Banquise: the blizzard may freeze the victim's tile as the round begins, and the ice carry them away.
+  // Banquise: the ice may carry the victim away (blizzard) or, held in it, they break free as their turn begins.
+  const thawedVictim = next.lastMovement?.thawed === true && next.lastMovement.playerId === before.id;
+  if (after.position !== landing && !touched && !slidOnIce(previous, next, before.id) && !thawedVictim) {
+    found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
+  }
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.
   const releasedFromHell = logs.some((text) => text.startsWith(`${before.name} a purgé`));
   // Banquise: a thaw as the next turn begins may land the victim on a coloured tile, or pick up a
-  // Red Cup whose Troll then steals from the table.
+  // Red Cup whose Goblin then steals from the table.
   const thawed = next.lastMovement?.thawed === true && next.lastMovement.seq !== previous.lastMovement?.seq;
   // The last wheel of a Tour de Bénédiction pays out in the same action that opens the charging round.
   const wheelPaidToo = previous.pendingWheel !== null;
+  // Sent to Hell by Toucher d'Enfer, the victim may find the Black Cup there, and Goblins steal at the new Cup.
+  const cupFound = next.redCupCycle !== previous.redCupCycle;
   if (
     !releasedFromHell &&
     !thawed &&
     !wheelPaidToo &&
+    !cupFound &&
     after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)
   ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
@@ -118,6 +158,10 @@ export function checkBlessing(previous: GameState, next: GameState, found: RuleV
 export function checkAbandon(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (next.players.length >= previous.players.length) return;
   const gone = previous.players.filter((player) => !findPlayer(next, player.id));
+  // Online, forfeits wait for the table to rest: two players out of chances may leave together.
+  const logs = newLogTexts(previous, next);
+  const forfeits = gone.filter((player) => logs.includes(`${player.name} déclare forfait : trois tours sans jouer.`));
+  if (gone.length > 1 && forfeits.length === gone.length) return;
   if (gone.length !== 1) {
     found.push(violation("abandon-one-seat", `${gone.length} players left in a single action`));
     return;
@@ -136,13 +180,25 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
 
   const previousActive = previous.players[previous.activePlayerIndex];
   const nextActive = next.players[next.activePlayerIndex];
+  // L'Ange-Gardien takes the place of a protégé who leaves, in Hell: what arriving there sets off (a duel,
+  // the Black Cup and the next Cup's choices, their own turn going on from Hell) changes the stage.
+  const heirDuel = previous.guardian?.protegeId === leaver.id;
+  // Online, a forfeit is settled once the table is at rest, right after the action that got it there.
+  const forfeit = newLogTexts(previous, next).some((text) => text.startsWith(`${leaver.name} déclare forfait`));
+  if (forfeit) return;
   if (previousActive.id !== leaver.id) {
-    if (nextActive?.id !== previousActive.id || next.turnStage !== previous.turnStage) {
+    if (nextActive?.id !== previousActive.id || (next.turnStage !== previous.turnStage && !heirDuel)) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
-  } else if (!["move", "hell"].includes(next.turnStage) && !next.lastMovement?.thawed && !next.pendingDuel?.ghost) {
+  } else if (
+    !["move", "hell"].includes(next.turnStage) &&
+    !next.lastMovement?.thawed &&
+    !next.pendingDuel?.ghost &&
+    !heirDuel &&
+    next.pendingReaction?.action.type !== "bullet-bill"
+  ) {
     // The next player's turn opens with their thaw at Banquise, which may owe a wheel first,
-    // or with the Luna Park ghost riding onto somebody.
+    // or with the Luna Park ghost riding onto somebody; or the turn change waits for Non merci on Bullet Bill.
     found.push(violation("abandon-passes-turn", `after ${leaver.name} left the stage is ${next.turnStage}`));
   }
 }
@@ -152,12 +208,21 @@ export function checkMudReward(previous: GameState, next: GameState, found: Rule
   const triggered = previous.mudTraps.filter((trap) => !next.mudTraps.some((candidate) => candidate.id === trap.id));
   if (triggered.length === 0) return;
 
-  const victimId = next.lastMovement?.playerId;
   const logs = newLogTexts(previous, next);
+  // Walked into or sent there by a wheel: whoever the log shows falling in, not only the last walker.
+  const victimId = previous.players.find((player) => logs.includes(`${player.name} tombe dans la Boue.`))?.id;
+  // Chance aveugle slips in it instead: nobody pays, nobody earns.
+  const slipped = previous.players.some((player) =>
+    logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue`)),
+  );
   for (const trap of triggered) {
     const owner = findPlayer(previous, trap.ownerId);
     if (!owner) continue;
-    const paid = logs.includes(`${owner.name} touche ${MUD_OWNER_REWARD} pièces grâce à sa Boue.`);
+    const paid = logs.includes(`${owner.name} touche ${getMudOwnerReward(owner)} pièces grâce à sa Boue.`);
+    if (slipped && !victimId) {
+      if (paid) found.push(violation("mud-blind-luck", `${owner.name} was paid for Chance aveugle's slip`));
+      continue;
+    }
     if (owner.id !== victimId && !paid) found.push(violation("mud-pays-owner", `${owner.name} got nothing`));
     if (owner.id === victimId && paid) found.push(violation("mud-own-trap", `${owner.name} was paid by their own mud`));
   }

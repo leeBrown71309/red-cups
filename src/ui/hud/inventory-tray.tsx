@@ -6,6 +6,7 @@ import { useGameStore } from "../../game/store";
 import type { InventoryEntry, Player } from "../../game/types";
 import { getItemAvailability } from "../display/item-availability";
 import { useLocalPlayerId } from "../../net/room-store";
+import { EnergyCost } from "../components/energy-meter";
 import { useActivePlayer } from "../game-hooks";
 import { ItemIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -46,7 +47,7 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
 
   const useEntry = (entry: InventoryEntry) => {
     if (entry.kind !== "item") return;
-    const availability = getItemAvailability(entry.itemId, game, activePlayer);
+    const availability = getItemAvailability(entry.itemId, game, activePlayer, entry.id);
     if (!isOwnTurn || !availability.usable) return;
     setSelectedId(null);
     if (availability.kind === "prepare-boot") game.prepareBoot(entry.id);
@@ -63,7 +64,9 @@ export function InventoryTray({ onRequestTarget }: InventoryTrayProps) {
         {activePlayer.inventory.map((entry) => {
           const isCup = entry.kind === "red-cup";
           const usable =
-            isOwnTurn && entry.kind === "item" && getItemAvailability(entry.itemId, game, activePlayer).usable;
+            isOwnTurn &&
+            entry.kind === "item" &&
+            getItemAvailability(entry.itemId, game, activePlayer, entry.id).usable;
           return (
             <button
               key={entry.id}
@@ -119,9 +122,11 @@ interface ItemCardBodyProps {
 function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
   const game = useGameStore();
   const item = ITEM_CATALOG[entry.itemId];
-  const availability = getItemAvailability(entry.itemId, game, player);
+  const availability = getItemAvailability(entry.itemId, game, player, entry.id);
   const usable = ownTurn && availability.usable;
-  const reason = ownTurn ? availability.reason : "Attends ton tour pour l’utiliser.";
+  // The Casque, the Gomme, the Toucher d'Enfer and the Bouclier act on their own: no button, just when.
+  const automatic = availability.kind === "passive";
+  const reason = ownTurn || automatic ? availability.reason : "Attends ton tour pour l’utiliser.";
 
   return (
     <>
@@ -132,13 +137,19 @@ function ItemCardBody({ entry, player, ownTurn, onUse }: ItemCardBodyProps) {
             {item.name}
             {getEntryUnits(entry) > 1 && ` ×${getEntryUnits(entry)}`}
           </strong>
-          {item.target === "player" && <span className="item-card__tag">Cible un joueur</span>}
+          <span className="item-card__tags">
+            <EnergyCost cost={item.energyCost} />
+            {item.target === "player" && <span className="item-card__tag">Cible un joueur</span>}
+            {automatic && <span className="item-card__tag item-card__tag--auto">{availability.actionLabel}</span>}
+          </span>
         </div>
       </div>
       <p>{item.description}</p>
-      <button type="button" className="btn btn--cup btn--small btn--block" disabled={!usable} onClick={onUse}>
-        {availability.actionLabel}
-      </button>
+      {!automatic && (
+        <button type="button" className="btn btn--cup btn--small btn--block" disabled={!usable} onClick={onUse}>
+          {availability.actionLabel}
+        </button>
+      )}
       {reason && <small className="item-card__reason">{reason}</small>}
     </>
   );

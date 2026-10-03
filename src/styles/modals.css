@@ -126,6 +126,156 @@
   }
 }
 
+/* ---------- Passive draft ---------- */
+.draft-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.draft-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  width: 100%;
+  min-height: 150px;
+  padding: 14px 12px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--white);
+  box-shadow: 0 4px 0 var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.draft-card:hover {
+  transform: translateY(-2px);
+}
+
+.draft-card.is-selected {
+  background: #f3e8ff;
+  box-shadow:
+    0 0 0 3px #9b5de5,
+    0 4px 0 var(--ink);
+}
+
+.draft-card__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.draft-card__text {
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.draft-card__picked {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: #9b5de5;
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.draft-handover {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  text-align: center;
+}
+
+.draft-note {
+  margin: 12px 0 8px;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  text-align: center;
+}
+
+.draft-roster {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.draft-roster li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 4px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-size: 0.82rem;
+}
+
+.draft-roster li.is-picked small {
+  color: #2f8f46;
+  font-weight: 700;
+}
+
+/* After the draft: the countdown before the first turn. */
+.game-countdown {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
+  background: rgba(30, 18, 40, 0.35);
+  color: var(--white);
+  text-shadow: 0 3px 0 var(--ink);
+  pointer-events: none;
+}
+
+.game-countdown__label {
+  font-family: var(--font-display);
+  font-size: clamp(1.1rem, 3vw, 1.6rem);
+  font-weight: 700;
+}
+
+.game-countdown__number {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 14vw, 8rem);
+  line-height: 1;
+  animation: countdown-pop 1s ease-out;
+}
+
+@keyframes countdown-pop {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  30% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-countdown__number {
+    animation: none;
+  }
+}
+
 /* ---------- Shop ---------- */
 .shop-status {
   display: flex;
@@ -148,6 +298,14 @@
 
 .shop-status__wallet {
   font-size: 1.15rem;
+}
+
+/* Le diable's two stalls. */
+.shop-status > .shop-tabs {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
 }
 
 .shop-layout {
@@ -205,6 +363,22 @@
   font-weight: 600;
   line-height: 1.1;
   text-align: center;
+}
+
+.shop-item__chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.shop-detail__energy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  text-align: left;
 }
 
 .shop-detail {
@@ -690,14 +864,6 @@
   font-size: 0.78rem;
 }
 
-.calm-down {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-
 /* ---------- Non merci reaction ---------- */
 .reaction {
   display: grid;
@@ -745,6 +911,68 @@
   background: var(--ink);
   color: var(--white);
   font-size: 0.85rem;
+}
+
+/* Several copies in one purchase: minus, the count, plus, and straight to the most possible. */
+.quantity-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.quantity-picker__label {
+  margin-right: auto;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.quantity-picker__step {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+.quantity-picker__step:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(3px);
+}
+
+.quantity-picker__step:disabled,
+.quantity-picker__max:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.quantity-picker__value {
+  min-width: 2ch;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.quantity-picker__max {
+  flex: none;
+  padding: 4px 10px;
+  white-space: nowrap;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--gold-light);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .reaction__hint {
@@ -828,6 +1056,13 @@
   font-weight: 900;
   letter-spacing: -2px;
   line-height: 1;
+}
+
+/* An arrow tile, drawn like the plan's tiles: the arrow grows out of the tile. */
+.legend-arrow-tile {
+  flex: none;
+  width: 46px;
+  height: 22px;
 }
 
 .legend-road--tunnel {
@@ -922,128 +1157,183 @@
   font-weight: 700;
 }
 
-.help-items,
-.help-passives {
+/*
+ * Items and passives: cards of one height, the name and the costs on top,
+ * the description below in a block that scrolls when it runs long.
+ */
+.help-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
   gap: 10px;
 }
 
-.help-item {
+.help-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 16px;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  height: 172px;
+  padding: 10px 12px 10px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 18px;
   background: var(--white);
+  box-shadow: 0 3px 0 var(--paper-edge);
 }
 
-.help-item strong,
-.help-passives strong {
+.help-card--passive {
+  height: 162px;
+  border-color: color-mix(in srgb, var(--grape) 35%, var(--paper-edge));
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--grape) 35%, var(--paper-edge));
+}
+
+.help-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.help-card__art {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  background: var(--cream-2);
+}
+
+.help-card__art--passive {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--grape);
+  color: var(--white);
+}
+
+.help-card__title {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.help-card__title strong {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.help-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.help-card__chips .price-chip {
+  font-size: 0.78rem;
+}
+
+.help-card__tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--grape-light);
+  color: var(--grape-deep);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.help-card__text {
+  min-height: 0;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--cream);
+}
+
+.help-card__text p {
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.3;
+}
+
+/* Board tab: the headings over the mechanics, the tiles and the roads. */
+.help-section-title {
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.help-mechanics {
+  display: grid;
+  gap: 8px;
+}
+
+.help-mechanics__list {
+  display: grid;
+  gap: 8px;
+}
+
+.help-mechanic {
+  --mechanic-color: var(--sky);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 2px solid color-mix(in srgb, var(--mechanic-color) 45%, var(--paper-edge));
+  border-left-width: 6px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--mechanic-color) 10%, var(--white));
+}
+
+.help-mechanic--ice {
+  --mechanic-color: #4fa5f2;
+}
+
+.help-mechanic--fair {
+  --mechanic-color: #ff4fa3;
+}
+
+.help-mechanic--night {
+  --mechanic-color: #6038a8;
+}
+
+.help-mechanic__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--mechanic-color);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.help-mechanic__body {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.help-mechanic__body strong {
   font-family: var(--font-display);
   font-weight: 600;
 }
 
-.help-item p,
-.help-passives p {
+.help-mechanic__body p {
   color: var(--ink-soft);
-  font-size: 0.84rem;
-  line-height: 1.25;
-}
-
-.help-passives > li {
-  padding: 10px 14px;
-  border-left: 5px solid var(--grape);
-  border-radius: 12px;
-  background: var(--white);
-}
-
-/* Every condition of an item or a passive, one at a time, under its one-line summary. */
-.detail-carousel {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 24px;
-  align-items: center;
-  gap: 6px;
-  margin-top: 6px;
-  padding: 4px 5px;
-  border-radius: 12px;
-  background: var(--cream-2);
-  text-align: left;
-}
-
-.detail-carousel__arrow {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-  background: var(--white);
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 700;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.detail-carousel__arrow:disabled {
-  visibility: hidden;
-}
-
-.detail-carousel__slide {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  min-height: 2.8em;
-  align-content: center;
-}
-
-/* In an item card the rules take the whole width, under the icon, the name and the price. */
-.help-item .detail-carousel {
-  grid-column: 1 / -1;
-  margin-top: 0;
-}
-
-.detail-carousel__slide p {
-  color: var(--ink-soft);
-  font-size: 0.78rem;
-  line-height: 1.25;
-  animation: detail-slide-in 220ms var(--ease-out) both;
-}
-
-.detail-carousel__dots {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-}
-
-.detail-carousel__dots span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--paper-edge);
-}
-
-.detail-carousel__dots span.is-active {
-  background: var(--grape);
-}
-
-@keyframes detail-slide-in {
-  from {
-    opacity: 0;
-    transform: translateX(8px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .detail-carousel__slide p {
-    animation: none;
-  }
-}
-
-.shop-detail .detail-carousel {
-  justify-self: stretch;
+  font-size: 0.82rem;
+  line-height: 1.3;
 }
 
 /* ---------- Pause & journal ---------- */
@@ -1051,6 +1341,59 @@
   display: grid;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+/* The host's pause covers every decision left open underneath. */
+.modal-layer:has(> .pause-overlay) {
+  z-index: 45;
+}
+
+.pause-overlay .modal-card__body {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.pause-overlay__badge {
+  display: grid;
+  place-items: center;
+  width: 68px;
+  height: 68px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sky);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--white);
+  animation: pause-breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes pause-breathe {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+.pause-overlay__elapsed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--white);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pause-overlay__note {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.pause-overlay .modal-actions {
+  justify-content: center;
 }
 
 .audio-sliders {

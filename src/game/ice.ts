@@ -1,13 +1,18 @@
-import { getBlizzardCandidates, getBoard, getSlideExits, isIce } from "./board";
+import { getBlizzardCandidates, getBoard, getNeighbors, getSlideExits, hasIce, isIce, type Board } from "./board";
 import { drawEngineRandom } from "./engine-random";
-import { addLog, randomChoice } from "./state-utils";
-import type { GameState, NodeId } from "./types";
+import { addLog, findPlayer, randomChoice, updatePlayer } from "./state-utils";
+import type { GameState, NodeId, PlayerId } from "./types";
 import { ICE_FALL_CHANCE } from "./types";
 
 /**
  * Banquise rules that need luck: where a slide goes, whether ice falls on a
  * player sliding towards the Red Cup, and where the blizzard lays its ice.
  * Luck goes through the engine source, so online devices all draw the same.
+ *
+ * Nobody stays on ice (patch 0.1.4, rule of the game's author): whatever
+ * brings a player onto it, a walk, a wheel, a pull, a swap or a trip to a
+ * frozen start, they slide on to a tile without ice. Only a player caught by
+ * falling ice waits on it, halfway down the road, until their next turn.
  */
 
 export interface SlideOutcome {
@@ -20,24 +25,40 @@ export interface SlideOutcome {
 }
 
 /**
- * A walk that ends on ice slides on, one random road at a time, until it
- * reaches a tile without ice. It never goes back the way it came nor loops
- * over a tile it already crossed. Sliding towards the Red Cup, the player may
- * be caught by falling ice and stop halfway.
+ * Where a slide may go on from `iceNodeId`: a road it has not crossed yet,
+ * never back the way it came. When every road on was already crossed, it
+ * stops on the first of them without ice; at a dead end (an arrow pointing
+ * back the way it came), it goes back. Nobody stays on ice.
  */
-export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId[]): SlideOutcome {
+export function getSlideChoices(board: Board, previous: NodeId, iceNodeId: NodeId, crossed: Set<NodeId>): NodeId[] {
+  const onward = getSlideExits(board, previous, iceNodeId);
+  const fresh = onward.filter((nodeId) => !crossed.has(nodeId));
+  if (fresh.length > 0) return fresh;
+  const solidOnward = onward.filter((nodeId) => !isIce(board, nodeId));
+  if (solidOnward.length > 0) return solidOnward;
+  return getNeighbors(board, iceNodeId).filter((nodeId) => !isIce(board, nodeId));
+}
+
+/**
+ * A walk that ends on ice slides on, one random road at a time, until it
+ * reaches a tile without ice (see `getSlideChoices`). Sliding towards the Red
+ * Cup, the player may be caught by falling ice and stop halfway; `iceFall`
+ * false leaves the ice out, for a player it merely carries away.
+ */
+export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId[], iceFall = true): SlideOutcome {
   const board = getBoard(state);
   const outcome: SlideOutcome = { slide: [], interruptedTo: null, iceFall: null };
   if (walkedPath.length === 0) return outcome;
 
-  const visited = new Set<NodeId>([walkFrom, ...walkedPath]);
+  const crossed = new Set<NodeId>([walkFrom, ...walkedPath]);
   let previous = walkedPath.length >= 2 ? walkedPath[walkedPath.length - 2] : walkFrom;
   let current = walkedPath[walkedPath.length - 1];
 
-  while (isIce(board, current)) {
-    const next = randomChoice(getSlideExits(board, previous, current).filter((nodeId) => !visited.has(nodeId)));
+  // Each step either reaches a tile without ice or a new one: the board's size bounds the slide.
+  for (let guard = 0; isIce(board, current) && guard < board.nodes.length; guard += 1) {
+    const next = randomChoice(getSlideChoices(board, previous, current, crossed));
     if (next === undefined) break;
-    if (next === state.redCupNodeId) {
+    if (iceFall && next === state.redCupNodeId) {
       const hit = drawEngineRandom() < ICE_FALL_CHANCE;
       outcome.iceFall = { from: current, to: next, hit };
       if (hit) {
@@ -46,19 +67,132 @@ export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId
       }
     }
     outcome.slide.push(next);
-    visited.add(next);
+    crossed.add(next);
     previous = current;
     current = next;
   }
   return outcome;
 }
 
-/** A tile for the blizzard's ice, never under the Red Cup (one waiting to be revealed included). */
-export function pickBlizzardTile(state: GameState): NodeId | null {
+/** Whether falling ice holds `playerId` on the tile they stand on, until their next turn. */
+export function isHeldByIce(state: GameState, playerId: PlayerId): boolean {
+  const player = findPlayer(state, playerId);
+  return state.frozenSlides.some((entry) => entry.playerId === playerId && entry.from === player?.position);
+}
+
+/**
+ * Writes down a slide already applied to the player's position: its log line,
+ * the fall of ice it met and, when the ice caught them on `stuckOn`, the slide
+ * put on hold until their next turn.
+ */
+export function recordSlide(state: GameState, playerId: PlayerId, outcome: SlideOutcome, stuckOn: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  let nextState = state;
+  const end = outcome.slide[outcome.slide.length - 1];
+  if (end !== undefined) {
+    nextState = addLog(nextState, `${player.name} glisse sur la glace jusqu’en case ${end}.`, "event");
+  }
+  if (outcome.iceFall) {
+    const { to, hit } = outcome.iceFall;
+    nextState = {
+      ...nextState,
+      lastIceFall: { seq: (state.lastIceFall?.seq ?? 0) + 1, playerId, ...outcome.iceFall },
+    };
+    nextState = addLog(
+      nextState,
+      hit
+        ? `La glace tombe sur ${player.name}, pris au piège sur la route de la case ${to}.`
+        : `La glace tombe à côté de ${player.name}, qui file vers la case ${to}.`,
+      hit ? "bad" : "event",
+    );
+  }
+  if (outcome.interruptedTo !== null) {
+    nextState = {
+      ...nextState,
+      frozenSlides: [
+        ...nextState.frozenSlides.filter((entry) => entry.playerId !== playerId),
+        { playerId, from: stuckOn, to: outcome.interruptedTo },
+      ],
+    };
+  }
+  return nextState;
+}
+
+/**
+ * A wheel set `playerId` down on a tile (the start, the tile they came from),
+ * coming from `cameFrom`: on ice, they slide on as at the end of a walk, and
+ * the caller makes them arrive where the slide stops. Falling ice is a walk's
+ * hazard only: nobody set down is caught by it.
+ */
+export function slideOnArrival(state: GameState, playerId: PlayerId, cameFrom: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player || !isIce(getBoard(state), player.position)) return state;
+  const outcome = drawSlide(state, cameFrom, [player.position], false);
+  const end = outcome.slide[outcome.slide.length - 1] ?? player.position;
+  const moved = updatePlayer(state, playerId, (current) => ({ ...current, position: end }));
+  return recordSlide(moved, playerId, outcome, end);
+}
+
+/**
+ * `playerId` was just set down on ice some other way than walking, coming
+ * from `cameFrom`: the blizzard froze their tile, or a trip to a frozen start,
+ * a swap, a pull or a step back out of the mud left them there. The ice
+ * carries them away at once, so whatever follows sees them where they end up.
+ * It only carries them: the tile it leaves them on is no arrival, neither
+ * wheel, shop, mud nor Red Cup, and no ice falls on them.
+ */
+export function carryOffIce(state: GameState, playerId: PlayerId, cameFrom: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player || !isIce(getBoard(state), player.position) || isHeldByIce(state, playerId)) return state;
+  const outcome = drawSlide(state, cameFrom, [player.position], false);
+  const end = outcome.slide[outcome.slide.length - 1];
+  if (end === undefined) return state;
+  const moved = updatePlayer(state, playerId, (current) => ({ ...current, position: end }));
+  // No arrival: a wheel still owed from an earlier visit to that tile is not spun now. A slide the ice
+  // held them on earlier, before something moved them off it, is over too.
+  const carried: GameState = {
+    ...moved,
+    pendingTileWheels: moved.pendingTileWheels.filter((entry) => entry.playerId !== playerId || entry.nodeId !== end),
+    frozenSlides: moved.frozenSlides.filter((entry) => entry.playerId !== playerId),
+  };
+  return addLog(carried, `La glace emporte ${player.name} jusqu’en case ${end}.`, "event");
+}
+
+/**
+ * A slide the ice holds is over once the player was moved off it (pulled,
+ * swapped, sent to Hell): coming back to that tile later must not finish it.
+ */
+function forgetBrokenHolds(state: GameState): GameState {
+  const held = state.frozenSlides.filter((entry) => findPlayer(state, entry.playerId)?.position === entry.from);
+  return held.length === state.frozenSlides.length ? state : { ...state, frozenSlides: held };
+}
+
+/**
+ * After every action, a safety net: anybody still left on ice is carried off
+ * it (see `carryOffIce`), from where they stood before the action, and the
+ * holds of players moved off their ice are forgotten.
+ */
+export function slideOffIce(before: GameState, after: GameState): GameState {
+  if (!hasIce(getBoard(after))) return after;
+  const carried = after.players.reduce(
+    (state, player) => carryOffIce(state, player.id, findPlayer(before, player.id)?.position ?? player.position),
+    after,
+  );
+  return forgetBrokenHolds(carried);
+}
+
+/**
+ * A tile for the blizzard's ice, never under the Red Cup (one waiting to be
+ * revealed included), nor on `excluded`. It may freeze a tile a player stands
+ * on: the ice then carries them away at once (see `slideOffIce`).
+ */
+export function pickBlizzardTile(state: GameState, excluded: NodeId[] = []): NodeId | null {
   const candidates = getBlizzardCandidates(getBoard(state), [
     state.iceTileNodeId,
     state.redCupNodeId,
     state.pendingCupRevealNodeId,
+    ...excluded,
   ]);
   return randomChoice(candidates) ?? null;
 }
@@ -83,5 +217,8 @@ export function blowBlizzard(state: GameState): GameState {
     nextTile === null
       ? "Blizzard ! Aucune case ne gèle."
       : `Blizzard ! La case ${nextTile} devient glissante${melted}.`;
-  return addLog(nextState, text, "event");
+  // Whoever stands on the tile it froze slides off at once, before the round goes on.
+  return state.players
+    .filter((player) => player.position === nextTile)
+    .reduce((current, player) => carryOffIce(current, player.id, player.position), addLog(nextState, text, "event"));
 }

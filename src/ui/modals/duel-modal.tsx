@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getHumanDuellistIds, isDuellist } from "../../game/duel";
+import { describeCoinReward } from "../../game/ghost";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { useGameStore } from "../../game/store";
 import type { GhostStakes, PendingDuel, PlayerId, RpsChoice } from "../../game/types";
@@ -10,6 +11,7 @@ import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
 import { UiIcon } from "../icons/ui-icon";
 import { BasketGame } from "./basket-game";
+import { BlackjackGame } from "./blackjack-game";
 import { DuellistAvatar, findDuellist, isGhost, type Duellist } from "./duellists";
 
 const RPS_OPTIONS: { id: RpsChoice; label: string; emoji: string }[] = [
@@ -117,6 +119,8 @@ function DuelArena({ duel, first, second }: DuelArenaProps) {
         <RockPaperScissors duel={duel} first={first} second={second} />
       ) : duel.mode === "basket" ? (
         <BasketGame duel={duel} first={first} second={second} />
+      ) : duel.mode === "blackjack" ? (
+        <BlackjackGame duel={duel} first={first} second={second} />
       ) : (
         <TableVote duel={duel} first={first} second={second} />
       )}
@@ -150,9 +154,7 @@ function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; play
     const text =
       reward.kind === "item"
         ? `${player.name} reprend ${ITEM_CATALOG[reward.itemId].name} dans le butin du fantôme.`
-        : reward.fromLoot
-          ? `${player.name} reprend ${reward.amount} pièces dans le butin du fantôme.`
-          : `Son butin est vide : ${player.name} gagne ${reward.amount} pièces.`;
+        : describeCoinReward(player.name, reward);
     return <p>{text} Le fantôme s’évapore pour quelques tours.</p>;
   }
   const { penalty } = stakes;
