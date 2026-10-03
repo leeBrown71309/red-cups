@@ -6,7 +6,8 @@ import { createDuel } from "./duel-setup";
 import {
   CLOCK_GRACE_MS,
   DECISION_TIME_MS,
-  DUEL_SAFETY_TIME_MS,
+  getClockMsLeft,
+  HELD_CLOCK_SAFETY_MS,
   getClockDeadline,
   TURN_TIME_MS,
   updateClocks,
@@ -110,6 +111,25 @@ describe("online turn clock during a duel", () => {
     const duel = createDuel(state.players[0].id, state.players[1].id, "coin-flip", "turn-end");
     const duelling = updateClocks({ ...state, turnStage: "duel", pendingDuel: duel }, 10_000);
     expect(duelling.turnClock).toMatchObject({ runningSince: null, remainingMs: TURN_TIME_MS - 7_000 });
-    expect(getClockDeadline(duelling)).toBe(10_000 + CLOCK_GRACE_MS + DUEL_SAFETY_TIME_MS);
+    expect(getClockDeadline(duelling)).toBe(10_000 + CLOCK_GRACE_MS + HELD_CLOCK_SAFETY_MS);
+  });
+});
+
+describe("online turn clock as players see it", () => {
+  it("stands still at the full turn until the countdown and the animations are over", () => {
+    const state = onlineTable(["lambda", "lambda"]);
+    expect(getClockMsLeft(state, 0)).toBe(TURN_TIME_MS);
+    expect(getClockMsLeft(state, CLOCK_GRACE_MS - 1)).toBe(TURN_TIME_MS);
+    expect(getClockMsLeft(state, CLOCK_GRACE_MS + 5_000)).toBe(TURN_TIME_MS - 5_000);
+  });
+
+  it("holds the turn while a tile's wheel spins, but not in the shop", () => {
+    const state = onlineTable(["lambda", "lambda"]);
+    const wheel = updateClocks({ ...state, turnStage: "tile-wheel" }, 10_000);
+    expect(wheel.turnClock?.runningSince).toBeNull();
+    expect(getClockDeadline(wheel)).toBe(10_000 + CLOCK_GRACE_MS + HELD_CLOCK_SAFETY_MS);
+
+    const shop = updateClocks({ ...state, turnStage: "shop" }, 10_000);
+    expect(shop.turnClock?.runningSince).toBe(10_000 + CLOCK_GRACE_MS);
   });
 });

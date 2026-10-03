@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { soundEffects } from "../../audio/sound-effects";
 import { useGameStore } from "../../game/store";
-import { getClockDeadline, getClockOwnerIds } from "../../game/turn-clock";
+import { getClockDeadline, getClockMsLeft, getClockOwnerIds } from "../../game/turn-clock";
 import { getServerNow, useLocalPlayerId } from "../../net/room-store";
 
 /** The beeps start once this many seconds are left. */
@@ -22,7 +22,9 @@ export function useClockBeeps(): void {
   useEffect(() => {
     if (deadline === null || !isMine) return undefined;
     const check = () => {
-      const seconds = Math.ceil((deadline - getServerNow()) / 1_000);
+      const msLeft = getClockMsLeft(useGameStore.getState(), getServerNow());
+      if (msLeft === null) return;
+      const seconds = Math.ceil(msLeft / 1_000);
       if (seconds < 1 || seconds > BEEP_FROM_SECONDS) return;
       // One beep per second of this deadline, however often the check runs.
       const key = `${deadline}:${seconds}`;

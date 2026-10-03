@@ -39,7 +39,7 @@ function getTurnSteps(mapId: MapId): string[] {
     "Avant la partie, chacun choisit son passif parmi ses cartes (3, ou 2 au-delà de 6 joueurs), jamais les mêmes " +
       "que celles des autres. En ligne, la table a une minute ; en local, l’écran passe de main en main.",
     "En ligne, ton tour dure 45 secondes, et les décisions des autres 20 : à la fin, le choix par défaut s’applique. " +
-      "Un tour passé sans rien faire te coûte une chance ; à la troisième, tu déclares forfait. L’hôte peut " +
+      "Il s’arrête pendant les duels et les roues, pas dans la boutique. Un tour passé sans rien faire te coûte une chance ; à la troisième, tu déclares forfait. L’hôte peut " +
       "mettre la partie en pause : tous les chronos s’arrêtent.",
     `À ton tour, tu as ${BASE_ENERGY} points d’énergie. Utilise d’abord tes objets : chacun coûte son énergie, ` +
       "affichée sur l’objet. La Tomate, la Gomme et le Casque sont gratuits.",
