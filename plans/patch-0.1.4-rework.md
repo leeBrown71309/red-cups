@@ -644,6 +644,24 @@ Reçues le 2026-10-02 ; la section 13 de la spec donne le statut de chaque choix
 
 Les choix pris sans l'auteur, lot par lot, sont rassemblés dans la spec, section 13 « Choix à valider du patch 0.1.4 » : chaque ligne dit ce que fait le jeu et si le choix est déjà validé. Chaque nouveau lot y ajoute les siens, pour une relecture d'ensemble avec l'auteur une fois tous les lots faits.
 
+## Retours de l'auteur sur la version jouée
+
+Treize retours après une partie, plus les bips du chrono demandés ensuite ; le bras de fer en local (touches A et L) attend.
+
+- **Boutique** : sélecteur de quantité (−, +, Max) dès que deux exemplaires ou plus peuvent s'acheter ; `buyItem` prend un `count` et achète d'un bloc ou rien (`src/game/shopping.ts`).
+- **Duels** : le chrono du tour reste en pause ; un filet de sécurité de 2 minutes par étape remplace les 20 secondes, affiché à 15 secondes de la fin.
+- **Bips** : les 10 dernières secondes de tout chrono bipent sur l'appareil de celui qui décide (`use-clock-beeps.ts`, draft compris).
+- **Tomates** : une seule pile par sac sauf Tomato Enjoyer, qui lance aussi autant de piles qu'il veut par tour ; la roue « perds un objet » emporte la pile entière.
+- **Objets automatiques** : Casque, Gomme, Toucher d'Enfer et Bouclier n'ont plus de bouton dans le sac.
+- **Fantôme** : le Bouclier de son butin rapporte 400 pièces à qui n'est pas l'Ange-Gardien.
+- **Roue de l'Enfer** : son duel n'appelle plus Chance aveugle (`canBeChallenged`).
+- **Bannières** : tête de diable pour l'annonce, Doomsday et Black Cup ; trèfle pour la dernière chance.
+- **Son d'achat** : une Tomate ajoutée à sa pile ne change pas le nombre de places ; l'achat se lit maintenant au nombre d'objets du sac.
+- **Toucher d'Enfer** : au changement de tour, il frappe avant que le tour sauté d'un joueur assommé ne soit consommé (Bullet Bill en début de tour de table, diable déjà sur la case).
+- **Le diable** : il compte les tours que les autres commencent en Enfer (`devilHellTurns`, sauvegarde en version 22) et gagne 100 pièces à chaque descente en Enfer.
+
+Choix à valider : section 13 de la spec, « Retours de l'auteur ».
+
 ## Réponses de l'auteur aux 20 questions
 
 Les réponses sont reçues. Le « Lot » indique où chacune s'applique.

@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { withPassives } from "./forced-passives";
 import { reduceGame, type GameAction } from "./game-actions";
 import { isSameRules } from "../net/room-protocol";
-import { CLOCK_GRACE_MS, DECISION_TIME_MS, getClockDeadline, TURN_TIME_MS } from "./turn-clock";
+import { createDuel } from "./duel-setup";
+import {
+  CLOCK_GRACE_MS,
+  DECISION_TIME_MS,
+  DUEL_SAFETY_TIME_MS,
+  getClockDeadline,
+  TURN_TIME_MS,
+  updateClocks,
+} from "./turn-clock";
 import type { GameState, InventoryEntry, PassiveId, Player } from "./types";
 import { EMPTY_GAME_STATE, RULES_VERSION } from "./types";
 
@@ -93,5 +101,15 @@ describe("online turn clock", () => {
     expect(isSameRules({ ...EMPTY_GAME_STATE, rulesVersion: RULES_VERSION })).toBe(true);
     expect(isSameRules({ ...EMPTY_GAME_STATE, rulesVersion: "0.1.3" })).toBe(false);
     expect(isSameRules(null)).toBe(true);
+  });
+});
+
+describe("online turn clock during a duel", () => {
+  it("holds the turn's clock and gives the duel only a long safety net", () => {
+    const state = onlineTable(["lambda", "lambda"]);
+    const duel = createDuel(state.players[0].id, state.players[1].id, "coin-flip", "turn-end");
+    const duelling = updateClocks({ ...state, turnStage: "duel", pendingDuel: duel }, 10_000);
+    expect(duelling.turnClock).toMatchObject({ runningSince: null, remainingMs: TURN_TIME_MS - 7_000 });
+    expect(getClockDeadline(duelling)).toBe(10_000 + CLOCK_GRACE_MS + DUEL_SAFETY_TIME_MS);
   });
 });

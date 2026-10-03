@@ -4,7 +4,7 @@ import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { setActionRelay, useGameStore } from "../game/store";
 import type { MapId, PlayerId } from "../game/types";
-import { EXPIRY_MARGIN_MS, getClockDeadline, getClockDeciderIds, isActiveDecision } from "../game/turn-clock";
+import { EXPIRY_MARGIN_MS, getClockDeadline, getClockOwnerIds } from "../game/turn-clock";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
 import { createRandomSeed } from "../utils/seeded-random";
@@ -258,8 +258,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
     const deadline = getClockDeadline(game);
     if (view !== "playing" || !myUserId || deadline === null || deadline === lastExpiredDeadline) return;
     const playerId = getPlayerIdOfUser(seatOrder, myUserId);
-    const deciders = isActiveDecision(game) ? [game.players[game.activePlayerIndex]?.id] : getClockDeciderIds(game);
-    const margin = playerId && deciders.includes(playerId) ? 0 : EXPIRY_MARGIN_MS;
+    const margin = playerId && getClockOwnerIds(game).includes(playerId) ? 0 : EXPIRY_MARGIN_MS;
     if (getServerNow() < deadline + margin) return;
     lastExpiredDeadline = deadline;
     enqueue(() => sendAction({ type: "expireClock" }));

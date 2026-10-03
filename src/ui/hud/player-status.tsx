@@ -45,13 +45,13 @@ export function getChancesLeft(state: Pick<GameState, "idleStrikes">, player: Pl
 
 function getRoleStatus(state: GameState, player: Player): PlayerStatus | null {
   if (player.passiveId === "devil") {
-    const count = `${state.devilHellEntries}/${getDevilGoalFor(state)}`;
+    const count = `${state.devilHellTurns}/${getDevilGoalFor(state)}`;
     return {
       id: "devil",
       tone: "devil",
       icon: <UiIcon name="flame" size={11} strokeWidth={3} />,
       short: count,
-      label: `Le diable : entrées en Enfer des autres joueurs ${count}`,
+      label: `Le diable : tours passés en Enfer par les autres ${count}`,
     };
   }
   const guardian = state.guardian;

@@ -50,28 +50,28 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
       };
     case "devil-announced":
       return {
-        tone: "danger",
+        tone: "devil",
         eyebrow: "Le diable est à table",
         title: `${playerName(event.playerId)} est le diable !`,
-        detail: `Il gagne dès que les autres seront entrés ${event.goal} fois en Enfer. Méfiez-vous de sa boutique.`,
+        detail: `Il gagne quand les autres auront passé ${event.goal} tours en Enfer. Méfiez-vous de sa boutique.`,
       };
     case "last-chance":
       return {
-        tone: "danger",
+        tone: "chances",
         eyebrow: "Dernière chance",
         title: `${playerName(event.playerId)}, à toi de jouer !`,
         detail: "Encore un tour qui passe sans jouer, et c’est le forfait.",
       };
     case "doomsday-started":
       return {
-        tone: "danger",
+        tone: "devil",
         eyebrow: "Doomsday",
         title: "Toutes les cases sont maudites !",
         detail: "Jusqu’au prochain tour du diable, chaque case fait tourner la roue du malheur.",
       };
     case "black-cup-cast":
       return {
-        tone: "danger",
+        tone: "devil",
         eyebrow: "Black Cup",
         title: "La Red Cup plonge en Enfer !",
         detail: "Elle y reste deux tours de table. Qui arrive en Enfer d’ici là la ramasse.",

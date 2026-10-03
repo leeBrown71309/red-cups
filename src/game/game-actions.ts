@@ -7,21 +7,15 @@ import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
-import { announceDevil, countHellEntries, leaveHell } from "./devil";
+import { announceDevil, leaveHell, rewardDevilInHell } from "./devil";
 import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
 import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
 import { pauseGame, resumeGame } from "./pause";
+import { buyItem, isOnShelf } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
-import {
-  avoidsHell,
-  canBuyItemKind,
-  getStartingCurrency,
-  getTheftPenalty,
-  getTheftRisk,
-  isDoomed,
-} from "./passive-rules";
+import { canBeChallenged, getStartingCurrency, getTheftPenalty, getTheftRisk, isDoomed } from "./passive-rules";
 import { checkVictories } from "./victory";
 import { getDefaultAction } from "./clock-defaults";
 import {
@@ -61,22 +55,14 @@ import {
   startWheel,
   validTileWheels,
 } from "./game-effects";
-import {
-  canAddItem,
-  canStartNewSlot,
-  canUseNoThanks,
-  getForwardTiles,
-  getItemPrice,
-  getTileWheelFor,
-  isOnSale,
-  opensShop,
-} from "./rules";
+import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getItemPrice, getTileWheelFor } from "./rules";
 import {
   addLog,
   appendItem,
   applyCurrencyChange,
   findPlayer,
   getActivePlayer,
+  getEntryUnits,
   getItemEntry,
   makeLog,
   placeInHell,
@@ -149,7 +135,8 @@ export type GameAction =
   | { type: "leaveHell" }
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
   | { type: "rescueProtege" }
-  | { type: "buyItem"; itemId: ItemId }
+  /** `count`: copies bought in one go, one by default. */
+  | { type: "buyItem"; itemId: ItemId; count?: number }
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
@@ -345,8 +332,11 @@ function applyWheelOutcome(
       const entry = randomChoice(player.inventory.filter((candidate) => candidate.kind === "item"));
       // Never a Red Cup; an empty bag pays the wheel's amount in coins instead.
       if (!entry) return applyCurrencyChange(state, player.id, -amount);
-      const nextState = updatePlayer(state, player.id, (current) => spendItemEntry(current, entry.id));
-      return addLog(nextState, `${player.name} perd un objet.`, "bad");
+      // A stack of Tomates goes as a whole: it is one item.
+      const nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entry.id));
+      const units = getEntryUnits(entry);
+      const lost = units > 1 ? `sa pile de ${units} ${ITEM_CATALOG[entry.itemId].name}s` : "un objet";
+      return addLog(nextState, `${player.name} perd ${lost}.`, "bad");
     }
     case "skip-turn":
     case "hell-skip": {
@@ -502,28 +492,6 @@ function rollDice(state: GameState): GameState {
   if (!canAffordMove(state)) return state;
   const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
   return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
-}
-
-/** Whether the shop open to `player` sells them `itemId`: their passive, their bag and the Red Cup allow it. */
-function isOnShelf(state: GameState, player: Player, itemId: ItemId): boolean {
-  if (state.turnStage !== "shop" || !opensShop(state, player)) return false;
-  return canAddItem(player, itemId) && canBuyItemKind(player, itemId) && isOnSale(state, itemId);
-}
-
-function buyItem(state: GameState, itemId: ItemId): GameState {
-  const player = getActivePlayer(state);
-  if (!player || !isOnShelf(state, player, itemId)) return state;
-
-  // Shopping costs no energy: what is bought is used from the next turn on, Bullet Bill included.
-  const price = getItemPrice(itemId, state.bootPrice, player);
-  if (player.currency < price) return state;
-
-  let nextState = applyCurrencyChange(state, player.id, -price, { gamble: false });
-  nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
-  if (itemId === "boot" && !state.bootFirstPurchased) {
-    nextState = { ...nextState, bootFirstPurchased: true, bootLastPriceRound: state.round };
-  }
-  return addLog(nextState, `${player.name} achète ${ITEM_CATALOG[itemId].name} pour ${price} pièces.`, "good");
 }
 
 /**
@@ -734,8 +702,8 @@ function resolveWheel(state: GameState): GameState {
     });
   }
 
-  // L'Ange-Gardien cannot be dragged into Hell: with nobody else to call, the duel is off.
-  const opponents = state.players.filter((candidate) => candidate.id !== pending.playerId && !avoidsHell(candidate));
+  // L'Ange-Gardien and Chance aveugle cannot be dragged into Hell: with nobody else to call, the duel is off.
+  const opponents = state.players.filter((candidate) => canBeChallenged(pending.playerId, candidate));
   if (pending.result.id === "challenge" && opponents.length === 0) {
     const nextState = addLog({ ...state, pendingWheel: null, turnStage: pending.resumeStage }, "Personne à défier.");
     return settleBoard(nextState, pending.resumeStage);
@@ -801,8 +769,8 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
 function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState {
   const pending = state.pendingChallenge;
   const target = findPlayer(state, targetPlayerId);
-  // L'Ange-Gardien never goes to Hell, so cannot be dragged into a duel there.
-  if (!pending || !target || pending.playerId === targetPlayerId || avoidsHell(target)) return state;
+  // L'Ange-Gardien never goes to Hell and nothing may harm Chance aveugle: neither is dragged into a duel there.
+  if (!pending || !target || !canBeChallenged(pending.playerId, target)) return state;
 
   let nextState = updatePlayer(state, targetPlayerId, placeInHell);
   nextState = { ...nextState, pendingChallenge: null };
@@ -945,9 +913,9 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   if (dispatched === prepared) return state;
   // Banquise: nobody stays on ice, whatever set them down there.
   const result = slideOffIce(prepared, dispatched);
-  const counted = countHellEntries(prepared, recordPreviousTiles(prepared, result));
-  // A forfeit may seat L'Ange-Gardien in Hell in their protégé's place: an entry too, as after an abandon.
-  const forfeited = countHellEntries(counted, applyForfeits(counted));
+  // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
+  const counted = rewardDevilInHell(prepared, recordPreviousTiles(prepared, result));
+  const forfeited = applyForfeits(counted);
   const settled = offerGamble(checkVictories(forfeited));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
@@ -983,7 +951,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "rescueProtege":
       return rescueProtege(state);
     case "buyItem":
-      return buyItem(state, action.itemId);
+      return buyItem(state, action.itemId, action.count);
     case "stealItem":
       return stealItem(state, action.itemId);
     case "useItem":

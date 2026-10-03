@@ -26,6 +26,7 @@ import {
   getTomatoStunChance,
   isDoomed,
   isImmuneToItems,
+  throwsOneStackPerTurn,
   TOMATO_ENJOYER_HIT_REWARD,
 } from "./passive-rules";
 import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, opensShop } from "./rules";
@@ -209,8 +210,9 @@ export function planItemUse(
 
   // Only a stack can be thrown several at a time, and never more than it holds.
   const entry = player.inventory.find((candidate) => candidate.id === entryId);
-  // A stack counts as one item: the Tomates of a turn all come from the same one.
-  if (isThrownItem(itemId) && state.thrownStackId !== null && state.thrownStackId !== entryId) return null;
+  // A stack counts as one item: the Tomates of a turn all come from the same one, but for Tomato Enjoyer.
+  const otherStackThrown = state.thrownStackId !== null && state.thrownStackId !== entryId;
+  if (isThrownItem(itemId) && otherStackThrown && throwsOneStackPerTurn(player)) return null;
   const count = isThrownItem(itemId) && entry ? requestedCount : 1;
   if (!Number.isInteger(count) || count < 1 || (entry && count > getEntryUnits(entry))) return null;
 

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBoard } from "./board";
 import { reduceGame, type GameAction } from "./game-actions";
 import { canAddItem, countItemCopies, countItemUnits } from "./rules";
+import { getMaxPurchaseCount } from "./shopping";
 import type { GameState, InventoryEntry, Player } from "./types";
 import { BASE_ENERGY, EMPTY_GAME_STATE, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
 
@@ -35,18 +36,36 @@ afterEach(() => {
 });
 
 describe("the Tomate", () => {
-  it("costs 10 coins and piles up to 5 per slot, two stacks at most", () => {
+  it("costs 10 coins and piles up to 5 in a single stack", () => {
     const shop = getBoard(startTable()).nodes.find((node) => node.kind === "shop")!;
     let state = editPlayer(startTable(), 0, { position: shop.id });
     state = { ...state, turnStage: "shop" };
-    for (let bought = 1; bought <= 10; bought += 1) {
+    for (let bought = 1; bought <= 5; bought += 1) {
       state = act(state, { type: "buyItem", itemId: "tomato" });
       expect(countItemUnits(state.players[0], "tomato")).toBe(bought);
-      // A stack counts as one copy: the sixth Tomate starts the second one.
-      expect(countItemCopies(state.players[0], "tomato")).toBe(bought <= 5 ? 1 : 2);
+      expect(countItemCopies(state.players[0], "tomato")).toBe(1);
     }
-    expect(state.players[0].currency).toBe(2_000 - 100);
+    expect(state.players[0].currency).toBe(2_000 - 50);
+    // Only Tomato Enjoyer starts a second stack.
     expect(act(state, { type: "buyItem", itemId: "tomato" })).toBe(state);
+  });
+
+  it("is bought several at once, never more than the shop can sell", () => {
+    const shop = getBoard(startTable()).nodes.find((node) => node.kind === "shop")!;
+    let state = editPlayer(startTable(), 0, { position: shop.id });
+    state = { ...state, turnStage: "shop" };
+    expect(getMaxPurchaseCount(state, "tomato")).toBe(5);
+    expect(act(state, { type: "buyItem", itemId: "tomato", count: 6 })).toBe(state);
+    const bought = act(state, { type: "buyItem", itemId: "tomato", count: 3 });
+    expect(countItemUnits(bought.players[0], "tomato")).toBe(3);
+    expect(bought.players[0].currency).toBe(2_000 - 30);
+    expect(bought.log[0].text).toContain("Tomate ×3 pour 30 pièces");
+    expect(getMaxPurchaseCount(bought, "tomato")).toBe(2);
+
+    const enjoyer = editPlayer(state, 0, { passiveId: "tomato-enjoyer" });
+    expect(getMaxPurchaseCount(enjoyer, "tomato")).toBe(20);
+    const stacks = act(enjoyer, { type: "buyItem", itemId: "tomato", count: 12 });
+    expect(countItemCopies(stacks.players[0], "tomato")).toBe(3);
   });
 
   it("needs a free slot to start a stack", () => {
@@ -59,9 +78,10 @@ describe("the Tomate", () => {
     expect(canAddItem({ ...player, inventory: fullBag }, "tomato")).toBe(false);
     expect(canAddItem({ ...player, inventory: [...fullBag.slice(0, 3), tomatoes(4)] }, "tomato")).toBe(true);
     expect(canAddItem({ ...player, inventory: [...fullBag.slice(0, 3), tomatoes(5)] }, "tomato")).toBe(false);
-    expect(canAddItem({ ...player, inventory: [fullBag[0], tomatoes(5)] }, "tomato")).toBe(true);
-    const twoStacks = [tomatoes(5), { ...tomatoes(5), id: "more-tomatoes" }];
-    expect(canAddItem({ ...player, inventory: twoStacks }, "tomato")).toBe(false);
+    // A full stack is the only one, but for Tomato Enjoyer, who fills every slot.
+    expect(canAddItem({ ...player, inventory: [fullBag[0], tomatoes(5)] }, "tomato")).toBe(false);
+    const enjoyer = { ...player, passiveId: "tomato-enjoyer" as const };
+    expect(canAddItem({ ...enjoyer, inventory: [fullBag[0], tomatoes(5)] }, "tomato")).toBe(true);
   });
 
   it("is thrown from a single stack per turn, the other one waiting for the next turn", () => {
@@ -80,6 +100,14 @@ describe("the Tomate", () => {
       { type: "useItem", entryId: "more-tomatoes", targetPlayerId: "p2" },
     );
     expect(countItemUnits(nextTurn.players[0], "tomato")).toBe(4);
+  });
+
+  it("lets Tomato Enjoyer throw from as many stacks as they hold", () => {
+    const second: InventoryEntry = { ...tomatoes(5), id: "more-tomatoes" };
+    let state = editPlayer(startTable(), 0, { passiveId: "tomato-enjoyer", inventory: [tomatoes(5), second] });
+    state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2", count: 5 });
+    state = act(state, { type: "useItem", entryId: "more-tomatoes", targetPlayerId: "p3", count: 2 });
+    expect(countItemUnits(state.players[0], "tomato")).toBe(3);
   });
 
   it("is thrown for free before the move, as often as the stack allows", () => {
@@ -161,15 +189,15 @@ describe("the Tomate", () => {
     expect(after.lastTomatoThrow?.targetId).toBe("p3");
   });
 
-  it("hands Je note one Tomate per Tomate of the volley, starting a second stack once the first is full", () => {
+  it("hands Je note one Tomate per Tomate of the volley, until its single stack is full", () => {
     let state = editPlayer(withJeNoteLuck(startTable()), 0, { inventory: [tomatoes(5)] });
     state = editPlayer(state, 1, { passiveId: "i-take-notes", inventory: [{ ...tomatoes(3), id: "bo-tomatoes" }] });
     state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2", count: 4 });
-    expect(countItemUnits(state.players[1], "tomato")).toBe(7);
-    expect(countItemCopies(state.players[1], "tomato")).toBe(2);
+    expect(countItemUnits(state.players[1], "tomato")).toBe(5);
+    expect(countItemCopies(state.players[1], "tomato")).toBe(1);
   });
 
-  it("asks a full bag to make room for a second stack, like any second copy", () => {
+  it("never asks a full bag to make room for a second stack", () => {
     vi.spyOn(Math, "random").mockReturnValue(0.1);
     const others: InventoryEntry[] = ["ndoye", "boot", "rope"].map((itemId, index) => ({
       id: `bo-${index}`,
@@ -182,11 +210,9 @@ describe("the Tomate", () => {
       inventory: [...others, { ...tomatoes(4), id: "bo-tomatoes" }],
     });
     state = act(state, { type: "useItem", entryId: "tomatoes", targetPlayerId: "p2", count: 2 });
-    expect(state.pendingDiscard).toMatchObject({ playerId: "p2", reason: "forced-item", itemId: "tomato" });
-
-    state = act(state, { type: "discardInventoryEntry", entryId: "bo-0" });
-    expect(countItemCopies(state.players[1], "tomato")).toBe(2);
-    expect(countItemUnits(state.players[1], "tomato")).toBe(6);
+    expect(state.pendingDiscard).toBeNull();
+    expect(countItemCopies(state.players[1], "tomato")).toBe(1);
+    expect(countItemUnits(state.players[1], "tomato")).toBe(5);
   });
 
   it("hands Je note one Tomate per hit, on its stack", () => {
@@ -197,7 +223,7 @@ describe("the Tomate", () => {
     expect(countItemCopies(state.players[1], "tomato")).toBe(1);
   });
 
-  it("loses a single one to a bad wheel or the ghost, not the whole stack", () => {
+  it("loses the whole stack to a bad wheel, the stack being one item", () => {
     let state = editPlayer(startTable(), 0, { inventory: [tomatoes(4)] });
     state = act(state, { type: "spinWheel", wheelId: "misfortune", playerId: "p1", resumeStage: "turn-end" });
     state = {
@@ -208,6 +234,7 @@ describe("the Tomate", () => {
       },
     };
     state = act(state, { type: "resolveWheel" });
-    expect(countItemUnits(state.players[0], "tomato")).toBe(3);
+    expect(countItemUnits(state.players[0], "tomato")).toBe(0);
+    expect(state.log[0].text).toContain("perd sa pile de 4 Tomates");
   });
 });

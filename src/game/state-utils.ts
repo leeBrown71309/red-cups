@@ -81,8 +81,8 @@ export function findStackWithRoom(player: Player, itemId: ItemId): InventoryEntr
   );
 }
 
-/** Adds one item: onto a stack that has room, otherwise into a slot of its own. */
-export function appendItem(player: Player, itemId: ItemId): Player {
+/** Adds one item: onto a stack that has room, otherwise into a slot of its own (`entryId` names that slot). */
+export function appendItem(player: Player, itemId: ItemId, entryId: string = createEngineId()): Player {
   const stack = findStackWithRoom(player, itemId);
   if (stack) {
     return {
@@ -92,7 +92,7 @@ export function appendItem(player: Player, itemId: ItemId): Player {
       ),
     };
   }
-  const entry: InventoryEntry = { id: createEngineId(), kind: "item", itemId };
+  const entry: InventoryEntry = { id: entryId, kind: "item", itemId };
   return { ...player, inventory: [...player.inventory, entry] };
 }
 

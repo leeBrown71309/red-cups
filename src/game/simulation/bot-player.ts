@@ -8,7 +8,7 @@ import { getCalmDownTiles } from "../game-effects";
 import { getHandValue } from "../blackjack";
 import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
-import { avoidsHell, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
+import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
@@ -273,7 +273,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "target": {
       const challengerId = store.pendingChallenge?.playerId;
       const opponent = pick(
-        store.players.filter((player) => player.id !== challengerId && !avoidsHell(player)),
+        store.players.filter((player) => canBeChallenged(challengerId, player)),
         random,
       );
       if (!opponent) return null;

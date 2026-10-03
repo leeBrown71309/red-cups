@@ -16,12 +16,23 @@ import {
   spendItemEntry,
   updatePlayer,
 } from "./state-utils";
-import type { GameState, GhostPenalty, GhostReward, GhostState, NodeId, Player, PlayerId, TurnStage } from "./types";
+import type {
+  GameState,
+  GhostPenalty,
+  GhostReward,
+  GhostState,
+  ItemId,
+  NodeId,
+  Player,
+  PlayerId,
+  TurnStage,
+} from "./types";
 import {
   GHOST_COOLDOWN_ROUNDS,
   GHOST_EMPTY_LOOT_REWARD,
   GHOST_ID,
   GHOST_LOOT_COINS,
+  GHOST_SHIELD_COINS,
   GHOST_MAX_DRIFT_STEPS,
   GHOST_STEAL_COINS,
   GHOST_TELEPORT_CHANCE,
@@ -191,15 +202,28 @@ function drawPenalty(player: Player): GhostPenalty {
   return randomChoice(options) ?? { kind: "coins", amount: 0 };
 }
 
+/**
+ * The Bouclier belongs to L'Ange-Gardien: stolen by the ghost, nobody else may
+ * get it back, and wins its worth in coins instead.
+ */
+function isPaidInCoins(player: Player, itemId: ItemId): boolean {
+  return itemId === "shield" && player.passiveId !== "guardian-angel";
+}
+
 /** One piece of loot at a time: coins or one item, drawn; a reward of its own when the loot is empty. */
 function drawReward(ghost: GhostState, player: Player): GhostReward {
-  const items = ghost.loot.items.filter((entry) => canReceiveItem(player, entry.itemId));
+  const items = ghost.loot.items.filter(
+    (entry) => isPaidInCoins(player, entry.itemId) || canReceiveItem(player, entry.itemId),
+  );
   const kinds: ("coins" | "item")[] = [];
   if (ghost.loot.coins > 0) kinds.push("coins");
   if (items.length > 0) kinds.push("item");
   const kind = randomChoice(kinds);
   if (kind === "coins") return { kind: "coins", amount: Math.min(GHOST_LOOT_COINS, ghost.loot.coins), fromLoot: true };
   const item = kind === "item" ? randomChoice(items) : undefined;
+  if (item && isPaidInCoins(player, item.itemId)) {
+    return { kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: item.id };
+  }
   if (item) return { kind: "item", entryId: item.id, itemId: item.itemId };
   return { kind: "coins", amount: GHOST_EMPTY_LOOT_REWARD, fromLoot: false };
 }
@@ -227,6 +251,16 @@ export function startGhostDuel(state: GameState, playerId: PlayerId, resumeStage
   return addLog(nextState, `Le fantôme attaque ${player.name} sur la case ${ghost.nodeId} !`, "event");
 }
 
+/** The coins a winner takes from the ghost, in words: from its loot, for an empty loot, or for the Bouclier. */
+export function describeCoinReward(winnerName: string, reward: GhostReward & { kind: "coins" }): string {
+  if (reward.replacesEntryId) {
+    return `Le Bouclier du butin reste à l’Ange-Gardien : ${winnerName} gagne ${reward.amount} pièces à la place.`;
+  }
+  return reward.fromLoot
+    ? `${winnerName} reprend ${reward.amount} pièces dans le butin du fantôme.`
+    : `Le butin du fantôme est vide : ${winnerName} gagne ${reward.amount} pièces.`;
+}
+
 function describeLoot(reward: GhostReward): string {
   return reward.kind === "item" ? ITEM_CATALOG[reward.itemId].name : `${reward.amount} pièces`;
 }
@@ -235,15 +269,11 @@ function applyReward(state: GameState, player: Player, reward: GhostReward): Gam
   const ghost = state.ghost;
   if (!ghost) return state;
   if (reward.kind === "coins") {
-    const loot = reward.fromLoot ? { ...ghost.loot, coins: ghost.loot.coins - reward.amount } : ghost.loot;
+    const coins = reward.fromLoot ? ghost.loot.coins - reward.amount : ghost.loot.coins;
+    const items = ghost.loot.items.filter((entry) => entry.id !== reward.replacesEntryId);
+    const loot = { coins, items };
     const nextState = applyCurrencyChange(withGhost(state, { ...ghost, loot }), player.id, reward.amount);
-    return addLog(
-      nextState,
-      reward.fromLoot
-        ? `${player.name} reprend ${reward.amount} pièces dans le butin du fantôme.`
-        : `Le butin du fantôme est vide : ${player.name} gagne ${reward.amount} pièces.`,
-      "good",
-    );
+    return addLog(nextState, describeCoinReward(player.name, reward), "good");
   }
 
   const loot = { ...ghost.loot, items: ghost.loot.items.filter((entry) => entry.id !== reward.entryId) };

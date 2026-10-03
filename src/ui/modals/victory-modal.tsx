@@ -16,7 +16,7 @@ export function VictoryModal() {
   const winnerId = useGameStore((state) => state.winnerId);
   const winReason = useGameStore((state) => state.winReason);
   const coWinnerId = useGameStore((state) => state.coWinnerId);
-  const devilHellEntries = useGameStore((state) => state.devilHellEntries);
+  const devilHellTurns = useGameStore((state) => state.devilHellTurns);
   const mapId = useGameStore((state) => state.mapId);
   const startGame = useGameStore((state) => state.startGame);
   const resetGame = useGameStore((state) => state.resetGame);
@@ -90,7 +90,7 @@ export function VictoryModal() {
               : winReason === "greedy"
                 ? "5 000 pièces. Cupide rafle la mise."
                 : winReason === "devil"
-                  ? `${devilHellEntries} entrées en Enfer. Le diable l’emporte.`
+                  ? `${devilHellTurns} tours passés en Enfer. Le diable l’emporte.`
                   : "Trois Red Cups. Une légende."}
           </span>
           <h2 id="victory-title" className="victory__title">

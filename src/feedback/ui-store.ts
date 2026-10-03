@@ -11,7 +11,8 @@ export interface Toast {
 /** Table-wide announcement (Bullet Bill, Tour de Bénédiction) that nobody should miss. */
 export interface AlertBanner {
   key: number;
-  tone: "danger" | "blessing" | "carousel" | "blizzard" | "ghost";
+  /** Picks the banner's colours and icon: Bullet Bill for "danger", le diable's face for "devil"… */
+  tone: "danger" | "devil" | "chances" | "blessing" | "carousel" | "blizzard" | "ghost";
   eyebrow: string;
   title: string;
   detail: string;

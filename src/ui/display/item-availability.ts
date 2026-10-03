@@ -1,6 +1,6 @@
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getCopyLimit, getTheftRisk } from "../../game/passive-rules";
+import { getCopyLimit, getTheftRisk, throwsOneStackPerTurn } from "../../game/passive-rules";
 import {
   getCorrupterBlocker,
   getInventoryCapacity,
@@ -31,6 +31,13 @@ export function getCorrupterHint(player: Player, round: number): { short: string
 }
 
 export type ItemUseKind = "prepare-boot" | "target" | "instant" | "passive";
+
+/** Items that act on their own, never from a button: when they do. */
+const AUTOMATIC_ITEM_HINTS: Partial<Record<ItemId, string>> = {
+  helmet: "Se déclenche tout seul avant de passer sous zéro.",
+  "hell-touch": "Se déclenche tout seul dès qu’un joueur assommé se trouve sur ta case.",
+  shield: "Se propose tout seul quand ton protégé est visé ou que Bullet Bill fonce sur lui.",
+};
 
 export interface ItemAvailability {
   usable: boolean;
@@ -63,14 +70,8 @@ export function getItemAvailability(
   const actionStage = inHell ? state.turnStage === "hell" : state.turnStage === "move";
   const notYourTurn = !isActive || state.phase !== "playing";
 
-  if (itemId === "helmet") {
-    return {
-      usable: false,
-      kind: "passive",
-      actionLabel: "Automatique",
-      reason: "Se déclenche tout seul avant de passer sous zéro.",
-    };
-  }
+  const automatic = AUTOMATIC_ITEM_HINTS[itemId];
+  if (automatic) return { usable: false, kind: "passive", actionLabel: "Automatique", reason: automatic };
   if (itemId === "eraser") {
     return {
       usable: false,
@@ -133,7 +134,7 @@ export function getItemAvailability(
     return { usable: false, kind, actionLabel, reason: "Un Bullet Bill est déjà sur le plateau." };
   }
   const otherStackThrown = state.thrownStackId !== null && entryId !== state.thrownStackId;
-  if (itemId === "tomato" && otherStackThrown) {
+  if (itemId === "tomato" && otherStackThrown && throwsOneStackPerTurn(player)) {
     return { usable: false, kind, actionLabel, reason: "Une seule pile de Tomates par tour." };
   }
   if (!canAffordItem(state, itemId))
@@ -161,7 +162,7 @@ function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): stri
   if (player.inventory.length >= capacity) return "Sac plein";
   if (copies < copyLimit) return null;
   if (itemId === "eraser") return "Une seule Gomme";
-  if (ITEM_CATALOG[itemId].stackLimit) return `Max ${copyLimit} piles`;
+  if (ITEM_CATALOG[itemId].stackLimit) return copyLimit === 1 ? "Une seule pile" : `Max ${copyLimit} piles`;
   return copyLimit === 1 ? "Un seul à la fois" : `Max ${copyLimit} exemplaires`;
 }
 

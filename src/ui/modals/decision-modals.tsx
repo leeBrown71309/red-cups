@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
-import { avoidsHell, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
+import { canBeChallenged, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
@@ -161,7 +161,7 @@ export function ChallengeModal() {
       <p className="modal-lead">L’adversaire te rejoint en Enfer. Le gagnant repart du Départ.</p>
       {canAct ? (
         <PlayerPickList
-          players={players.filter((player) => player.id !== challenger.id && !avoidsHell(player))}
+          players={players.filter((player) => canBeChallenged(challenger.id, player))}
           onPick={challengePlayer}
         />
       ) : (

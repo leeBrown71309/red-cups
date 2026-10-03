@@ -39,16 +39,39 @@ describe("Le diable", () => {
     expect([2, 4, 8].map(getDevilGoal)).toEqual([7, 14, 28]);
   });
 
-  it("counts every other player stepping into Hell, and wins at the goal", () => {
+  it("counts every turn the others begin in Hell, and wins at the goal", () => {
     startTable(["devil", "lambda", "lambda"]);
-    editPlayer(0, { inventory: [item("purple", "hollow-purple"), item("draven", "draven")] });
+    editPlayer(0, { inventory: [item("purple", "hollow-purple")] });
     store().useItem("purple", playerId(1));
-    expect(store().devilHellEntries).toBe(1);
+    // The entry itself counts nothing: the turns spent there do.
+    expect(store().devilHellTurns).toBe(0);
 
-    // Draven: the one already in Hell does not count again, and le diable never counts.
-    useGameStore.setState({ devilHellEntries: getDevilGoal(3) - 1, energyLeft: 3 });
-    store().useItem("draven");
+    useGameStore.setState({ devilHellTurns: getDevilGoal(3) - 1, turnStage: "turn-end" });
+    store().endTurn();
     expect(store()).toMatchObject({ phase: "finished", winnerId: playerId(0), winReason: "devil" });
+  });
+
+  it("counts a turn skipped in Hell, but never their own", () => {
+    startTable(["devil", "lambda", "lambda"]);
+    editPlayer(1, { position: HELL_NODE_ID, skippedTurns: 1 });
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn();
+    // Player 2 skipped their turn in Hell, then player 3 plays outside it.
+    expect(store().activePlayerIndex).toBe(2);
+    expect(store().devilHellTurns).toBe(1);
+
+    editPlayer(0, { position: HELL_NODE_ID });
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn();
+    expect(store().activePlayerIndex).toBe(0);
+    expect(store().devilHellTurns).toBe(1);
+  });
+
+  it("pays le diable 100 coins each time they go to Hell themselves", () => {
+    startTable(["devil", "lambda"]);
+    editPlayer(0, { inventory: [item("draven", "draven")] });
+    store().useItem("draven");
+    expect(store().players[0]).toMatchObject({ position: HELL_NODE_ID, currency: STARTING_CURRENCY + 100 });
   });
 
   it("walks past the Red Cup, and leaves Hell whenever they please", () => {
@@ -113,6 +136,39 @@ describe("Le diable", () => {
     store().movePlayer(2);
     expect(store().players.map((player) => player.position)).toEqual([2, HELL_NODE_ID, 2]);
     expect(store().players[0].inventory).toEqual([]);
+  });
+
+  it("never lets the Hell wheel's duel call Chance aveugle or L'Ange-Gardien", () => {
+    startTable(["lambda", "blind-luck", "guardian-angel", "lambda"]);
+    editPlayer(0, { position: HELL_NODE_ID, hellTurns: 1 });
+    useGameStore.setState({
+      turnStage: "target",
+      pendingChallenge: { playerId: playerId(0), resumeStage: "turn-end" },
+    });
+    store().challengePlayer(playerId(1));
+    store().challengePlayer(playerId(2));
+    expect(store().pendingChallenge).not.toBeNull();
+    store().challengePlayer(playerId(3));
+    expect(store().players[3].position).toBe(HELL_NODE_ID);
+  });
+
+  it("strikes with the Toucher d'Enfer before a knocked-out player's turn is skipped", () => {
+    startTable(["lambda", "devil", "lambda"]);
+    editPlayer(1, { position: 5, inventory: [item("touch", "hell-touch")] });
+    editPlayer(2, { position: 5, skippedTurns: 1 });
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn();
+    expect(store().players[2].position).toBe(HELL_NODE_ID);
+    expect(store().players[1].inventory).toEqual([]);
+  });
+
+  it("strikes with the Toucher d'Enfer as soon as a player is knocked out on le diable's tile", () => {
+    startTable(["lambda", "devil", "lambda"]);
+    editPlayer(0, { inventory: [item("finger", "middle-finger")] });
+    editPlayer(1, { position: 5, inventory: [item("touch", "hell-touch")] });
+    editPlayer(2, { position: 5 });
+    store().useItem("finger", playerId(2));
+    expect(store().players[2].position).toBe(HELL_NODE_ID);
   });
 
   it("drops the Red Cup into Hell, for whoever arrives there next", () => {

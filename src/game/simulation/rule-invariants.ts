@@ -1,5 +1,5 @@
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
-import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems } from "../passive-rules";
+import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems, throwsOneStackPerTurn } from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
@@ -48,7 +48,7 @@ import {
   type RuleViolation,
 } from "./invariant-helpers";
 import { checkMapState, checkMapTransition } from "./map-invariants";
-import { checkDevilItem, checkHellEntries, checkRoleState } from "./role-invariants";
+import { checkDevilHellTurns, checkDevilItem, checkRoleState } from "./role-invariants";
 import { checkClockState } from "./clock-invariants";
 import { checkDraftState, checkDraftTransition } from "./draft-invariants";
 import { findDevil, getDevilGoalFor } from "../devil";
@@ -238,7 +238,7 @@ export function checkState(state: GameState): RuleViolation[] {
     state.winReason === "greedy" && greedyWinner?.passiveId === "greedy" && greedyWinner.currency >= GREEDY_GOAL;
   const devil = findDevil(state);
   const wonByDevil =
-    state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellEntries >= getDevilGoalFor(state);
+    state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellTurns >= getDevilGoalFor(state);
   if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
     found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
@@ -534,7 +534,8 @@ function checkGhostDuelResult(previous: GameState, next: GameState, found: RuleV
     }
     const { reward } = duel.ghost;
     const coinsBack = reward.kind === "coins" && reward.fromLoot ? reward.amount : 0;
-    const itemsBack = reward.kind === "item" ? 1 : 0;
+    // The Bouclier leaves the loot too when its worth is paid in coins instead.
+    const itemsBack = reward.kind === "item" || (reward.kind === "coins" && reward.replacesEntryId) ? 1 : 0;
     if (
       next.ghost.loot.coins !== previous.ghost.loot.coins - coinsBack ||
       lootItems(next) !== lootItems(previous) - itemsBack
@@ -849,7 +850,8 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
         );
       }
       const otherStack = previous.thrownStackId !== null && previous.thrownStackId !== item.entryId;
-      if (item.entryId && (otherStack || next.thrownStackId !== item.entryId)) {
+      const oneStack = throwsOneStackPerTurn(user);
+      if (item.entryId && ((otherStack && oneStack) || next.thrownStackId !== item.entryId)) {
         found.push(violation("tomato-one-stack", `${label} from a second stack this turn`));
       }
       const stunned = next.lastTomatoThrow?.stunned === true;
@@ -975,7 +977,7 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   checkGhostMove(previous, next, found);
   checkSnowballs(previous, next, found);
   checkEnergy(previous, next, found, itemApplied);
-  checkHellEntries(previous, next, found);
+  checkDevilHellTurns(previous, next, found);
   checkMapTransition(previous, next, found);
   return found;
 }

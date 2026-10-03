@@ -14,6 +14,7 @@ import {
   GHOST_ID,
   GHOST_LOOT_COINS,
   GHOST_MAX_DRIFT_STEPS,
+  GHOST_SHIELD_COINS,
   HELL_NODE_ID,
 } from "./types";
 
@@ -234,6 +235,29 @@ describe("the Luna Park ghost", () => {
     });
     const after = act(decided, { type: "resolveDuel", winnerId: "p1" });
     expect(after.ghost?.loot.coins).toBe(600 - GHOST_LOOT_COINS);
+  });
+
+  it("pays the Bouclier it stole in coins to anybody but L'Ange-Gardien", () => {
+    const loot = { coins: 0, items: [{ id: "shield-1", itemId: "shield" as const }] };
+    const state = editPlayer(withGhostOn(startOn("luna-park"), 1, loot), 1, { position: 1 });
+    const reward = startGhostDuel(state, "p2", "turn-end").pendingDuel?.ghost?.reward;
+    expect(reward).toEqual({ kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" });
+
+    const angel = editPlayer(state, 1, { passiveId: "guardian-angel" });
+    expect(startGhostDuel(angel, "p2", "turn-end").pendingDuel?.ghost?.reward).toEqual({
+      kind: "item",
+      entryId: "shield-1",
+      itemId: "shield",
+    });
+
+    const decided = decidedGhostDuel(editPlayer(state, 0, { position: 1 }), "p1", {
+      penalty: { kind: "hell" },
+      reward: { kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" },
+    });
+    const after = act(decided, { type: "resolveDuel", winnerId: "p1" });
+    expect(after.ghost?.loot.items).toEqual([]);
+    expect(after.players[0].currency).toBe(decided.players[0].currency + GHOST_SHIELD_COINS);
+    expect(after.players[0].inventory).toEqual([]);
   });
 
   it("hands a stolen item to whoever beats it, making room in a full bag", () => {

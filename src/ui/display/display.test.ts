@@ -91,6 +91,14 @@ describe("shop and bag explanations", () => {
     expect(getPurchaseStatus("eraser", makeState(withEraser), withEraser).reason).toBe("Une seule Gomme");
   });
 
+  it("has no button for the items that act on their own", () => {
+    const player = makePlayer({ passiveId: "devil" });
+    const state = makeState(player);
+    for (const itemId of ["helmet", "hell-touch", "shield"] as const) {
+      expect(getItemAvailability(itemId, state, player)).toMatchObject({ usable: false, kind: "passive" });
+    }
+  });
+
   it("lets a turn throw Tomates from a single stack", () => {
     const player = makePlayer({
       inventory: [
@@ -105,13 +113,14 @@ describe("shop and bag explanations", () => {
       reason: "Une seule pile de Tomates par tour.",
     });
     expect(getPurchaseStatus("tomato", state, player).canBuy).toBe(true);
-    const twoFull = makePlayer({
-      inventory: [
-        { id: "first", kind: "item", itemId: "tomato", count: 5 },
-        { id: "second", kind: "item", itemId: "tomato", count: 5 },
-      ],
-    });
-    expect(getPurchaseStatus("tomato", makeState(twoFull), twoFull).reason).toBe("Max 2 piles");
+    const fullStack = makePlayer({ inventory: [{ id: "first", kind: "item", itemId: "tomato", count: 5 }] });
+    expect(getPurchaseStatus("tomato", makeState(fullStack), fullStack).reason).toBe("Une seule pile");
+
+    // Tomato Enjoyer throws from every stack.
+    const enjoyer = { ...player, passiveId: "tomato-enjoyer" as const };
+    expect(
+      getItemAvailability("tomato", makeState(enjoyer, { thrownStackId: "first" }), enjoyer, "second").usable,
+    ).toBe(true);
   });
 
   it("only offers the water bottle in Hell", () => {

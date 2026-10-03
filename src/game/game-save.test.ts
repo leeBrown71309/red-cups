@@ -19,7 +19,7 @@ const KEYS_ADDED_BY_PATCH_0_1_4: (keyof GameState)[] = [
   "theftAttempted",
   "coWinnerId",
   "startingPlayerCount",
-  "devilHellEntries",
+  "devilHellTurns",
   "hellPortals",
   "blackCup",
   "doomsday",

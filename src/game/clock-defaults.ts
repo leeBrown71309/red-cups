@@ -1,6 +1,6 @@
 import { getHumanDuellistIds, getNextBasketShooterId } from "./duel";
 import type { GameAction } from "./game-actions";
-import { avoidsHell } from "./passive-rules";
+import { canBeChallenged } from "./passive-rules";
 import { getForwardTiles } from "./rules";
 import { findPlayer, randomChoice } from "./state-utils";
 import type { GameState, PendingDuel, RpsChoice } from "./types";
@@ -47,9 +47,7 @@ export function getDefaultAction(state: GameState): GameAction | null {
     }
     case "target": {
       const challengerId = state.pendingChallenge?.playerId;
-      const opponent = randomChoice(
-        state.players.filter((player) => player.id !== challengerId && !avoidsHell(player)),
-      );
+      const opponent = randomChoice(state.players.filter((player) => canBeChallenged(challengerId, player)));
       return opponent ? { type: "challengePlayer", targetPlayerId: opponent.id } : null;
     }
     case "duel":

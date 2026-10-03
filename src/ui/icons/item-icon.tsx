@@ -338,3 +338,19 @@ export function CloverIcon({ size, className }: IconProps) {
     </IconFrame>
   );
 }
+
+/** Le diable's face, horns and grin: their banners and their count. */
+export function DevilIcon({ size, className }: IconProps) {
+  return (
+    <IconFrame size={size} className={className}>
+      <path d="M15 27 C9 18 10 9 16 4 C17 12 21 17 27 20 Z" fill="#8f1f1d" {...OUTLINE} />
+      <path d="M49 27 C55 18 54 9 48 4 C47 12 43 17 37 20 Z" fill="#8f1f1d" {...OUTLINE} />
+      <circle cx="32" cy="37" r="21" fill="#e8453c" {...OUTLINE} />
+      <path d="M19 29 L28 33.5 M45 29 L36 33.5" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="25" cy="38" r="3.2" fill={INK} />
+      <circle cx="39" cy="38" r="3.2" fill={INK} />
+      <path d="M21 45 Q32 56 43 45 Z" fill="#fff4ec" stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+      <path d="M26 21 C28 19 31 18 33 18" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" opacity="0.45" />
+    </IconFrame>
+  );
+}

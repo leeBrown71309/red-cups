@@ -913,6 +913,68 @@
   font-size: 0.85rem;
 }
 
+/* Several copies in one purchase: minus, the count, plus, and straight to the most possible. */
+.quantity-picker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.quantity-picker__label {
+  margin-right: auto;
+  color: var(--ink-soft);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.quantity-picker__step {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  box-shadow: 0 3px 0 var(--ink);
+}
+
+.quantity-picker__step:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(3px);
+}
+
+.quantity-picker__step:disabled,
+.quantity-picker__max:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.quantity-picker__value {
+  min-width: 2ch;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.quantity-picker__max {
+  flex: none;
+  padding: 4px 10px;
+  white-space: nowrap;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--gold-light);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 .reaction__hint {
   color: var(--ink-soft);
   font-size: 0.82rem;

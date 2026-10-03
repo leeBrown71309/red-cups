@@ -314,6 +314,12 @@
   font-size: 0.72rem;
 }
 
+.item-card__tag--auto {
+  background: var(--mint-light);
+  color: var(--mint-deep);
+  font-weight: 800;
+}
+
 .item-card p {
   color: var(--ink-soft);
   font-size: 0.9rem;
@@ -783,6 +789,20 @@
   background:
     radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.45), transparent 55%),
     linear-gradient(135deg, var(--gold), var(--mint));
+}
+
+/* Le diable: their announcement and their spells. */
+.alert-banner--devil {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 196, 77, 0.35), transparent 45%),
+    linear-gradient(135deg, #b92f2c, #4a1020);
+}
+
+/* Online: a player's last chance before a forfeit. */
+.alert-banner--chances {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 255, 255, 0.4), transparent 45%),
+    linear-gradient(135deg, #f7913a, #c8671c);
 }
 
 /* Banquise: blizzard and falling ice. */

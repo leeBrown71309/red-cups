@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useGameStore } from "../../game/store";
-import { getClockDeadline, isActiveDecision } from "../../game/turn-clock";
+import { DUEL_COUNTDOWN_SHOWN_MS, getClockDeadline, isActiveDecision } from "../../game/turn-clock";
 import { getServerNow } from "../../net/room-store";
 import { UiIcon } from "../icons/ui-icon";
 
@@ -17,6 +17,7 @@ export function TurnTimer({ className = "" }: { className?: string }) {
   const deadline = useGameStore(getClockDeadline);
   const ownTurn = useGameStore(isActiveDecision);
   const paused = useGameStore((state) => state.pause !== null);
+  const duel = useGameStore((state) => state.turnStage === "duel");
   const [now, setNow] = useState(() => getServerNow());
 
   useEffect(() => {
@@ -33,6 +34,14 @@ export function TurnTimer({ className = "" }: { className?: string }) {
     );
   }
   if (deadline === null) return null;
+  // The turn waits for the duel; its safety clock only shows when somebody is about to be played for.
+  if (duel && deadline - now > DUEL_COUNTDOWN_SHOWN_MS) {
+    return (
+      <span className={`turn-timer is-paused ${className}`} title="Duel en cours : le chrono du tour est arrêté">
+        <UiIcon name="pause" strokeWidth={3} /> Duel
+      </span>
+    );
+  }
   const seconds = Math.max(0, Math.ceil((deadline - now) / 1_000));
   const hurry = seconds <= HURRY_SECONDS;
   return (

@@ -2,12 +2,12 @@ import { useEffect } from "react";
 import { useUiStore } from "../../feedback/ui-store";
 import { ALERT_BANNER_MS } from "../../theme/timing";
 import { GhostAvatar } from "../components/ghost-avatar";
-import { ItemIcon } from "../icons/item-icon";
+import { CloverIcon, DevilIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 
 /**
- * Wide ribbon under the players bar for events the whole table must notice:
- * Bullet Bill's arrival, charges and hits, and the Tour de Bénédiction.
+ * Wide ribbon at the top for events the whole table must notice: Bullet
+ * Bill, le diable and their spells, the Tour de Bénédiction, the map's events.
  */
 export function AlertBannerView() {
   const alert = useUiStore((state) => state.alert);
@@ -27,6 +27,10 @@ export function AlertBannerView() {
         <span className="alert-banner__icon" aria-hidden="true">
           {alert.tone === "danger" ? (
             <ItemIcon itemId="bullet-bill" size={46} />
+          ) : alert.tone === "devil" ? (
+            <DevilIcon size={50} />
+          ) : alert.tone === "chances" ? (
+            <CloverIcon size={44} />
           ) : alert.tone === "ghost" ? (
             <GhostAvatar size={50} />
           ) : (

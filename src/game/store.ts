@@ -31,7 +31,8 @@ interface GameActions {
   leaveHell: () => void;
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
   rescueProtege: () => void;
-  buyItem: (itemId: ItemId) => void;
+  /** `count`: copies bought in one go. */
+  buyItem: (itemId: ItemId, count?: number) => void;
   /** Voleur: tries to walk off with an item instead of paying for it. */
   stealItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
@@ -123,7 +124,7 @@ export const useGameStore = create<GameStore>()(
       rollDice: () => dispatch({ type: "rollDice" }),
       leaveHell: () => dispatch({ type: "leaveHell" }),
       rescueProtege: () => dispatch({ type: "rescueProtege" }),
-      buyItem: (itemId) => dispatch({ type: "buyItem", itemId }),
+      buyItem: (itemId, count) => dispatch({ type: "buyItem", itemId, ...(count && count > 1 ? { count } : {}) }),
       stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
       useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),

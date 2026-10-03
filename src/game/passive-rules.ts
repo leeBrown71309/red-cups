@@ -1,5 +1,5 @@
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
-import type { GameState, ItemId, PassiveId, Player } from "./types";
+import type { GameState, ItemId, PassiveId, Player, PlayerId } from "./types";
 import {
   BASE_INVENTORY_CAPACITY,
   MUD_OWNER_REWARD,
@@ -93,14 +93,19 @@ export const TOMATO_ENJOYER_HIT_REWARD = 5;
 const SINGLE_COPY_ITEMS: ItemId[] = ["eraser", "made-in-heaven"];
 
 /**
- * Copies of an item a bag may hold: two, a single Gomme or Made In Heaven, and
- * for Tomato Enjoyer a stack of Tomates in every slot.
+ * Copies of an item a bag may hold: two, a single Gomme or Made In Heaven, a
+ * single stack of Tomates, and for Tomato Enjoyer a stack in every slot.
  */
 export function getCopyLimit(player: Player, itemId: ItemId, capacity: number): number {
+  if (itemId === "tomato") return player.passiveId === "tomato-enjoyer" ? capacity : 1;
   // Le diable never holds the same item twice.
   if (SINGLE_COPY_ITEMS.includes(itemId) || player.passiveId === "devil") return 1;
-  if (itemId === "tomato" && player.passiveId === "tomato-enjoyer") return capacity;
   return 2;
+}
+
+/** Tomates of a turn come from a single stack, but for Tomato Enjoyer, who throws as many as they hold. */
+export function throwsOneStackPerTurn(player: Player): boolean {
+  return player.passiveId !== "tomato-enjoyer";
 }
 
 /**
@@ -126,6 +131,14 @@ export function canCollectRedCup(player: Player): boolean {
 /** L'Ange-Gardien never goes to Hell: they lose their next turn instead. */
 export function avoidsHell(player: Player): boolean {
   return player.passiveId === "guardian-angel";
+}
+
+/**
+ * Who the Hell wheel's duel may call down: never L'Ange-Gardien, who never
+ * goes to Hell, nor Chance aveugle, whom nothing may harm.
+ */
+export function canBeChallenged(challengerId: PlayerId | undefined, target: Player): boolean {
+  return target.id !== challengerId && !avoidsHell(target) && !isImmuneToItems(target);
 }
 
 /** Players L'Ange-Gardien may not protect. */
