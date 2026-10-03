@@ -18,13 +18,15 @@ export const DECISION_TIME_MS = 20_000;
 /** The arm wrestle needs its countdown and both sides' ten seconds, and a little more. */
 export const ARM_WRESTLE_DECISION_TIME_MS = 45_000;
 /**
- * A duel holds the turn clock and shows no countdown: only a duellist or a
- * voter gone quiet for this long lets the default play for them, so a duel
- * never blocks the table (author's request: the clock pauses for the duel).
+ * Duels and wheels hold the turn clock and show no countdown (author's
+ * request; the shop keeps its clock): only a player gone quiet for this long
+ * lets the default play for them, so the table never stays blocked.
  */
-export const DUEL_SAFETY_TIME_MS = 120_000;
-/** The duel's safety clock shows up once this little is left. */
-export const DUEL_COUNTDOWN_SHOWN_MS = 15_000;
+export const HELD_CLOCK_SAFETY_MS = 120_000;
+/** The safety clock of a duel or a wheel shows up once this little is left. */
+export const HELD_CLOCK_SHOWN_MS = 15_000;
+/** Stages that hold the turn clock: the duels, and the wheels of fortune, misfortune, Hell and Bénédiction. */
+const HELD_CLOCK_STAGES = ["duel", "tile-wheel", "wheel-result", "blessing"];
 /** Animations play after every action: the clock waits this long before it runs again. */
 export const CLOCK_GRACE_MS = 3_000;
 /** Devices other than the decider's wait this long past a deadline before closing it themselves. */
@@ -67,10 +69,15 @@ export function getClockDeciderIds(state: GameState): PlayerId[] {
   }
 }
 
+/** Whether a duel or a wheel holds the turn clock, which then only keeps a long safety net. */
+export function isClockHeld(state: GameState): boolean {
+  return state.phase === "playing" && HELD_CLOCK_STAGES.includes(state.turnStage);
+}
+
 /** Whether the decision on hand belongs to the active player alone: their turn's 45 seconds run. */
 export function isActiveDecision(state: GameState): boolean {
-  const shared = ["duel", "reaction", "arm-wrestle"].includes(state.turnStage);
-  if (state.phase !== "playing" || shared) return false;
+  const shared = ["reaction", "arm-wrestle"].includes(state.turnStage);
+  if (state.phase !== "playing" || shared || isClockHeld(state)) return false;
   const deciders = getClockDeciderIds(state);
   return deciders.length === 1 && deciders[0] === getActivePlayer(state)?.id;
 }
@@ -83,7 +90,7 @@ export function getClockOwnerIds(state: GameState): PlayerId[] {
 }
 
 function getDecisionTime(state: GameState): number {
-  if (state.turnStage === "duel") return DUEL_SAFETY_TIME_MS;
+  if (isClockHeld(state)) return HELD_CLOCK_SAFETY_MS;
   return state.turnStage === "arm-wrestle" ? ARM_WRESTLE_DECISION_TIME_MS : DECISION_TIME_MS;
 }
 
@@ -124,6 +131,22 @@ export function getClockDeadline(state: GameState): number | null {
   const { remainingMs, runningSince } = state.turnClock;
   if (isActiveDecision(state)) return runningSince === null ? null : runningSince + remainingMs;
   return state.decisionClock?.deadline ?? null;
+}
+
+/**
+ * The time left as players see it. The clock only runs once the animations'
+ * grace, or the countdown before the first turn, is over: until then it shows
+ * its full time, standing still, rather than the time to the deadline.
+ */
+export function getClockMsLeft(state: GameState, now: number): number | null {
+  const deadline = getClockDeadline(state);
+  if (deadline === null) return null;
+  if (state.phase !== "playing" || !state.turnClock) return deadline - now;
+  if (isActiveDecision(state)) {
+    const { remainingMs, runningSince } = state.turnClock;
+    return runningSince === null ? remainingMs : remainingMs - Math.max(0, now - runningSince);
+  }
+  return Math.min(deadline - now, getDecisionTime(state));
 }
 
 /** A turn that ran out without anything done costs the player a chance. */

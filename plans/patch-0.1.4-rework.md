@@ -649,7 +649,8 @@ Les choix pris sans l'auteur, lot par lot, sont rassemblés dans la spec, sectio
 Treize retours après une partie, plus les bips du chrono demandés ensuite ; le bras de fer en local (touches A et L) attend.
 
 - **Boutique** : sélecteur de quantité (−, +, Max) dès que deux exemplaires ou plus peuvent s'acheter ; `buyItem` prend un `count` et achète d'un bloc ou rien (`src/game/shopping.ts`).
-- **Duels** : le chrono du tour reste en pause ; un filet de sécurité de 2 minutes par étape remplace les 20 secondes, affiché à 15 secondes de la fin.
+- **Duels et roues** : le chrono du tour reste en pause (`isClockHeld`), la boutique non ; un filet de sécurité de 2 minutes par étape remplace les 20 secondes, affiché à 15 secondes de la fin.
+- **Affichage du chrono** : `getClockMsLeft` montre le temps plein tant que la grâce des animations ou le compte à rebours du premier tour n’est pas fini ; l’échéance, elle, était déjà juste.
 - **Bips** : les 10 dernières secondes de tout chrono bipent sur l'appareil de celui qui décide (`use-clock-beeps.ts`, draft compris).
 - **Tomates** : une seule pile par sac sauf Tomato Enjoyer, qui lance aussi autant de piles qu'il veut par tour ; la roue « perds un objet » emporte la pile entière.
 - **Objets automatiques** : Casque, Gomme, Toucher d'Enfer et Bouclier n'ont plus de bouton dans le sac.
