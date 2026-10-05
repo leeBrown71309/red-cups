@@ -539,7 +539,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.1.4";
+export const RULES_VERSION = "0.1.5";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {

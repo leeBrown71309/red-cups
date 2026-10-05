@@ -20,9 +20,9 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Flèches | Une case fléchée ne se quitte que par sa ou ses flèches ; on peut y entrer par n'importe quelle route. Une route sans flèche se parcourt dans les deux sens (patch 0.1.4, flèches dessinées sur les cases). |
 | Boutique | Toutes les cases bleues représentent une boutique. Il faut être dans son tour et arriver sur une case bleue (eShop : n'importe quelle case ; le diable y a un second étal). |
 | Achats | Plusieurs objets peuvent être achetés pendant cette visite, dans la limite du solde et des emplacements libres. Les achats se font avant la fin du tour. |
-| Monnaie initiale | 2 000 pièces par joueur (Nepo Baby 3 000, eShop 1 000, Ange-Gardien 600). Les « points » du diaporama sont une monnaie, pas un score. |
+| Monnaie initiale | 2 000 pièces par joueur (Nepo Baby 3 000, eShop 1 000, Ange-Gardien 800 depuis le patch 0.1.5). Les « points » du diaporama sont une monnaie, pas un score. |
 | Seuil négatif | À −300 pièces ou moins, le solde revient à 0 et le prochain tour du joueur est annulé. |
-| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Trois passifs ont leur propre victoire (patch 0.1.4) : Cupide à 5 000 pièces, le diable quand les autres sont assez entrés en Enfer, et L'Ange-Gardien gagne avec son protégé. |
+| Objectif | Le premier joueur à obtenir exactement 3 Red Cups gagne immédiatement la partie. Trois passifs ont leur propre victoire (patch 0.1.4) : Cupide à 6 000 pièces (5 000 avant le patch 0.1.5), le diable quand les autres sont assez entrés en Enfer, et L'Ange-Gardien gagne avec son protégé. |
 | Abandon | Un joueur peut quitter une partie en cours ; les autres continuent. S’il ne reste qu’un joueur, il gagne par abandon (patch 0.1.1). |
 | Tour de Bénédiction | Si, à la fin d’un tour, tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle avant de reprendre la partie (patch 0.1.1). |
 | Cases vertes et rouges | S’arrêter sur une case verte lance la roue du bonheur, sur une case rouge la roue du malheur (règle confirmée par l’auteur du jeu). |
@@ -45,7 +45,7 @@ Le plateau illustré contient douze cases numérotées de 0 à 11 :
 - Cases bleues : boutiques.
 - Cases vertes : s’y arrêter lance la **roue du bonheur**.
 - Cases rouges : s’y arrêter lance la **roue du malheur**.
-- Le passif **Red light, Green light** ajoute ±100 pièces au passage sur ces cases, deux fois de chaque par Red Cup, en plus des roues.
+- Le passif **Red light, Green light** ajoute 100 pièces sur les cases vertes et en retire 50 sur les rouges (patch 0.1.5, 100 avant) au passage, deux fois de chaque par Red Cup, en plus des roues.
 - Case 11, violette : Enfer. Elle n’est pas parcourue comme une case normale ; des effets y téléportent les joueurs.
 - Case 8 : emplacement initial de la première Red Cup.
 
@@ -250,9 +250,9 @@ Un objet qui peut s’acheter en plusieurs exemplaires d’un coup (Tomates de l
 | Bouteille d’eau | 600 | 3 |
 | Casque | 200 | 0 |
 | Draven | 700 | 3 |
-| Made In Heaven (Chance aveugle seulement) | 1 200 | 3 |
+| Made In Heaven (Chance aveugle seulement) | 1 300 (1 200 avant le patch 0.1.5) | 3 |
 | Bouclier (L'Ange-Gardien seulement) | 500 | 0 (hors tour) |
-| Portail (boutique du diable) | 300 | 2 |
+| Portails (boutique du diable) | 400 (300 avant le patch 0.1.5) | 2 |
 | Toucher d'Enfer (boutique du diable) | 400 | 0 (automatique) |
 | Black Cup (boutique du diable) | 400 | 3 |
 | Sentence (boutique du diable) | 400 | 2 |
@@ -279,7 +279,7 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. Chance aveugle est épargné. |
 | Bouclier | Objet de L'Ange-Gardien (patch 0.1.4). Quand un autre joueur utilise un objet à cible unique sur son protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque l'objet (perdu avec son énergie) ou le laisse passer (Q14). Il bloque aussi Bullet Bill qui fonce sur son protégé (réponse de l'auteur) : Bullet Bill s'écrase sans le toucher. Le Bouclier est alors consommé. Pas Draven. |
-| Portail | Boutique du diable. S'ouvre sur une case au hasard, ni l'Enfer, ni le Départ, ni la Red Cup. Le premier joueur qui s'y arrête, le diable compris (Q18), tombe en Enfer et le referme. Sinon il se referme après 2 tours de table, au tour du diable. Chance aveugle s'y arrête sans tomber. |
+| Portails | Boutique du diable (patch 0.1.5, remplace le Portail). Ouvre **deux** portails vers l'Enfer sur deux cases au hasard, ni l'Enfer, ni le Départ, ni la Red Cup, ni la glace. Ils sont tous deux invisibles pendant le tour de table où ils s'ouvrent ; au tour de table suivant, l'un des deux devient visible ; au troisième, les deux le sont. Le premier joueur qui s'arrête sur l'un d'eux, visible ou non, le diable compris (Q18), tombe en Enfer et les referme tous les deux. Sinon ils se referment après 3 tours de table, au tour du diable. Chance aveugle s'y arrête sans tomber. |
 | Toucher d'Enfer | Boutique du diable, agit tout seul (pas de bouton « Utiliser » : retour de l’auteur). Dès que le diable et un joueur assommé ou qui doit passer son tour se trouvent sur la même case, ce joueur part en Enfer, tous ceux de la case d'un coup ; l'objet est alors consommé. Cela vaut quand le diable s'arrête sur sa case, quand il s'y trouve déjà, ou quand le joueur est assommé à côté de lui (Middle Finger, Bullet Bill, solde sous −300, Tomate, boule de neige). Au changement de tour, il frappe **avant** que le tour sauté du joueur assommé ne soit consommé (correction : Bullet Bill en début de tour de table et un diable déjà sur la case le rataient). |
 | Black Cup | Boutique du diable. La Red Cup plonge en Enfer pour 2 tours de table, puis revient sur sa case (la glace du blizzard y fond). Le premier joueur qui arrive en Enfer entre-temps la ramasse ; ceux qui y étaient déjà ne la ramassent pas (Q16). |
 | Sentence | Boutique du diable. Tous les autres joueurs à 0 pièce ou moins partent en Enfer. |
@@ -296,7 +296,7 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | --- | --- |
 | Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Contre le Monopoly Man, un bras de fer décide de l'échange, et ses coups comptent 1,2 fois (patch 0.1.4, voir 9.2 bis). |
 | New Cup, New Me | À chaque nouvelle Red Cup, avant qu’elle apparaisse, le joueur choisit : filer au Départ et toucher 200 pièces (même depuis l’Enfer), ou rester où il est (patch 0.1.4). Aller au Départ ne donne ni roue ni boutique. |
-| Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 100 (patch 0.1.4, « deux de chaque »). |
+| Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 50 (patch 0.1.5 ; 100 avant ; « deux de chaque » depuis le patch 0.1.4). |
 | Non merci | Une fois tous les 5 tours de table, annule un objet utilisé contre lui, une roue tournée pour lui ou Bullet Bill qui fonce sur lui (voir 4). |
 | Corrupteur | Délinquant renommé (patch 0.1.4). Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
 | Goblin | Troll renommé (patch 0.1.4). À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
@@ -311,9 +311,9 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Double or nothing | Après chaque gain ou perte de pièces, dès que la table est au repos (pas au milieu d’une roue ou d’un duel), il peut tenter un 50/50 : la somme se produit une seconde fois, ou elle est annulée. Sinon, il la garde. Chaque somme est proposée à part, même pendant le tour d’un autre joueur. Ses achats, et le résultat du 50/50 lui-même, ne se rejouent pas (réponse de l’auteur, Q7) (patch 0.1.4). |
 | Chance aveugle | Ne voit jamais la Red Cup : en ligne sur son appareil, sur l’écran partagé quand c’est à lui de décider. Aucun objet ne peut lui nuire : il n’apparaît jamais dans les cibles (Q19), Draven et Bullet Bill l’épargnent. La Boue ne lui coûte rien et ne rapporte rien à son poseur : il recule sur la case d’où il est entré, sans effet de case (il reste sur place s’il a été téléporté). Lui seul peut acheter Made In Heaven (voir 7) (patch 0.1.4). |
 | Voleur | Une fois par visite à la boutique, il peut tenter de voler un objet au lieu de l’acheter, avec 1 % de risque par tranche de 10 pièces de son prix (Botte : son prix du moment). Réussi, l’objet est gratuit (règles du sac respectées). Pris, il part en Enfer, ce qui finit son tour, et doit 1,5 fois le prix : ses objets les plus chers partent d’abord, jusqu’à couvrir la somme, sans rendu de monnaie ; s’ils ne suffisent pas, le reste est pris sur ses pièces (Q8, Q9) (patch 0.1.4). |
-| Le diable | Annoncé à toute la table au lancement. Gagne dès que les autres joueurs ont passé ⌊4N − N/2⌋ **tours en Enfer**, N étant le nombre de joueurs au lancement (2 → 7, 4 → 14, 8 → 28) : chaque tour qu'un autre joueur commence en Enfer compte, joué ou sauté, quelle que soit la cause de sa venue (buff de l'auteur, qui remplace le compte des entrées). Chaque fois que le diable va lui-même en Enfer, il gagne **100 pièces**. Ne ramasse pas la Red Cup. Sort de l'Enfer quand il veut pendant son tour, pour 1 point d'énergie (réponse de l'auteur) : retour en case 0, sans les 200 pièces (Q10), et son tour continue avec l'énergie qui reste. Ne détient jamais deux fois le même objet (une seule pile de Tomates). Sur les cases bleues, sa boutique a un second onglet avec ses 5 objets (Q11, voir 7). La liste des joueurs affiche son compteur de tours, par exemple « 5/14 » (patch 0.1.4). |
-| L'Ange-Gardien | Seulement à 4 joueurs ou plus. Au lancement, un protégé est tiré parmi les joueurs qui ne sont pas des malfaiteurs (le diable, le Voleur, le Goblin, le Corrupteur) ; sans protégé possible, l'Ange devient Lambda. Le protégé est public et porte un halo (Q13). L'Ange gagne avec son protégé. Il commence avec 600 pièces et 2 places, ne ramasse pas la Red Cup et ne va jamais en Enfer : à la place, il perd son prochain tour (Hollow Purple, Draven, roues, Portail ; le fantôme lui prend des pièces ou un objet ; la Corde ou le Monopoly Man d'un joueur en Enfer le laissent sur place ; on ne peut pas le défier). La Boue lui fait perdre son prochain tour au lieu de 200 pièces. Sa roue du malheur n'a que 2 issues : passer son tour ou rien. Il ne vise que son protégé et n'utilise jamais Ndoye, Hollow Purple, Boue, Tomate, Bullet Bill, Middle Finger, Draven ni Casque (ni achat, ni usage). Pendant son tour, il peut sacrifier ses 2 prochains tours pour tirer son protégé de l'Enfer : le protégé arrive sur sa case, sans effet de case, et le tour de l'Ange s'arrête là (réponse de l'auteur). Si le protégé abandonne, l'Ange prend sa place (passif, sac, Red Cups et pièces) mais en Enfer (patch 0.1.4). |
-| Cupide | Gagne à 5 000 pièces (voir 3.3). Une Red Cup lui rapporte 1 000 pièces au lieu d’une place. En s’arrêtant sur la case d’un joueur assommé (qui doit passer son tour), il lui prend 50 pièces. Sa Boue lui coûte 100 pièces et lui rapporte 200 quand un autre joueur marche dedans. Les pièces que son Ndoye fait perdre à sa cible lui reviennent (patch 0.1.4). |
+| Le diable | Annoncé à toute la table au lancement. Gagne dès que les autres joueurs ont passé ⌊4N − N/2⌋ **tours en Enfer**, N étant le nombre de joueurs au lancement (2 → 7, 4 → 14, 8 → 28) : chaque tour qu'un autre joueur commence en Enfer compte, joué ou sauté, quelle que soit la cause de sa venue (buff de l'auteur). Depuis le patch 0.1.5, chaque **entrée** d'un autre joueur en Enfer compte aussi : un point de plus pour le diable et **50 pièces** ; chaque fois que le diable va lui-même en Enfer, il gagne **100 pièces** (sans point). Ne ramasse pas la Red Cup. Sort de l'Enfer quand il veut pendant son tour, pour 1 point d'énergie (réponse de l'auteur) : retour en case 0, sans les 200 pièces (Q10), et son tour continue avec l'énergie qui reste. Ne détient jamais deux fois le même objet (une seule pile de Tomates). Sur les cases bleues, sa boutique a un second onglet avec ses 5 objets (Q11, voir 7). La liste des joueurs affiche son compteur de tours, par exemple « 5/14 » (patch 0.1.4). |
+| L'Ange-Gardien | Seulement à 4 joueurs ou plus. Au lancement, un protégé est tiré parmi les joueurs qui ne sont pas des malfaiteurs (le diable, le Voleur, le Goblin, le Corrupteur) ; sans protégé possible, l'Ange devient Lambda. Le protégé est public et porte un halo (Q13). L'Ange gagne avec son protégé. Il commence avec 800 pièces (600 avant le patch 0.1.5) et 2 places, ne ramasse pas la Red Cup et ne va jamais en Enfer : à la place, il perd son prochain tour (Hollow Purple, Draven, roues, Portail ; le fantôme lui prend des pièces ou un objet ; la Corde ou le Monopoly Man d'un joueur en Enfer le laissent sur place ; on ne peut pas le défier). La Boue lui fait perdre son prochain tour au lieu de 200 pièces. Sa roue du malheur n'a que 2 issues : passer son tour ou rien. Il ne vise que son protégé et n'utilise jamais Ndoye, Hollow Purple, Boue, Tomate, Bullet Bill, Middle Finger, Draven ni Casque (ni achat, ni usage). Pendant son tour, il peut sacrifier ses 2 prochains tours pour tirer son protégé de l'Enfer : le protégé arrive sur sa case, sans effet de case, et le tour de l'Ange s'arrête là (réponse de l'auteur). Si le protégé abandonne, l'Ange prend sa place (passif, sac, Red Cups et pièces) mais en Enfer (patch 0.1.4). |
+| Cupide | Gagne à 6 000 pièces (5 000 avant le patch 0.1.5, voir 3.3). Une Red Cup lui rapporte 1 000 pièces au lieu d’une place. En s’arrêtant sur la case d’un joueur assommé (qui doit passer son tour), il lui prend 50 pièces. Sa Boue lui coûte 100 pièces et lui rapporte 200 quand un autre joueur marche dedans. Les pièces que son Ndoye fait perdre à sa cible lui reviennent (patch 0.1.4). |
 
 ## 9. Enfer, roues et duels
 
@@ -468,7 +468,7 @@ Pendant le rework, chaque lot a demandé des choix que le document de l'auteur n
 ### Lot 6 — Passifs simples et victoire de Cupide
 
 1. **Validé** — **Cupide** ne vole les 50 pièces que s'il s'arrête sur la case d'un joueur assommé (en marchant ou avec « Avance d'une case ») ; passer dessus ne suffit pas.
-2. **Validé** — **Cupide** n'accumule pas de Red Cups : il ne gagne qu'à 5 000 pièces.
+2. **Validé** — **Cupide** n'accumule pas de Red Cups : il ne gagne qu'à 6 000 pièces (5 000 avant le patch 0.1.5).
 3. **Validé** — **eShop** a aussi la boutique après « Avance d'une case » ou « Retourne d'où tu viens », quand son tour est fini.
 4. **À valider** — **Roller** : une fois le dé lancé, il ne peut plus utiliser d'objet ; il ne peut pas chausser une Botte reçue gratuitement.
 
@@ -569,9 +569,39 @@ Treize retours de l’auteur (le bras de fer en local est mis de côté pour plu
 10. **À valider** — Les bannières du diable (annonce, Doomsday, Black Cup) portent sa tête à cornes ; la « dernière chance » avant un forfait porte un trèfle (elle avait aussi Bullet Bill).
 11. **À valider** — Les **bips** ne sonnent que sur l’appareil de celui qui doit décider, une fois par seconde sur les 10 dernières, et au draft aussi.
 
+## 13 bis. Choix à valider du patch 0.1.5
+
+Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « autres modifications »). Les chiffres sont appliqués tels quels ; ce qui suit est ce que j'ai choisi là où le retour laissait une marge.
+
+1. **À valider** — **Salon joignable** : « tant que le 1er tour n'a pas commencé ou n'est pas fini » est lu comme **le premier tour de table** : on peut s'asseoir pendant le draft, le compte à rebours et toute la première manche (tant que le tour de table affiché est 1 et qu'il reste une place). Le nouvel arrivant joue en dernier. Pendant le draft, il reçoit des cartes que personne n'a ; ensuite, un passif au hasard parmi ceux qui ne sont pas déjà à la table, jamais le diable ni L'Ange-Gardien (annoncés au lancement). Il faut appliquer `supabase/schema.sql` à la base (`claim_seat`, `get_room`, `is_late_joinable`).
+2. **À valider** — **Joueur endormi (zzz) qui jouait quand même** : je n'ai pas pu reproduire une partie, j'ai donc corrigé le seul cas où cela arrive : un joueur mis en sommeil **au début de son tour** (roue du dégel de la Banquise, retour à 0 après −300, etc.) perd ce tour-là sur le champ, sans perdre aussi le suivant. Celui qui s'endort après avoir joué garde son tour en cours et perd le suivant, comme le disent les roues.
+3. **À valider** — **Le diable (buff 1)** : l'entrée d'un **autre** joueur en Enfer ajoute 1 point au compteur et 50 pièces au diable, quelle qu'en soit la cause (roue, Draven, duel, Portails…), puis chaque tour commencé en Enfer ajoute encore 1 point. L'entrée du diable lui-même rapporte 100 pièces mais aucun point. Avec Draven, chaque autre joueur compte une entrée.
+4. **À valider** — **Portails** : tous les joueurs, le diable compris, ne voient rien le premier tour ; le journal n'indique pas les cases. Le portail qui se dévoile au deuxième tour est le premier tiré. Marcher sur un portail encore caché le déclenche quand même. Ils tiennent 3 tours de table, au tour du diable.
+5. **À valider** — **Red light, Green light** : seule la pénalité des cases rouges change (50 pièces) ; les vertes rapportent toujours 100.
+6. **À valider** — **Cartes de tarot** : l'illustration est un emoji par passif, la couleur dépend de la « famille » (Arcane majeur : le diable, L'Ange-Gardien, Cupide ; Deniers : l'argent ; Épées : la défense et la chance ; Bâtons : le mouvement) et le numéro romain suit l'ordre du catalogue. Les cartes servent au draft et à l'onglet Passifs de l'aide ; la fiche du joueur garde son texte.
+7. **À valider** — **Fiche du joueur** : elle ne se ferme plus qu'avec sa croix, en retouchant la ligne du joueur, en repliant la liste ou en tournant l'écran. Le défilement venait du plateau, qui captait la molette et le doigt à travers la carte.
+8. **À valider** — **Aide sur mobile** : sous 760 px de large ou 520 px de haut, chaque onglet n'a plus qu'un seul défilement, les onglets restent collés en haut et les cartes d'objets et de passifs prennent toute leur hauteur.
+9. **À valider** — **Mini-jeux** : les boutons que les autres joueurs voyaient à tort étaient « Passer l'animation » de la roue et « Égalité ! On rejoue » de pierre-feuille-ciseaux. Ils sont réservés à ceux que cela concerne ; les autres voient l'égalité puis la table reprend seule.
+10. **À valider** — **Exclure un joueur** : l'hôte (la couronne du salon) le fait depuis le salon ou depuis la fiche du joueur, en deux appuis. En partie, l'exclu quitte comme celui qui abandonne, et seulement quand la table est au repos (le bouton attend sinon). Il ne peut plus rejoindre ce salon.
+11. **À valider** — **Menu** : il s'ouvre au lancement du jeu ; « Commencer la partie » mène à la préparation de la partie habituelle, et après une partie on revient à cette préparation, pas au menu. Les paramètres sont le son et le plein écran. La version est celle de `package.json`. Le texte du journal des modifications est de moi, à relire.
+12. **À valider** — **Journal de la partie** : un bouton à côté du menu, et des lignes de plus : tout objet utilisé (« X utilise Y sur Z »), le propriétaire de chaque roue, la fin de chaque tour. Il garde les 120 dernières lignes (60 avant).
+
 ## 14. Historique des versions
 
-### 0.1.4 — en préparation
+### 0.1.5 — octobre 2026
+
+Retours de l'auteur sur la version jouée ; les choix qui restent à valider sont dans la section 13 bis.
+
+- **Menu** : une page avant la préparation de la partie (commencer, jouer en ligne, comment jouer, paramètres, journal des modifications) avec la version du jeu, et une page de journal des modifications.
+- **Cartes de tarot** : les passifs sont dessinés comme des cartes de tarot au draft et dans l'aide.
+- **Fiche du joueur** : bouton pour la fermer, plus de fermeture au toucher du plateau, texte du passif défilant ; l'aide sur mobile n'a plus qu'un défilement par onglet.
+- **En ligne** : un salon se rejoint jusqu'à la fin du premier tour de table (action `joinLatePlayer`) ; l'hôte peut exclure un joueur (`kick_player`, action `kickPlayer`).
+- **Tour sauté** : un joueur endormi au début de son tour ne le joue plus.
+- **Journal** : bouton à côté du menu, plus d'actions notées.
+- **Diable** : les entrées des autres en Enfer comptent (1 point, 50 pièces) ; les Portails remplacent le Portail (deux portails cachés, 400 pièces, 3 tours).
+- **Équilibrage** : Cupide à 6 000 pièces, Made In Heaven à 1 300, l'Ange-Gardien à 800 pièces, cases rouges de Red light, Green light à 50.
+
+### 0.1.4 — octobre 2026
 
 Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponses de l'auteur et le bilan de chaque lot sont dans `plans/patch-0.1.4-rework.md`, et les choix qui restent à valider dans la section 13.
 

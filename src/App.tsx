@@ -11,6 +11,9 @@ import { FullscreenGate } from "./ui/components/fullscreen-gate";
 import { OrientationHint } from "./ui/components/orientation-hint";
 import { DraftScreen } from "./ui/draft/draft-screen";
 import { GameHud } from "./ui/hud/game-hud";
+import { ChangelogScreen } from "./ui/home/changelog-screen";
+import { useHomeStore } from "./ui/home/home-store";
+import { MenuScreen } from "./ui/home/menu-screen";
 import { LobbyScreen } from "./ui/lobby/lobby-screen";
 import { OnlineScreen } from "./ui/online/online-screen";
 
@@ -26,6 +29,8 @@ export default function App() {
   const startGame = useGameStore((state) => state.startGame);
   const roomView = useRoomStore((state) => state.view);
   const openOnlineMenu = useRoomStore((state) => state.openMenu);
+  const homeView = useHomeStore((state) => state.view);
+  const setHomeView = useHomeStore((state) => state.setView);
 
   useEffect(() => {
     if (!onlineAvailable) return;
@@ -56,11 +61,18 @@ export default function App() {
       ) : phase !== "setup" ? (
         <GameHud />
       ) : roomView === "closed" ? (
-        <LobbyScreen
-          // Every game opens on the passive draft (patch 0.1.4).
-          onStart={(names, mapId) => startGame(names, undefined, mapId, true)}
-          onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}
-        />
+        homeView === "menu" ? (
+          <MenuScreen onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined} />
+        ) : homeView === "changelog" ? (
+          <ChangelogScreen />
+        ) : (
+          <LobbyScreen
+            // Every game opens on the passive draft (patch 0.1.4).
+            onStart={(names, mapId) => startGame(names, undefined, mapId, true)}
+            onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}
+            onBack={() => setHomeView("menu")}
+          />
+        )
       ) : (
         <OnlineScreen />
       )}

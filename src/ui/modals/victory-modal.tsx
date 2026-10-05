@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { resolveMapChoice, type MapChoice } from "../../game/maps/map-registry";
 import { useGameStore } from "../../game/store";
+import { GREEDY_GOAL } from "../../game/types";
 import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { MapCarousel } from "../components/map-carousel";
 import { PlayerAvatar } from "../components/player-avatar";
 import { StandingsList } from "../components/standings-list";
 import { UiIcon } from "../icons/ui-icon";
+import { formatCurrency } from "../display/game-display";
 import { describeMapChoice } from "../lobby/map-picker";
 
 const CONFETTI_PIECES = 36;
@@ -88,7 +90,7 @@ export function VictoryModal() {
             {winReason === "forfeit"
               ? "Dernière personne à table"
               : winReason === "greedy"
-                ? "5 000 pièces. Cupide rafle la mise."
+                ? `${formatCurrency(GREEDY_GOAL)} pièces. Cupide rafle la mise.`
                 : winReason === "devil"
                   ? `${devilHellTurns} tours passés en Enfer. Le diable l’emporte.`
                   : "Trois Red Cups. Une légende."}
