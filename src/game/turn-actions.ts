@@ -3,7 +3,7 @@ import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
 import { carryOffIce, drawSlide, recordSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
-import { castBlackCup, dropBlackCup, openPortal, passSentence, startDoomsday, triggerPortal } from "./devil";
+import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { startArmWrestle } from "./arm-wrestle";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
@@ -341,7 +341,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "portal":
-      nextState = openPortal(nextState, player.id);
+      nextState = openPortals(nextState, player.id);
       break;
 
     case "black-cup":

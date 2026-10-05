@@ -231,9 +231,9 @@ describe("Red light, Green light", () => {
     let state = addRedGreenBonuses(store(), holder, [1, 5, 7]);
     expect(state.players[0].currency).toBe(STARTING_CURRENCY + 200);
     state = addRedGreenBonuses(state, holder, [4, 6, 10]);
-    expect(state.players[0].currency).toBe(STARTING_CURRENCY);
+    expect(state.players[0].currency).toBe(STARTING_CURRENCY + 100);
     expect(state.redGreenTriggers).toEqual({ green: 2, red: 2 });
-    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY);
+    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY + 100);
   });
 
   it("counts afresh with every new Red Cup", () => {

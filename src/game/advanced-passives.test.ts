@@ -129,7 +129,7 @@ describe("Chance aveugle", () => {
     useGameStore.setState({ redCupNodeId: 5 });
     store().buyItem("made-in-heaven");
     expect(countItemUnits(store().players[0], "made-in-heaven")).toBe(1);
-    expect(store().players[0].currency).toBe(STARTING_CURRENCY - 1_200);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY - 1_300);
     // One at a time.
     editPlayer(0, { currency: 5_000 });
     store().buyItem("made-in-heaven");

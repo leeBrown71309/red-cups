@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getWheelResults } from "./catalog";
-import { expireDevilSpells } from "./devil";
+import { expireDevilSpells, isPortalVisible } from "./devil";
 import { withPassives } from "./forced-passives";
 import { getDevilGoal, getShopItems } from "./passive-rules";
 import { countRedCups, getInventoryCapacity } from "./rules";
 import { useGameStore } from "./store";
 import type { InventoryEntry, ItemId, PassiveId, Player } from "./types";
-import { HELL_NODE_ID, STARTING_CURRENCY, START_NODE_ID } from "./types";
+import { HELL_NODE_ID, PORTAL_ROUNDS, STARTING_CURRENCY, START_NODE_ID } from "./types";
 
 /**
  * Le diable and L'Ange-Gardien (patch 0.1.4) on the classic board. Tile 2
@@ -43,8 +43,9 @@ describe("Le diable", () => {
     startTable(["devil", "lambda", "lambda"]);
     editPlayer(0, { inventory: [item("purple", "hollow-purple")] });
     store().useItem("purple", playerId(1));
-    // The entry itself counts nothing: the turns spent there do.
-    expect(store().devilHellTurns).toBe(0);
+    // The entry counts a point, and pays le diable 50 coins (patch 0.1.5).
+    expect(store().devilHellTurns).toBe(1);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY + 50);
 
     useGameStore.setState({ devilHellTurns: getDevilGoal(3) - 1, turnStage: "turn-end" });
     store().endTurn();
@@ -67,11 +68,12 @@ describe("Le diable", () => {
     expect(store().devilHellTurns).toBe(1);
   });
 
-  it("pays le diable 100 coins each time they go to Hell themselves", () => {
+  it("pays le diable 100 coins for their own trips to Hell, and 50 with a point for the others'", () => {
     startTable(["devil", "lambda"]);
     editPlayer(0, { inventory: [item("draven", "draven")] });
     store().useItem("draven");
-    expect(store().players[0]).toMatchObject({ position: HELL_NODE_ID, currency: STARTING_CURRENCY + 100 });
+    expect(store().players[0]).toMatchObject({ position: HELL_NODE_ID, currency: STARTING_CURRENCY + 150 });
+    expect(store().devilHellTurns).toBe(1);
   });
 
   it("walks past the Red Cup, and leaves Hell whenever they please", () => {
@@ -115,17 +117,35 @@ describe("Le diable", () => {
     expect(store().players[0].inventory[0]).toMatchObject({ count: 2 });
   });
 
-  it("opens a Portail, into which anybody stopping falls, le diable included", () => {
+  it("opens two hidden Portails, into which anybody stopping falls, le diable included, closing both", () => {
     startTable(["devil", "lambda"]);
     editPlayer(0, { inventory: [item("portal", "portal")] });
     store().useItem("portal");
-    const [portal] = store().hellPortals;
+    const [portal, other] = store().hellPortals;
+    expect(store().hellPortals).toHaveLength(2);
+    expect(portal.nodeId).not.toBe(other.nodeId);
     expect([START_NODE_ID, HELL_NODE_ID, store().redCupNodeId]).not.toContain(portal.nodeId);
 
-    useGameStore.setState({ hellPortals: [{ ...portal, nodeId: 2 }] });
+    useGameStore.setState({ hellPortals: [{ ...portal, nodeId: 2 }, other] });
     store().movePlayer(2);
     expect(store().players[0].position).toBe(HELL_NODE_ID);
     expect(store().hellPortals).toEqual([]);
+  });
+
+  it("shows the first Portail the second round and both the third, then closes them after three", () => {
+    startTable(["devil", "lambda"]);
+    editPlayer(0, { inventory: [item("portal", "portal")] });
+    store().useItem("portal");
+    const [first, second] = store().hellPortals;
+    const visible = (round: number) =>
+      [first, second].filter((portal) => isPortalVisible({ ...store(), round }, portal)).map((portal) => portal.id);
+    const cast = store().round;
+    expect(visible(cast)).toEqual([]);
+    expect(visible(cast + 1)).toEqual([first.id]);
+    expect(visible(cast + 2)).toEqual([first.id, second.id]);
+
+    useGameStore.setState({ round: cast + PORTAL_ROUNDS, activePlayerIndex: 0 });
+    expect(expireDevilSpells(store()).hellPortals).toEqual([]);
   });
 
   it("sends the knocked-out players of their tile to Hell with the Toucher d'Enfer", () => {
@@ -232,10 +252,10 @@ describe("L'Ange-Gardien", () => {
     expect(store().players[0].passiveId).toBe("lambda");
   });
 
-  it("starts with 600 coins and two slots, picks up no Red Cup and spins a two-wedge wheel of misfortune", () => {
+  it("starts with 800 coins and two slots, picks up no Red Cup and spins a two-wedge wheel of misfortune", () => {
     startTable(["guardian-angel", "lambda"]);
     const angel = store().players[0];
-    expect(angel.currency).toBe(600);
+    expect(angel.currency).toBe(800);
     expect(getInventoryCapacity(angel)).toBe(2);
     expect(getWheelResults("misfortune", angel).map((result) => result.id)).toEqual(["skip-turn", "nothing"]);
 
@@ -255,7 +275,7 @@ describe("L'Ange-Gardien", () => {
     startTable(["guardian-angel", "lambda"]);
     useGameStore.setState({ mudTraps: [{ id: "trap", nodeId: 2, ownerId: playerId(1) }] });
     store().movePlayer(2);
-    expect(store().players[0]).toMatchObject({ currency: 600, skippedTurns: 1 });
+    expect(store().players[0]).toMatchObject({ currency: 800, skippedTurns: 1 });
     expect(store().players[1].currency).toBe(STARTING_CURRENCY + 100);
   });
 

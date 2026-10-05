@@ -98,8 +98,8 @@ export function checkDevilItem(
       }
       break;
     case "portal":
-      if (next.hellPortals.length !== previous.hellPortals.length + 1) {
-        found.push(violation("portal-open", "the Portail did not open"));
+      if (next.hellPortals.length !== previous.hellPortals.length + 2) {
+        found.push(violation("portal-open", "the two Portails did not open"));
       }
       break;
     case "black-cup": {

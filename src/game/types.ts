@@ -21,8 +21,11 @@ export const JE_NOTE_COPY_CHANCE = 1 / 3;
 export const RED_GREEN_TRIGGERS_PER_CUP = 2;
 /** Calme-toi: how far from the new Red Cup the holder sets a player down. */
 export const CALM_DOWN_DISTANCE = 3;
+/** Red light, Green light: coins a green tile pays and a red one costs (patch 0.1.5). */
+export const RED_GREEN_GAIN = 100;
+export const RED_GREEN_PENALTY = 50;
 /** Cupide wins as soon as their balance reaches this. */
-export const GREEDY_GOAL = 5_000;
+export const GREEDY_GOAL = 6_000;
 /** Cupide: what a Red Cup pays them instead of taking a bag slot. */
 export const GREEDY_CUP_REWARD = 1_000;
 /** Cupide: taken from every knocked-out player on the tile they walk onto. */
@@ -39,8 +42,8 @@ export const THEFT_PENALTY_RATE = 1.5;
 export const GUARDIAN_MIN_PLAYERS = 4;
 /** L'Ange-Gardien: turns given up to free the protégé from Hell. */
 export const RESCUE_SKIPPED_TURNS = 2;
-/** Le diable's Portail stays open this many rounds, unless somebody stops on it first. */
-export const PORTAL_ROUNDS = 2;
+/** Le diable's Portails stay open this many rounds, unless somebody stops on one of them first. */
+export const PORTAL_ROUNDS = 3;
 /** Le diable's Black Cup keeps the Red Cup in Hell this many rounds. */
 export const BLACK_CUP_ROUNDS = 2;
 /** Le diable's Doomsday lasts this many rounds. */
@@ -475,10 +478,20 @@ export interface DevilSpell {
   untilRound: number;
 }
 
-/** Le diable's Portail: whoever stops on its tile drops into Hell. */
+/**
+ * One of le diable's two Portails: whoever stops on its tile drops into Hell,
+ * and both close. Hidden the round they open, the first shows the next round,
+ * the second the one after (`castRound` and `rank`; a save from before
+ * patch 0.1.5 has neither and shows plainly).
+ */
 export interface HellPortal extends DevilSpell {
   id: string;
   nodeId: NodeId;
+  /** Both portals of a pair share it; one stepped on closes the other. */
+  pairId?: string;
+  castRound?: number;
+  /** 0 shows first, 1 shows last. */
+  rank?: 0 | 1;
 }
 
 /** Le diable's Black Cup: the Red Cup waits in Hell, then goes back to its tile. */

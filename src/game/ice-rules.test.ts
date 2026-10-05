@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBlizzardCandidates, getBoard, isIce } from "./board";
 import { WHEEL_RESULTS } from "./catalog";
-import { openPortal } from "./devil";
+import { openPortals } from "./devil";
 import { reduceGame } from "./game-actions";
 import { getCalmDownTiles } from "./game-effects";
 import { blowBlizzard } from "./ice";
@@ -135,7 +135,7 @@ describe("Banquise: nobody stays on ice", () => {
     const board = getBoard(state);
     for (let draw = 0; draw < 1; draw += 0.05) {
       vi.spyOn(Math, "random").mockReturnValue(draw);
-      const [portal] = openPortal(state, "p1").hellPortals;
+      const [portal] = openPortals(state, "p1").hellPortals;
       expect(isIce(board, portal.nodeId)).toBe(false);
 
       const inHell: GameState = {

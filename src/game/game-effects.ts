@@ -35,6 +35,8 @@ import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
   GREEDY_CUP_REWARD,
+  RED_GREEN_GAIN,
+  RED_GREEN_PENALTY,
   GREEDY_STUN_THEFT,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
@@ -464,7 +466,7 @@ export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
 
 /**
  * Red light, Green light: per Red Cup, the first two green tiles walked on pay
- * 100 coins and the first two red ones cost 100 (patch 0.1.4).
+ * 100 coins and the first two red ones cost 50 (patch 0.1.5).
  */
 export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = findPlayer(state, playerId);
@@ -480,7 +482,7 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
       ...nextState,
       redGreenTriggers: { ...nextState.redGreenTriggers, [kind]: nextState.redGreenTriggers[kind] + 1 },
     };
-    nextState = applyCurrencyChange(nextState, playerId, kind === "green" ? 100 : -100);
+    nextState = applyCurrencyChange(nextState, playerId, kind === "green" ? RED_GREEN_GAIN : -RED_GREEN_PENALTY);
   }
   return nextState;
 }

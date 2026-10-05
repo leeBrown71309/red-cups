@@ -152,7 +152,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   "made-in-heaven": {
     id: "made-in-heaven",
     name: "Made In Heaven",
-    price: 1_200,
+    price: 1_300,
     symbol: "✧",
     description:
       "Chance aveugle seulement : renvoie tous les autres joueurs au Départ, Enfer compris, sans bonus, et pose " +
@@ -162,12 +162,13 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   },
   portal: {
     id: "portal",
-    name: "Portail",
-    price: 300,
+    name: "Portails",
+    price: 400,
     symbol: "◎",
     description:
-      "Le diable : ouvre un portail vers l’Enfer sur une case au hasard, ni l’Enfer, ni le Départ, ni la Red Cup. " +
-      "Qui s’y arrête, toi compris, tombe en Enfer. Il se referme après 2 tours de table.",
+      "Le diable : ouvre deux portails vers l’Enfer sur des cases au hasard, ni l’Enfer, ni le Départ, ni la Red " +
+      "Cup. Invisibles le premier tour, l’un se montre au deuxième, les deux au troisième. Qui s’arrête sur l’un, " +
+      "toi compris, tombe en Enfer et les referme tous deux, sinon ils se ferment après 3 tours de table.",
     target: "none",
     energyCost: 2,
   },
@@ -286,7 +287,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Red / Green",
     description:
       "Par Red Cup, tes deux premières cases vertes traversées rapportent 100 pièces, tes deux premières rouges en " +
-      "coûtent 100.",
+      "coûtent 50.",
   },
   "no-thanks": {
     id: "no-thanks",
@@ -366,7 +367,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Cupide",
     shortName: "Cupide",
     description:
-      "Tu gagnes à 5 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
+      "Tu gagnes à 6 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
       "assommé lui vole 50 pièces, ta Boue coûte 100 et rapporte 200, et ce que ton Ndoye fait perdre te revient.",
   },
   "double-or-nothing": {
@@ -391,8 +392,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Diable",
     description:
       "Toute la table le sait. Tu gagnes quand les autres ont passé assez de tours en Enfer (4 par joueur, moins " +
-      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais chaque descente en Enfer te rapporte 100 " +
-      "pièces, tu en sors quand tu veux (1 point d’énergie) et tu as ta boutique. Jamais deux fois le même objet.",
+      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais ta descente en Enfer te rapporte 100 " +
+      "pièces et celle d’un autre 50 et un point, tu en sors quand tu veux (1 point d’énergie) et tu as ta boutique. Jamais deux fois le même objet.",
   },
   "guardian-angel": {
     id: "guardian-angel",
@@ -400,7 +401,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Ange",
     description:
       "Tu protèges un joueur tiré au sort et tu gagnes avec lui. Ni Red Cup ni Enfer pour toi (tu passes ton tour " +
-      "à la place), 600 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer : ton tour " +
+      "à la place), 800 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer : ton tour " +
       "s’arrête et tu perds tes 2 prochains tours.",
   },
   thief: {

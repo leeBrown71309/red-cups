@@ -18,7 +18,7 @@ import {
 const STARTING_CURRENCIES: Partial<Record<PassiveId, number>> = {
   "nepo-baby": 3_000,
   eshop: 1_000,
-  "guardian-angel": 600,
+  "guardian-angel": 800,
 };
 
 export function getStartingCurrency(passiveId: PassiveId): number {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isPortalVisible } from "../game/devil";
 import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import type { MapId, NodeId } from "../game/types";
@@ -163,7 +164,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
         : [],
       redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
-      portalNodeIds: playing ? game.hellPortals.map((portal) => portal.nodeId) : [],
+      portalNodeIds: playing ? game.hellPortals.filter((portal) => isPortalVisible(game, portal)).map((portal) => portal.nodeId) : [],
       // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
       bulletBill:
         playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,

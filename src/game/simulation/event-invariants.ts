@@ -191,6 +191,7 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
   } else if (
+    next.phase !== "finished" &&
     !["move", "hell"].includes(next.turnStage) &&
     !next.lastMovement?.thawed &&
     !next.pendingDuel?.ghost &&
