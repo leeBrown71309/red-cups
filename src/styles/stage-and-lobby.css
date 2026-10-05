@@ -12,6 +12,28 @@
   touch-action: none;
 }
 
+/*
+ * Depth of field, cheaply: a frame of blur around the view, clear in the
+ * middle where the tray is. A phone redraws the board every frame, and a
+ * live blur over it costs too much there, so only fine pointers get it.
+ */
+.board-stage__focus {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .board-stage__focus {
+    position: absolute;
+    inset: 0;
+    display: block;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    -webkit-mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
+    mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
+    pointer-events: none;
+  }
+}
+
 .board-stage__message {
   position: absolute;
   inset: 0;

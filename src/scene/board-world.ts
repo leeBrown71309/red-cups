@@ -10,6 +10,7 @@ import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
+import { createSurroundings } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
@@ -279,6 +280,7 @@ export class BoardWorld {
   /** Tray, decorations and Hell follow the map's art direction. */
   private buildSurroundings(): void {
     const { layout } = this;
+    this.addAnimated(createSurroundings(this.kit, layout, layout.map.themeId));
     switch (layout.map.themeId) {
       case "night-fair":
         this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));

@@ -87,6 +87,8 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
   return (
     <div className="board-stage" data-status={status} data-map-theme={getBoardMap(mapId).themeId}>
       <div className="board-stage__canvas" ref={containerRef} aria-label="Plateau de jeu Red Cups en 3D" role="img" />
+      {/* Desktop only: the edges of the view blur, as the far decor would under a lens. */}
+      <div className="board-stage__focus" aria-hidden="true" />
       {status === "loading" && (
         <div className="board-stage__message">
           <span className="board-stage__spinner" aria-hidden="true" />
