@@ -48,6 +48,46 @@ export function DuelModal() {
   );
 }
 
+/** Meneur de jeu: two mini-games were drawn, their host picks the one the duel is played with. */
+export function DuelChoiceModal() {
+  const choice = useGameStore((state) => state.pendingDuelChoice);
+  const players = useGameStore((state) => state.players);
+  const chooseDuelMode = useGameStore((state) => state.chooseDuelMode);
+  const canChoose = useCanActFor([choice?.chooserId]);
+  if (!choice) return null;
+  const chooser = players.find((player) => player.id === choice.chooserId);
+  const first = findDuellist(players, choice.playerOneId);
+  const second = findDuellist(players, choice.playerTwoId);
+
+  return (
+    <ModalShell title="Duel en Enfer" eyebrow="Meneur de jeu" tone="grape" size="medium" className="duel-modal">
+      {first && second && (
+        <div className="duel-versus">
+          <Contestant duellist={first} state="idle" />
+          <span className="duel-versus__vs">VS</span>
+          <Contestant duellist={second} state="idle" />
+        </div>
+      )}
+      {canChoose ? (
+        <div className="duel-panel">
+          <p className="duel-secret">
+            <strong>{chooser?.name}</strong>, choisis le mini-jeu :
+          </p>
+          <div className="vote-options">
+            {choice.modes.map((mode) => (
+              <button key={mode} type="button" className="vote-option" onClick={() => chooseDuelMode(mode)}>
+                {DUEL_MODE_LABELS[mode]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <WaitingNote player={chooser} text={`${chooser?.name ?? "Le meneur de jeu"} choisit le mini-jeu…`} />
+      )}
+    </ModalShell>
+  );
+}
+
 interface DuelArenaProps {
   duel: PendingDuel;
   first: Duellist;

@@ -3,7 +3,7 @@ import { useState } from "react";
 import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
 import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
-import { getMaxPurchaseCount } from "../../game/shopping";
+import { getMaxPurchaseCount, getResalePrice } from "../../game/shopping";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
 import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
@@ -25,7 +25,7 @@ interface ShopModalProps {
   onClose: () => void;
 }
 
-type ShopTab = "shop" | "devil";
+type ShopTab = "shop" | "devil" | "sell";
 
 /** Market stall: pick an item on the shelf, read what it does, buy it. Le diable has a second stall. */
 export function ShopModal({ onClose }: ShopModalProps) {
@@ -37,6 +37,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
   if (!player) return null;
 
   const isDevil = hasCard(player, "devil");
+  const isDealer = hasCard(player, "junk-dealer");
   const shelf = getShopItems(player).filter((itemId) => DEVIL_ITEMS.includes(itemId) === (tab === "devil"));
   const selectItem = (itemId: ItemId) => {
     setSelectedId(itemId);
@@ -46,6 +47,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
     setTab(next);
     selectItem(next === "devil" ? DEVIL_ITEMS[0] : "boot");
   };
+  const tabs: ShopTab[] = ["shop", ...(isDevil ? (["devil"] as const) : []), ...(isDealer ? (["sell"] as const) : [])];
 
   const capacity = getInventoryCapacity(player);
   const selected = ITEM_CATALOG[selectedId];
@@ -57,7 +59,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
 
   return (
     <ModalShell
-      title={tab === "devil" ? "Boutique du diable" : "Boutique"}
+      title={tab === "devil" ? "Boutique du diable" : tab === "sell" ? "Revente" : "Boutique"}
       eyebrow={`Case ${player.position} · ${player.name}`}
       tone="sky"
       size="large"
@@ -81,9 +83,9 @@ export function ShopModal({ onClose }: ShopModalProps) {
         <span className="shop-status__bag">
           <UiIcon name="bag" size={18} /> {player.inventory.length}/{capacity} places
         </span>
-        {isDevil && (
+        {tabs.length > 1 && (
           <span className="shop-tabs" role="tablist" aria-label="Étals">
-            {(["shop", "devil"] as const).map((option) => (
+            {tabs.map((option) => (
               <button
                 key={option}
                 type="button"
@@ -96,6 +98,10 @@ export function ShopModal({ onClose }: ShopModalProps) {
                   <>
                     <UiIcon name="flame" size={16} /> Diable
                   </>
+                ) : option === "sell" ? (
+                  <>
+                    <CoinIcon size={16} /> Revente
+                  </>
                 ) : (
                   "Boutique"
                 )}
@@ -105,74 +111,105 @@ export function ShopModal({ onClose }: ShopModalProps) {
         )}
       </div>
 
-      <div className="shop-layout">
-        <ul className="shop-shelf" aria-label="Objets en vente">
-          {shelf.map((itemId) => {
-            const status = getPurchaseStatus(itemId, game, player);
-            return (
-              <li key={itemId}>
-                <button
-                  type="button"
-                  className={["shop-item", selectedId === itemId && "is-selected", !status.canBuy && "is-unavailable"]
-                    .filter(Boolean)
-                    .join(" ")}
-                  onClick={() => selectItem(itemId)}
-                  aria-pressed={selectedId === itemId}
-                >
-                  <ItemIcon itemId={itemId} size={40} />
-                  <span className="shop-item__name">{ITEM_CATALOG[itemId].name}</span>
-                  <span className="shop-item__chips">
-                    <span className="price-chip">
-                      <CoinIcon size={14} />
-                      {formatCurrency(status.price)}
+      {tab === "sell" ? (
+        <ResaleList onSell={game.sellItem} />
+      ) : (
+        <div className="shop-layout">
+          <ul className="shop-shelf" aria-label="Objets en vente">
+            {shelf.map((itemId) => {
+              const status = getPurchaseStatus(itemId, game, player);
+              return (
+                <li key={itemId}>
+                  <button
+                    type="button"
+                    className={["shop-item", selectedId === itemId && "is-selected", !status.canBuy && "is-unavailable"]
+                      .filter(Boolean)
+                      .join(" ")}
+                    onClick={() => selectItem(itemId)}
+                    aria-pressed={selectedId === itemId}
+                  >
+                    <ItemIcon itemId={itemId} size={40} />
+                    <span className="shop-item__name">{ITEM_CATALOG[itemId].name}</span>
+                    <span className="shop-item__chips">
+                      <span className="price-chip">
+                        <CoinIcon size={14} />
+                        {formatCurrency(status.price)}
+                      </span>
+                      <EnergyCost cost={ITEM_CATALOG[itemId].energyCost} />
                     </span>
-                    <EnergyCost cost={ITEM_CATALOG[itemId].energyCost} />
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-        <aside className="shop-detail" aria-live="polite">
-          <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
-          <strong className="shop-detail__name">{selected.name}</strong>
-          <p>{selected.description}</p>
-          <span className="shop-detail__energy">
-            <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
-          </span>
-          {selectedStatus.canBuy && maxCount > 1 && (
-            <QuantityPicker value={count} max={maxCount} onChange={setWantedCount} />
-          )}
-          <button
-            type="button"
-            className="btn btn--gold btn--block"
-            disabled={!selectedStatus.canBuy}
-            onClick={() => game.buyItem(selectedId, count)}
-          >
-            {selectedStatus.canBuy ? (
-              <>
-                Acheter{count > 1 ? ` ×${count}` : ""} · <CoinIcon size={18} />{" "}
-                {formatCurrency(selectedStatus.price * count)}
-              </>
-            ) : (
-              selectedStatus.reason
+          <aside className="shop-detail" aria-live="polite">
+            <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
+            <strong className="shop-detail__name">{selected.name}</strong>
+            <p>{selected.description}</p>
+            <span className="shop-detail__energy">
+              <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
+            </span>
+            {selectedStatus.canBuy && maxCount > 1 && (
+              <QuantityPicker value={count} max={maxCount} onChange={setWantedCount} />
             )}
-          </button>
-          {theftStatus && (
             <button
               type="button"
-              className="btn btn--cream btn--block"
-              disabled={!theftStatus.canSteal}
-              onClick={() => game.stealItem(selectedId)}
-              title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+              className="btn btn--gold btn--block"
+              disabled={!selectedStatus.canBuy}
+              onClick={() => game.buyItem(selectedId, count)}
             >
-              {theftStatus.canSteal ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque` : theftStatus.reason}
+              {selectedStatus.canBuy ? (
+                <>
+                  Acheter{count > 1 ? ` ×${count}` : ""} · <CoinIcon size={18} />{" "}
+                  {formatCurrency(selectedStatus.price * count)}
+                </>
+              ) : (
+                selectedStatus.reason
+              )}
             </button>
-          )}
-        </aside>
-      </div>
+            {theftStatus && (
+              <button
+                type="button"
+                className="btn btn--cream btn--block"
+                disabled={!theftStatus.canSteal}
+                onClick={() => game.stealItem(selectedId)}
+                title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+              >
+                {theftStatus.canSteal
+                  ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque`
+                  : theftStatus.reason}
+              </button>
+            )}
+          </aside>
+        </div>
+      )}
     </ModalShell>
+  );
+}
+
+/** Brocanteur: the items of the bag, each sold back for sixty per cent of its price. */
+function ResaleList({ onSell }: { onSell: (entryId: string) => void }) {
+  const game = useGameStore();
+  const player = useActivePlayer();
+  if (!player) return null;
+  const items = player.inventory.flatMap((entry) => (entry.kind === "item" ? [entry] : []));
+  if (items.length === 0) return <p className="shop-resale__empty">Ton sac ne contient rien à revendre.</p>;
+  return (
+    <ul className="shop-resale" aria-label="Objets à revendre">
+      {items.map((entry) => (
+        <li key={entry.id} className="shop-resale__row">
+          <ItemIcon itemId={entry.itemId} size={40} />
+          <span className="shop-item__name">
+            {ITEM_CATALOG[entry.itemId].name}
+            {entry.count && entry.count > 1 ? ` ×${entry.count}` : ""}
+          </span>
+          <button type="button" className="btn btn--gold btn--small" onClick={() => onSell(entry.id)}>
+            Vendre · <CoinIcon size={16} /> {formatCurrency(getResalePrice(game, entry.itemId, player))}
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 

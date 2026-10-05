@@ -4,7 +4,7 @@ import { useBoardSettled, useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { ChallengeModal, DiscardModal, ItemTargetModal, ReactionModal } from "../modals/decision-modals";
 import { ArmWrestleModal } from "../modals/arm-wrestle-modal";
-import { DuelModal } from "../modals/duel-modal";
+import { DuelChoiceModal, DuelModal } from "../modals/duel-modal";
 import { GhostLootModal } from "../modals/ghost-loot-modal";
 import { HelpModal } from "../modals/help-modal";
 import { AbandonModal, JournalModal, PauseMenu } from "../modals/menu-modals";
@@ -60,6 +60,7 @@ export function GameHud() {
     else if (game.pendingArmWrestle) decision = <ArmWrestleModal />;
     else if (game.pendingDiscard) decision = <DiscardModal />;
     else if (game.pendingWheel) decision = <WheelModal />;
+    else if (game.pendingDuelChoice) decision = <DuelChoiceModal />;
     else if (game.pendingDuel) decision = <DuelModal />;
     else if (game.pendingChallenge) decision = <ChallengeModal />;
     else if (targetEntryId)

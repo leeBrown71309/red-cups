@@ -21,6 +21,7 @@ const STAGES: TurnStage[] = [
   "hell",
   "wheel-result",
   "duel",
+  "duel-choice",
   "discard",
   "target",
   "reposition",

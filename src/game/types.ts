@@ -243,6 +243,8 @@ export type TurnStage =
   | "hell"
   | "wheel-result"
   | "duel"
+  /** Meneur de jeu: before the duel, its host picks one of two mini-games. */
+  | "duel-choice"
   | "discard"
   | "target"
   /** New Cup, New Me: before the new Red Cup appears, off to the start or stay. */
@@ -378,6 +380,17 @@ export type GhostReward =
 export interface GhostStakes {
   penalty: GhostPenalty;
   reward: GhostReward;
+}
+
+/** Meneur de jeu: two mini-games were drawn, and `chooserId` picks the one the duel is played with. */
+export interface PendingDuelChoice {
+  playerOneId: PlayerId;
+  playerTwoId: PlayerId;
+  modes: [DuelMode, DuelMode];
+  chooserId: PlayerId;
+  resumeStage: TurnStage;
+  /** Against the Luna Park ghost: what is at stake, drawn when it struck. */
+  ghost: GhostStakes | null;
 }
 
 export interface PendingDuel {
@@ -699,6 +712,7 @@ export interface GameState {
   redCupCycle: number;
   pendingWheel: PendingWheel | null;
   pendingDuel: PendingDuel | null;
+  pendingDuelChoice: PendingDuelChoice | null;
   pendingDiscard: PendingDiscard | null;
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
@@ -803,6 +817,7 @@ export const EMPTY_GAME_STATE: GameState = {
   redCupCycle: 0,
   pendingWheel: null,
   pendingDuel: null,
+  pendingDuelChoice: null,
   pendingDiscard: null,
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,

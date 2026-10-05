@@ -42,6 +42,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "rollDice":
     case "leaveHell":
     case "rescueProtege":
+    case "sellItem":
     case "buyItem":
     case "stealItem":
     case "useItem":
@@ -67,6 +68,9 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     case "challengePlayer":
       return only(state.pendingChallenge?.playerId);
+
+    case "chooseDuelMode":
+      return only(state.pendingDuelChoice?.chooserId);
 
     case "flipDuelCoin":
     case "resolveDuel":

@@ -24,7 +24,7 @@ export function TurnTimer({ className = "" }: { className?: string }) {
   const ownTurn = useGameStore(isActiveDecision);
   const paused = useGameStore((state) => state.pause !== null);
   const held = useGameStore(isClockHeld);
-  const duel = useGameStore((state) => state.turnStage === "duel");
+  const duel = useGameStore((state) => state.turnStage === "duel" || state.turnStage === "duel-choice");
   const game = useGameStore();
   const [now, setNow] = useState(() => getServerNow());
 

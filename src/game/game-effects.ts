@@ -3,10 +3,11 @@ import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
-import { createDuel, getDuelModes } from "./duel-setup";
+import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
+import { findGameMaster, openDuelChoice } from "./duel-choice";
 import { ITEM_CATALOG, chooseWheelResult, getWheelResultValue } from "./catalog";
 import { applyHellTouch, countDevilHellTurn, expireDevilSpells, triggerPortal } from "./devil";
 import {
@@ -40,7 +41,6 @@ import {
   updatePlayer,
 } from "./state-utils";
 import type {
-  DuelMode,
   GameState,
   ItemId,
   NodeId,
@@ -79,14 +79,6 @@ const WHEEL_LOG_NAMES: Record<WheelId, string> = {
   hell: "de l’Enfer",
   fortune: "du bonheur",
   misfortune: "du malheur",
-};
-
-const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
-  "coin-flip": "pile ou face",
-  "rock-paper-scissors": "pierre-feuille-ciseaux",
-  "player-vote": "vote",
-  basket: "Basket",
-  blackjack: "Blackjack",
 };
 
 /** Draws the wheel result now; the UI only animates towards it. */
@@ -201,6 +193,11 @@ export function startDuel(
   if (!playerOne || !playerTwo || playerOneId === playerTwoId) return state;
 
   const otherPlayers = state.players.filter((player) => player.id !== playerOneId && player.id !== playerTwoId);
+  const gameMaster = findGameMaster(state, [playerOneId, playerTwoId]);
+  if (gameMaster) {
+    const announced = addLog(state, `${playerOne.name} et ${playerTwo.name} s’affrontent en duel.`, "event");
+    return openDuelChoice(announced, [playerOneId, playerTwoId], gameMaster, resumeStage, otherPlayers.length > 0);
+  }
   const mode = randomChoice(getDuelModes(otherPlayers.length > 0)) ?? "coin-flip";
 
   const nextState: GameState = {
@@ -238,6 +235,7 @@ export function settleBoard(current: GameState, resumeStage: TurnStage): GameSta
   if (
     state.phase !== "playing" ||
     state.pendingDuel ||
+    state.pendingDuelChoice ||
     state.pendingDiscard ||
     state.pendingCalmDown ||
     state.pendingChallenge ||

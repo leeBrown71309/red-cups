@@ -50,6 +50,8 @@ export function getDefaultAction(state: GameState): GameAction | null {
       const opponent = randomChoice(state.players.filter((player) => canBeChallenged(challengerId, player)));
       return opponent ? { type: "challengePlayer", targetPlayerId: opponent.id } : null;
     }
+    case "duel-choice":
+      return state.pendingDuelChoice ? { type: "chooseDuelMode", mode: state.pendingDuelChoice.modes[0] } : null;
     case "duel":
       return state.pendingDuel ? getDuelDefault(state, state.pendingDuel) : null;
     case "arm-wrestle": {

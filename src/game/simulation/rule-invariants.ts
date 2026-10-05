@@ -70,6 +70,7 @@ export type { RuleViolation } from "./invariant-helpers";
 const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
   "wheel-result": "pendingWheel",
   duel: "pendingDuel",
+  "duel-choice": "pendingDuelChoice",
   discard: "pendingDiscard",
   target: "pendingChallenge",
   "passive-choice": "pendingCalmDown",
@@ -395,7 +396,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     steppedBack ||
     portalFall ||
     movement.interruptedTo !== undefined ||
-    ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
+    ["discard", "reposition", "passive-choice", "duel", "duel-choice", "finished"].includes(next.turnStage);
   if (!interrupted) {
     const expected: TurnStage = getTileWheelFor(previous, mover, destination)
       ? "tile-wheel"
@@ -623,7 +624,9 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
     wheel.result.id === "escape" &&
     before.position === HELL_NODE_ID &&
     after.position !== START_NODE_ID &&
-    !escapedOnIce
+    !escapedOnIce &&
+    // A knocked-out player landing on le diable's tile goes straight back down (a skipped turn drawn first).
+    !newLogTexts(previous, next).some((text) => text.includes("Toucher d’Enfer"))
   ) {
     found.push(violation("wheel-escape", `${before.name} escaped Hell to tile ${after.position} instead of 0`));
   }

@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withPassives } from "./forced-passives";
 import { getEnergyCapacity } from "./energy";
-import { startWheel } from "./game-effects";
+import { getActionActorIds } from "./action-permissions";
+import { getDefaultAction } from "./clock-defaults";
+import { startDuel, startWheel } from "./game-effects";
 import { getHellTurnLimit } from "./passive-rules";
 import { getPriceFor } from "./rules";
+import { getResalePrice } from "./shopping";
 import { useGameStore } from "./store";
 import type { InventoryEntry, PassiveId, Player } from "./types";
 import { GOBLIN_THEFT, HELL_NODE_ID, STARTING_CURRENCY } from "./types";
@@ -152,5 +155,80 @@ describe("the wheel cards", () => {
     expect(hell.pendingWheel?.repeats).toEqual(["hell"]);
     const fortune = startWheel(store(), "fortune", store().players[0].id, "move");
     expect(fortune.pendingWheel?.repeats).toBeUndefined();
+  });
+});
+
+describe("Meneur de jeu", () => {
+  it("lets its holder pick the mini-game of a duel among two", () => {
+    startTable(["game-master", "lambda", "lambda"]);
+    const [master, other] = store().players;
+    const state = startDuel(store(), master.id, other.id, "turn-end");
+    expect(state.turnStage).toBe("duel-choice");
+    expect(state.pendingDuel).toBeNull();
+    const choice = state.pendingDuelChoice!;
+    expect(choice.chooserId).toBe(master.id);
+    expect(new Set(choice.modes).size).toBe(2);
+    expect(getActionActorIds(state, { type: "chooseDuelMode", mode: choice.modes[1] })).toEqual([master.id]);
+    expect(getDefaultAction(state)).toEqual({ type: "chooseDuelMode", mode: choice.modes[0] });
+
+    useGameStore.setState(state);
+    store().chooseDuelMode(choice.modes[1]);
+    expect(store()).toMatchObject({ turnStage: "duel", pendingDuelChoice: null });
+    expect(store().pendingDuel?.mode).toBe(choice.modes[1]);
+  });
+
+  it("changes nothing for a duel without them, nor accepts a game that was not offered", () => {
+    startTable(["lambda", "lambda", "game-master"]);
+    const [first, second] = store().players;
+    const state = startDuel(store(), first.id, second.id, "turn-end");
+    expect(state.turnStage).toBe("duel");
+    expect(state.pendingDuelChoice).toBeNull();
+
+    startTable(["game-master", "lambda"]);
+    const choice = startDuel(store(), store().players[0].id, store().players[1].id, "turn-end");
+    useGameStore.setState(choice);
+    const offered = choice.pendingDuelChoice!.modes;
+    const refused = (["coin-flip", "rock-paper-scissors", "basket", "blackjack", "player-vote"] as const).find(
+      (mode) => !offered.includes(mode),
+    )!;
+    store().chooseDuelMode(refused);
+    expect(store().turnStage).toBe("duel-choice");
+  });
+});
+
+describe("Brocanteur", () => {
+  it("sells an item of the bag back for sixty per cent of its price, from the shop only", () => {
+    startTable(["junk-dealer", "lambda"]);
+    editPlayer(0, { position: 3, inventory: [{ id: "purple", kind: "item", itemId: "hollow-purple" }] });
+    store().sellItem("purple");
+    expect(store().players[0].inventory).toHaveLength(1);
+
+    useGameStore.setState({ turnStage: "shop" });
+    expect(getResalePrice(store(), "hollow-purple", store().players[0])).toBe(360);
+    store().sellItem("purple");
+    expect(store().players[0].inventory).toHaveLength(0);
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY + 360);
+  });
+
+  it("sells one Tomate at a time and never a Red Cup, and others cannot sell", () => {
+    startTable(["junk-dealer", "lambda"]);
+    editPlayer(0, {
+      position: 3,
+      inventory: [
+        { id: "tomatoes", kind: "item", itemId: "tomato", count: 3 },
+        { id: "cup", kind: "red-cup" },
+      ],
+    });
+    useGameStore.setState({ turnStage: "shop" });
+    store().sellItem("tomatoes");
+    expect(store().players[0].inventory[0]).toMatchObject({ count: 2 });
+    store().sellItem("cup");
+    expect(store().players[0].inventory).toHaveLength(2);
+
+    startTable(["lambda", "junk-dealer"]);
+    editPlayer(0, { position: 3, inventory: [{ id: "purple", kind: "item", itemId: "hollow-purple" }] });
+    useGameStore.setState({ turnStage: "shop" });
+    store().sellItem("purple");
+    expect(store().players[0].inventory).toHaveLength(1);
   });
 });

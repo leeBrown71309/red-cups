@@ -19,6 +19,7 @@ export function endGame(state: GameState, winnerId: PlayerId, winReason: WinReas
     coWinnerId: guardian && guardian.protegeId === winnerId ? guardian.angelId : null,
     pendingWheel: null,
     pendingDuel: null,
+    pendingDuelChoice: null,
     pendingDiscard: null,
     pendingChallenge: null,
     pendingCalmDown: null,

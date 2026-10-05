@@ -1,7 +1,15 @@
 import { ITEM_CATALOG } from "./catalog";
+import { hasCard } from "./cards";
 import { canBuyItemKind } from "./passive-rules";
-import { canAddItem, getPriceFor, isOnSale, opensShop } from "./rules";
-import { addBagLog, appendItem, applyCurrencyChange, getActivePlayer, updatePlayer } from "./state-utils";
+import { canAddItem, getItemPrice, getPriceFor, isOnSale, opensShop } from "./rules";
+import {
+  addBagLog,
+  appendItem,
+  applyCurrencyChange,
+  getActivePlayer,
+  spendItemEntry,
+  updatePlayer,
+} from "./state-utils";
 import type { GameState, ItemId, Player } from "./types";
 
 /**
@@ -58,6 +66,44 @@ export function buyItem(state: GameState, itemId: ItemId, count = 1): GameState 
     player.id,
     `${player.name} achète ${what} pour ${total} pièces.`,
     `${player.name} achète un objet.`,
+    "good",
+  );
+}
+
+/** What the Brocanteur is paid for an item: 60 % of its price, to the nearest five coins. */
+export const RESALE_RATE = 0.6;
+
+export function getResalePrice(
+  state: Pick<GameState, "bootPrice" | "players">,
+  itemId: ItemId,
+  seller: Player,
+): number {
+  return Math.round((getItemPrice(itemId, state.bootPrice, seller) * RESALE_RATE) / 5) * 5;
+}
+
+/** Whether the active Brocanteur may sell this entry of their bag now: in the shop, one item, never a Red Cup. */
+export function canSellEntry(state: GameState, player: Player, entryId: string): boolean {
+  if (!hasCard(player, "junk-dealer") || state.turnStage !== "shop" || !opensShop(state, player)) return false;
+  return player.inventory.some((entry) => entry.id === entryId && entry.kind === "item");
+}
+
+/** The Brocanteur sells one item of their bag back to the shop. */
+export function sellItem(state: GameState, entryId: string): GameState {
+  const player = getActivePlayer(state);
+  if (!player || !canSellEntry(state, player, entryId)) return state;
+  const entry = player.inventory.find((candidate) => candidate.id === entryId);
+  if (entry?.kind !== "item") return state;
+
+  const price = getResalePrice(state, entry.itemId, player);
+  let nextState = updatePlayer(state, player.id, (current) => spendItemEntry(current, entryId));
+  // Like a purchase, a sale is chosen: it is not staked.
+  nextState = applyCurrencyChange(nextState, player.id, price, { gamble: false });
+  const name = ITEM_CATALOG[entry.itemId].name;
+  return addBagLog(
+    nextState,
+    player.id,
+    `${player.name} revend ${name} pour ${price} pièces.`,
+    `${player.name} revend un objet.`,
     "good",
   );
 }

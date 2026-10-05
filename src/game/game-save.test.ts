@@ -34,10 +34,13 @@ const KEYS_ADDED_BY_PATCH_0_1_4: (keyof GameState)[] = [
   "pause",
 ];
 
+/** Patch 0.1.6 added the Meneur de jeu's choice of mini-game. */
+const KEYS_ADDED_BY_PATCH_0_1_6: (keyof GameState)[] = ["pendingDuelChoice"];
+
 describe("game save upgrade", () => {
   const saved = pickGameState(reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["A", "B"] }));
 
-  it.each(KEYS_ADDED_BY_PATCH_0_1_4)("restores a save from before %s", (key) => {
+  it.each([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6])("restores a save from before %s", (key) => {
     const legacy: Partial<GameState> = { ...saved };
     delete legacy[key];
     const upgraded = migrateGameSave(legacy, GAME_SAVE_VERSION - 1);
@@ -46,7 +49,7 @@ describe("game save upgrade", () => {
   });
 
   it("knows every key of the state", () => {
-    const tracked = new Set<string>(KEYS_ADDED_BY_PATCH_0_1_4);
+    const tracked = new Set<string>([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6]);
     // A key added later must be listed above and filled in by `upgradeSave`.
     const unknown = Object.keys(EMPTY_GAME_STATE).filter(
       (key) => !tracked.has(key) && !(key in KEYS_BEFORE_PATCH_0_1_4),

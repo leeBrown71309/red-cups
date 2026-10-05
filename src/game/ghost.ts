@@ -1,6 +1,7 @@
 import { hasCard } from "./cards";
 import { getBoard } from "./board";
 import { ITEM_CATALOG } from "./catalog";
+import { openDuelChoice } from "./duel-choice";
 import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { settleBoard, sendPlayerToHell } from "./game-effects";
@@ -237,11 +238,16 @@ export function startGhostDuel(state: GameState, playerId: PlayerId, resumeStage
   if (!ghost || !player) return state;
 
   // The whole table but the duellist may vote: the ghost has no friends to count.
+  const metGhost: GameState = { ...state, ghost: { ...ghost, metPlayerIds: [...ghost.metPlayerIds, playerId] } };
+  if (hasCard(player, "game-master")) {
+    const stakes = { penalty: drawPenalty(player), reward: drawReward(ghost, player) };
+    const attacked = addLog(metGhost, `Le fantôme attaque ${player.name} sur la case ${ghost.nodeId} !`, "event");
+    return openDuelChoice(attacked, [playerId, GHOST_ID], playerId, resumeStage, state.players.length > 1, stakes);
+  }
   const mode = randomChoice(getDuelModes(state.players.length > 1)) ?? "coin-flip";
   const duel = createDuel(playerId, GHOST_ID, mode, resumeStage);
   const nextState: GameState = {
-    ...state,
-    ghost: { ...ghost, metPlayerIds: [...ghost.metPlayerIds, playerId] },
+    ...metGhost,
     pendingDuel: {
       ...duel,
       basket: duel.basket && { ...duel.basket, ghostShots: drawGhostShots() },

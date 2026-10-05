@@ -1792,3 +1792,29 @@
   font-size: 0.85rem;
   font-style: italic;
 }
+
+/* Brocanteur: the resale tab of the shop. */
+.shop-resale {
+  display: grid;
+  gap: 8px;
+}
+
+.shop-resale__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 16px;
+  background: var(--white);
+}
+
+.shop-resale__row .shop-item__name {
+  flex: 1;
+}
+
+.shop-resale__empty {
+  padding: 16px;
+  color: var(--ink-soft);
+  text-align: center;
+}

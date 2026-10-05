@@ -268,6 +268,12 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
     }
 
+    case "duel-choice": {
+      const mode = pick(store.pendingDuelChoice?.modes ?? [], random);
+      if (!mode) return null;
+      return { label: `duel-mode:${mode}`, perform: (current) => current.chooseDuelMode(mode) };
+    }
+
     case "duel":
       return chooseDuelAction(store, random);
 

@@ -221,6 +221,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <DockPrompt title="Sac plein !" hint="Choisis l’objet à abandonner." />;
     case "wheel-result":
       return <DockPrompt title="La roue tourne…" hint="Croise les doigts." />;
+    case "duel-choice":
+      return <DockPrompt title="Duel en Enfer !" hint="Le meneur de jeu choisit le mini-jeu." />;
     case "duel":
       return ghostDuel ? (
         <DockPrompt title="Le fantôme attaque !" hint="Bats-le pour reprendre son butin." />

@@ -6,6 +6,7 @@ import { createGhost, spareHellPlayers } from "./ghost";
 import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
+import { chooseDuelMode } from "./duel-choice";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
 import { announceDevil, leaveHell, rewardDevilInHell } from "./devil";
@@ -25,7 +26,7 @@ import { rewardHellRegulars } from "./hell-regular";
 import { kickPlayer } from "./kick";
 import { joinLatePlayer } from "./late-join";
 import { pauseGame, resumeGame } from "./pause";
-import { buyItem, isOnShelf } from "./shopping";
+import { buyItem, isOnShelf, sellItem } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
 import { canBeChallenged, getStartingCurrency, getTheftPenalty, getTheftRisk, isDoomed } from "./passive-rules";
 import { checkVictories } from "./victory";
@@ -97,6 +98,7 @@ import {
   spendNoThanks,
 } from "./turn-actions";
 import type {
+  DuelMode,
   GameState,
   ItemId,
   MapId,
@@ -150,6 +152,8 @@ export type GameAction =
   | { type: "rescueProtege" }
   /** `count`: copies bought in one go, one by default. */
   | { type: "buyItem"; itemId: ItemId; count?: number }
+  /** Brocanteur: sells one item of the bag back to the shop. */
+  | { type: "sellItem"; entryId: string }
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
@@ -170,6 +174,8 @@ export type GameAction =
   | { type: "cancelWheel"; withNoThanks?: boolean }
   | { type: "challengePlayer"; targetPlayerId: PlayerId }
   | { type: "flipDuelCoin" }
+  /** Meneur de jeu: the mini-game picked among the two drawn. */
+  | { type: "chooseDuelMode"; mode: DuelMode }
   | { type: "pickDuelHand"; playerId: PlayerId; choice: RpsChoice }
   | { type: "castDuelVote"; voterId: PlayerId; candidateId: PlayerId }
   | { type: "resolveDuel"; winnerId: PlayerId }
@@ -1051,6 +1057,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return rescueProtege(state);
     case "buyItem":
       return buyItem(state, action.itemId, action.count);
+    case "sellItem":
+      return sellItem(state, action.entryId);
     case "stealItem":
       return stealItem(state, action.itemId);
     case "useItem":
@@ -1081,6 +1089,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return cancelWheel(state, action.withNoThanks === true);
     case "challengePlayer":
       return challengePlayer(state, action.targetPlayerId);
+    case "chooseDuelMode":
+      return chooseDuelMode(state, action.mode);
     case "flipDuelCoin":
       return flipDuelCoin(state);
     case "pickDuelHand":

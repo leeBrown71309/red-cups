@@ -66,7 +66,7 @@ function checkGamble(previous: GameState, next: GameState, found: RuleViolation[
 
   // Voluntary spending is never staked: purchases (and Corrupteur, for another passive).
   const logs = newLogTexts(previous, next);
-  const bought = logs.some((text) => text.includes(" achète "));
+  const bought = logs.some((text) => text.includes(" achète ") || text.includes(" revend "));
   for (const holder of previous.players.filter((player) => hasCard(player, "double-or-nothing"))) {
     const after = findPlayer(next, holder.id);
     // The price of a theft that went wrong is not staked either.
