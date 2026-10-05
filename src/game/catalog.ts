@@ -564,6 +564,34 @@ export function getWheelResults(wheelId: WheelId, player?: Pick<Player, "passive
   return WHEEL_RESULTS[wheelId];
 }
 
+/**
+ * How good a wedge is for whoever spins, from 1 (the worst of its wheel) to 9.
+ * Main verte and Main rouge draw twice and keep the higher; a tie keeps the first.
+ */
+const WHEEL_RESULT_VALUES: Partial<Record<WheelResult["id"], number>> = {
+  "gain-400": 9,
+  "free-item": 8,
+  "go-to-start": 7,
+  "gain-300": 6,
+  "gain-200": 5,
+  "advance-one": 4,
+  "gain-100": 3,
+  "spin-misfortune": 1,
+  "spin-fortune": 9,
+  nothing: 8,
+  "go-back": 7,
+  "lose-200": 6,
+  "lose-item": 5,
+  "lose-300": 4,
+  "skip-turn": 3,
+  "lose-400": 2,
+  "go-to-hell": 1,
+};
+
+export function getWheelResultValue(result: Pick<WheelResult, "id">): number {
+  return WHEEL_RESULT_VALUES[result.id] ?? 0;
+}
+
 export function chooseWheelResult(
   wheelId: WheelId,
   randomValue: number,

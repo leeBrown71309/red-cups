@@ -7,9 +7,17 @@ import { createDuel, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
-import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
+import { ITEM_CATALOG, chooseWheelResult, getWheelResultValue } from "./catalog";
 import { applyHellTouch, countDevilHellTurn, expireDevilSpells, triggerPortal } from "./devil";
-import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems, getHellTurnLimit } from "./passive-rules";
+import {
+  avoidsHell,
+  canCollectRedCup,
+  drawsTwiceKeepingBest,
+  getHellTurnLimit,
+  getMudOwnerReward,
+  isImmuneToItems,
+  spinsTwice,
+} from "./passive-rules";
 import { endGame } from "./victory";
 import {
   canAddItem,
@@ -31,7 +39,18 @@ import {
   sendPlayerToHell,
   updatePlayer,
 } from "./state-utils";
-import type { DuelMode, GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
+import type {
+  DuelMode,
+  GameState,
+  ItemId,
+  NodeId,
+  Player,
+  PlayerId,
+  TurnStage,
+  WheelId,
+  WheelOrigin,
+  WheelResult,
+} from "./types";
 import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
@@ -76,18 +95,40 @@ export function startWheel(
   wheelId: WheelId,
   playerId: PlayerId,
   resumeStage: TurnStage,
-  options: { sourceItemId?: ItemId; origin?: WheelOrigin } = {},
+  options: { sourceItemId?: ItemId; origin?: WheelOrigin; repeats?: WheelId[] } = {},
 ): GameState {
+  const spinner = findPlayer(state, playerId);
   // L'Ange-Gardien's wheel of misfortune is not everybody's.
-  const result = chooseWheelResult(wheelId, drawEngineRandom(), findPlayer(state, playerId));
+  let result = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
+  let discarded: WheelResult | undefined;
+  if (drawsTwiceKeepingBest(spinner, wheelId)) {
+    const other = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
+    if (getWheelResultValue(other) > getWheelResultValue(result)) [result, discarded] = [other, result];
+    else discarded = other;
+  }
+  // A second spin of the same wheel for Touché angélique and Main du diable, once this one is settled.
+  const repeats = [
+    ...(options.repeats ?? []),
+    ...(options.origin !== "double" && spinsTwice(spinner, wheelId) ? [wheelId] : []),
+  ];
+  const { repeats: _inherited, ...rest } = options;
   const nextState: GameState = {
     ...state,
-    pendingWheel: { id: createEngineId(), wheelId, playerId, result, resumeStage, ...options },
+    pendingWheel: {
+      id: createEngineId(),
+      wheelId,
+      playerId,
+      result,
+      resumeStage,
+      ...rest,
+      ...(discarded ? { discarded } : {}),
+      ...(repeats.length > 0 ? { repeats } : {}),
+    },
     turnStage: "wheel-result",
   };
-  const spinner = findPlayer(state, playerId);
   const whose = spinner ? ` de ${spinner.name}` : "";
-  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}.`, "event");
+  const aside = discarded ? ` (l’autre tirage, ${discarded.label}, est écarté)` : "";
+  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}${aside}.`, "event");
 }
 
 /**

@@ -20,6 +20,7 @@ function getWheelEyebrow(pending: PendingWheel): string {
   if (pending.sourceItemId === "ndoye") return "Ndoye a frappé";
   if (pending.origin === "tile") return pending.wheelId === "fortune" ? "Case verte" : "Case rouge";
   if (pending.origin === "chain") return "Encore une roue !";
+  if (pending.origin === "double") return "Deuxième tour";
   if (pending.origin === "hell") return "Depuis l’Enfer";
   if (pending.origin === "blessing") return "Tour de Bénédiction";
   return "La roue tourne";
@@ -132,6 +133,7 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
             <div className={`wheel-result ${positive ? "is-positive" : "is-negative"}`}>
               <span className="wheel-result__eyebrow">Résultat</span>
               <strong className="wheel-result__label">{pending.result.label}</strong>
+              {pending.discarded && <small className="wheel-result__aside">Écarté : {pending.discarded.label}</small>}
               {canAct ? (
                 <div className="wheel-result__actions">
                   <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>

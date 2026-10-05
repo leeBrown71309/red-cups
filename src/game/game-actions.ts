@@ -102,6 +102,7 @@ import type {
   MapId,
   NodeId,
   PassiveId,
+  PendingWheel,
   Player,
   PlayerColor,
   PlayerId,
@@ -748,6 +749,7 @@ function resolveWheel(state: GameState): GameState {
     return startWheel(state, chainedWheel, pending.playerId, pending.resumeStage, {
       sourceItemId: pending.sourceItemId,
       origin: "chain",
+      repeats: pending.repeats,
     });
   }
 
@@ -779,7 +781,40 @@ function resolveWheel(state: GameState): GameState {
   }
   if (nextState.pendingDiscard) return nextState;
   // A wheel that moved its player onto a blue tile has opened its shop in place of the stage it came from.
-  return settleBoard(nextState, nextState.turnStage);
+  return settleThenSpinAgain(nextState, pending);
+}
+
+/**
+ * Settles the board, then spins again for Touché angélique and Main du
+ * diable if the result left the table where it was. A result that opens
+ * another decision (a step forward, a duel, a shop) loses the second spin.
+ */
+function settleThenSpinAgain(state: GameState, pending: PendingWheel): GameState {
+  const settled = settleBoard(state, state.turnStage);
+  const undecided =
+    settled.pendingAdvance ||
+    settled.pendingDiscard ||
+    settled.pendingDuel ||
+    settled.pendingChallenge ||
+    settled.pendingCalmDown ||
+    settled.pendingReaction ||
+    settled.pendingArmWrestle ||
+    settled.pendingCupRepositionPlayerId ||
+    settled.pendingTileWheels.length > 0 ||
+    settled.pendingGambles.length > 0;
+  if (settled.turnStage !== state.turnStage || undecided) return settled;
+  return spinAgain(settled, pending) ?? settled;
+}
+
+/** The wheel still owed after a result was applied or rubbed out, if the player can still spin it. */
+function spinAgain(state: GameState, pending: PendingWheel): GameState | null {
+  const [wheelId, ...repeats] = pending.repeats ?? [];
+  if (!wheelId || state.phase !== "playing" || !findPlayer(state, pending.playerId)) return null;
+  return startWheel(state, wheelId, pending.playerId, pending.resumeStage, {
+    sourceItemId: pending.sourceItemId,
+    origin: "double",
+    repeats,
+  });
 }
 
 /** Cupide: whatever their Ndoye's wheel makes its target lose comes back to them. */
@@ -812,7 +847,8 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
     nextState = addLog(nextState, `${player.name} utilise la Gomme et annule l’effet.`, "good");
   }
   nextState = { ...nextState, pendingWheel: null, turnStage: pending.resumeStage };
-  return settleBoard(nextState, pending.resumeStage);
+  // Only this result is rubbed out: a second spin of Touché angélique or Main du diable still comes.
+  return settleThenSpinAgain(nextState, pending);
 }
 
 function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState {

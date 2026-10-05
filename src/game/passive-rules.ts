@@ -1,6 +1,6 @@
 import { hasCard } from "./cards";
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
-import type { GameState, ItemId, PassiveId, Player, PlayerId } from "./types";
+import type { GameState, ItemId, PassiveId, Player, PlayerId, WheelId } from "./types";
 import {
   BASE_INVENTORY_CAPACITY,
   MUD_OWNER_REWARD,
@@ -222,3 +222,23 @@ export function isLastInClass(state: Pick<GameState, "players">, player: Player)
 
 /** Dernier de la classe pays a tenth less in the shop, never below ten coins. */
 export const LAST_IN_CLASS_DISCOUNT = 0.1;
+
+/** Main verte on the wheel of fortune, Main rouge on the wheel of misfortune: two draws, the better one kept. */
+export function drawsTwiceKeepingBest(player: Player | undefined, wheelId: WheelId): boolean {
+  return (
+    (wheelId === "fortune" && hasCard(player, "green-hand")) ||
+    (wheelId === "misfortune" && hasCard(player, "red-hand"))
+  );
+}
+
+/**
+ * Touché angélique spins the wheel of fortune and the Ange's wheel twice,
+ * Main du diable the wheel of misfortune and the wheel of Hell: both results
+ * count, good or bad. The Ange's wheel is the wheel of misfortune of L'Ange-Gardien.
+ */
+export function spinsTwice(player: Player | undefined, wheelId: WheelId): boolean {
+  if (hasCard(player, "angelic-touch")) {
+    return wheelId === "fortune" || (wheelId === "misfortune" && hasCard(player, "guardian-angel"));
+  }
+  return hasCard(player, "devils-hand") && (wheelId === "misfortune" || wheelId === "hell");
+}

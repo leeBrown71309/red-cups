@@ -289,7 +289,7 @@ export interface WheelResult {
 }
 
 /** Why a wheel spins; only used to phrase the wheel screen. */
-export type WheelOrigin = "tile" | "item" | "hell" | "chain" | "blessing";
+export type WheelOrigin = "tile" | "item" | "hell" | "chain" | "blessing" | "double";
 
 export interface PendingWheel {
   /** Unique per spin so the UI can replay the animation for chained wheels. */
@@ -300,6 +300,10 @@ export interface PendingWheel {
   resumeStage: TurnStage;
   sourceItemId?: ItemId;
   origin?: WheelOrigin;
+  /** Main verte, Main rouge: the other draw, set aside because the kept one is better. */
+  discarded?: WheelResult;
+  /** Touché angélique, Main du diable: wheels still to spin once this one is settled, in order. */
+  repeats?: WheelId[];
 }
 
 /** Something about to affect a Non merci holder, waiting for their answer. */

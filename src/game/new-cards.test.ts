@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { withPassives } from "./forced-passives";
 import { getEnergyCapacity } from "./energy";
+import { startWheel } from "./game-effects";
 import { getHellTurnLimit } from "./passive-rules";
 import { getPriceFor } from "./rules";
 import { useGameStore } from "./store";
@@ -23,7 +24,10 @@ function editPlayer(index: number, changes: Partial<Player>): void {
 const store = () => useGameStore.getState();
 const cup: InventoryEntry = { id: "cup-1", kind: "red-cup" };
 
-afterEach(() => store().resetGame());
+afterEach(() => {
+  store().resetGame();
+  vi.restoreAllMocks();
+});
 
 describe("Goblin", () => {
   it("takes 150 coins from every other player at a new Red Cup, the first one included", () => {
@@ -100,5 +104,53 @@ describe("Piégeur", () => {
     useGameStore.setState({ mudPlacedThisTurn: false, energyLeft: 3 });
     store().useItem("mud-2");
     expect(store().mudTraps).toHaveLength(1);
+  });
+});
+
+describe("the wheel cards", () => {
+  /** The wedge picked by a draw: the wheel has eight wedges of equal weight. */
+  const draw = (wedge: number) => (wedge + 0.5) / 8;
+
+  it("Main verte draws twice on the wheel of fortune and keeps the better", () => {
+    startTable(["green-hand", "lambda"]);
+    // Wedge 0 is +100 pièces, wedge 7 « Va au Départ ».
+    vi.spyOn(Math, "random").mockReturnValueOnce(draw(0)).mockReturnValueOnce(draw(7));
+    const state = startWheel(store(), "fortune", store().players[0].id, "move");
+    expect(state.pendingWheel?.result.id).toBe("go-to-start");
+    expect(state.pendingWheel?.discarded?.id).toBe("gain-100");
+  });
+
+  it("Main rouge keeps the better of two misfortunes, and nobody else draws twice", () => {
+    startTable(["red-hand", "lambda"]);
+    // Wedge 6 is « Direction l'Enfer », wedge 3 « Retourne d'où tu viens ».
+    vi.spyOn(Math, "random").mockReturnValueOnce(draw(6)).mockReturnValueOnce(draw(3));
+    const state = startWheel(store(), "misfortune", store().players[0].id, "move");
+    expect(state.pendingWheel?.result.id).toBe("go-back");
+
+    const other = startWheel(store(), "misfortune", store().players[1].id, "move");
+    expect(other.pendingWheel?.discarded).toBeUndefined();
+    expect(startWheel(store(), "fortune", store().players[0].id, "move").pendingWheel?.discarded).toBeUndefined();
+  });
+
+  it("Touché angélique spins the wheel of fortune a second time, and both results count", () => {
+    startTable(["angelic-touch", "lambda"]);
+    vi.spyOn(Math, "random").mockReturnValueOnce(draw(1)).mockReturnValueOnce(draw(3));
+    useGameStore.setState(startWheel(store(), "fortune", store().players[0].id, "move"));
+    expect(store().pendingWheel?.repeats).toEqual(["fortune"]);
+    store().resolveWheel();
+    const afterFirst = store().players[0].currency;
+    expect(afterFirst).toBe(STARTING_CURRENCY + 200);
+    expect(store().pendingWheel).toMatchObject({ origin: "double", wheelId: "fortune" });
+    store().resolveWheel();
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY + 200 + 400);
+    expect(store().pendingWheel).toBeNull();
+  });
+
+  it("Main du diable spins the wheel of Hell twice, and not the wheel of fortune", () => {
+    startTable(["devils-hand", "lambda"]);
+    const hell = startWheel(store(), "hell", store().players[0].id, "turn-end", { origin: "hell" });
+    expect(hell.pendingWheel?.repeats).toEqual(["hell"]);
+    const fortune = startWheel(store(), "fortune", store().players[0].id, "move");
+    expect(fortune.pendingWheel?.repeats).toBeUndefined();
   });
 });
