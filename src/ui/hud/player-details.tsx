@@ -125,9 +125,14 @@ function KickControl({ player }: { player: Player }) {
   return <KickButton name={player.name} labelled disabled={busy || !atRest} onKick={() => void kick(userId)} />;
 }
 
-/** One of the two cards of a player: its name and rules. A card nobody may see is not shown at all. */
-function CardBlock({ label, cardId, children }: { label: string; cardId: PassiveId | null; children?: ReactNode }) {
-  if (!cardId) return null;
+interface CardEntry {
+  label: string;
+  cardId: PassiveId;
+  children?: ReactNode;
+}
+
+/** One of the two cards of a player: its name and rules. */
+function CardBlock({ label, cardId, children }: CardEntry) {
   const card = PASSIVE_CATALOG[cardId];
   return (
     <div className="player-details__passive">
@@ -138,6 +143,50 @@ function CardBlock({ label, cardId, children }: { label: string; cardId: Passive
         <p>{card.description}</p>
       </div>
       {children}
+    </div>
+  );
+}
+
+/**
+ * The cards a viewer may see. Two of them sit side by side and slide, one card
+ * wide, under two arrows, so they take no more room than one; a card nobody
+ * may see is not shown at all.
+ */
+function CardPager({ entries }: { entries: CardEntry[] }) {
+  const [index, setIndex] = useState(0);
+  if (entries.length === 0) return null;
+  if (entries.length === 1) return <CardBlock {...entries[0]} />;
+  const current = Math.min(index, entries.length - 1);
+
+  return (
+    <div className="card-pager">
+      <button
+        type="button"
+        className="card-pager__arrow"
+        aria-label="Carte précédente"
+        disabled={current === 0}
+        onClick={() => setIndex(current - 1)}
+      >
+        <UiIcon name="chevronLeft" size={18} />
+      </button>
+      <div className="card-pager__window">
+        <div className="card-pager__track" style={{ transform: `translateX(-${current * 100}%)` }}>
+          {entries.map((entry) => (
+            <div key={entry.label} className="card-pager__slide" aria-hidden={entries[current] !== entry}>
+              <CardBlock {...entry} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="card-pager__arrow"
+        aria-label="Carte suivante"
+        disabled={current === entries.length - 1}
+        onClick={() => setIndex(current + 1)}
+      >
+        <UiIcon name="chevronRight" size={18} />
+      </button>
     </div>
   );
 }
@@ -230,10 +279,22 @@ export function PlayerDetails({
           <EnergyStat player={player} />
           {online && <ChancesStat player={player} />}
         </div>
-        <CardBlock label="Actif" cardId={cards.actif} />
-        <CardBlock label="Passif" cardId={cards.passif}>
-          {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
-        </CardBlock>
+        <CardPager
+          entries={[
+            ...(cards.actif ? [{ label: "Actif", cardId: cards.actif }] : []),
+            ...(cards.passif
+              ? [
+                  {
+                    label: "Passif",
+                    cardId: cards.passif,
+                    children: noThanksStatus ? (
+                      <p className="player-details__passive-status">{noThanksStatus}</p>
+                    ) : undefined,
+                  },
+                ]
+              : []),
+          ]}
+        />
         {canSeeBag && (
           <div className="player-details__bag">
             <span className="eyebrow">{`Sac · ${player.inventory.length}/${capacity}`}</span>

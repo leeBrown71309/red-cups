@@ -12,7 +12,7 @@ export function RoadPickBanner() {
   if (!entryId || entry?.kind !== "item") return null;
 
   return (
-    <div className="road-pick-banner" role="status">
+    <div className="hud-ribbon" role="status">
       <span>
         <UiIcon name="info" size={18} /> {ITEM_CATALOG[entry.itemId].name} : touche la route à fermer sur le plateau.
       </span>

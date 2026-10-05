@@ -18,6 +18,7 @@ import { EventToasts, useHudFeedback } from "./event-toasts";
 import { GameCountdown } from "./game-countdown";
 import { PauseOverlay } from "./pause-controls";
 import { PlayerDock } from "./player-dock";
+import { LeftTableBanner } from "./left-table-banner";
 import { RoadPickBanner } from "./road-pick-banner";
 import { PlayersPanel } from "./players-panel";
 import { TopBar } from "./top-bar";
@@ -104,6 +105,7 @@ export function GameHud() {
       <PlayersPanel />
       <PlayerDock onRequestTarget={requestTarget} onOpenShop={() => setShopClosed(false)} />
       <RoadPickBanner />
+      <LeftTableBanner />
       <TurnSplash />
       <GameCountdown />
       <AlertBannerView />

@@ -39,9 +39,8 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const energyLeft = useGameStore((state) => state.energyLeft);
   const game = useGameStore();
   const canAct = useCanActFor([decider?.id]);
+  const cards = useVisibleCards(decider ?? undefined);
   if (!activePlayer || !decider || phase !== "playing") return null;
-
-  const cards = useVisibleCards(decider);
 
   return (
     <section

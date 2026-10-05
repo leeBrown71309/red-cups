@@ -1114,8 +1114,8 @@
   }
 }
 
-/* Setting down a Barrière: the way is tapped on the board, this ribbon only says so. */
-.road-pick-banner {
+/* A ribbon under the top bar: setting down a Barrière, or waiting for a rematch after abandoning. */
+.hud-ribbon {
   position: absolute;
   top: 76px;
   left: 50%;
@@ -1133,7 +1133,7 @@
   pointer-events: auto;
 }
 
-.road-pick-banner > span {
+.hud-ribbon > span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
