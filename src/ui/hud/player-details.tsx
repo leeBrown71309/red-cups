@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { canAbandon } from "../../game/abandon";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
@@ -6,8 +7,10 @@ import { useGameStore } from "../../game/store";
 import { IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
 import type { Player } from "../../game/types";
 import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
-import { useLocalPlayerId } from "../../net/room-store";
+import { getUserIdOfPlayer } from "../../net/room-protocol";
+import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { EnergyGauge } from "../components/energy-meter";
+import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CloverIcon, CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
@@ -104,6 +107,19 @@ function ChancesStat({ player }: { player: Player }) {
       </span>
     </div>
   );
+}
+
+/** Online, the host may send another player away; a seat in the middle of a decision has to wait. */
+function KickControl({ player }: { player: Player }) {
+  const seatOrder = useRoomStore((state) => state.seatOrder);
+  const hostId = useRoomStore((state) => state.hostId);
+  const myUserId = useRoomStore((state) => state.myUserId);
+  const busy = useRoomStore((state) => state.busy);
+  const kick = useRoomStore((state) => state.kick);
+  const atRest = useGameStore((state) => canAbandon(state));
+  const userId = getUserIdOfPlayer(seatOrder, player.id);
+  if (!myUserId || myUserId !== hostId || !userId || userId === myUserId) return null;
+  return <KickButton name={player.name} labelled disabled={busy || !atRest} onKick={() => void kick(userId)} />;
 }
 
 export function PlayerDetails({
@@ -222,6 +238,7 @@ export function PlayerDetails({
             ))}
           </div>
         </div>
+        <KickControl player={player} />
       </div>
     </div>
   );

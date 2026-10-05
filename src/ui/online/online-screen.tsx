@@ -7,6 +7,7 @@ import { AudioToggles } from "../components/audio-controls";
 import { VoiceBadge, VoiceMicButton } from "../components/voice-controls";
 import { FullscreenButton } from "../components/fullscreen-button";
 import { GameLogo } from "../components/game-logo";
+import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
 import { AccountPanel } from "./account-panel";
@@ -209,6 +210,7 @@ function RoomLobby() {
   const leave = useRoomStore((state) => state.leave);
   const updateSeat = useRoomStore((state) => state.updateSeat);
   const shuffleOrder = useRoomStore((state) => state.shuffleOrder);
+  const kick = useRoomStore((state) => state.kick);
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   // Like the local lobby, the host picks the board in a step of its own, once the table is set.
   const [pickingMap, setPickingMap] = useState(false);
@@ -309,7 +311,13 @@ function RoomLobby() {
         )}
       </div>
 
-      <RosterList players={players} hostId={hostId} myUserId={myUserId} />
+      <RosterList
+        players={players}
+        hostId={hostId}
+        myUserId={myUserId}
+        onKick={isHost ? kick : undefined}
+        busy={busy}
+      />
 
       {me && (
         <details className="online__change-avatar">
@@ -361,10 +369,15 @@ function RosterList({
   players,
   hostId = null,
   myUserId = null,
+  onKick,
+  busy = false,
 }: {
   players: RoomPlayer[];
   hostId?: string | null;
   myUserId?: string | null;
+  /** Given to the host only: a button next to every other player. */
+  onKick?: (userId: string) => Promise<void>;
+  busy?: boolean;
 }) {
   const connected = useRoomStore((state) => state.connectedUserIds);
   return (
@@ -382,6 +395,9 @@ function RosterList({
             <span className="online-player__badges">
               <VoiceBadge userId={player.userId} />
               {player.userId === hostId && <UiIcon name="crown" size={18} />}
+              {onKick && player.userId !== myUserId && (
+                <KickButton name={player.name} disabled={busy} onKick={() => void onKick(player.userId)} />
+              )}
               {myUserId && (
                 <span
                   className={`online-dot ${online ? "is-online" : ""}`}

@@ -15,6 +15,8 @@ import {
   createRoom,
   fetchRoom,
   fetchServerTime,
+  KICKED_VERSION,
+  kickPlayer as kickPlayerFromRoom,
   leaveRoom,
   openRoom,
   rematchRoom,
@@ -85,11 +87,14 @@ interface RoomState {
   startGame: (mapId: MapId) => Promise<void>;
   /** Host only, once the game is over: a new game for whoever is still at the table. */
   rematch: (mapId: MapId) => Promise<void>;
+  /** Host only: sends a player away from the lobby or the game. */
+  kick: (userId: string) => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
   clearError: () => void;
 }
 
+const KICKED_MESSAGE = "L’hôte t’a exclu du salon.";
 const ROOM_MEMORY_KEY = "red-cups-room";
 const HEARTBEAT_MS = 20_000;
 /** How often this device looks at the clocks of the game. */
@@ -258,6 +263,10 @@ export const useRoomStore = create<RoomState>((set, get) => {
       case "start":
         await resync();
         return;
+      case "kicked":
+        if (wire.userId === get().myUserId) await closeRoom(KICKED_MESSAGE);
+        else await resync();
+        return;
       case "action": {
         const { version, seatOrder } = get();
         const outcome = applyRemoteAction(pickGameState(useGameStore.getState()), version, seatOrder, wire);
@@ -303,6 +312,10 @@ export const useRoomStore = create<RoomState>((set, get) => {
     }
     if (storedVersion === null) {
       await closeRoom("Le salon a expiré.");
+      return;
+    }
+    if (storedVersion === KICKED_VERSION) {
+      await closeRoom(KICKED_MESSAGE);
       return;
     }
     // A lost broadcast shows up here at the latest.
@@ -535,6 +548,34 @@ export const useRoomStore = create<RoomState>((set, get) => {
         await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
+      }),
+
+    kick: (userId) =>
+      run(async () => {
+        const { code, view, seatOrder, myUserId, hostId } = get();
+        if (!code || !myUserId || myUserId !== hostId || userId === myUserId) return;
+        if (view === "playing") {
+          const hostPlayerId = getPlayerIdOfUser(seatOrder, myUserId);
+          const targetId = getPlayerIdOfUser(seatOrder, userId);
+          if (!hostPlayerId || !targetId) return;
+          // The engine first: it only lets a player go while the table is at rest.
+          await new Promise<void>((resolve) =>
+            enqueue(async () => {
+              try {
+                await sendAction({ type: "kickPlayer", hostId: hostPlayerId, playerId: targetId });
+              } finally {
+                resolve();
+              }
+            }),
+          );
+          if (useGameStore.getState().players.some((player) => player.id === targetId)) {
+            toast("Attends la fin de l’action en cours pour exclure ce joueur.", "bad");
+            return;
+          }
+        }
+        await kickPlayerFromRoom(code, userId);
+        await resync();
+        broadcast({ kind: "kicked", userId });
       }),
 
     leave: () =>

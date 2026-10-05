@@ -256,6 +256,31 @@ describe("kickoff", () => {
   });
 });
 
+describe("kick_player", () => {
+  it("is the host's alone, empties the seat and keeps the player out", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès"]);
+    expect(await refusal(ids[1], `select kick_player($1, $2::uuid)`, [code, ids[2]])).toMatch(/hôte/);
+    expect(await refusal(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[0]])).toMatch(/toi-même/);
+
+    await as(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[2]]);
+    expect((await room(code, ids[0]))?.players.map((player) => player.name)).toEqual(["Léa", "Malik"]);
+    expect(await refusal(ids[2], `select claim_seat($1, 'Inès', 2::smallint)`, [code])).toMatch(/exclu/);
+    // The kicked device learns it on its next heartbeat.
+    const [beat] = await as<{ v: number }>(ids[2], `select touch_seat($1) v`, [code]);
+    expect(beat.v).toBe(-1);
+  });
+
+  it("also sends away a player of a game under way, whose seat stays in the frozen order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès"]);
+    await kickoff(code, ids[0]);
+    await as(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[1]]);
+    const seen = await room(code, ids[0]);
+    expect(seen?.seatOrder).toEqual(ids);
+    expect(seen?.players.map((player) => player.name)).toEqual(["Léa", "Inès"]);
+    expect((await room(code, ids[1]))?.isPlayer).toBe(false);
+  });
+});
+
 describe("advance_room", () => {
   it("accepts one write per version and refuses anybody not playing", async () => {
     const { code, ids } = await lobby("Léa", ["Malik"]);

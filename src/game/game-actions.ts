@@ -12,6 +12,7 @@ import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
 import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
+import { kickPlayer } from "./kick";
 import { joinLatePlayer } from "./late-join";
 import { pauseGame, resumeGame } from "./pause";
 import { buyItem, isOnShelf } from "./shopping";
@@ -151,6 +152,8 @@ export type GameAction =
   | { type: "abandonGame"; playerId: PlayerId }
   /** Online: somebody sat down after the kickoff, while the first round is not over. */
   | { type: "joinLatePlayer"; playerId: PlayerId; name: string; color: PlayerColor }
+  /** Online: the host sends a player away, at the lobby's table or in the game. */
+  | { type: "kickPlayer"; hostId: PlayerId; playerId: PlayerId }
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
   | { type: "resolveWheel" }
   /** With the Gomme, or with a ready Non merci when `withNoThanks` is set. */
@@ -911,7 +914,9 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // The pause only touches the clocks: nothing on the board follows from it.
   if (action.type === "pauseGame" || action.type === "resumeGame") return dispatchGameAction(state, action, now);
   // Nothing is played while the game is paused, but a player may still leave the table.
-  if (state.pause && action.type !== "abandonGame" && action.type !== "joinLatePlayer") return state;
+  if (state.pause && action.type !== "abandonGame" && action.type !== "joinLatePlayer") {
+    return state;
+  }
   const prepared = spareHellPlayers(state);
   const dispatched = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
@@ -971,6 +976,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return spinTileWheel(state);
     case "spinBlessingWheel":
       return spinBlessingWheel(state);
+    case "kickPlayer":
+      return kickPlayer(state, action.hostId, action.playerId);
     case "joinLatePlayer":
       return joinLatePlayer(state, action.playerId, action.name, action.color);
     case "abandonGame":

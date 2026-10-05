@@ -128,9 +128,16 @@ export function fetchServerTime(): Promise<number> {
   return callRoomFunction<number>("server_time", {}).then(Number);
 }
 
-/** Returns the room's current version, or null once the room is gone. */
+/** The room's current version; null once the room is gone, `KICKED_VERSION` once the host sent this player away. */
+export const KICKED_VERSION = -1;
+
 export function touchSeat(code: string): Promise<number | null> {
   return callRoomFunction<number | null>("touch_seat", { p_code: code });
+}
+
+/** Host only: sends a player away from the lobby or the game. They cannot sit down again. */
+export function kickPlayer(code: string, userId: string): Promise<void> {
+  return callRoomFunction("kick_player", { p_code: code, p_user: userId });
 }
 
 export function leaveRoom(code: string): Promise<void> {

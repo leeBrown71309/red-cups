@@ -55,6 +55,13 @@ create unique index if not exists room_players_seat_unique
 create index if not exists room_players_last_seen on public.room_players (room_code, last_seen);
 create index if not exists rooms_stale on public.rooms (updated_at);
 
+-- Players the host sent away: they cannot sit down again in that room.
+create table if not exists public.room_kicks (
+  room_code text not null references public.rooms(code) on delete cascade,
+  user_id   uuid not null,
+  primary key (room_code, user_id)
+);
+
 -- A Google account and the name the table calls it. A guest has no row here.
 -- Only the name for now; the game history will hang off this table later.
 create table if not exists public.profiles (
@@ -102,6 +109,7 @@ alter table public.rooms add column if not exists game_id uuid;
 
 alter table public.rooms enable row level security;
 alter table public.room_players enable row level security;
+alter table public.room_kicks enable row level security;
 alter table public.profiles enable row level security;
 alter table public.games enable row level security;
 alter table public.game_seats enable row level security;
@@ -271,6 +279,10 @@ begin
     raise exception 'Le salon est complet' using errcode = '53400';
   end if;
 
+  if exists (select 1 from public.room_kicks where room_code = p_code and user_id = me) then
+    raise exception 'L''hôte t''a exclu de ce salon' using errcode = '42501';
+  end if;
+
   select pr.display_name into seat_name from public.profiles pr where pr.id = me;
   seat_name := left(btrim(coalesce(seat_name, p_name, '')), 16);
   if seat_name = '' then
@@ -306,7 +318,8 @@ $$;
 
 -- Still here. Returns the room's version, or null once the room is gone: a
 -- device learns from it that it missed a move (a lost broadcast) or that its
--- room expired while it slept.
+-- room expired while it slept. -1 means the caller no longer sits at the table:
+-- the host sent them away.
 drop function if exists public.touch_seat(text);
 create function public.touch_seat(p_code text)
 returns integer
@@ -316,6 +329,9 @@ set search_path = public
 as $$
 begin
   perform public.release_empty_rooms();
+  if exists (select 1 from public.rooms where code = p_code) and not public.is_room_player(p_code, auth.uid()) then
+    return -1;
+  end if;
   update public.room_players set last_seen = now() where room_code = p_code and user_id = auth.uid();
   return (select version from public.rooms where code = p_code);
 end;
@@ -351,6 +367,42 @@ begin
   delete from public.rooms r
    where r.code = p_code and r.status = 'over'
      and not exists (select 1 from public.room_players p where p.room_code = r.code);
+end;
+$$;
+
+-- Sending a player away, by the host only, in the lobby or during the game.
+-- The seat stays in the frozen order, like the seat of anybody who left: the
+-- host's device tells the engine with `kickPlayer`. The player cannot come back.
+create or replace function public.kick_player(p_code text, p_user uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me uuid := auth.uid();
+begin
+  if not exists (
+    select 1 from public.rooms where code = p_code and host_id = me and status in ('lobby', 'playing')
+  ) then
+    raise exception 'Seul l''hôte peut exclure un joueur' using errcode = '42501';
+  end if;
+  if p_user = me then
+    raise exception 'Tu ne peux pas t''exclure toi-même' using errcode = '22023';
+  end if;
+
+  delete from public.room_players where room_code = p_code and user_id = p_user;
+  insert into public.room_kicks (room_code, user_id) values (p_code, p_user) on conflict do nothing;
+  -- In the lobby the drawn order forgets them; in a game the seat stays frozen.
+  update public.rooms
+     set seat_order = case
+           when status = 'lobby' then coalesce((
+             select jsonb_agg(entry) from jsonb_array_elements(seat_order) as entry where entry #>> '{}' <> p_user::text
+           ), '[]'::jsonb)
+           else seat_order
+         end,
+         updated_at = now()
+   where code = p_code;
 end;
 $$;
 

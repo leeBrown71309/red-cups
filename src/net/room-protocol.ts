@@ -21,7 +21,9 @@ export type RoomWire =
   /** The lobby roster changed: somebody sat down, left or picked another avatar. */
   | { kind: "roster" }
   /** The host kicked off: everybody loads the first snapshot. */
-  | { kind: "start" };
+  | { kind: "start" }
+  /** The host sent a player away: that player's device leaves the room. */
+  | { kind: "kicked"; userId: string };
 
 /**
  * Whether a presence "leave" means the device really left the room. Any change
