@@ -251,7 +251,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     price: 350,
     symbol: "⛔",
     description:
-      "Bloque une route voisine de ta case jusqu’à ton prochain tour : personne n’y passe à pied. Une seule barrière sur le plateau à la fois.",
+      "Touche n’importe quelle route du plateau : elle est fermée pendant 2 de tes tours, personne n’y passe à pied. Une seule Barrière à la fois par joueur, deux sur le plateau au plus. À Banquise, une glissade qui s’y heurte rebondit.",
     target: "road",
     energyCost: 2,
   },

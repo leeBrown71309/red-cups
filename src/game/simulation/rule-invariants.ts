@@ -47,6 +47,7 @@ import {
   expectedBalance,
   fellIntoHell,
   carriedByIce,
+  hellRewardCoins,
   newLogTexts,
   slidOnIce,
   touchedByHell,
@@ -608,7 +609,13 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
     ...(emptyBag ? { "lose-item": -amount } : {}),
   };
   const delta = moneyOutcomes[wheel.result.id];
-  if (delta !== undefined && after.currency !== expectedBalance(before, delta)) {
+  // The coins of a descent into Hell the wheel's loss led to (a −300 reset, a duel) come on top.
+  const hellCoins = hellRewardCoins(newLogTexts(previous, next), before.name);
+  if (
+    delta !== undefined &&
+    after.currency !== expectedBalance(before, delta) &&
+    after.currency !== expectedBalance(before, delta) + hellCoins
+  ) {
     found.push(
       violation("wheel-money", `${before.name}: ${wheel.result.id} took ${before.currency} to ${after.currency}`),
     );

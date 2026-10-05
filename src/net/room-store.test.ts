@@ -45,6 +45,7 @@ vi.mock("./supabase-client", () => {
 });
 
 const { useRoomStore } = await import("./room-store");
+const { useUiStore } = await import("../feedback/ui-store");
 
 function lobbySnapshot(playerIds: string[]): RoomSnapshot {
   return {
@@ -138,7 +139,7 @@ describe("room store lobby", () => {
     await useRoomStore.getState().lookUpRoom(ROOM_CODE);
 
     const room = useRoomStore.getState();
-    expect(room.error).toBe("Cette partie est terminée.");
+    expect(useUiStore.getState().toasts.some((toast) => toast.text === "Cette partie est terminée.")).toBe(true);
     expect(room.view).not.toBe("playing");
     expect(api.leaveRoom).toHaveBeenCalledWith(ROOM_CODE);
   });

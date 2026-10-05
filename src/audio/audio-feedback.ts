@@ -46,6 +46,9 @@ export function startAudioFeedback(): () => void {
       case "pawn-slide":
         soundEffects.iceSlide();
         break;
+      case "barrier-bump":
+        soundEffects.error();
+        break;
       case "blizzard":
         soundEffects.blizzardWind();
         break;

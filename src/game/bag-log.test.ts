@@ -18,6 +18,6 @@ describe("bag lines of the journal", () => {
     const [line] = store().log;
     expect(line.text).toContain("achète");
     expect(line.text).toContain("Tomate");
-    expect(line.secret).toEqual({ ownerId: store().players[0].id, publicText: "Léa achète un objet." });
+    expect(line.secret).toEqual({ ownerId: store().players[0].id, publicText: "Léa a effectué un achat." });
   });
 });

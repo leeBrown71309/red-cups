@@ -150,7 +150,7 @@ function upgradeSave(save: SaveRecord): SaveRecord {
         }
       : null,
     pendingDuelChoice: save.pendingDuelChoice ?? null,
-    barrier: save.barrier ?? null,
+    barriers: save.barriers ?? [],
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     thrownStackId: save.thrownStackId ?? null,
     diceRoll: save.diceRoll ?? null,

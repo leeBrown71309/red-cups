@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isPortalVisible } from "../game/devil";
+import { getBarrierRoads } from "../game/turn-actions";
 import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import type { MapId, NodeId } from "../game/types";
@@ -28,6 +29,14 @@ export const boardCamera = {
 };
 
 type StageStatus = "loading" | "ready" | "error";
+
+/** A road was tapped while a Barrière is being set down: the item is used on it. */
+function placeBarrierOnRoad(road: [NodeId, NodeId]): void {
+  const { roadPickEntryId, setRoadPickEntryId } = useUiStore.getState();
+  if (roadPickEntryId === null) return;
+  setRoadPickEntryId(null);
+  useGameStore.getState().useItem(roadPickEntryId, undefined, undefined, road);
+}
 
 function openGhostLoot(): void {
   useUiStore.getState().setGhostLootOpen(true);
@@ -59,7 +68,7 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
       try {
         created = new BoardWorld(
           container,
-          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot },
+          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot, onRoadSelect: placeBarrierOnRoad },
           mapId,
         );
         boardCamera.world = created;
@@ -137,6 +146,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const cupHidden = useRedCupHidden();
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
+  const roadPickEntryId = useUiStore((state) => state.roadPickEntryId);
 
   return useMemo(() => {
     const activePlayer = game.players[game.activePlayerIndex];
@@ -166,7 +176,8 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
         : [],
       redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
-      barrierEdge: playing && game.barrier ? [game.barrier.a, game.barrier.b] : null,
+      barrierEdges: playing ? game.barriers.map((barrier): [NodeId, NodeId] => [barrier.a, barrier.b]) : [],
+      pickableRoads: playing && roadPickEntryId !== null ? getBarrierRoads(game) : [],
       portalNodeIds: playing
         ? game.hellPortals.filter((portal) => isPortalVisible(game, portal)).map((portal) => portal.nodeId)
         : [],
@@ -188,5 +199,5 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       followActivePlayer,
       activePlayerId: activePlayer?.id ?? null,
     };
-  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, mode, mapId]);
+  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, roadPickEntryId, mode, mapId]);
 }

@@ -65,7 +65,7 @@ export function buyItem(state: GameState, itemId: ItemId, count = 1): GameState 
     nextState,
     player.id,
     `${player.name} achète ${what} pour ${total} pièces.`,
-    `${player.name} achète un objet.`,
+    `${player.name} a effectué un achat.`,
     "good",
   );
 }

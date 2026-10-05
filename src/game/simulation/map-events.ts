@@ -62,5 +62,5 @@ export function countMapEvents(
       if (after && countItemUnits(after, itemId) < countItemUnits(before, itemId)) add(`item:${itemId}`);
     }
   }
-  if (next.barrier && !previous.barrier) add("item:barrier");
+  if (next.barriers.length > previous.barriers.length) add("item:barrier");
 }

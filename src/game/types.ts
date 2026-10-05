@@ -391,11 +391,23 @@ export interface GhostStakes {
   reward: GhostReward;
 }
 
-/** A road between two tiles closed by its owner's Barrière until their turn comes again. */
+/** How many of its owner's turns a Barrière holds its road. */
+export const BARRIER_TURNS = 2;
+/** The most Barrières on the board at once, each from a different player. */
+export const MAX_BARRIERS = 2;
+
+/** A road between two tiles closed by its owner's Barrière, for `turnsLeft` more turns of its owner. */
 export interface Barrier {
   ownerId: PlayerId;
   a: NodeId;
   b: NodeId;
+  turnsLeft: number;
+}
+
+/** Banquise: a slide drawn towards a barred road bounced back from it, standing on `path[index]`. */
+export interface SlideBump {
+  index: number;
+  toward: NodeId;
 }
 
 /** Meneur de jeu: two mini-games were drawn, and `chooserId` picks the one the duel is played with. */
@@ -611,6 +623,8 @@ export interface PlayerMovement {
   slideStart?: number;
   /** Banquise: falling ice stopped the slide on its way to this tile. */
   interruptedTo?: NodeId;
+  /** Banquise: the slide ran into a Barrière and came back, where the path says. */
+  bumps?: SlideBump[];
   /** Banquise: the player broke free of the ice and finished last turn's slide. */
   thawed?: boolean;
   /** Luna Park: the ghost slapped the player and carried them to Hell. */
@@ -729,8 +743,8 @@ export interface GameState {
   pendingWheel: PendingWheel | null;
   pendingDuel: PendingDuel | null;
   pendingDuelChoice: PendingDuelChoice | null;
-  /** The Barrière on a road: nobody walks it until its owner's next turn. */
-  barrier: Barrier | null;
+  /** The Barrières on the roads: nobody walks them while they stand. */
+  barriers: Barrier[];
   pendingDiscard: PendingDiscard | null;
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
@@ -836,7 +850,7 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingWheel: null,
   pendingDuel: null,
   pendingDuelChoice: null,
-  barrier: null,
+  barriers: [],
   pendingDiscard: null,
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,

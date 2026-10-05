@@ -35,7 +35,7 @@ const KEYS_ADDED_BY_PATCH_0_1_4: (keyof GameState)[] = [
 ];
 
 /** Patch 0.1.6 added the Meneur de jeu's choice of mini-game. */
-const KEYS_ADDED_BY_PATCH_0_1_6: (keyof GameState)[] = ["pendingDuelChoice", "barrier"];
+const KEYS_ADDED_BY_PATCH_0_1_6: (keyof GameState)[] = ["pendingDuelChoice", "barriers"];
 
 describe("game save upgrade", () => {
   const saved = pickGameState(reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["A", "B"] }));

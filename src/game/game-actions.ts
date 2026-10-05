@@ -3,7 +3,7 @@ import { abandonPlayer, canAbandon } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
-import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival } from "./ice";
+import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival, toPathBumps } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { chooseDuelMode } from "./duel-choice";
@@ -161,7 +161,7 @@ export type GameAction =
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
-  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number; targetNodeId?: NodeId }
+  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number; targetRoad?: [NodeId, NodeId] }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
@@ -477,6 +477,7 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
       from: player.position,
       path,
       ...(slid ? { slideStart: 1 } : {}),
+      ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(1, slide.bumps) } : {}),
       ...(heldTo === null ? {} : { interruptedTo: heldTo }),
     },
   };
@@ -606,9 +607,9 @@ function useItem(
   entryId: string,
   targetPlayerId: PlayerId | undefined,
   count: number | undefined,
-  targetNodeId?: NodeId,
+  targetRoad?: [NodeId, NodeId],
 ): GameState {
-  const plan = planItemUse(state, entryId, targetPlayerId, count, targetNodeId);
+  const plan = planItemUse(state, entryId, targetPlayerId, count, targetRoad);
   if (!plan) return state;
   if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
   // A Miroir answers before anybody else may: it sends the item back to its user.
@@ -1084,7 +1085,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "stealItem":
       return stealItem(state, action.itemId);
     case "useItem":
-      return useItem(state, action.entryId, action.targetPlayerId, action.count, action.targetNodeId);
+      return useItem(state, action.entryId, action.targetPlayerId, action.count, action.targetRoad);
     case "resolveReaction":
       return resolveReaction(state, action.reactorId);
     case "endTurn":

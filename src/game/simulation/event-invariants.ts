@@ -1,5 +1,5 @@
 import { isTableBroke } from "../blessing";
-import { getBoard, getNeighbors } from "../board";
+import { getNeighbors, getOpenBoard } from "../board";
 import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
@@ -46,7 +46,7 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (flight.path.length > BULLET_BILL_CHARGE_STEPS) {
     found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
   }
-  const board = getBoard(previous);
+  const board = getOpenBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
     if (!getNeighbors(board, landing, true).includes(step)) {

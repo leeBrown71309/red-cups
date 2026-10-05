@@ -18,8 +18,8 @@ export interface Board {
   carouselReversed: boolean;
   /** Banquise: the blizzard's temporary ice tile, on top of the map's own ice. */
   iceTileNodeId: NodeId | null;
-  /** The road a Barrière closes, as its two tiles: nobody walks it. */
-  blocked: [NodeId, NodeId] | null;
+  /** The roads the Barrières close, as pairs of tiles: nobody walks them. */
+  blocked: [NodeId, NodeId][];
 }
 
 const boardCache = new Map<string, Board>();
@@ -28,9 +28,9 @@ export function resolveBoard(
   mapId: MapId,
   carouselReversed = false,
   iceTileNodeId: NodeId | null = null,
-  blocked: [NodeId, NodeId] | null = null,
+  blocked: [NodeId, NodeId][] = [],
 ): Board {
-  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}:${blocked?.join("-") ?? ""}`;
+  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}:${blocked.map((road) => road.join("-")).join(",")}`;
   const cached = boardCache.get(key);
   if (cached) return cached;
 
@@ -52,16 +52,16 @@ export function resolveBoard(
   return board;
 }
 
-type BoardState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId"> & Partial<Pick<GameState, "barrier">>;
+type BoardState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId"> &
+  Partial<Pick<GameState, "barriers">>;
 
 /** The board as it stands: the Barrière, if there is one, closes its road to every walker. */
 export function getBoard(state: BoardState): Board {
-  const { barrier } = state;
   return resolveBoard(
     state.mapId,
     state.carouselReversed,
     state.iceTileNodeId,
-    barrier ? [barrier.a, barrier.b] : null,
+    (state.barriers ?? []).map((barrier): [NodeId, NodeId] => [barrier.a, barrier.b]),
   );
 }
 
@@ -72,11 +72,7 @@ export function getOpenBoard(state: BoardState): Board {
 
 /** Whether the road between two tiles is the one a Barrière closes. */
 export function isBlockedRoad(board: Board, fromNodeId: NodeId, toNodeId: NodeId): boolean {
-  const blocked = board.blocked;
-  return (
-    blocked !== null &&
-    ((blocked[0] === fromNodeId && blocked[1] === toNodeId) || (blocked[0] === toNodeId && blocked[1] === fromNodeId))
-  );
+  return board.blocked.some(([a, c]) => (a === fromNodeId && c === toNodeId) || (a === toNodeId && c === fromNodeId));
 }
 
 export function hasIce(board: Board): boolean {

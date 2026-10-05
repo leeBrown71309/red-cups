@@ -1,13 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withPassives } from "./forced-passives";
+import { reduceGame } from "./game-actions";
+import { drawSlide } from "./ice";
 import { getBarrierRoads } from "./turn-actions";
 import { getBoard, isBlockedRoad } from "./board";
 import { canBuyItemKind } from "./passive-rules";
 import { countItemUnits } from "./rules";
 import { loseTurns, placeInHell } from "./state-utils";
 import { useGameStore } from "./store";
-import type { ItemId, Player } from "./types";
-import { HELL_NODE_ID } from "./types";
+import type { GameState, ItemId, Player } from "./types";
+import { BARRIER_TURNS, EMPTY_GAME_STATE, HELL_NODE_ID } from "./types";
 
 /** Réveil, Parachute, Miroir and Barrière: the four items of patch 0.1.6. */
 
@@ -21,7 +23,13 @@ function giveItem(index: number, itemId: ItemId): void {
   useGameStore.setState((state) => ({
     players: state.players.map((player, playerIndex) =>
       playerIndex === index
-        ? { ...player, inventory: [...player.inventory, { id: `${itemId}-${index}`, kind: "item", itemId }] }
+        ? {
+            ...player,
+            inventory: [
+              ...player.inventory,
+              { id: `${itemId}-${index}-${player.inventory.length}`, kind: "item", itemId },
+            ],
+          }
         : player,
     ),
   }));
@@ -89,30 +97,64 @@ describe("Miroir", () => {
 });
 
 describe("Barrière", () => {
-  it("closes one road at a time, and falls on its owner's next turn", () => {
+  const entryOf = (index: number) => store().players[index].inventory.find((candidate) => candidate.kind === "item")!;
+  const placeFor = (index: number, road: [number, number]) => {
+    useGameStore.setState({ activePlayerIndex: index, turnStage: "move", energyLeft: 4 });
+    store().useItem(entryOf(index).id, undefined, 1, road);
+  };
+
+  it("closes any road of the board, however far, and holds it for two turns of its owner", () => {
     startTable();
     giveItem(0, "barrier");
-    const entry = store().players[0].inventory.find((candidate) => candidate.kind === "item")!;
-    const [road] = getBarrierRoads(store(), store().players[0].position);
-    expect(road).toBeDefined();
-    store().useItem(entry.id, undefined, 1, road);
-    const barrier = store().barrier;
-    expect(barrier?.ownerId).toBe(store().players[0].id);
-    expect(isBlockedRoad(getBoard(store()), barrier!.a, barrier!.b)).toBe(true);
+    const roads = getBarrierRoads(store());
+    const far = roads.find((road) => !road.includes(store().players[0].position))!;
+    expect(far).toBeDefined();
+    store().useItem(entryOf(0).id, undefined, 1, far);
+    const [barrier] = store().barriers;
+    expect(barrier).toMatchObject({ ownerId: store().players[0].id, turnsLeft: BARRIER_TURNS });
+    expect(isBlockedRoad(getBoard(store()), far[0], far[1])).toBe(true);
+    expect(getBarrierRoads(store()).some(([a, b]) => a === far[0] && b === far[1])).toBe(false);
 
-    passTurn();
-    expect(store().barrier).not.toBeNull();
-    passTurn();
-    expect(store().barrier).not.toBeNull();
-    passTurn();
-    expect(store().barrier).toBeNull();
+    // A table turn is three passes: the first owner's turn wears it down once, the second removes it.
+    for (let pass = 0; pass < 3; pass += 1) passTurn();
+    expect(store().barriers).toHaveLength(1);
+    for (let pass = 0; pass < 3; pass += 1) passTurn();
+    expect(store().barriers).toHaveLength(0);
   });
 
-  it("refuses a road that does not start under the player's feet", () => {
+  it("allows one per player and two on the board", () => {
+    startTable();
+    for (const index of [0, 1, 2]) giveItem(index, "barrier");
+    giveItem(0, "barrier");
+    const [first, second, third] = getBarrierRoads(store());
+    placeFor(0, first);
+    placeFor(0, second);
+    expect(store().barriers).toHaveLength(1);
+    placeFor(1, second);
+    expect(store().barriers).toHaveLength(2);
+    placeFor(2, third);
+    expect(store().barriers).toHaveLength(2);
+  });
+
+  it("refuses a road the board does not have", () => {
     startTable();
     giveItem(0, "barrier");
-    const entry = store().players[0].inventory.find((candidate) => candidate.kind === "item")!;
-    store().useItem(entry.id, undefined, 1, 9999);
-    expect(store().barrier).toBeNull();
+    store().useItem(entryOf(0).id, undefined, 1, [9998, 9999]);
+    expect(store().barriers).toHaveLength(0);
+  });
+
+  it("makes a slide bounce off the barred road and slide on another way", () => {
+    const base = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["A", "B"], mapId: "banquise" });
+    // The ice on tile 3 leads on to 6, 4 and 8: the road to 4 is barred.
+    const state: GameState = { ...base, iceTileNodeId: null, barriers: [{ ownerId: "p2", a: 3, b: 4, turnsLeft: 2 }] };
+    let bumped = 0;
+    for (let draw = 0; draw < 60; draw += 1) {
+      const outcome = drawSlide(state, 1, [3], false);
+      expect(outcome.slide[0]).not.toBe(4);
+      expect(outcome.slide.length).toBeGreaterThan(0);
+      bumped += outcome.bumps.length;
+      for (const bump of outcome.bumps) expect(bump).toEqual({ step: 0, toward: 4 });
+    }
+    expect(bumped).toBeGreaterThan(0);
   });
 });

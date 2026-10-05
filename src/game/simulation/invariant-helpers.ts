@@ -31,7 +31,7 @@ export function hellRewardCoins(texts: string[], name: string): number {
   let coins = 0;
   for (const text of texts) {
     if (text.includes(`${name} gagne 50 pièces et un point`)) coins += 50;
-    const own = new RegExp(`^${name} est chez lui en Enfer : \+(\d+) pièces`).exec(text);
+    const own = new RegExp(String.raw`^${name} est chez lui en Enfer : \+(\d+) pièces`).exec(text);
     if (own) coins += Number(own[1]);
   }
   return coins;

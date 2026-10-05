@@ -1,8 +1,8 @@
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { earnsStartBonus, getBoard, getOpenBoard, getShortestPath, isIce } from "./board";
+import { earnsStartBonus, getBoard, getOpenBoard, isBlockedRoad, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
-import { carryOffIce, drawSlide, recordSlide } from "./ice";
+import { carryOffIce, drawSlide, recordSlide, toPathBumps } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
 import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { startArmWrestle } from "./arm-wrestle";
@@ -46,9 +46,11 @@ import {
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
 import {
+  BARRIER_TURNS,
   CANCELLED_ITEM_IS_CONSUMED,
   CORRUPTER_COST,
   HELL_NODE_ID,
+  MAX_BARRIERS,
   MADE_IN_HEAVEN_CUP_NODE_ID,
   NO_THANKS_COOLDOWN_ROUNDS,
   START_NODE_ID,
@@ -129,6 +131,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
       from: player.position,
       path,
       ...(slide && slide.slide.length + (interruptedTo === null ? 0 : 1) > 0 ? { slideStart: plan.path.length } : {}),
+      ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(plan.path.length, slide.bumps) } : {}),
       ...(interruptedTo === null ? {} : { interruptedTo }),
     },
   };
@@ -160,8 +163,8 @@ export interface ItemPlan {
   count: number;
   /** Draven: players who cancelled it for themselves with Non merci. */
   sparedIds?: PlayerId[];
-  /** The Barrière: the tile at the other end of the road it closes. */
-  roadNodeId?: NodeId;
+  /** The Barrière: the two tiles of the road it closes. */
+  road?: [NodeId, NodeId];
   /** The target's Miroir sent it back: its effects fall on the user instead. */
   reflected?: boolean;
 }
@@ -209,7 +212,7 @@ export function planItemUse(
   entryId: string,
   targetPlayerId?: PlayerId,
   requestedCount = 1,
-  targetNodeId?: NodeId,
+  targetRoad?: [NodeId, NodeId],
 ): ItemPlan | null {
   const player = getActivePlayer(state);
   if (!player || state.phase !== "playing") return null;
@@ -239,10 +242,10 @@ export function planItemUse(
 
   const definition = ITEM_CATALOG[itemId];
   if (definition.target === "road") {
-    // One Barrière on the board at a time, on a road beside the user's tile.
-    if (state.barrier !== null || inHell || targetNodeId === undefined) return null;
-    return getBarrierRoads(state, player.position).includes(targetNodeId)
-      ? { itemId, count, roadNodeId: targetNodeId }
+    // One Barrière each, two on the board at most, on any open road.
+    if (!canPlaceBarrier(state, player.id) || targetRoad === undefined) return null;
+    return getBarrierRoads(state).some((road) => isSameRoad(road, targetRoad))
+      ? { itemId, count, road: targetRoad }
       : null;
   }
   if (definition.target !== "player") return { itemId, count };
@@ -253,20 +256,29 @@ export function planItemUse(
   return { itemId, target, count };
 }
 
+/** Whether `playerId` may set a Barrière down: none of theirs stands, and the board holds fewer than the most. */
+export function canPlaceBarrier(state: GameState, playerId: PlayerId): boolean {
+  return state.barriers.length < MAX_BARRIERS && !state.barriers.some((barrier) => barrier.ownerId === playerId);
+}
+
+function isSameRoad(left: [NodeId, NodeId], right: [NodeId, NodeId]): boolean {
+  return (left[0] === right[0] && left[1] === right[1]) || (left[0] === right[1] && left[1] === right[0]);
+}
+
 /**
- * The roads a Barrière may close from `nodeId`: every road to a neighbouring
- * tile, tunnels aside, arrows or not.
+ * The roads a Barrière may close: every road of the board that is still open,
+ * tunnels and the way into Hell aside, arrows or not. One entry per road.
  */
-export function getBarrierRoads(state: GameState, nodeId: NodeId): NodeId[] {
-  const roads = new Set<NodeId>();
+export function getBarrierRoads(state: GameState): [NodeId, NodeId][] {
+  const board = getBoard(state);
+  const roads: [NodeId, NodeId][] = [];
   for (const edge of getOpenBoard(state).edges) {
-    if (edge.kind === "tunnel") continue;
-    if (edge.from === nodeId) roads.add(edge.to);
-    if (edge.to === nodeId) roads.add(edge.from);
+    if (edge.kind === "tunnel" || edge.from === HELL_NODE_ID || edge.to === HELL_NODE_ID) continue;
+    const road: [NodeId, NodeId] = [edge.from, edge.to];
+    if (isBlockedRoad(board, edge.from, edge.to) || roads.some((known) => isSameRoad(known, road))) continue;
+    roads.push(road);
   }
-  roads.delete(HELL_NODE_ID);
-  roads.delete(nodeId);
-  return [...roads];
+  return roads;
 }
 
 /** Items whose use already writes a line naming the player (patch 0.1.5 journal). */
@@ -325,11 +337,17 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "barrier":
-      if (plan.roadNodeId === undefined) return state;
-      nextState = { ...nextState, barrier: { ownerId: player.id, a: player.position, b: plan.roadNodeId } };
+      if (plan.road === undefined) return state;
+      nextState = {
+        ...nextState,
+        barriers: [
+          ...nextState.barriers,
+          { ownerId: player.id, a: plan.road[0], b: plan.road[1], turnsLeft: BARRIER_TURNS },
+        ],
+      };
       nextState = addLog(
         nextState,
-        `${player.name} pose une Barrière sur la route entre les cases ${player.position} et ${plan.roadNodeId}.`,
+        `${player.name} pose une Barrière sur la route entre les cases ${plan.road[0]} et ${plan.road[1]}.`,
         "event",
       );
       break;

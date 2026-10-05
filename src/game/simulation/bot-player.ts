@@ -46,8 +46,8 @@ function distanceToCup(store: GameStore, nodeId: NodeId): number {
 interface ItemOption {
   entry: InventoryEntry & { kind: "item" };
   targetId?: PlayerId;
-  /** The neighbouring tile a Barrière shuts the road to. */
-  roadNodeId?: NodeId;
+  /** The two tiles of the road a Barrière closes. */
+  road?: [NodeId, NodeId];
   /** A whole volley of Tomates, or part of the stack. */
   count?: number;
 }
@@ -56,7 +56,7 @@ function useItemAction(store: GameStore, option: ItemOption): BotAction {
   const userId = getActivePlayer(store)?.id ?? "";
   return {
     label: `use:${option.entry.itemId}`,
-    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count, option.roadNodeId),
+    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count, option.road),
     item: {
       itemId: option.entry.itemId,
       entryId: option.entry.id,
@@ -73,9 +73,11 @@ function listUsableItems(store: GameStore): ItemOption[] {
   return player.inventory.flatMap((entry): ItemOption[] => {
     if (entry.kind !== "item") return [];
     if (ITEM_CATALOG[entry.itemId].target === "road") {
-      return getBarrierRoads(store, player.position)
-        .filter((nodeId) => planItemUse(store, entry.id, undefined, 1, nodeId) !== null)
-        .map((roadNodeId) => ({ entry, roadNodeId }));
+      // The bots close roads near them, where they get in somebody's way.
+      return getBarrierRoads(store)
+        .filter((road) => road.includes(player.position))
+        .filter((road) => planItemUse(store, entry.id, undefined, 1, road) !== null)
+        .map((road) => ({ entry, road }));
     }
     if (ITEM_CATALOG[entry.itemId].target !== "player") {
       return planItemUse(store, entry.id) ? [{ entry }] : [];

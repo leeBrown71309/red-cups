@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useUiStore } from "../../feedback/ui-store";
 import { PLAYER_COLORS } from "../../game/types";
 import { useAccountStore } from "../../net/account-store";
 import { buildInviteLink, normalizeRoomCode, type RoomPlayer } from "../../net/room-api";
@@ -9,6 +10,7 @@ import { FullscreenButton } from "../components/fullscreen-button";
 import { GameLogo } from "../components/game-logo";
 import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
+import { EventToasts } from "../hud/event-toasts";
 import { UiIcon } from "../icons/ui-icon";
 import { AccountPanel } from "./account-panel";
 import { drawChosenMap } from "../lobby/map-choice-store";
@@ -27,8 +29,12 @@ const MAX_PLAYERS = 8;
 export function OnlineScreen() {
   const view = useRoomStore((state) => state.view);
   const preview = useRoomStore((state) => state.preview);
-  const error = useRoomStore((state) => state.error);
   const accountError = useAccountStore((state) => state.error);
+
+  // Errors show as toasts, over any panel.
+  useEffect(() => {
+    if (accountError) useUiStore.getState().pushToast({ id: "account-error", text: accountError, tone: "bad" });
+  }, [accountError]);
 
   let panel = <OnlineHome />;
   if (view === "lobby") panel = <RoomLobby />;
@@ -50,12 +56,8 @@ export function OnlineScreen() {
 
       <section className="lobby__panel panel" aria-live="polite">
         {panel}
-        {(error ?? accountError) && (
-          <p className="online__error" role="alert">
-            <UiIcon name="info" size={18} /> {error ?? accountError}
-          </p>
-        )}
       </section>
+      <EventToasts />
     </main>
   );
 }

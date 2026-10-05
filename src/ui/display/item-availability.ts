@@ -15,8 +15,9 @@ import {
   type CorrupterBlocker,
 } from "../../game/rules";
 import { findStackWithRoom } from "../../game/state-utils";
+import { canPlaceBarrier } from "../../game/turn-actions";
 import type { GameState, ItemId, Player } from "../../game/types";
-import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
+import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MAX_BARRIERS } from "../../game/types";
 import { formatEnergyCost } from "../components/energy-meter";
 
 const CORRUPTER_HINTS: Record<Exclude<CorrupterBlocker, "not-corrupter">, { short: string; full: string }> = {
@@ -142,7 +143,18 @@ export function getItemAvailability(
         ? "Poser"
         : itemId === "tomato" || itemId === "bullet-bill"
           ? "Lancer"
-          : "Utiliser";
+          : itemId === "barrier"
+            ? "Poser"
+            : "Utiliser";
+  if (itemId === "barrier" && !canPlaceBarrier(state, player.id)) {
+    const own = state.barriers.some((barrier) => barrier.ownerId === player.id);
+    return {
+      usable: false,
+      kind,
+      actionLabel,
+      reason: own ? "Ta Barrière tient encore." : `Déjà ${MAX_BARRIERS} Barrières sur le plateau.`,
+    };
+  }
   if (itemId === "bullet-bill" && state.bulletBill) {
     return { usable: false, kind, actionLabel, reason: "Un Bullet Bill est déjà sur le plateau." };
   }

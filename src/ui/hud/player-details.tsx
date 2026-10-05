@@ -125,35 +125,18 @@ function KickControl({ player }: { player: Player }) {
   return <KickButton name={player.name} labelled disabled={busy || !atRest} onKick={() => void kick(userId)} />;
 }
 
-/** One of the two cards of a player: its name and rules, or why it is not shown. */
-function CardBlock({
-  label,
-  cardId,
-  hiddenText,
-  children,
-}: {
-  label: string;
-  cardId: PassiveId | null;
-  hiddenText: string;
-  children?: ReactNode;
-}) {
-  const card = cardId ? PASSIVE_CATALOG[cardId] : null;
+/** One of the two cards of a player: its name and rules. A card nobody may see is not shown at all. */
+function CardBlock({ label, cardId, children }: { label: string; cardId: PassiveId | null; children?: ReactNode }) {
+  if (!cardId) return null;
+  const card = PASSIVE_CATALOG[cardId];
   return (
     <div className="player-details__passive">
       <span className="eyebrow">{label}</span>
-      {card ? (
-        <>
-          <strong>{card.name}</strong>
-          {/* Some cards explain a lot: the text scrolls instead of stretching the card. */}
-          <div className="player-details__passive-text scroll-block" tabIndex={0}>
-            <p>{card.description}</p>
-          </div>
-        </>
-      ) : (
-        <p className="player-details__passive-hidden">
-          {label === "Actif" ? `${label} caché. ${hiddenText}` : hiddenText}
-        </p>
-      )}
+      <strong>{card.name}</strong>
+      {/* Some cards explain a lot: the text scrolls instead of stretching the card. */}
+      <div className="player-details__passive-text scroll-block" tabIndex={0}>
+        <p>{card.description}</p>
+      </div>
       {children}
     </div>
   );
@@ -247,28 +230,29 @@ export function PlayerDetails({
           <EnergyStat player={player} />
           {online && <ChancesStat player={player} />}
         </div>
-        <CardBlock label="Actif" cardId={cards.actif} hiddenText="Seul son porteur connaît son actif." />
-        <CardBlock label="Passif" cardId={cards.passif} hiddenText="Pas de passif.">
+        <CardBlock label="Actif" cardId={cards.actif} />
+        <CardBlock label="Passif" cardId={cards.passif}>
           {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
         </CardBlock>
-        <div className="player-details__bag">
-          <span className="eyebrow">{canSeeBag ? `Sac · ${player.inventory.length}/${capacity}` : "Sac"}</span>
-          {!canSeeBag && <p className="player-details__passive-hidden">Le sac de chacun reste privé en ligne.</p>}
-          <div className="mini-slots" hidden={!canSeeBag}>
-            {player.inventory.map((entry) => (
-              <span
-                key={entry.id}
-                className="mini-slot"
-                title={entry.kind === "red-cup" ? "Red Cup" : ITEM_CATALOG[entry.itemId].name}
-              >
-                {entry.kind === "red-cup" ? <RedCupIcon size={24} /> : <ItemIcon itemId={entry.itemId} size={24} />}
-              </span>
-            ))}
-            {Array.from({ length: empty }, (_, index) => (
-              <span key={`empty-${index}`} className="mini-slot is-empty" />
-            ))}
+        {canSeeBag && (
+          <div className="player-details__bag">
+            <span className="eyebrow">{`Sac · ${player.inventory.length}/${capacity}`}</span>
+            <div className="mini-slots">
+              {player.inventory.map((entry) => (
+                <span
+                  key={entry.id}
+                  className="mini-slot"
+                  title={entry.kind === "red-cup" ? "Red Cup" : ITEM_CATALOG[entry.itemId].name}
+                >
+                  {entry.kind === "red-cup" ? <RedCupIcon size={24} /> : <ItemIcon itemId={entry.itemId} size={24} />}
+                </span>
+              ))}
+              {Array.from({ length: empty }, (_, index) => (
+                <span key={`empty-${index}`} className="mini-slot is-empty" />
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         <KickControl player={player} />
       </div>
     </div>

@@ -32,7 +32,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Deux cartes par joueur : un actif (le moteur de ta victoire) et un passif (un avantage ciblé), choisis en deux étapes. En ligne, les autres ne voient plus ton sac ni ton actif.",
       "Goblin devient un passif : il vole 150 pièces à chaque joueur à chaque nouvelle Red Cup.",
       "Neuf nouveaux passifs : Dernier de la classe, Habitué de l’Enfer, Main verte, Main rouge, Touché angélique, Main du diable, Meneur de jeu, Brocanteur et Piégeur.",
-      "Quatre nouveaux objets : Réveil, Parachute, Miroir et Barrière (une route fermée jusqu’à ton prochain tour).",
+      "Quatre nouveaux objets : Réveil, Parachute, Miroir et Barrière (on touche une route du plateau : elle est fermée pendant 2 de tes tours).",
       "Équilibrage : Cupide gagne à 6 000 pièces, Made In Heaven coûte 1 300, l’Ange-Gardien démarre avec 800 pièces, et les cases rouges de Red light, Green light coûtent 50.",
     ],
   },

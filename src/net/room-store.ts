@@ -157,7 +157,11 @@ function recallRoom(): string | null {
 }
 
 function describeError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  const message = error instanceof Error ? error.message : String(error);
+  // A database function the server does not know yet: the schema was not replayed after the update.
+  if (message.includes("schema cache"))
+    return "Le serveur n’est pas à jour : la base de données doit être mise à jour.";
+  return message;
 }
 
 function toast(text: string, tone: "good" | "bad" | "neutral" = "neutral"): void {
@@ -423,7 +427,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
     try {
       await step();
     } catch (error) {
-      set({ error: describeError(error) });
+      toast(describeError(error), "bad");
     } finally {
       set({ busy: false });
     }

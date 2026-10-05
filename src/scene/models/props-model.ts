@@ -201,6 +201,9 @@ export function createHellPortal(kit: SceneKit): AnimatedProp {
   };
 }
 
+/** A Barrière stands a little larger than life, so it reads from the far camera. */
+const BARRIER_SCALE = 1.7;
+
 /**
  * A Barrière lying across a road: two posts and a bar in red and white
  * stripes. The road runs along the group's z axis, the bar along its x axis;
@@ -236,7 +239,7 @@ export function createBarrierProp(kit: SceneKit): AnimatedProp {
     group,
     update: (elapsed, delta) => {
       age += delta;
-      group.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
+      group.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS)) * BARRIER_SCALE));
       lamp.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.15);
     },
   };

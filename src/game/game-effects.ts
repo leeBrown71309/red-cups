@@ -45,6 +45,7 @@ import type {
   GameState,
   ItemId,
   NodeId,
+  Barrier,
   Player,
   PlayerId,
   TurnStage,
@@ -825,11 +826,23 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   return rideGhost(nextState);
 }
 
-/** The Barrière falls when its owner's turn comes round again, or when its owner has left the table. */
+/**
+ * Each turn of a Barrière's owner wears it down; it falls when none is left, or when its owner has left the
+ * table.
+ */
 function expireBarrier(state: GameState, seatedId: PlayerId): GameState {
-  const barrier = state.barrier;
-  if (!barrier || (barrier.ownerId !== seatedId && findPlayer(state, barrier.ownerId))) return state;
-  return addLog({ ...state, barrier: null }, "La Barrière tombe : la route est de nouveau ouverte.", "event");
+  if (!state.barriers.some((barrier) => barrier.ownerId === seatedId || !findPlayer(state, barrier.ownerId))) {
+    return state;
+  }
+  const standing: Barrier[] = [];
+  for (const barrier of state.barriers) {
+    const wornDown = barrier.ownerId === seatedId ? { ...barrier, turnsLeft: barrier.turnsLeft - 1 } : barrier;
+    if (wornDown.turnsLeft > 0 && findPlayer(state, barrier.ownerId)) standing.push(wornDown);
+  }
+  const nextState = { ...state, barriers: standing };
+  if (standing.length === state.barriers.length) return nextState;
+  const text = state.barriers.length - standing.length > 1 ? "Des Barrières tombent" : "Une Barrière tombe";
+  return addLog(nextState, `${text} : la route est rouverte.`, "event");
 }
 
 /** The turn change holds while Bullet Bill's victim (Non merci) or their angel (Bouclier) decides. */

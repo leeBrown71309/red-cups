@@ -50,8 +50,8 @@ interface GameActions {
   stealItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
   /** `count`: Tomates thrown at once from their stack. */
-  /** `targetNodeId`: the other end of the road a Barrière closes. */
-  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number, targetNodeId?: NodeId) => void;
+  /** `targetRoad`: the two tiles of the road a Barrière closes. */
+  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number, targetRoad?: [NodeId, NodeId]) => void;
   /** A Non merci holder cancels the declared action, or null lets it happen. */
   resolveReaction: (reactorId: PlayerId | null) => void;
   /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
@@ -143,13 +143,13 @@ export const useGameStore = create<GameStore>()(
       sellItem: (entryId) => dispatch({ type: "sellItem", entryId }),
       buyItem: (itemId, count) => dispatch({ type: "buyItem", itemId, ...(count && count > 1 ? { count } : {}) }),
       stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
-      useItem: (entryId, targetPlayerId, count, targetNodeId) =>
+      useItem: (entryId, targetPlayerId, count, targetRoad) =>
         dispatch({
           type: "useItem",
           entryId,
           targetPlayerId,
           count,
-          ...(targetNodeId !== undefined ? { targetNodeId } : {}),
+          ...(targetRoad !== undefined ? { targetRoad } : {}),
         }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
