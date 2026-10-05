@@ -24,6 +24,8 @@ export const CALM_DOWN_DISTANCE = 3;
 /** Red light, Green light: coins a green tile pays and a red one costs (patch 0.1.5). */
 export const RED_GREEN_GAIN = 100;
 export const RED_GREEN_PENALTY = 50;
+/** Coins the Goblin takes from each other player at every new Red Cup. */
+export const GOBLIN_THEFT = 150;
 /** Cupide wins as soon as their balance reaches this. */
 export const GREEDY_GOAL = 6_000;
 /** Cupide: what a Red Cup pays them instead of taking a bag slot. */
@@ -164,7 +166,17 @@ export type PassiveId =
   | "blind-luck"
   | "thief"
   | "devil"
-  | "guardian-angel";
+  | "guardian-angel"
+  // Passifs added in patch 0.1.6.
+  | "last-in-class"
+  | "hell-regular"
+  | "green-hand"
+  | "red-hand"
+  | "angelic-touch"
+  | "devils-hand"
+  | "game-master"
+  | "junk-dealer"
+  | "trapper";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket" | "blackjack";

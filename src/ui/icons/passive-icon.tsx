@@ -6,6 +6,10 @@ import { IconFrame, INK, OUTLINE, type IconProps } from "./item-icon";
  * Original emblems for every passive, drawn like the shop items: thick ink
  * contours, flat toy colours, a 64 × 64 grid.
  */
+/** A raised hand, shared by the cards of the wheels. */
+const HAND_PATH =
+  "M17 36 V22 C17 19 22 19 22 22 V12 C22 9 27 9 27 12 V10 C27 7 32 7 32 10 V12 C32 9 37 9 37 12 V30 L41 26 C44 24 48 27 46 31 L38 48 C35 55 31 58 25 58 C19 58 17 52 17 46 Z";
+
 const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
   // A fist, knuckles up.
   "built-like-a-tank": () => (
@@ -321,6 +325,128 @@ const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
       <path d="M24 48 C28 51 34 51 38 48" fill="none" stroke={INK} strokeWidth="3.2" strokeLinecap="round" />
       <path d="M46 40 C56 40 62 52 56 58 H42 C38 52 40 42 46 40 Z" fill="#c98e5a" {...OUTLINE} strokeWidth="3" />
       <path d="M44 41 L48 38 L52 41" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  // A podium, its last step tiny, a bolt for the extra energy.
+  "last-in-class": () => (
+    <>
+      <rect x="6" y="34" width="16" height="22" rx="2" fill="#8fd3ff" {...OUTLINE} strokeWidth="3" />
+      <rect x="24" y="22" width="16" height="34" rx="2" fill="#ffd166" {...OUTLINE} strokeWidth="3" />
+      <rect x="42" y="46" width="16" height="10" rx="2" fill="#ff9fb2" {...OUTLINE} strokeWidth="3" />
+      <path d="M50 14 L44 28 H51 L47 40 L58 22 H51 Z" fill="#62c7ff" {...OUTLINE} strokeWidth="3" />
+    </>
+  ),
+  // A flame over a ring of Hell with a coin falling in.
+  "hell-regular": () => (
+    <>
+      <ellipse cx="32" cy="48" rx="24" ry="10" fill="#5e3a99" {...OUTLINE} />
+      <ellipse cx="32" cy="48" rx="15" ry="5.5" fill="#c86bff" />
+      <path
+        d="M32 6 C40 16 46 24 40 34 C38 38 34 40 32 40 C26 40 22 34 26 26 C28 30 30 30 30 26 C30 20 30 14 32 6 Z"
+        fill="#ff9f43"
+        {...OUTLINE}
+        strokeWidth="3"
+      />
+      <circle cx="32" cy="29" r="7" fill="#ffd166" {...OUTLINE} strokeWidth="2.5" />
+      <path d="M32 25 V33" stroke="#b97a10" strokeWidth="2.5" strokeLinecap="round" />
+    </>
+  ),
+  // A green hand, a clover leaf in its palm.
+  "green-hand": () => (
+    <>
+      <path d={HAND_PATH} fill="#7ccf6e" {...OUTLINE} />
+      <circle cx="29" cy="40" r="4" fill="#fff4ec" stroke={INK} strokeWidth="2.5" />
+      <circle cx="35" cy="40" r="4" fill="#fff4ec" stroke={INK} strokeWidth="2.5" />
+      <circle cx="32" cy="46" r="4" fill="#fff4ec" stroke={INK} strokeWidth="2.5" />
+      <path d="M8 8 V16 M4 12 H12 M54 6 V12 M51 9 H57" stroke="#ffd166" strokeWidth="3.5" strokeLinecap="round" />
+    </>
+  ),
+  // A red hand, cracked.
+  "red-hand": () => (
+    <>
+      <path d={HAND_PATH} fill="#f2594f" {...OUTLINE} />
+      <path
+        d="M26 32 L30 40 L26 46 M38 36 L34 44"
+        fill="none"
+        stroke={INK}
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M8 10 L14 16 M56 10 L50 16" stroke="#3a2530" strokeWidth="3.5" strokeLinecap="round" />
+    </>
+  ),
+  // A white hand under a halo, with small wings.
+  "angelic-touch": () => (
+    <>
+      <path
+        d="M4 36 C0 30 2 22 6 18 C8 24 12 28 18 30 Z M60 36 C64 30 62 22 58 18 C56 24 52 28 46 30 Z"
+        fill="#ffffff"
+        {...OUTLINE}
+        strokeWidth="3"
+      />
+      <path d={HAND_PATH} fill="#fff4ec" {...OUTLINE} transform="translate(0 4)" />
+      <ellipse cx="32" cy="6" rx="12" ry="4" fill="none" stroke={INK} strokeWidth="7" />
+      <ellipse cx="32" cy="6" rx="12" ry="4" fill="none" stroke="#ffd166" strokeWidth="3.2" />
+    </>
+  ),
+  // A purple hand with two small horns.
+  "devils-hand": () => (
+    <>
+      <path
+        d="M20 14 C14 8 14 2 18 0 C20 6 24 8 28 10 Z M44 14 C50 8 50 2 46 0 C44 6 40 8 36 10 Z"
+        fill="#b92f2c"
+        {...OUTLINE}
+        strokeWidth="3"
+      />
+      <path d={HAND_PATH} fill="#8e5bd9" {...OUTLINE} transform="translate(0 4)" />
+      <path d="M27 44 C29 38 33 38 35 44 C34 49 28 49 27 44 Z" fill="#ff9f43" stroke={INK} strokeWidth="2.5" />
+    </>
+  ),
+  // Two cards of a deck: the host picks the game.
+  "game-master": () => (
+    <>
+      <rect x="8" y="10" width="28" height="40" rx="5" fill="#fff4ec" {...OUTLINE} transform="rotate(-12 22 30)" />
+      <rect x="26" y="12" width="28" height="40" rx="5" fill="#fff4ec" {...OUTLINE} transform="rotate(10 40 32)" />
+      <path
+        d="M40 24 L43 31 L50 32 L45 37 L46 44 L40 40 L34 44 L35 37 L30 32 L37 31 Z"
+        fill="#e8453c"
+        stroke={INK}
+        strokeWidth="2.5"
+        strokeLinejoin="round"
+        transform="rotate(10 40 32)"
+      />
+      <circle cx="17" cy="21" r="3" fill="#4fa5f2" stroke={INK} strokeWidth="2" transform="rotate(-12 22 30)" />
+    </>
+  ),
+  // A price tag with a coin: items go back for sixty per cent.
+  "junk-dealer": () => (
+    <>
+      <path d="M8 30 L30 8 H54 V32 L32 56 Z" fill="#ffd166" {...OUTLINE} />
+      <circle cx="44" cy="19" r="4" fill="#fff4ec" stroke={INK} strokeWidth="2.5" />
+      <path
+        d="M26 30 C26 26 34 26 34 30 C34 34 26 33 26 38 C26 42 34 42 36 38 M30 24 V44"
+        fill="none"
+        stroke={INK}
+        strokeWidth="3"
+        strokeLinecap="round"
+        transform="rotate(-45 30 34)"
+      />
+      <path d="M14 52 C20 58 40 58 50 50" fill="none" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+    </>
+  ),
+  // A puddle of mud with a single flag: one trap at a time.
+  trapper: () => (
+    <>
+      <path
+        d="M6 48 C2 38 15 32 22 35 C26 26 40 26 43 34 C52 32 60 40 56 48 C53 57 10 58 6 48 Z"
+        fill="#8a5a3c"
+        {...OUTLINE}
+      />
+      <circle cx="24" cy="42" r="4.5" fill="#b07a55" stroke={INK} strokeWidth="2.5" />
+      <circle cx="40" cy="45" r="3.5" fill="#4f2c17" />
+      <path d="M32 36 V8" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M32 8 L50 14 L32 21 Z" fill="#e8453c" {...OUTLINE} strokeWidth="3" />
     </>
   ),
 };

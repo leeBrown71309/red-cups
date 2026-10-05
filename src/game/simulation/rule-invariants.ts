@@ -1,6 +1,13 @@
 import { hasCard } from "../cards";
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
-import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems, throwsOneStackPerTurn } from "../passive-rules";
+import {
+  avoidsHell,
+  getCopyLimit,
+  isDoomed,
+  isImmuneToItems,
+  throwsOneStackPerTurn,
+  getHellTurnLimit,
+} from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
@@ -19,7 +26,6 @@ import {
   FIRST_ROUND,
   GREEDY_GOAL,
   HELL_NODE_ID,
-  HELL_TURN_LIMIT,
   RED_CUP_GOAL,
   GHOST_ID,
   GHOST_MAX_DRIFT_STEPS,
@@ -165,8 +171,10 @@ export function checkState(state: GameState): RuleViolation[] {
         found.push(violation("lost-tile-wheel", `${state.pendingTileWheels.length} tile wheel(s) never spun`));
       }
     }
-    if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > HELL_TURN_LIMIT)) {
-      found.push(violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${HELL_TURN_LIMIT}`));
+    if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > getHellTurnLimit(active))) {
+      found.push(
+        violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${getHellTurnLimit(active)}`),
+      );
     }
     // A skip drawn while breaking free of Banquise's ice, at the start of the turn, is for the next one.
     const thawedNow = state.lastMovement?.thawed === true && state.lastMovement.playerId === active.id;
@@ -206,7 +214,7 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   for (const player of state.players) {
-    if (player.position === HELL_NODE_ID && player.hellTurns > HELL_TURN_LIMIT) {
+    if (player.position === HELL_NODE_ID && player.hellTurns > getHellTurnLimit(player)) {
       found.push(violation("hell-overstay", `${player.name} spent ${player.hellTurns} turns in Hell`));
     }
   }
@@ -732,7 +740,11 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
     // Bullet Bill moves at the end of the round and may stun a player right before their turn.
     // Banquise's penguins throw as the turn ends, and a third snowball freezes a player on the spot.
     const stunnedNow = logs.some(
-      (text) => text.includes(`Bullet Bill percute ${before.name}`) || text.includes(`: ${before.name} est gelé`),
+      (text) =>
+        text.includes(`Bullet Bill percute ${before.name}`) ||
+        text.includes(`: ${before.name} est gelé`) ||
+        // Robbed by a Goblin as the Cup changes hands, down to −300: the lost turn comes at once.
+        text.startsWith(`${before.name} tombe à −300 pièces`),
     );
     const announced = logs.includes(`${before.name} passe son tour.`);
     if (!announced || (before.skippedTurns < 1 && !stunnedNow)) {
@@ -929,11 +941,13 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
 
   const outgoing = getActivePlayer(previous);
   const outgoingAfter = outgoing && findPlayer(next, outgoing.id);
-  if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= HELL_TURN_LIMIT && outgoingAfter) {
+  if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= getHellTurnLimit(outgoing) && outgoingAfter) {
     const carriedOn =
       fellIntoHell(previous, next, outgoing.id, START_NODE_ID) || slidOnIce(previous, next, outgoing.id);
     if (outgoingAfter.position !== START_NODE_ID && !carriedOn) {
-      found.push(violation("hell-release", `${outgoing.name} served ${HELL_TURN_LIMIT} Hell turns but stayed`));
+      found.push(
+        violation("hell-release", `${outgoing.name} served ${getHellTurnLimit(outgoing)} Hell turns but stayed`),
+      );
     }
   }
 
@@ -943,7 +957,7 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
     // A skipped turn counts too, so the release may come one turn after the last spin; when every seat
     // skips, a single action may go round the table and count several of them.
     const skips = logs.filter((text) => text === `${player.name} passe son tour.`).length;
-    if (player.position !== HELL_NODE_ID || player.hellTurns + Math.max(0, skips - 1) < HELL_TURN_LIMIT - 1) {
+    if (player.position !== HELL_NODE_ID || player.hellTurns + Math.max(0, skips - 1) < getHellTurnLimit(player) - 1) {
       found.push(violation("hell-early-release", `${player.name} left Hell after ${player.hellTurns} turns`));
     }
   }

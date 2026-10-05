@@ -1,3 +1,4 @@
+import { getHellTurnLimit } from "../../game/passive-rules";
 import { hasCard } from "../../game/cards";
 import type { PassiveId } from "../../game/types";
 import { useVisibleCards } from "../card-visibility";
@@ -10,14 +11,7 @@ import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import {
-  CALM_DOWN_DISTANCE,
-  CORRUPTER_COST,
-  HELL_EXIT_TOLL,
-  HELL_TURN_LIMIT,
-  MOVE_MINIMUM_ENERGY,
-  START_BONUS,
-} from "../../game/types";
+import { CALM_DOWN_DISTANCE, CORRUPTER_COST, HELL_EXIT_TOLL, MOVE_MINIMUM_ENERGY, START_BONUS } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { EnergyGauge } from "../components/energy-meter";
@@ -43,6 +37,7 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const phase = useGameStore((state) => state.phase);
   const decider = useDecidingPlayer();
   const energyLeft = useGameStore((state) => state.energyLeft);
+  const game = useGameStore();
   const canAct = useCanActFor([decider?.id]);
   if (!activePlayer || !decider || phase !== "playing") return null;
 
@@ -86,7 +81,7 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
             {formatCurrency(decider.currency)}
           </span>
           {decider.id === activePlayer.id && (
-            <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
+            <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer, game)} />
           )}
         </div>
       </div>
@@ -268,10 +263,11 @@ function HellContent({ player }: { player: Player }) {
   const canLeave = useGameStore(canLeaveHell);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
-  const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
+  const hellLimit = getHellTurnLimit(player);
+  const lastTurn = player.hellTurns >= hellLimit;
   const countdown = lastTurn
     ? `Dernier tour : sans évasion, tu sors en case 0 contre ${HELL_EXIT_TOLL} pièces.`
-    : `Tour ${player.hellTurns}/${HELL_TURN_LIMIT} : au bout de ${HELL_TURN_LIMIT}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
+    : `Tour ${player.hellTurns}/${hellLimit} : au bout de ${hellLimit}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
   const advice = tired
     ? "Plus d’énergie pour la roue : elle t’attend au prochain tour."
     : hasBottle

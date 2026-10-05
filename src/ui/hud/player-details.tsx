@@ -71,7 +71,8 @@ function EnergyStat({ player }: { player: Player }) {
     (state) => state.phase === "playing" && state.players[state.activePlayerIndex]?.id === player.id,
   );
   const energyLeft = useGameStore((state) => state.energyLeft);
-  const capacity = getEnergyCapacity(player);
+  const game = useGameStore();
+  const capacity = getEnergyCapacity(player, game);
   const shown = playing ? energyLeft : capacity;
 
   return (

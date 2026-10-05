@@ -8,6 +8,7 @@ import {
   THEFT_PENALTY_RATE,
   THEFT_RISK_PER_TEN_COINS,
   TOMATO_STUN_CHANCE,
+  HELL_TURN_LIMIT,
 } from "./types";
 
 /**
@@ -81,9 +82,14 @@ export function getBagSlots(player: Player): number {
   return hasCard(player, "guardian-angel") ? 2 : BASE_INVENTORY_CAPACITY;
 }
 
-/** Cupide pays less for the mud, and earns more when somebody steps in theirs. */
+/** Cupide and the Piégeur pay less for the mud; Cupide earns more when somebody steps in theirs. */
 export function getMudPrice(buyer: Player | undefined): number {
-  return hasCard(buyer, "greedy") ? 100 : ITEM_CATALOG.mud.price;
+  return hasCard(buyer, "greedy") || hasCard(buyer, "trapper") ? 100 : ITEM_CATALOG.mud.price;
+}
+
+/** The Piégeur keeps a single patch of mud on the board: they cannot lay another while theirs waits. */
+export function mustWaitForMudToBeSteppedOn(state: Pick<GameState, "mudTraps">, player: Player): boolean {
+  return hasCard(player, "trapper") && state.mudTraps.some((trap) => trap.ownerId === player.id);
 }
 
 export function getMudOwnerReward(owner: Player): number {
@@ -186,3 +192,33 @@ export function getTheftRisk(price: number): number {
 export function getTheftPenalty(price: number): number {
   return Math.ceil(price * THEFT_PENALTY_RATE);
 }
+
+/** Turns a player may spend in Hell before the toll lets them out: three for the Habitué de l'Enfer, else five. */
+export function getHellTurnLimit(player: Pick<Player, "passiveId" | "passifId">): number {
+  return hasCard(player, "hell-regular") ? HELL_REGULAR_TURN_LIMIT : HELL_TURN_LIMIT;
+}
+
+/** Coins the Habitué de l'Enfer is paid for each descent into Hell. */
+export const HELL_REGULAR_REWARD = 150;
+const HELL_REGULAR_TURN_LIMIT = 3;
+
+/** Red Cups a player holds, as the rules compare them. */
+function holdsCups(player: Player): number {
+  return player.inventory.filter((entry) => entry.kind === "red-cup").length;
+}
+
+/**
+ * Dernier de la classe: the player holds strictly fewer Red Cups than every
+ * other player who can collect them. Le diable, L'Ange-Gardien and Cupide
+ * never keep a Cup, so they stay out of the comparison.
+ */
+export function isLastInClass(state: Pick<GameState, "players">, player: Player): boolean {
+  if (!hasCard(player, "last-in-class")) return false;
+  const rivals = state.players.filter(
+    (other) => other.id !== player.id && canCollectRedCup(other) && !hasCard(other, "greedy"),
+  );
+  return rivals.length > 0 && rivals.every((other) => holdsCups(player) < holdsCups(other));
+}
+
+/** Dernier de la classe pays a tenth less in the shop, never below ten coins. */
+export const LAST_IN_CLASS_DISCOUNT = 0.1;

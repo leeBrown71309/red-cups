@@ -9,7 +9,7 @@ import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
 import { applyHellTouch, countDevilHellTurn, expireDevilSpells, triggerPortal } from "./devil";
-import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems } from "./passive-rules";
+import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems, getHellTurnLimit } from "./passive-rules";
 import { endGame } from "./victory";
 import {
   canAddItem,
@@ -29,13 +29,13 @@ import {
   getActivePlayer,
   randomChoice,
   sendPlayerToHell,
-  shuffle,
   updatePlayer,
 } from "./state-utils";
 import type { DuelMode, GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
 import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
+  GOBLIN_THEFT,
   GREEDY_CUP_REWARD,
   RED_GREEN_GAIN,
   RED_GREEN_PENALTY,
@@ -44,7 +44,6 @@ import {
   HELL_NODE_ID,
   JE_NOTE_COPY_CHANCE,
   MAXIMUM_BOOT_PRICE,
-  HELL_TURN_LIMIT,
   MUD_PENALTY,
   RED_CUP_GOAL,
   RED_GREEN_TRIGGERS_PER_CUP,
@@ -288,10 +287,10 @@ function flipCarousel(state: GameState): GameState {
 function applyGoblinEffects(state: GameState): GameState {
   let nextState = state;
   for (const goblin of state.players.filter((player) => hasCard(player, "goblin"))) {
-    const targets = shuffle(state.players.filter((player) => player.id !== goblin.id)).slice(0, 2);
-    for (const target of targets) {
-      nextState = applyCurrencyChange(nextState, target.id, -100);
-      nextState = applyCurrencyChange(nextState, goblin.id, 100);
+    // Every other player, 150 coins each (patch 0.1.6).
+    for (const target of state.players.filter((player) => player.id !== goblin.id)) {
+      nextState = applyCurrencyChange(nextState, target.id, -GOBLIN_THEFT);
+      nextState = applyCurrencyChange(nextState, goblin.id, GOBLIN_THEFT);
     }
   }
   return nextState;
@@ -604,7 +603,7 @@ function stepBackFromMud(state: GameState, player: Player, cameFrom: NodeId | nu
 
 /**
  * Bad luck on the Hell wheel must not bench a player for the whole game: after
- * HELL_TURN_LIMIT of their own turns there, they walk out to the start, get
+ * their limit (five, three for the Habitué de l'Enfer) of their own turns there, they walk out to the start, get
  * the start bonus like any other way out of Hell, and pay a toll. The bonus is
  * paid first so it cushions the toll before the usual currency rules apply
  * (Casque, reset at −300).
@@ -615,7 +614,7 @@ export function releaseFromHellWithToll(state: GameState, playerId: PlayerId): G
   let nextState = updatePlayer(state, playerId, (current) => ({ ...current, position: START_NODE_ID, hellTurns: 0 }));
   nextState = addLog(
     nextState,
-    `${player.name} a purgé ${HELL_TURN_LIMIT} tours en Enfer : retour en case 0 contre ${HELL_EXIT_TOLL} pièces.`,
+    `${player.name} a purgé ${getHellTurnLimit(player)} tours en Enfer : retour en case 0 contre ${HELL_EXIT_TOLL} pièces.`,
     "event",
   );
   nextState = addStartBonus(nextState, playerId);
@@ -648,7 +647,7 @@ function resetHellCountdowns(state: GameState): GameState {
 
 function hasServedHellSentence(state: GameState, playerId: PlayerId): boolean {
   const player = findPlayer(state, playerId);
-  return player?.position === HELL_NODE_ID && player.hellTurns >= HELL_TURN_LIMIT;
+  return player?.position === HELL_NODE_ID && player.hellTurns >= getHellTurnLimit(player);
 }
 
 /** Passes the turn, consuming skipped turns and running end-of-round effects. */
@@ -763,7 +762,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     activePlayerIndex: nextIndex,
     round: nextRound,
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
-    energyLeft: getEnergyCapacity(activePlayer),
+    energyLeft: getEnergyCapacity(activePlayer, nextState),
     turnActionTaken: false,
     moveDistance: 1,
     mudPlacedThisTurn: false,

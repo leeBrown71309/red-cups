@@ -49,6 +49,15 @@ const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
   "calm-down": "wands",
   "new-cup-new-me": "wands",
   lambda: "wands",
+  "last-in-class": "wands",
+  "hell-regular": "coins",
+  "green-hand": "wands",
+  "red-hand": "wands",
+  "angelic-touch": "wands",
+  "devils-hand": "wands",
+  "game-master": "swords",
+  "junk-dealer": "coins",
+  trapper: "swords",
 };
 
 const ROMAN_NUMERALS: [number, string][] = [

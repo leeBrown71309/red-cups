@@ -308,7 +308,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "goblin",
     name: "Goblin",
     shortName: "Goblin",
-    description: "À chaque nouvelle Cup, vole 100 pièces à deux adversaires au hasard.",
+    description: "À chaque nouvelle Cup, vole 150 pièces à chacun des autres joueurs.",
   },
   "i-take-notes": {
     id: "i-take-notes",
@@ -413,6 +413,63 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
       "Une fois par visite à la boutique, tente de voler un objet : 1 % de risque par tranche de 10 pièces de son " +
       "prix. Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces.",
   },
+  "last-in-class": {
+    id: "last-in-class",
+    name: "Dernier de la classe",
+    shortName: "Dernier",
+    description:
+      "Tant que tu as moins de Red Cups que chaque autre joueur qui peut en ramasser : 1 point d’énergie de plus par tour et 10 % de réduction en boutique.",
+  },
+  "hell-regular": {
+    id: "hell-regular",
+    name: "Habitué de l’Enfer",
+    shortName: "Habitué",
+    description: "Chaque descente en Enfer te rapporte 150 pièces, et tu en sors après 3 tours au lieu de 5.",
+  },
+  "green-hand": {
+    id: "green-hand",
+    name: "Main verte",
+    shortName: "Main verte",
+    description: "Sur la roue du bonheur, tu tires deux fois et gardes le meilleur résultat.",
+  },
+  "red-hand": {
+    id: "red-hand",
+    name: "Main rouge",
+    shortName: "Main rouge",
+    description: "Sur la roue du malheur, tu tires deux fois et gardes le meilleur résultat.",
+  },
+  "angelic-touch": {
+    id: "angelic-touch",
+    name: "Touché angélique",
+    shortName: "Angélique",
+    description:
+      "Sur la roue du bonheur et celle de l’Ange, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
+  },
+  "devils-hand": {
+    id: "devils-hand",
+    name: "Main du diable",
+    shortName: "Main diable",
+    description:
+      "Sur la roue du malheur et celle de l’Enfer, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
+  },
+  "game-master": {
+    id: "game-master",
+    name: "Meneur de jeu",
+    shortName: "Meneur",
+    description: "Dans un duel, tu choisis le mini-jeu parmi deux tirés au sort.",
+  },
+  "junk-dealer": {
+    id: "junk-dealer",
+    name: "Brocanteur",
+    shortName: "Brocanteur",
+    description: "Depuis la boutique, tu revends un objet de ton sac à 60 % de son prix.",
+  },
+  trapper: {
+    id: "trapper",
+    name: "Piégeur",
+    shortName: "Piégeur",
+    description: "Ta Boue coûte 100 pièces au lieu de 200, mais tu n’en peux poser qu’une à la fois.",
+  },
 };
 
 export const PASSIVE_ORDER: PassiveId[] = [
@@ -436,6 +493,15 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "thief",
   "devil",
   "guardian-angel",
+  "last-in-class",
+  "hell-regular",
+  "green-hand",
+  "red-hand",
+  "angelic-touch",
+  "devils-hand",
+  "game-master",
+  "junk-dealer",
+  "trapper",
 ];
 
 export interface WeightedWheelResult {

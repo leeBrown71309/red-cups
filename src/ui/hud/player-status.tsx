@@ -1,9 +1,10 @@
+import { getHellTurnLimit } from "../../game/passive-rules";
 import { hasCard } from "../../game/cards";
 import type { ReactNode } from "react";
 import { getDevilGoalFor } from "../../game/devil";
 import { getIdleStrikes, IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
 import type { GameState, Player } from "../../game/types";
-import { HELL_NODE_ID, HELL_TURN_LIMIT, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
+import { HELL_NODE_ID, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
 import type { AvatarExpression } from "../components/player-avatar";
 import { CloverIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
@@ -98,8 +99,8 @@ export function getPlayerStatuses(state: GameState, player: Player): PlayerStatu
       id: "hell",
       tone: "hell",
       icon: <UiIcon name="flame" size={11} strokeWidth={3} />,
-      short: `${player.hellTurns}/${HELL_TURN_LIMIT}`,
-      label: `En Enfer depuis ${player.hellTurns} tour${player.hellTurns > 1 ? "s" : ""} sur ${HELL_TURN_LIMIT}`,
+      short: `${player.hellTurns}/${getHellTurnLimit(player)}`,
+      label: `En Enfer depuis ${player.hellTurns} tour${player.hellTurns > 1 ? "s" : ""} sur ${getHellTurnLimit(player)}`,
     });
   }
   const strikes = getIdleStrikes(state, player.id);

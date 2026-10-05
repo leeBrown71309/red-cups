@@ -29,6 +29,7 @@ import {
   isImmuneToItems,
   throwsOneStackPerTurn,
   TOMATO_ENJOYER_HIT_REWARD,
+  mustWaitForMudToBeSteppedOn,
 } from "./passive-rules";
 import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, opensShop } from "./rules";
 import {
@@ -205,7 +206,8 @@ export function planItemUse(
   if (!canUseItemKind(player, itemId) || !canCastNow(state, itemId)) return null;
   if (itemId === "water-bottle" && !inHell) return null;
   // Nobody walks into Hell, so mud placed there could never be stepped on.
-  if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
+  if (itemId === "mud" && (inHell || state.mudPlacedThisTurn || mustWaitForMudToBeSteppedOn(state, player)))
+    return null;
   // A single Bullet Bill flies at a time.
   if (itemId === "bullet-bill" && state.bulletBill) return null;
 

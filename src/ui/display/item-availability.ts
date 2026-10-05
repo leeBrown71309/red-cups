@@ -1,11 +1,16 @@
 import { hasCard } from "../../game/cards";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getCopyLimit, getTheftRisk, throwsOneStackPerTurn } from "../../game/passive-rules";
+import {
+  getCopyLimit,
+  getTheftRisk,
+  throwsOneStackPerTurn,
+  mustWaitForMudToBeSteppedOn,
+} from "../../game/passive-rules";
 import {
   getCorrupterBlocker,
   getInventoryCapacity,
-  getItemPrice,
+  getPriceFor,
   isOnSale,
   type CorrupterBlocker,
 } from "../../game/rules";
@@ -105,6 +110,9 @@ export function getItemAvailability(
   if (itemId === "mud" && state.mudPlacedThisTurn) {
     return { usable: false, kind: "instant", actionLabel: "Poser", reason: "Une seule Boue par tour." };
   }
+  if (itemId === "mud" && mustWaitForMudToBeSteppedOn(state, player)) {
+    return { usable: false, kind: "instant", actionLabel: "Poser", reason: "Ta Boue attend encore sa victime." };
+  }
 
   if (itemId === "water-bottle" && !inHell) {
     return { usable: false, kind: "instant", actionLabel: "Boire", reason: "Ne sert qu’à sortir de l’Enfer." };
@@ -169,7 +177,7 @@ function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): stri
 
 /** Explains why an item is greyed out in the shop instead of silently disabling it. */
 export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Player): PurchaseStatus {
-  const price = getItemPrice(itemId, state.bootPrice, player);
+  const price = getPriceFor(state, itemId, player);
   const blocker = getShelfBlocker(itemId, state, player);
   if (blocker) return { price, canBuy: false, reason: blocker };
   if (player.currency < price) return { price, canBuy: false, reason: "Trop cher" };
@@ -186,7 +194,7 @@ export interface TheftStatus {
 /** Voleur: the risk of stealing an item, or why it cannot be tried; null for everyone else. */
 export function getTheftStatus(itemId: ItemId, state: GameState, player: Player): TheftStatus | null {
   if (!hasCard(player, "thief")) return null;
-  const risk = getTheftRisk(getItemPrice(itemId, state.bootPrice, player));
+  const risk = getTheftRisk(getPriceFor(state, itemId, player));
   if (state.theftAttempted) return { risk, canSteal: false, reason: "Un seul vol par visite" };
   const blocker = getShelfBlocker(itemId, state, player);
   return blocker ? { risk, canSteal: false, reason: blocker } : { risk, canSteal: true };

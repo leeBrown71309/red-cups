@@ -32,6 +32,15 @@ export const CARD_KINDS: Record<PassiveId, CardKind> = {
   "calm-down": "passif",
   "nepo-baby": "passif",
   goblin: "passif",
+  "last-in-class": "passif",
+  "hell-regular": "passif",
+  "green-hand": "passif",
+  "red-hand": "passif",
+  "angelic-touch": "passif",
+  "devils-hand": "passif",
+  "game-master": "passif",
+  "junk-dealer": "passif",
+  trapper: "passif",
 };
 
 /** The cards a player holds: their actif, then their passif if they have one. */

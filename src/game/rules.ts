@@ -1,7 +1,15 @@
 import { hasCard } from "./cards";
 import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
-import { getBagSlots, getCopyLimit, getMudPrice, isDoomed, shopsAnywhere } from "./passive-rules";
+import {
+  getBagSlots,
+  getCopyLimit,
+  getMudPrice,
+  isDoomed,
+  isLastInClass,
+  LAST_IN_CLASS_DISCOUNT,
+  shopsAnywhere,
+} from "./passive-rules";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "./types";
@@ -143,6 +151,17 @@ export function getItemPrice(itemId: ItemId, bootPrice: number, buyer?: Player):
   if (itemId === "boot") return bootPrice;
   if (itemId === "mud") return getMudPrice(buyer);
   return ITEM_CATALOG[itemId].price;
+}
+
+/**
+ * What `buyer` pays in this game: the usual price, less a tenth (rounded up to
+ * ten coins) for a Dernier de la classe who is last. Every price the rules or
+ * the shop show goes through here.
+ */
+export function getPriceFor(state: Pick<GameState, "bootPrice" | "players">, itemId: ItemId, buyer?: Player): number {
+  const price = getItemPrice(itemId, state.bootPrice, buyer);
+  if (!buyer || !isLastInClass(state, buyer)) return price;
+  return Math.ceil((price * (1 - LAST_IN_CLASS_DISCOUNT)) / 10) * 10;
 }
 
 /** The wheel `player` spins on `nodeId`: during Doomsday, the wheel of misfortune on every tile. */

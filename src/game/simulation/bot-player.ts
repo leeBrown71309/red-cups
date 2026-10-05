@@ -10,7 +10,7 @@ import { getHandValue } from "../blackjack";
 import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
 import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
-import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
+import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { planItemUse } from "../turn-actions";
@@ -153,7 +153,7 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
   const loot = hasCard(player, "thief") && !store.theftAttempted ? pick(onShelf, random) : undefined;
   if (loot && random() < THEFT_CHANCE) return { label: `steal:${loot}`, perform: (current) => current.stealItem(loot) };
 
-  const affordable = onShelf.filter((itemId) => player!.currency >= getItemPrice(itemId, store.bootPrice, player));
+  const affordable = onShelf.filter((itemId) => player!.currency >= getPriceFor(store, itemId, player));
   const roleItem = pick(
     affordable.filter((itemId) => ROLE_ITEMS.includes(itemId)),
     random,

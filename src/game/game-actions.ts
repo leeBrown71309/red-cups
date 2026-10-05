@@ -21,6 +21,7 @@ import {
   pickPassive,
 } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
+import { rewardHellRegulars } from "./hell-regular";
 import { kickPlayer } from "./kick";
 import { joinLatePlayer } from "./late-join";
 import { pauseGame, resumeGame } from "./pause";
@@ -67,7 +68,7 @@ import {
   validTileWheels,
   skipBenchedTurns,
 } from "./game-effects";
-import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getItemPrice, getTileWheelFor } from "./rules";
+import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getPriceFor, getTileWheelFor } from "./rules";
 import {
   addBagLog,
   addLog,
@@ -534,7 +535,7 @@ function stealItem(state: GameState, itemId: ItemId): GameState {
     return state;
   }
 
-  const price = getItemPrice(itemId, state.bootPrice, player);
+  const price = getPriceFor(state, itemId, player);
   const itemName = ITEM_CATALOG[itemId].name;
   let nextState: GameState = { ...state, theftAttempted: true };
   if (drawEngineRandom() >= getTheftRisk(price)) {
@@ -570,7 +571,7 @@ function payTheftPenalty(state: GameState, playerId: PlayerId, penalty: number):
   if (!player) return state;
 
   const worthOf = (entry: Player["inventory"][number]) =>
-    entry.kind === "item" ? getItemPrice(entry.itemId, state.bootPrice, player) * (entry.count ?? 1) : 0;
+    entry.kind === "item" ? getPriceFor(state, entry.itemId, player) * (entry.count ?? 1) : 0;
   const items = player.inventory
     .filter((entry) => entry.kind === "item")
     .sort((left, right) => worthOf(right) - worthOf(left));
@@ -976,7 +977,7 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // Banquise: nobody stays on ice, whatever set them down there.
   const result = slideOffIce(prepared, dispatched);
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
-  const counted = rewardDevilInHell(prepared, recordPreviousTiles(prepared, result));
+  const counted = rewardHellRegulars(prepared, rewardDevilInHell(prepared, recordPreviousTiles(prepared, result)));
   const forfeited = applyForfeits(counted);
   const settled = offerGamble(checkVictories(skipBenchedTurns(forfeited)));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the

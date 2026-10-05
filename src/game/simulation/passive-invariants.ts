@@ -19,6 +19,7 @@ import {
   touchedByHell,
   violation,
   type RuleViolation,
+  hellRewardCoins,
 } from "./invariant-helpers";
 
 /**
@@ -45,7 +46,10 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
   // A frozen start slides them on (Banquise).
   const landed = after.position === START_NODE_ID || touched || slidOnIce(previous, next, holderId);
-  if (toStart && (!landed || after.currency !== expectedBalance(before, START_BONUS))) {
+  if (
+    toStart &&
+    (!landed || after.currency !== expectedBalance(before, START_BONUS + hellRewardCoins(logs, before.name)))
+  ) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
   if (!toStart && after.position !== before.position) {
