@@ -1,15 +1,15 @@
 import type { ReactElement, SVGProps } from "react";
 import type { ItemId } from "../../game/types";
 
-const INK = "#3a2530";
-const OUTLINE = { stroke: INK, strokeWidth: 3.5, strokeLinejoin: "round", strokeLinecap: "round" } as const;
+export const INK = "#3a2530";
+export const OUTLINE = { stroke: INK, strokeWidth: 3.5, strokeLinejoin: "round", strokeLinecap: "round" } as const;
 
-interface IconProps {
+export interface IconProps {
   size?: number;
   className?: string;
 }
 
-function IconFrame({ size = 48, className, children, ...rest }: IconProps & SVGProps<SVGSVGElement>) {
+export function IconFrame({ size = 48, className, children, ...rest }: IconProps & SVGProps<SVGSVGElement>) {
   return (
     <svg
       className={className}

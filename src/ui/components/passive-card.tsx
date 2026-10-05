@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import type { PassiveId } from "../../game/types";
+import { PassiveIcon } from "../icons/passive-icon";
 
 /**
  * A passive drawn as a tarot card: a numeral on top, an emblem, the name on a
@@ -49,30 +50,6 @@ const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
   lambda: "wands",
 };
 
-/** The emblem at the heart of each card. */
-const PASSIVE_EMBLEMS: Record<PassiveId, string> = {
-  "built-like-a-tank": "💪",
-  "new-cup-new-me": "🥤",
-  "red-light-green-light": "🚦",
-  "no-thanks": "🙅",
-  corrupter: "💰",
-  goblin: "👺",
-  "i-take-notes": "📝",
-  "calm-down": "😌",
-  lambda: "🙂",
-  "nepo-baby": "👶",
-  "red-bull": "🐂",
-  eshop: "🛒",
-  "tomato-enjoyer": "🍅",
-  roller: "🛼",
-  greedy: "🤑",
-  "double-or-nothing": "🎲",
-  "blind-luck": "🙈",
-  devil: "😈",
-  "guardian-angel": "👼",
-  thief: "🥷",
-};
-
 const ROMAN_NUMERALS: [number, string][] = [
   [10, "X"],
   [9, "IX"],
@@ -114,10 +91,13 @@ export function PassiveCard({ passiveId, onPick, selected = false, children }: P
     <>
       <span className="tarot-card__numeral">{numeral}</span>
       <span className="tarot-card__art" aria-hidden="true">
-        <span className="tarot-card__emblem">{PASSIVE_EMBLEMS[passiveId]}</span>
+        <PassiveIcon passiveId={passiveId} size={58} />
       </span>
       <strong className="tarot-card__name">{passive.name}</strong>
-      <span className="tarot-card__text">{passive.description}</span>
+      {/* Long rules scroll inside the card, so every card keeps the same height. */}
+      <span className="tarot-card__text scroll-block" tabIndex={0}>
+        {passive.description}
+      </span>
       <span className="tarot-card__suit">{SUIT_LABELS[suit]}</span>
       {children}
     </>
