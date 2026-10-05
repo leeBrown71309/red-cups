@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
 import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems, throwsOneStackPerTurn } from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
@@ -235,14 +236,17 @@ export function checkState(state: GameState): RuleViolation[] {
   const wonByForfeit = state.winReason === "forfeit" && state.players.length === 1;
   const greedyWinner = findPlayer(state, state.winnerId);
   const wonByGreed =
-    state.winReason === "greedy" && greedyWinner?.passiveId === "greedy" && greedyWinner.currency >= GREEDY_GOAL;
+    state.winReason === "greedy" &&
+    greedyWinner !== undefined &&
+    hasCard(greedyWinner, "greedy") &&
+    greedyWinner.currency >= GREEDY_GOAL;
   const devil = findDevil(state);
   const wonByDevil =
     state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellTurns >= getDevilGoalFor(state);
   if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
     found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
-  const rich = state.players.find((player) => player.passiveId === "greedy" && player.currency >= GREEDY_GOAL);
+  const rich = state.players.find((player) => hasCard(player, "greedy") && player.currency >= GREEDY_GOAL);
   if (rich && state.phase === "playing") {
     found.push(violation("greedy-victory", `${rich.name} holds ${rich.currency} coins but the game goes on`));
   }
@@ -271,11 +275,12 @@ export function checkState(state: GameState): RuleViolation[] {
       // L'Ange-Gardien answers with a Bouclier, when the item aims at their protégé.
       const action = state.pendingReaction.action;
       const shield =
-        reactor?.passiveId === "guardian-angel" &&
+        reactor !== undefined &&
+        hasCard(reactor, "guardian-angel") &&
         reactor.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield") &&
         (action.type === "item" ? action.targetPlayerId : action.victimId) === state.guardian?.protegeId;
       if (shield) continue;
-      if (!reactor || reactor.passiveId !== "no-thanks") {
+      if (!reactor || !hasCard(reactor, "no-thanks")) {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
       } else if (reactor.id === state.pendingReaction.actorId) {
         found.push(violation("no-self-reaction", `${reactor.name} may cancel their own action`));
@@ -322,7 +327,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   // Roller: the die's count, or as far as a walk that never comes back to a tile can go.
   const roll = previous.diceRoll;
   const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
-  const rolled = !stepForward && mover.passiveId === "roller";
+  const rolled = !stepForward && hasCard(mover, "roller");
   const expectedLength = stepForward ? 1 : rolled ? rollerReach : previous.moveDistance;
   if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
@@ -341,7 +346,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const board = getBoard(previous);
   let from = movement.from;
   for (const step of movement.path) {
-    const allowed = getNeighbors(board, from, rebel && mover.passiveId === "corrupter");
+    const allowed = getNeighbors(board, from, rebel && hasCard(mover, "corrupter"));
     if (!allowed.includes(step)) {
       found.push(violation("move-follows-roads", `${mover.name} went ${from} → ${step} against the board`));
     }
@@ -790,7 +795,7 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     found.push(violation("item-consumed", `${label} but the bag did not lose it`));
   }
 
-  const tank = target?.passiveId === "built-like-a-tank";
+  const tank = hasCard(target, "built-like-a-tank");
   switch (item.itemId) {
     case "hollow-purple":
       // L'Ange-Gardien loses a turn instead.

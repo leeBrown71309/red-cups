@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { getBoard, getNeighbors, getShortestPath } from "./board";
 import { createEngineId } from "./engine-random";
 import { settleBoard } from "./game-effects";
@@ -30,7 +31,7 @@ export function startArmWrestle(state: GameState, attacker: Player, defender: Pl
 
 export function getArmStrength(state: Pick<GameState, "players">, playerId: PlayerId, taps: number): number {
   const player = state.players.find((candidate) => candidate.id === playerId);
-  return player?.passiveId === "built-like-a-tank" ? taps * TANK_ARM_STRENGTH : taps;
+  return hasCard(player, "built-like-a-tank") ? taps * TANK_ARM_STRENGTH : taps;
 }
 
 /** One side's count, once their ten seconds are over; with both in, the wrestle is settled. */

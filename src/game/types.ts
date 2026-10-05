@@ -182,7 +182,10 @@ export interface Player {
   position: NodeId;
   currency: number;
   inventory: InventoryEntry[];
+  /** The player's actif: the card that carries them to victory all game long. */
   passiveId: PassiveId;
+  /** The player's passif: a card that helps in one kind of situation; none until the draft is over. */
+  passifId?: PassiveId | null;
   skippedTurns: number;
   /** First round in which Non merci may cancel an action again. */
   noThanksReadyRound: number;
@@ -527,10 +530,16 @@ export interface GamePause {
   since: number;
 }
 
-/** The passive cards dealt before the game, and the ones picked so far. */
+/** The cards dealt before the game, and the ones picked so far. */
 export interface PassiveDraft {
+  /** Every player first picks an actif, then a passif. */
+  stage: "actif" | "passif";
+  /** The cards dealt at this stage. */
   offers: Record<PlayerId, PassiveId[]>;
+  /** What each player picked at this stage so far. */
   picks: Partial<Record<PlayerId, PassiveId>>;
+  /** The actifs picked at the first stage, kept while the passifs are picked. */
+  actifs: Partial<Record<PlayerId, PassiveId>>;
   /** Online: when the draft closes on its own; null at a local table, which has no clock. */
   deadline: number | null;
 }

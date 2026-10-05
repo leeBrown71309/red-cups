@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { getBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG } from "../catalog";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -68,7 +69,7 @@ export function checkCalmDown(previous: GameState, next: GameState, found: RuleV
   if (offered && previous.pendingCalmDown === null) {
     const holder = findPlayer(next, offered.passivePlayerId);
     const holderDistance = holder ? distanceToCup(next, holder.position) : -1;
-    if (holder?.passiveId !== "calm-down") found.push(violation("calm-down-holder", "Calme-toi without its holder"));
+    if (!hasCard(holder, "calm-down")) found.push(violation("calm-down-holder", "Calme-toi without its holder"));
     for (const targetId of offered.targetIds) {
       const target = findPlayer(next, targetId);
       const distance = target ? distanceToCup(next, target.position) : Infinity;
@@ -138,7 +139,7 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
     const round = reacted && pending?.action.type === "bullet-bill" ? previous.round + 1 : previous.round;
     const legal =
       (reacted || wheel) &&
-      player.passiveId === "no-thanks" &&
+      hasCard(player, "no-thanks") &&
       before.noThanksReadyRound <= round &&
       player.noThanksReadyRound === round + NO_THANKS_COOLDOWN_ROUNDS;
     if (!legal) found.push(violation("no-thanks-usage", `${player.name} spent Non merci illegally`));

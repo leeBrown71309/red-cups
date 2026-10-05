@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
@@ -285,7 +286,7 @@ function flipCarousel(state: GameState): GameState {
 
 function applyGoblinEffects(state: GameState): GameState {
   let nextState = state;
-  for (const goblin of state.players.filter((player) => player.passiveId === "goblin")) {
+  for (const goblin of state.players.filter((player) => hasCard(player, "goblin"))) {
     const targets = shuffle(state.players.filter((player) => player.id !== goblin.id)).slice(0, 2);
     for (const target of targets) {
       nextState = applyCurrencyChange(nextState, target.id, -100);
@@ -319,7 +320,7 @@ export function getCalmDownTiles(state: GameState): NodeId[] {
  * holder three steps from it. The holder decides for each of them in turn.
  */
 export function addCupCycleEffects(state: GameState): GameState {
-  const holder = state.players.find((player) => player.passiveId === "calm-down");
+  const holder = state.players.find((player) => hasCard(player, "calm-down"));
   const cupNodeId = state.redCupNodeId;
   if (!holder || cupNodeId === null || getCalmDownTiles(state).length === 0) return state;
 
@@ -378,7 +379,7 @@ function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): Gam
 function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStage): GameState {
   let nextState = state;
   const nextCupNodeId = createCupNode(getBoard(state), cupNodeId);
-  const repositioner = nextState.players.find((candidate) => candidate.passiveId === "new-cup-new-me");
+  const repositioner = nextState.players.find((candidate) => hasCard(candidate, "new-cup-new-me"));
   const resumeStage = stageBefore === "discard" ? "turn-end" : stageBefore;
 
   nextState = {
@@ -406,7 +407,7 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
   const player = findPlayer(state, playerId);
   // Le diable and L'Ange-Gardien walk past it.
   if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
-  if (player.passiveId === "greedy") return cashInCup(state, playerId, nodeId);
+  if (hasCard(player, "greedy")) return cashInCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
     return {
@@ -431,7 +432,7 @@ export function itemCopyForPassive(
   userId: PlayerId | undefined,
 ): GameState {
   const target = findPlayer(state, targetPlayerId);
-  if (!target || target.passiveId !== "i-take-notes" || ITEM_CATALOG[itemId].target !== "player") return state;
+  if (!target || !hasCard(target, "i-take-notes") || ITEM_CATALOG[itemId].target !== "player") return state;
 
   // An item used on oneself would come straight back: Ndoye on yourself every turn, for free.
   if (userId === targetPlayerId) {
@@ -472,7 +473,7 @@ export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
  */
 export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || player.passiveId !== "red-light-green-light") return state;
+  if (!player || !hasCard(player, "red-light-green-light")) return state;
 
   const board = getBoard(state);
   let nextState = state;
@@ -524,7 +525,7 @@ export function getWheelArrivalStage(state: GameState, playerId: PlayerId, resum
 /** Cupide walks onto a tile: every knocked-out player standing there pays them a little. */
 export function stealFromKnockedOut(state: GameState, playerId: PlayerId): GameState {
   const thief = findPlayer(state, playerId);
-  if (thief?.passiveId !== "greedy") return state;
+  if (!thief || !hasCard(thief, "greedy")) return state;
   let nextState = state;
   const victims = state.players.filter(
     (player) => player.id !== thief.id && player.position === thief.position && player.skippedTurns > 0,

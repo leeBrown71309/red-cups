@@ -1,8 +1,8 @@
-import { PASSIVE_CATALOG } from "./catalog";
-import { getDraftOfferSize, getDraftPool } from "./draft";
+import { getCards } from "./cards";
+import { dealOffers, getDraftOfferSize, getDraftPool } from "./draft";
 import { getStartingCurrency } from "./passive-rules";
-import { addLog, randomChoice, shuffle } from "./state-utils";
-import type { GameState, PassiveId, Player, PlayerColor, PlayerId } from "./types";
+import { addLog, randomChoice } from "./state-utils";
+import type { GameState, PassiveDraft, PassiveId, Player, PlayerColor, PlayerId } from "./types";
 import { FIRST_ROUND, START_NODE_ID } from "./types";
 
 /**
@@ -14,7 +14,7 @@ import { FIRST_ROUND, START_NODE_ID } from "./types";
 export const MAX_TABLE_SIZE = 8;
 
 /** Roles that are announced at the start: they cannot be handed out once the game runs. */
-const ROLE_PASSIVES: PassiveId[] = ["devil", "guardian-angel"];
+const ROLE_CARDS: PassiveId[] = ["devil", "guardian-angel"];
 
 /** Whether a newcomer may still sit down at this table. */
 export function canJoinLate(state: GameState): boolean {
@@ -25,41 +25,60 @@ export function canJoinLate(state: GameState): boolean {
   );
 }
 
-/** Cards the newcomer chooses from during the draft: the ones nobody else was dealt. */
-function dealLateOffer(state: GameState): PassiveId[] {
-  const dealt = new Set(Object.values(state.draft?.offers ?? {}).flat());
-  const free = shuffle(getDraftPool(state.players.length + 1).filter((passiveId) => !dealt.has(passiveId)));
-  const offer = free.slice(0, getDraftOfferSize(state.players.length + 1));
-  return offer.length > 0 ? offer : ["lambda"];
+/** A card of this kind that nobody holds or was dealt, for a newcomer; any card of the kind when none is left. */
+function drawFreeCard(kind: "actif" | "passif", state: GameState, taken: Set<PassiveId>): PassiveId | undefined {
+  const pool = getDraftPool(kind, state.players.length + 1).filter((cardId) => !ROLE_CARDS.includes(cardId));
+  return randomChoice(pool.filter((cardId) => !taken.has(cardId))) ?? randomChoice(pool);
 }
 
-/** The passive a newcomer gets once the draft is over: one nobody holds, and not a public role. */
-function drawLatePassive(state: GameState): PassiveId {
-  const held = new Set(state.players.map((player) => player.passiveId));
-  const free = Object.keys(PASSIVE_CATALOG).filter(
-    (passiveId) => !held.has(passiveId as PassiveId) && !ROLE_PASSIVES.includes(passiveId as PassiveId),
-  ) as PassiveId[];
-  return randomChoice(free) ?? "lambda";
+/** Cards the newcomer chooses from at the current stage: the ones nobody else was dealt, completed if too few. */
+function dealLateOffer(state: GameState, draft: PassiveDraft): PassiveId[] {
+  const pool = getDraftPool(draft.stage, state.players.length + 1);
+  const dealt = new Set(Object.values(draft.offers).flat());
+  const free = pool.filter((cardId) => !dealt.has(cardId));
+  const size = getDraftOfferSize(state.players.length + 1);
+  const offer = Object.values(dealOffers(["late"], free.length >= size ? free : pool, size))[0] ?? [];
+  return offer.length > 0 ? offer : [draft.stage === "actif" ? "lambda" : (pool[0] ?? "lambda")];
 }
 
 export function joinLatePlayer(state: GameState, playerId: PlayerId, name: string, color: PlayerColor): GameState {
   if (!canJoinLate(state) || state.players.some((player) => player.id === playerId)) return state;
-  const offer = state.draft ? dealLateOffer(state) : null;
-  const passiveId = offer ? offer[0] : drawLatePassive(state);
+  const draft = state.draft;
+  const held = new Set(state.players.flatMap((player) => getCards(player)));
+  let actif: PassiveId;
+  let passif: PassiveId | null = null;
+  let nextDraft: PassiveDraft | null = null;
+
+  if (draft) {
+    const offer = dealLateOffer(state, draft);
+    const dealtActifs = new Set(Object.values(draft.actifs).filter((cardId): cardId is PassiveId => Boolean(cardId)));
+    // Arriving at the passif stage, the newcomer gets an actif no one picked.
+    actif = draft.stage === "actif" ? offer[0] : (drawFreeCard("actif", state, dealtActifs) ?? "lambda");
+    passif = draft.stage === "passif" ? offer[0] : null;
+    nextDraft = {
+      ...draft,
+      offers: { ...draft.offers, [playerId]: offer },
+      actifs: draft.stage === "passif" ? { ...draft.actifs, [playerId]: actif } : draft.actifs,
+    };
+  } else {
+    actif = drawFreeCard("actif", state, held) ?? "lambda";
+    passif = drawFreeCard("passif", state, held) ?? null;
+  }
+
   const player: Player = {
     id: playerId,
     name: name.trim() || `Joueur ${state.players.length + 1}`,
     color,
     position: START_NODE_ID,
-    currency: getStartingCurrency(passiveId),
+    currency: getStartingCurrency(actif, passif),
     inventory: [],
-    passiveId,
+    passiveId: actif,
+    passifId: passif,
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
     previousNodeId: null,
   };
-  const draft = state.draft && offer ? { ...state.draft, offers: { ...state.draft.offers, [playerId]: offer } } : null;
-  const nextState: GameState = { ...state, players: [...state.players, player], draft: draft ?? state.draft };
+  const nextState: GameState = { ...state, players: [...state.players, player], draft: nextDraft ?? state.draft };
   return addLog(nextState, `${player.name} rejoint la partie.`, "event");
 }

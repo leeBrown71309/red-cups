@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getActionActorIds } from "./action-permissions";
+import { CARD_KINDS } from "./cards";
 import { reduceGame, type GameAction } from "./game-actions";
 import { buildOnlineGame } from "../net/room-protocol";
 import { PLAYER_COLORS } from "./types";
@@ -41,10 +42,13 @@ describe("joining late", () => {
   it("gives a free passive, never a public role, once the game runs", () => {
     let state = onlineTable();
     state = reduceGame(state, { type: "expireClock" }, { now: 1_000 + 61_000 });
+    state = reduceGame(state, { type: "expireClock" }, { now: 1_000 + 61_000 + 61_000 });
     expect(state.phase).toBe("playing");
     const next = reduceGame(state, joinAction(3), { now: 70_000 });
     const newcomer = next.players[3];
     expect(["devil", "guardian-angel"]).not.toContain(newcomer.passiveId);
+    expect(CARD_KINDS[newcomer.passiveId]).toBe("actif");
+    expect(newcomer.passifId && CARD_KINDS[newcomer.passifId]).toBe("passif");
     expect(state.players.map((player) => player.passiveId)).not.toContain(newcomer.passiveId);
     expect(newcomer.position).toBe(0);
   });

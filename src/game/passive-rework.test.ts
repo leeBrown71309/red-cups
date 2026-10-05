@@ -362,7 +362,9 @@ describe("saves from before the passive rework", () => {
       })),
     };
     const upgraded = migrateGameSave(legacy, 13);
-    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "goblin", "corrupter", "lambda"]);
+    // Goblin and Corrupteur are passifs now: they move to the passif slot and the player keeps no actif.
+    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "lambda", "lambda", "lambda"]);
+    expect(upgraded.players.map((player) => player.passifId)).toEqual([null, "goblin", "corrupter", null]);
     expect(upgraded.redGreenTriggers).toEqual({ green: 0, red: 0 });
   });
 });

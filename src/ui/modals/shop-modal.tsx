@@ -1,3 +1,4 @@
+import { hasCard } from "../../game/cards";
 import { useState } from "react";
 import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
 import { getShopItems } from "../../game/passive-rules";
@@ -35,7 +36,7 @@ export function ShopModal({ onClose }: ShopModalProps) {
   const [wantedCount, setWantedCount] = useState(1);
   if (!player) return null;
 
-  const isDevil = player.passiveId === "devil";
+  const isDevil = hasCard(player, "devil");
   const shelf = getShopItems(player).filter((itemId) => DEVIL_ITEMS.includes(itemId) === (tab === "devil"));
   const selectItem = (itemId: ItemId) => {
     setSelectedId(itemId);

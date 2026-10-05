@@ -415,6 +415,11 @@
   max-height: 4.9em;
 }
 
+.player-details__passive .player-details__passive-hidden {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
 .player-details__passive p {
   color: var(--ink-soft);
   font-size: 0.82rem;

@@ -1,3 +1,4 @@
+import { hasCard } from "../../game/cards";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
 import { getCopyLimit, getTheftRisk, throwsOneStackPerTurn } from "../../game/passive-rules";
@@ -83,7 +84,7 @@ export function getItemAvailability(
   if (notYourTurn) return { usable: false, kind: "instant", actionLabel: "Utiliser", reason: "Attends ton tour." };
 
   if (itemId === "boot") {
-    if (player.passiveId === "roller") {
+    if (hasCard(player, "roller")) {
       return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Le Roller a son dé." };
     }
     if (inHell) return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Inutile en Enfer." };
@@ -150,7 +151,7 @@ export interface PurchaseStatus {
 
 /** Why an item cannot leave the shelf for this player, whatever they pay: their passive, the bag, the Cup. */
 function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): string | null {
-  if (itemId === "boot" && player.passiveId === "roller") return "Pas pour le Roller";
+  if (itemId === "boot" && hasCard(player, "roller")) return "Pas pour le Roller";
   // Chance aveugle is not told where the Red Cup stands.
   if (!isOnSale(state, itemId)) return "Pas en vente pour l’instant";
 
@@ -184,7 +185,7 @@ export interface TheftStatus {
 
 /** Voleur: the risk of stealing an item, or why it cannot be tried; null for everyone else. */
 export function getTheftStatus(itemId: ItemId, state: GameState, player: Player): TheftStatus | null {
-  if (player.passiveId !== "thief") return null;
+  if (!hasCard(player, "thief")) return null;
   const risk = getTheftRisk(getItemPrice(itemId, state.bootPrice, player));
   if (state.theftAttempted) return { risk, canSteal: false, reason: "Un seul vol par visite" };
   const blocker = getShelfBlocker(itemId, state, player);

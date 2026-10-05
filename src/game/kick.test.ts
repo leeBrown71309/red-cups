@@ -17,8 +17,10 @@ function onlineTable(count = 3) {
   return buildOnlineGame(players, 7, "classic", 1_000, "u0").state;
 }
 
+/** Both draft stages run out of time: the table plays with the cards drawn for it. */
 function playingTable(count = 3) {
-  return reduceGame(onlineTable(count), { type: "expireClock" }, { now: 1_000 + 61_000 });
+  const second = reduceGame(onlineTable(count), { type: "expireClock" }, { now: 1_000 + 61_000 });
+  return reduceGame(second, { type: "expireClock" }, { now: 1_000 + 61_000 + 61_000 });
 }
 
 describe("kicking a player", () => {
@@ -53,8 +55,11 @@ describe("kicking a player", () => {
     let state = reduceGame(draft, { type: "pickPassive", playerId: "p1", passiveId: firstCard }, { now: 2_000 });
     state = reduceGame(state, { type: "pickPassive", playerId: "p3", passiveId: secondCard }, { now: 2_000 });
     expect(state.phase).toBe("draft");
+    expect(state.draft?.stage).toBe("actif");
+    // The one who had not picked leaves: the actif stage closes, and the passifs go on without them.
     const next = reduceGame(state, { type: "kickPlayer", hostId: "p1", playerId: "p2" }, { now: 3_000 });
     expect(next.players.map((player) => player.id)).toEqual(["p1", "p3"]);
-    expect(next.phase).toBe("playing");
+    expect(next.draft?.stage).toBe("passif");
+    expect(Object.keys(next.draft!.offers)).toEqual(["p1", "p3"]);
   });
 });

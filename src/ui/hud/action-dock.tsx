@@ -1,3 +1,6 @@
+import { hasCard } from "../../game/cards";
+import type { PassiveId } from "../../game/types";
+import { useVisibleCards } from "../card-visibility";
 import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
@@ -43,7 +46,7 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const canAct = useCanActFor([decider?.id]);
   if (!activePlayer || !decider || phase !== "playing") return null;
 
-  const passive = PASSIVE_CATALOG[decider.passiveId];
+  const cards = useVisibleCards(decider);
 
   return (
     <section
@@ -68,8 +71,15 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
         <PlayerAvatar color={decider.color} size={56} expression={getAvatarExpression(decider)} />
         <div className="action-dock__identity">
           <strong>{decider.name}</strong>
-          <span className="action-dock__passive" title={passive.description}>
-            <UiIcon name="sparkle" size={12} /> {passive.name}
+          <span
+            className="action-dock__passive"
+            title={[cards.actif, cards.passif]
+              .filter((cardId): cardId is PassiveId => cardId !== null)
+              .map((cardId) => `${PASSIVE_CATALOG[cardId].name} : ${PASSIVE_CATALOG[cardId].description}`)
+              .join(" — ")}
+          >
+            <UiIcon name="sparkle" size={12} /> {cards.actif ? PASSIVE_CATALOG[cards.actif].name : "Actif caché"}
+            {cards.passif ? ` · ${PASSIVE_CATALOG[cards.passif].name}` : ""}
           </span>
           <span className="action-dock__wallet">
             <CoinIcon size={15} />
@@ -270,7 +280,7 @@ function HellContent({ player }: { player: Player }) {
 
   return (
     <DockPrompt title="Bienvenue en Enfer…" hint={`${advice} ${countdown}`}>
-      {player.passiveId === "devil" && (
+      {hasCard(player, "devil") && (
         <button
           type="button"
           className="btn btn--cup"
@@ -309,7 +319,7 @@ function MoveContent({ player }: { player: Player }) {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const isCorrupter = player.passiveId === "corrupter";
+  const isCorrupter = hasCard(player, "corrupter");
   const corrupterHint = getCorrupterHint(player, round);
 
   if (tired) {
@@ -321,7 +331,7 @@ function MoveContent({ player }: { player: Player }) {
   }
 
   // Roller: the die comes first, then the walk it allows.
-  if (player.passiveId === "roller" && diceRoll === null) {
+  if (hasCard(player, "roller") && diceRoll === null) {
     return (
       <DockPrompt
         title="Lance le dé"

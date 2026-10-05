@@ -9,6 +9,7 @@ import { BASE_ENERGY, HELL_EXIT_TOLL, HELL_TURN_LIMIT, START_BONUS } from "../..
 import { BoardMap, TileArrowSwatch } from "../components/board-map";
 import { EnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
+import { CARD_KINDS } from "../../game/cards";
 import { PassiveCard } from "../components/passive-card";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
@@ -23,7 +24,7 @@ const TABS: { id: HelpTab; label: string }[] = [
   { id: "rules", label: "Règles" },
   { id: "board", label: "Plateau" },
   { id: "items", label: "Objets" },
-  { id: "passives", label: "Passifs" },
+  { id: "passives", label: "Cartes" },
 ];
 
 const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, string> = {
@@ -306,13 +307,24 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         )}
 
         {tab === "passives" && (
-          <ul className="tarot-deck">
-            {PASSIVE_ORDER.map((passiveId) => (
-              <li key={passiveId}>
-                <PassiveCard passiveId={passiveId} />
-              </li>
+          <div className="cards-tab">
+            <p className="cards-tab__intro">
+              Chaque joueur a deux cartes. L’<strong>actif</strong> le mène à la victoire sur la durée ; le{" "}
+              <strong>passif</strong> l’aide dans une situation précise.
+            </p>
+            {(["actif", "passif"] as const).map((kind) => (
+              <section key={kind} aria-label={kind === "actif" ? "Actifs" : "Passifs"}>
+                <h3 className="help-section-title">{kind === "actif" ? "Actifs" : "Passifs"}</h3>
+                <ul className="tarot-deck">
+                  {PASSIVE_ORDER.filter((passiveId) => CARD_KINDS[passiveId] === kind).map((passiveId) => (
+                    <li key={passiveId}>
+                      <PassiveCard passiveId={passiveId} />
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         )}
       </div>
     </ModalShell>

@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import { getBagSlots, getCopyLimit, getMudPrice, isDoomed, shopsAnywhere } from "./passive-rules";
@@ -106,7 +107,7 @@ export type CorrupterBlocker = "not-corrupter" | "too-poor" | "first-round-start
  * anybody else could move.
  */
 export function getCorrupterBlocker(player: Player, round: number): CorrupterBlocker | null {
-  if (player.passiveId !== "corrupter") return "not-corrupter";
+  if (!hasCard(player, "corrupter")) return "not-corrupter";
   if (player.currency < CORRUPTER_COST) return "too-poor";
   if (round <= FIRST_ROUND && player.position === START_NODE_ID) return "first-round-start";
   return null;
@@ -118,7 +119,7 @@ export function canUseCorrupter(player: Player, round: number): boolean {
 
 /** Non merci is ready once its cooldown is over. */
 export function canUseNoThanks(player: Player, round: number): boolean {
-  return player.passiveId === "no-thanks" && player.noThanksReadyRound <= round;
+  return hasCard(player, "no-thanks") && player.noThanksReadyRound <= round;
 }
 
 export function getNodeKind(board: Board, nodeId: NodeId): BoardNode["kind"] | undefined {
@@ -167,14 +168,14 @@ export function opensShop(state: GameState, player: Player, nodeId: NodeId = pla
  */
 export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
   const board = getBoard(state);
-  if (player.passiveId !== "roller") return getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+  if (!hasCard(player, "roller")) return getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
   if (state.diceRoll === null || player.position === HELL_NODE_ID) return [];
   return getSimplePaths(board, player.position, state.diceRoll);
 }
 
 /** Whether a move is still possible this turn; a Roller who has not thrown yet only needs a road. */
 export function hasTurnMove(state: GameState, player: Player, ignoreArrows = false): boolean {
-  if (player.passiveId === "roller" && state.diceRoll === null) {
+  if (hasCard(player, "roller") && state.diceRoll === null) {
     return player.position !== HELL_NODE_ID && getNeighbors(getBoard(state), player.position).length > 0;
   }
   return getTurnMoveOptions(state, player, ignoreArrows).length > 0;

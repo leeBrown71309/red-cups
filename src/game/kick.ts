@@ -28,13 +28,14 @@ function kickFromDraft(state: GameState, targetId: PlayerId): GameState {
   if (!draft || !leaver) return state;
   const { [targetId]: _offer, ...offers } = draft.offers;
   const { [targetId]: _pick, ...picks } = draft.picks;
+  const { [targetId]: _actif, ...actifs } = draft.actifs;
   const players = state.players.filter((player) => player.id !== targetId);
   const next = addLog(
     {
       ...state,
       players,
       abandonedPlayers: [...state.abandonedPlayers, leaver],
-      draft: { ...draft, offers, picks },
+      draft: { ...draft, offers, picks, actifs },
     },
     `${leaver.name} est exclu de la partie par l’hôte.`,
     "bad",

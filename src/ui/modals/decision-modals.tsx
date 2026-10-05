@@ -1,3 +1,4 @@
+import { hasCard } from "../../game/cards";
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canBeChallenged, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
@@ -259,7 +260,7 @@ export function ReactionModal() {
   if (!pending) return null;
   const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
   // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci.
-  const shieldOnly = reactors.every((reactor) => reactor.passiveId === "guardian-angel");
+  const shieldOnly = reactors.every((reactor) => hasCard(reactor, "guardian-angel"));
 
   return (
     <ModalShell
@@ -288,7 +289,7 @@ export function ReactionModal() {
                 <PlayerAvatar color={reactor.color} size={44} />
                 <span className="reaction__reactor-name">{reactor.name}</span>
                 <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                  {reactor.passiveId === "guardian-angel" ? (
+                  {hasCard(reactor, "guardian-angel") ? (
                     <>
                       <UiIcon name="shield" size={18} /> Bouclier !
                     </>

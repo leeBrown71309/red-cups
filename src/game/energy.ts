@@ -1,3 +1,4 @@
+import { getCards } from "./cards";
 import { ITEM_CATALOG } from "./catalog";
 import { canUseCorrupter, hasTurnMove } from "./rules";
 import { getActivePlayer } from "./state-utils";
@@ -15,7 +16,7 @@ const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
 
 /** Energy a player's turn opens with. */
 export function getEnergyCapacity(player: Player): number {
-  return BASE_ENERGY + (ENERGY_BONUSES[player.passiveId] ?? 0);
+  return getCards(player).reduce((sum, card) => sum + (ENERGY_BONUSES[card] ?? 0), BASE_ENERGY);
 }
 
 export function getItemEnergyCost(itemId: ItemId): number {

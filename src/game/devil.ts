@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { getBoard, isIce } from "./board";
 import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
@@ -14,7 +15,7 @@ import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_N
  */
 
 export function findDevil(state: GameState): Player | undefined {
-  return state.players.find((player) => player.passiveId === "devil");
+  return state.players.find((player) => hasCard(player, "devil"));
 }
 
 /** Coins le diable earns each time they go to Hell themselves (author's buff). */
@@ -40,7 +41,7 @@ export function announceDevil(state: GameState): GameState {
  */
 export function countDevilHellTurn(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
-  if (!findDevil(state) || !player || player.passiveId === "devil") return state;
+  if (!findDevil(state) || !player || hasCard(player, "devil")) return state;
   return { ...state, devilHellTurns: state.devilHellTurns + 1 };
 }
 
@@ -83,7 +84,7 @@ export const DEVIL_HELL_EXIT_ENERGY = 1;
 export function canLeaveHell(state: GameState): boolean {
   const player = state.players[state.activePlayerIndex];
   return (
-    player?.passiveId === "devil" &&
+    hasCard(player, "devil") &&
     state.turnStage === "hell" &&
     player.position === HELL_NODE_ID &&
     state.energyLeft >= DEVIL_HELL_EXIT_ENERGY

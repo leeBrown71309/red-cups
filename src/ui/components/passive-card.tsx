@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { CARD_KINDS } from "../../game/cards";
 import { PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import type { PassiveId } from "../../game/types";
 import { PassiveIcon } from "../icons/passive-icon";
@@ -98,7 +99,9 @@ export function PassiveCard({ passiveId, onPick, selected = false, children }: P
       <span className="tarot-card__text scroll-block" tabIndex={0}>
         {passive.description}
       </span>
-      <span className="tarot-card__suit">{SUIT_LABELS[suit]}</span>
+      <span className="tarot-card__suit">
+        {CARD_KINDS[passiveId] === "actif" ? "Actif" : "Passif"} · {SUIT_LABELS[suit]}
+      </span>
       {children}
     </>
   );

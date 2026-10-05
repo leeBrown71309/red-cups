@@ -1,3 +1,4 @@
+import { hasCard } from "../../game/cards";
 import type { ReactNode } from "react";
 import { getDevilGoalFor } from "../../game/devil";
 import { getIdleStrikes, IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
@@ -44,7 +45,7 @@ export function getChancesLeft(state: Pick<GameState, "idleStrikes">, player: Pl
 }
 
 function getRoleStatus(state: GameState, player: Player): PlayerStatus | null {
-  if (player.passiveId === "devil") {
+  if (hasCard(player, "devil")) {
     const count = `${state.devilHellTurns}/${getDevilGoalFor(state)}`;
     return {
       id: "devil",

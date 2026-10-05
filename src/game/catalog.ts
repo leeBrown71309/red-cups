@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import type { ItemId, PassiveId, Player, WheelId, WheelResult } from "./types";
 
 export interface ItemDefinition {
@@ -493,7 +494,7 @@ const GUARDIAN_MISFORTUNE_RESULTS: WeightedWheelResult[] = [
 
 /** The wedges of a wheel as `player` spins it. */
 export function getWheelResults(wheelId: WheelId, player?: Pick<Player, "passiveId">): WeightedWheelResult[] {
-  if (wheelId === "misfortune" && player?.passiveId === "guardian-angel") return GUARDIAN_MISFORTUNE_RESULTS;
+  if (wheelId === "misfortune" && hasCard(player, "guardian-angel")) return GUARDIAN_MISFORTUNE_RESULTS;
   return WHEEL_RESULTS[wheelId];
 }
 

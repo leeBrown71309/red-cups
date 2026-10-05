@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
@@ -93,7 +94,7 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (!player) return null;
 
   const boot = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "boot");
-  const roller = player.passiveId === "roller";
+  const roller = hasCard(player, "roller");
   if (boot && !roller && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
     return { label: "prepare-boot", perform: (current) => current.prepareBoot(boot.id) };
   }
@@ -149,7 +150,7 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
       )
     : [];
 
-  const loot = player?.passiveId === "thief" && !store.theftAttempted ? pick(onShelf, random) : undefined;
+  const loot = hasCard(player, "thief") && !store.theftAttempted ? pick(onShelf, random) : undefined;
   if (loot && random() < THEFT_CHANCE) return { label: `steal:${loot}`, perform: (current) => current.stealItem(loot) };
 
   const affordable = onShelf.filter((itemId) => player!.currency >= getItemPrice(itemId, store.bootPrice, player));

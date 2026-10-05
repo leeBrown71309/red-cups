@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
@@ -295,7 +296,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
     case "monopoly-man":
       if (!target) return state;
       // Baraqué does not let go: an arm wrestle decides (patch 0.1.4).
-      if (target.passiveId === "built-like-a-tank") return startArmWrestle(nextState, player, target);
+      if (hasCard(target, "built-like-a-tank")) return startArmWrestle(nextState, player, target);
       // A swap into Hell is a trip to Hell: L'Ange-Gardien then stays put and loses a turn.
       nextState = {
         ...nextState,
@@ -397,7 +398,7 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
     },
   };
   // Tomato Enjoyer loves every one of them.
-  if (target.passiveId === "tomato-enjoyer") {
+  if (hasCard(target, "tomato-enjoyer")) {
     nextState = applyCurrencyChange(nextState, target.id, TOMATO_ENJOYER_HIT_REWARD * count);
   }
   if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
@@ -449,7 +450,7 @@ function moveTo(player: Player, nodeId: NodeId): Player {
 
 /** Corde pulls the target onto the user's tile; Baraqué only moves half the way. */
 function pullWithRope(state: GameState, user: Player, target: Player): GameState {
-  if (target.passiveId !== "built-like-a-tank") {
+  if (!hasCard(target, "built-like-a-tank")) {
     // Pulled from Hell into Hell: a trip there, which L'Ange-Gardien never makes.
     const nextState = updatePlayer(state, target.id, (currentPlayer) => moveTo(currentPlayer, user.position));
     return addLog(nextState, `${target.name} est tiré sur la case de ${user.name}.`, "event");
@@ -539,7 +540,7 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   if (!reactor || !actor || action.type !== "item") return state;
 
   // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci.
-  const shield = reactor.passiveId === "guardian-angel";
+  const shield = hasCard(reactor, "guardian-angel");
   const shieldEntry = reactor.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
   let nextState = shield
     ? updatePlayer(state, reactor.id, (player) => spendItemEntry(player, shieldEntry?.id ?? ""))

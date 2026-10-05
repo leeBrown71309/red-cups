@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { findDevil, getDevilGoalFor } from "./devil";
 import { addLog } from "./state-utils";
 import type { GameState, PlayerId, WinReason } from "./types";
@@ -38,7 +39,7 @@ export function endGame(state: GameState, winnerId: PlayerId, winReason: WinReas
  */
 export function checkVictories(state: GameState): GameState {
   if (state.phase !== "playing") return state;
-  const greedy = state.players.find((player) => player.passiveId === "greedy" && player.currency >= GREEDY_GOAL);
+  const greedy = state.players.find((player) => hasCard(player, "greedy") && player.currency >= GREEDY_GOAL);
   if (greedy) {
     const ended = endGame(state, greedy.id, "greedy");
     return addLog(ended, `${greedy.name} atteint ${GREEDY_GOAL} pièces et remporte la partie !`, "good");

@@ -1,14 +1,16 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { hasCard } from "../../game/cards";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { canAbandon } from "../../game/abandon";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import { IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
-import type { Player } from "../../game/types";
+import type { PassiveId, Player } from "../../game/types";
 import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
+import { useVisibleCards } from "../card-visibility";
 import { EnergyGauge } from "../components/energy-meter";
 import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -122,6 +124,40 @@ function KickControl({ player }: { player: Player }) {
   return <KickButton name={player.name} labelled disabled={busy || !atRest} onKick={() => void kick(userId)} />;
 }
 
+/** One of the two cards of a player: its name and rules, or why it is not shown. */
+function CardBlock({
+  label,
+  cardId,
+  hiddenText,
+  children,
+}: {
+  label: string;
+  cardId: PassiveId | null;
+  hiddenText: string;
+  children?: ReactNode;
+}) {
+  const card = cardId ? PASSIVE_CATALOG[cardId] : null;
+  return (
+    <div className="player-details__passive">
+      <span className="eyebrow">{label}</span>
+      {card ? (
+        <>
+          <strong>{card.name}</strong>
+          {/* Some cards explain a lot: the text scrolls instead of stretching the card. */}
+          <div className="player-details__passive-text scroll-block" tabIndex={0}>
+            <p>{card.description}</p>
+          </div>
+        </>
+      ) : (
+        <p className="player-details__passive-hidden">
+          {label === "Actif" ? `${label} caché. ${hiddenText}` : hiddenText}
+        </p>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export function PlayerDetails({
   player,
   anchor,
@@ -136,14 +172,13 @@ export function PlayerDetails({
   // The chances only count online, where turns have a clock.
   const online = useLocalPlayerId() !== null;
   const { cardRef, placement } = usePlacement(anchor);
-  const passive = PASSIVE_CATALOG[player.passiveId];
+  const cards = useVisibleCards(player);
   const statuses = getPlayerStatuses(game, player);
-  const noThanksStatus =
-    player.passiveId !== "no-thanks"
-      ? null
-      : player.noThanksReadyRound <= round
-        ? "Prêt à servir."
-        : `De retour au tour ${player.noThanksReadyRound}.`;
+  const noThanksStatus = !hasCard(player, "no-thanks")
+    ? null
+    : player.noThanksReadyRound <= round
+      ? "Prêt à servir."
+      : `De retour au tour ${player.noThanksReadyRound}.`;
   const capacity = getInventoryCapacity(player);
   const empty = Math.max(0, capacity - player.inventory.length);
   const cups = countRedCups(player);
@@ -210,15 +245,10 @@ export function PlayerDetails({
           <EnergyStat player={player} />
           {online && <ChancesStat player={player} />}
         </div>
-        <div className="player-details__passive">
-          <span className="eyebrow">Passif</span>
-          <strong>{passive.name}</strong>
-          {/* Some passives explain a lot: the text scrolls instead of stretching the card. */}
-          <div className="player-details__passive-text scroll-block" tabIndex={0}>
-            <p>{passive.description}</p>
-          </div>
+        <CardBlock label="Actif" cardId={cards.actif} hiddenText="Seul son porteur connaît son actif." />
+        <CardBlock label="Passif" cardId={cards.passif} hiddenText="Pas de passif.">
           {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
-        </div>
+        </CardBlock>
         <div className="player-details__bag">
           <span className="eyebrow">
             Sac · {player.inventory.length}/{capacity}

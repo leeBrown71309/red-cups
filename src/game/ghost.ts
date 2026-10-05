@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { getBoard } from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
@@ -207,7 +208,7 @@ function drawPenalty(player: Player): GhostPenalty {
  * get it back, and wins its worth in coins instead.
  */
 function isPaidInCoins(player: Player, itemId: ItemId): boolean {
-  return itemId === "shield" && player.passiveId !== "guardian-angel";
+  return itemId === "shield" && !hasCard(player, "guardian-angel");
 }
 
 /** One piece of loot at a time: coins or one item, drawn; a reward of its own when the loot is empty. */

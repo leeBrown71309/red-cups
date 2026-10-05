@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import { getStartingCurrency, isMalefactor } from "./passive-rules";
 import { spendAllEnergy } from "./energy";
 import { addLog, findPlayer, getActivePlayer, placeInHell, randomChoice, updatePlayer } from "./state-utils";
@@ -10,7 +11,7 @@ import { HELL_NODE_ID, RESCUE_SKIPPED_TURNS } from "./types";
  */
 
 export function findAngel(state: GameState): Player | undefined {
-  return state.players.find((player) => player.passiveId === "guardian-angel");
+  return state.players.find((player) => hasCard(player, "guardian-angel"));
 }
 
 /**
@@ -26,7 +27,7 @@ export function assignGuardian(state: GameState): GameState {
     const lambda = updatePlayer(state, angel.id, (player) => ({
       ...player,
       passiveId: "lambda",
-      currency: getStartingCurrency("lambda"),
+      currency: getStartingCurrency("lambda", player.passifId),
     }));
     return addLog({ ...lambda, guardian: null }, `${angel.name} n’a personne à protéger : il sera Lambda.`, "event");
   }
@@ -83,6 +84,7 @@ export function replaceLeavingProtege(state: GameState, leaver: Player): GameSta
   const heir: Player = placeInHell({
     ...angel,
     passiveId: leaver.passiveId,
+    passifId: leaver.passifId ?? null,
     inventory: leaver.inventory,
     currency: leaver.currency,
     noThanksReadyRound: leaver.noThanksReadyRound,

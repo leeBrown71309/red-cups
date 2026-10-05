@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { ITEM_ORDER } from "../catalog";
 import { isImmuneToItems } from "../passive-rules";
 import { countItemUnits } from "../rules";
@@ -36,12 +37,12 @@ export function checkAdvancedPassiveState(state: GameState, found: RuleViolation
   }
   for (const gamble of state.pendingGambles) {
     const holder = findPlayer(state, gamble.playerId);
-    if (holder?.passiveId !== "double-or-nothing" || gamble.amount === 0) {
+    if (!hasCard(holder, "double-or-nothing") || gamble.amount === 0) {
       found.push(violation("gamble-holder", `${holder?.name ?? gamble.playerId} may stake ${gamble.amount} coins`));
     }
   }
   const active = getActivePlayer(state);
-  if (state.theftAttempted && active?.passiveId !== "thief") {
+  if (state.theftAttempted && !hasCard(active, "thief")) {
     found.push(violation("theft-passive", `${active?.name ?? "nobody"} has a theft this turn`));
   }
 }
@@ -64,10 +65,16 @@ function checkGamble(previous: GameState, next: GameState, found: RuleViolation[
   }
 
   // Voluntary spending is never staked: purchases (and Corrupteur, for another passive).
-  const bought = newLogTexts(previous, next).some((text) => text.includes(" achète "));
-  for (const holder of previous.players.filter((player) => player.passiveId === "double-or-nothing")) {
+  const logs = newLogTexts(previous, next);
+  const bought = logs.some((text) => text.includes(" achète "));
+  for (const holder of previous.players.filter((player) => hasCard(player, "double-or-nothing"))) {
     const after = findPlayer(next, holder.id);
-    if (!after || after.currency === holder.currency || bought || next.phase !== "playing") continue;
+    // The price of a theft that went wrong is not staked either.
+    const caught = logs.some((text) => text.startsWith(`${holder.name} se fait prendre`));
+    // Nor is the Corrupteur's toll, which can now sit with Double or nothing on the same player.
+    const bribed = logs.some((text) => text.startsWith(`${holder.name} ignore les flèches`));
+    if (!after || after.currency === holder.currency || bought || caught || bribed || next.phase !== "playing")
+      continue;
     const queued = (state: GameState) => state.pendingGambles.filter((gamble) => gamble.playerId === holder.id).length;
     if (queued(next) <= queued(previous)) {
       found.push(violation("gamble-queued", `${holder.name}'s coins changed without a gamble on offer`));
@@ -81,7 +88,7 @@ function checkTheft(previous: GameState, next: GameState, found: RuleViolation[]
   const thief = getActivePlayer(previous);
   const after = findPlayer(next, thief?.id);
   if (!thief || !after) return;
-  if (previous.turnStage !== "shop" || thief.passiveId !== "thief") {
+  if (previous.turnStage !== "shop" || !hasCard(thief, "thief")) {
     found.push(violation("theft-shop", `${thief.name} stole outside the shop`));
   }
   const caught = newLogTexts(previous, next).some((text) => text.startsWith(`${thief.name} se fait prendre`));

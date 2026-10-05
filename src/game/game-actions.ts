@@ -1,16 +1,25 @@
+import { hasCard } from "./cards";
 import { abandonPlayer, canAbandon } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
 import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
-import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
+import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
 import { announceDevil, leaveHell, rewardDevilInHell } from "./devil";
 import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
-import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
+import {
+  closeDraft,
+  createDraft,
+  DRAFT_TIME_MS,
+  dealOffers,
+  getDraftPool,
+  HARMFUL_PASSIFS,
+  pickPassive,
+} from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
 import { kickPlayer } from "./kick";
 import { joinLatePlayer } from "./late-join";
@@ -72,7 +81,6 @@ import {
   randomChoice,
   removeInventoryEntry,
   spendItemEntry,
-  shuffle,
   updatePlayer,
 } from "./state-utils";
 import {
@@ -105,7 +113,6 @@ import {
   FIRST_ROUND,
   FREE_TOMATOES,
   GAME_COUNTDOWN_MS,
-  GUARDIAN_MIN_PLAYERS,
   HELL_NODE_ID,
   PLAYER_COLORS,
   ROLLER_DIE_FACES,
@@ -196,19 +203,21 @@ const MAX_PLAYERS = 8;
 /** Online players pick their avatar in the lobby; a local table takes the palette in seat order. */
 function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | undefined): Player[] {
   const names = playerNames.slice(0, MAX_PLAYERS).map((name, index) => name.trim() || `Joueur ${index + 1}`);
-  // L'Ange-Gardien only joins a table of four or more.
-  const pool = PASSIVE_ORDER.filter(
-    (passiveId) => passiveId !== "guardian-angel" || names.length >= GUARDIAN_MIN_PLAYERS,
+  // One actif and one passif each, drawn at random; L'Ange-Gardien only joins a table of four or more.
+  const ids = names.map((_, index) => getSeatPlayerId(index));
+  const actifs = dealOffers(ids, getDraftPool("actif", names.length), 1);
+  const passifs = dealOffers(ids, getDraftPool("passif", names.length), 1, (playerId) =>
+    actifs[playerId][0] === "guardian-angel" ? HARMFUL_PASSIFS : [],
   );
-  const passives = shuffle(pool).slice(0, names.length);
   return names.map((name, index) => ({
-    id: getSeatPlayerId(index),
+    id: ids[index],
     name,
     color: avatarColors?.[index] ?? PLAYER_COLORS[index],
     position: START_NODE_ID,
-    currency: getStartingCurrency(passives[index]),
+    currency: getStartingCurrency(actifs[ids[index]][0], passifs[ids[index]][0]),
     inventory: [],
-    passiveId: passives[index],
+    passiveId: actifs[ids[index]][0],
+    passifId: passifs[ids[index]][0],
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
@@ -473,7 +482,7 @@ function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean
 /** One Botte per turn: it costs a point and keeps another for the two-tile move. The Roller has its die. */
 function prepareBoot(state: GameState, entryId: string): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "move" || state.moveDistance !== 1 || player.passiveId === "roller") {
+  if (!player || state.turnStage !== "move" || state.moveDistance !== 1 || hasCard(player, "roller")) {
     return state;
   }
   if (getItemEntry(player, entryId) !== "boot" || !canAffordItem(state, "boot")) return state;
@@ -495,7 +504,7 @@ function leaveHellAndSettle(state: GameState): GameState {
  */
 function rollDice(state: GameState): GameState {
   const player = getActivePlayer(state);
-  if (!player || player.passiveId !== "roller" || state.turnStage !== "move" || state.diceRoll !== null) return state;
+  if (!player || !hasCard(player, "roller") || state.turnStage !== "move" || state.diceRoll !== null) return state;
   if (!canAffordMove(state)) return state;
   const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
   return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
@@ -508,7 +517,7 @@ function rollDice(state: GameState): GameState {
  */
 function stealItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || player.passiveId !== "thief" || state.theftAttempted || !isOnShelf(state, player, itemId)) {
+  if (!player || !hasCard(player, "thief") || state.theftAttempted || !isOnShelf(state, player, itemId)) {
     return state;
   }
 
@@ -630,7 +639,7 @@ function expireClock(state: GameState, now: number | undefined): GameState {
   const deadline = getClockDeadline(state);
   if (now === undefined || deadline === null || now < deadline) return state;
   // The draft's minute is over: whoever has not picked gets a card at random.
-  if (state.phase === "draft") return closeDraft(state);
+  if (state.phase === "draft") return closeDraft(state, now);
   if (isActiveDecision(state)) return expireTurn(state);
 
   const stage = state.turnStage;
@@ -745,7 +754,7 @@ function resolveWheel(state: GameState): GameState {
 function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | undefined): GameState {
   const user = findPlayer(state, userId);
   const lost = target.currency - (findPlayer(state, target.id)?.currency ?? target.currency);
-  if (user?.passiveId !== "greedy" || user.id === target.id || lost <= 0) return state;
+  if (!user || !hasCard(user, "greedy") || user.id === target.id || lost <= 0) return state;
   const nextState = applyCurrencyChange(state, user.id, lost);
   return addLog(nextState, `${user.name} récupère les ${lost} pièces perdues par ${target.name}.`, "good");
 }
@@ -947,7 +956,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
         action.draft ? { now } : null,
       );
     case "pickPassive":
-      return pickPassive(state, action.playerId, action.passiveId);
+      return pickPassive(state, action.playerId, action.passiveId, now);
     case "resetGame":
       return EMPTY_GAME_STATE;
     case "movePlayer":
