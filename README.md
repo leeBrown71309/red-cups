@@ -19,7 +19,9 @@ encore à valider dans la section 13 de la spec.
 - **Passifs en cartes de tarot** au draft et dans l’aide.
 - **En ligne** : le salon se rejoint jusqu’à la fin du premier tour de table, et l’hôte peut exclure un joueur.
   Ces deux règles demandent d’appliquer `supabase/schema.sql` à la base.
-- Les choix de ce patch encore à valider sont dans la section 13 bis de la spec.
+- **Actifs et passifs** : deux cartes par joueur (draft en deux étages), sac et actif cachés en ligne, Goblin passif,
+  9 nouveaux passifs, 4 nouveaux objets (Réveil, Parachute, Barrière, Miroir). Plan : `plans/patch-actifs-passifs.md`.
+- Les choix de ce patch encore à valider sont dans les sections 13 bis et 13 ter de la spec.
 
 ## Déroulé d’une partie (patch 0.1.4)
 

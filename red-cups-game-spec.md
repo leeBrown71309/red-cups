@@ -284,13 +284,17 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Black Cup | Boutique du diable. La Red Cup plonge en Enfer pour 2 tours de table, puis revient sur sa case (la glace du blizzard y fond). Le premier joueur qui arrive en Enfer entre-temps la ramasse ; ceux qui y étaient déjà ne la ramassent pas (Q16). |
 | Sentence | Boutique du diable. Tous les autres joueurs à 0 pièce ou moins partent en Enfer. |
 | Doomsday | Boutique du diable. Jusqu'au prochain tour du diable, toutes les cases sans exception, Départ et boutiques compris, font tourner la roue du malheur à qui s'y arrête, le diable compris. Le Départ ne paie pas les 200 pièces et la boutique ne s'ouvre pas (Q17). Chance aveugle n'est pas touché. |
+| Réveil | Patch 0.1.5, 250 pièces, 0 énergie. Agit tout seul : annule le prochain tour sauté de son porteur, quelle qu'en soit la cause (Middle Finger, Bullet Bill, boule de neige, Tomate, roue, Boue de l'Ange, retour à 0). Un usage. Le sauvetage volontaire de l'Ange-Gardien n'est pas annulé. |
+| Parachute | Patch 0.1.5, 450 pièces, 0 énergie. Agit tout seul : annule la prochaine descente en Enfer de son porteur, quelle qu'en soit la cause ; il reste sur sa case. Un usage. Une roue de l'Enfer qui défie un joueur parachuté ne lance pas de duel. Habitué de l'Enfer ne touche rien dans ce cas. |
+| Barrière | Patch 0.1.5, 350 pièces, 2 énergie. Ferme une route entre la case du joueur et une case voisine, jusqu'à son prochain tour. Une seule Barrière sur tout le plateau à la fois. Elle gêne tout le monde, son poseur compris : déplacements à pied, Roller, « avance d'une case ». Bullet Bill, la Corde, le Monopoly Man, Calme-toi, la glisse et la téléportation l'ignorent. Dessinée en 3D au milieu de la route. |
+| Miroir | Patch 0.1.5, 700 pièces, 0 énergie. Agit tout seul : renvoie à son lanceur le prochain objet à cible unique qui le vise (Ndoye, Hollow Purple, Middle Finger, Corde, Monopoly Man), sans fenêtre de réaction. Une seule fois par partie et par joueur : il n'est plus vendu à qui l'a déjà utilisé. Draven, Tomate, Bullet Bill et le Bouclier ne sont pas renvoyés. |
 | Made In Heaven | Objet de Chance aveugle (patch 0.1.4), lui seul le voit en boutique. Un seul à la fois, en vente tant que la Red Cup n’est pas en case 8 (le joueur n’en apprend pas plus). Renvoie tous les autres joueurs au Départ, Enfer compris, sans bonus de départ ni effet de case, et pose la Red Cup en case 8 (la case de la première Cup sur les trois cartes). À Banquise, la glace du blizzard sur cette case fond alors. |
 
 Les objets consommables sont retirés de l’inventaire quand ils sont utilisés, sauf si un passif impose un effet différent. Les effets déclenchés, cibles autorisées et éventuelles résistances sont modélisés explicitement.
 
 ## 8. Passifs
 
-Une carte passive est attribuée aléatoirement à chaque joueur en début de partie. Pour le MVP, les cartes sont distribuées sans doublon tant qu’il y a assez de cartes disponibles.
+Depuis le patch 0.1.5, chaque joueur a **deux cartes** : un **actif** (moteur de victoire sur la durée) et un **passif** (avantage dans une situation précise). Le draft les propose en deux étages (2 cartes de chaque sorte, sans doublon dans l'offre d'un joueur). Les actifs sont Cupide, Le diable, L'Ange-Gardien, Red Bull, eShop, Tomato Enjoyer, Roller, Chance aveugle, Double or nothing et Lambda (carte de remplacement, jamais proposée) ; les autres cartes sont des passifs. Le texte qui suit parle de « passifs » pour toutes les cartes. En ligne, le sac et l'actif des autres joueurs sont cachés (le passif, le diable et le protégé de l'Ange restent publics). Avant ce patch, une seule carte était attribuée aléatoirement à chaque joueur. Pour le MVP, les cartes sont distribuées sans doublon tant qu’il y a assez de cartes disponibles.
 
 | Passif | Effet |
 | --- | --- |
@@ -299,7 +303,14 @@ Une carte passive est attribuée aléatoirement à chaque joueur en début de pa
 | Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 50 (patch 0.1.5 ; 100 avant ; « deux de chaque » depuis le patch 0.1.4). |
 | Non merci | Une fois tous les 5 tours de table, annule un objet utilisé contre lui, une roue tournée pour lui ou Bullet Bill qui fonce sur lui (voir 4). |
 | Corrupteur | Délinquant renommé (patch 0.1.4). Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
-| Goblin | Troll renommé (patch 0.1.4). À chaque apparition d’une nouvelle Red Cup, vole 100 pièces à deux adversaires choisis au hasard. S’il n’y a qu’un adversaire disponible, il n’en choisit qu’un. |
+| Goblin | Troll renommé (patch 0.1.4), passif depuis le patch 0.1.5. À chaque apparition d’une nouvelle Red Cup, la première comprise, vole 150 pièces à **chacun** des autres joueurs. |
+| Dernier de la classe | Patch 0.1.5. Tant qu'il a strictement moins de Red Cups que chaque autre joueur qui peut en ramasser : +1 énergie par tour et −10 % en boutique (arrondi à la dizaine). |
+| Habitué de l'Enfer | Patch 0.1.5. +150 pièces à chaque descente en Enfer ; il en sort après 3 tours au lieu de 5. |
+| Main verte / Main rouge | Patch 0.1.5. Sur la roue du bonheur (verte) ou du malheur (rouge), deux tirages : il garde le meilleur résultat. |
+| Touché angélique / Main du diable | Patch 0.1.5. Roue du bonheur et roue de l'Ange (Touché angélique), roue du malheur et roue de l'Enfer (Main du diable) : deux tours, les deux résultats s'appliquent. |
+| Meneur de jeu | Patch 0.1.5. Dans un duel auquel il participe, il choisit le mini-jeu parmi deux tirés au sort. |
+| Brocanteur | Patch 0.1.5. Revend depuis la boutique un objet du sac à 60 % de son prix (arrondi à 5 pièces). |
+| Piégeur | Patch 0.1.5. Sa Boue coûte 100 pièces, mais une seule à la fois sur le plateau. |
 | Je note | Quand un objet à cible unique (Ndoye, Hollow Purple, Corde, Middle Finger, Monopoly Man, Tomate) est utilisé contre lui par un autre joueur, il a une chance sur trois d’en garder une copie (patch 0.1.4). Plus de copie de Draven ni de la Boue. Si son inventaire est plein, il choisit un objet ordinaire à sacrifier ; une Red Cup ne peut pas être sacrifiée. Jamais de troisième exemplaire. |
 | Calme-toi | Quand une nouvelle Red Cup apparaît, chaque autre joueur à une ou deux cases d’elle, et plus proche d’elle que le détenteur, peut être replacé par celui-ci sur n’importe quelle case à exactement trois cases de la Cup, un joueur après l’autre (patch 0.1.4). Le joueur replacé ne tire rien de cette case : ni roue, ni boutique, ni Boue. Le détenteur peut aussi le laisser où il est. |
 | Lambda | Rien de spécial (patch 0.1.4). |
@@ -586,9 +597,26 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 11. **À valider** — **Menu** : il s'ouvre au lancement du jeu ; « Commencer la partie » mène à la préparation de la partie habituelle, et après une partie on revient à cette préparation, pas au menu. Les paramètres sont le son et le plein écran. La version est celle de `package.json`. Le texte du journal des modifications est de moi, à relire.
 12. **À valider** — **Journal de la partie** : un bouton à côté du menu, et des lignes de plus : tout objet utilisé (« X utilise Y sur Z »), le propriétaire de chaque roue, la fin de chaque tour. Il garde les 120 dernières lignes (60 avant).
 
+## 13 ter. Choix à valider : actifs et passifs (patch 0.1.5)
+
+1. **À valider** — **Lambda** n'est jamais proposée au draft : elle ne remplit un actif vide que si un joueur n'en a pas (Ange sans protégé, retardataire).
+2. **À valider** — **Double tour** (Touché angélique, Main du diable) : si le premier résultat ouvre une autre décision (duel, choix), le second tour est perdu.
+3. **À valider** — **Cartes de départ** : les bonus de pièces s'additionnent (Nepo Baby +1 000, eShop −1 000, Ange −1 200).
+4. **À valider** — **« Strictement moins de Red Cups »** (Dernier de la classe) ignore le diable, l'Ange et Cupide.
+5. **À valider** — **Barrière** : elle gêne aussi son poseur ; une seule sur toute la table ; Bullet Bill, la Corde, Calme-toi l'ignorent.
+6. **À valider** — **Miroir** ne renvoie ni Draven, ni la Tomate, ni Bullet Bill ; une fois par partie et par joueur.
+7. **À valider** — **Meilleur résultat** (Mains verte et rouge) : barème de `getWheelResultValue` dans `catalog.ts`.
+8. **À valider** — **Vie privée** : en ligne, l'état est répliqué sur chaque appareil, le masquage est visuel ; les lignes du journal d'un achat, d'un vol ou d'une copie n'apparaissent en clair que pour leur propriétaire.
+9. **À valider** — **Goblin** vole aussi le diable, l'Ange et Chance aveugle.
+10. **À valider** — **Main du diable** utilise la roue de l'Enfer (il n'existe pas de « roue du diable »).
+
+`supabase/schema.sql` ne change pas pour ces règles.
+
 ## 14. Historique des versions
 
 ### 0.1.5 — octobre 2026
+
+**Actifs et passifs** : deux cartes par joueur (draft en deux étages), vie privée en ligne (sac et actif cachés), Goblin passif à 150 pièces, 9 nouveaux passifs (Dernier de la classe, Habitué de l'Enfer, Main verte, Main rouge, Touché angélique, Main du diable, Meneur de jeu, Brocanteur, Piégeur), 4 nouveaux objets (Réveil, Parachute, Barrière, Miroir). Choix à valider en section 13 ter.
 
 Retours de l'auteur sur la version jouée ; les choix qui restent à valider sont dans la section 13 bis.
 
