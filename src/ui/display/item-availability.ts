@@ -43,6 +43,9 @@ const AUTOMATIC_ITEM_HINTS: Partial<Record<ItemId, string>> = {
   helmet: "Se déclenche tout seul avant de passer sous zéro.",
   "hell-touch": "Se déclenche tout seul dès qu’un joueur assommé se trouve sur ta case.",
   shield: "Se propose tout seul quand ton protégé est visé ou que Bullet Bill fonce sur lui.",
+  "wake-up": "Se déclenche tout seul quand un tour sauté te menace.",
+  parachute: "Se déclenche tout seul avant une descente en Enfer.",
+  mirror: "Se déclenche tout seul quand un objet te vise.",
 };
 
 export interface ItemAvailability {
@@ -130,7 +133,8 @@ export function getItemAvailability(
     };
   }
 
-  const kind: ItemUseKind = ITEM_CATALOG[itemId].target === "player" ? "target" : "instant";
+  const kind: ItemUseKind =
+    ITEM_CATALOG[itemId].target === "player" || ITEM_CATALOG[itemId].target === "road" ? "target" : "instant";
   const actionLabel =
     itemId === "water-bottle"
       ? "Boire"

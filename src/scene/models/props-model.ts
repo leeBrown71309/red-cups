@@ -201,6 +201,47 @@ export function createHellPortal(kit: SceneKit): AnimatedProp {
   };
 }
 
+/**
+ * A Barrière lying across a road: two posts and a bar in red and white
+ * stripes. The road runs along the group's z axis, the bar along its x axis;
+ * it drops in with a small bounce.
+ */
+export function createBarrierProp(kit: SceneKit): AnimatedProp {
+  const group = new THREE.Group();
+  const post = kit.geometry("barrier-post", () => new THREE.CylinderGeometry(0.07, 0.09, 0.8, 6));
+  for (const side of [-1, 1]) {
+    const mesh = new THREE.Mesh(post, kit.flat("#c9c1b6"));
+    mesh.position.set(side * 0.62, 0.4, 0);
+    mesh.castShadow = true;
+    addOutline(mesh, kit, 1.1);
+    group.add(mesh);
+  }
+  const stripe = kit.geometry("barrier-stripe", () => new THREE.BoxGeometry(0.31, 0.2, 0.1));
+  for (let index = 0; index < 4; index += 1) {
+    const mesh = new THREE.Mesh(stripe, kit.flat(index % 2 === 0 ? "#e8453c" : "#fff4ec"));
+    mesh.position.set(-0.465 + index * 0.31, 0.62, 0);
+    mesh.castShadow = true;
+    group.add(mesh);
+  }
+  const lamp = new THREE.Mesh(
+    kit.geometry("barrier-lamp", () => new THREE.IcosahedronGeometry(0.09, 0)),
+    kit.flat("#ffd166", { emissive: "#ffb000", emissiveIntensity: 0.9 }),
+  );
+  lamp.position.set(0, 0.85, 0);
+  group.add(lamp);
+
+  let age = 0;
+  group.scale.setScalar(0.001);
+  return {
+    group,
+    update: (elapsed, delta) => {
+      age += delta;
+      group.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
+      lamp.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.15);
+    },
+  };
+}
+
 export function createVerticalFadeTexture(): THREE.CanvasTexture {
   const canvas = document.createElement("canvas");
   canvas.width = 4;

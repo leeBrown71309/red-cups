@@ -13,7 +13,7 @@ import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "
 import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
-import { planItemUse } from "../turn-actions";
+import { getBarrierRoads, planItemUse } from "../turn-actions";
 import type { InventoryEntry, ItemId, NodeId, PlayerId, RpsChoice } from "../types";
 import type { AppliedItem } from "./rule-invariants";
 
@@ -46,6 +46,8 @@ function distanceToCup(store: GameStore, nodeId: NodeId): number {
 interface ItemOption {
   entry: InventoryEntry & { kind: "item" };
   targetId?: PlayerId;
+  /** The neighbouring tile a Barrière shuts the road to. */
+  roadNodeId?: NodeId;
   /** A whole volley of Tomates, or part of the stack. */
   count?: number;
 }
@@ -54,7 +56,7 @@ function useItemAction(store: GameStore, option: ItemOption): BotAction {
   const userId = getActivePlayer(store)?.id ?? "";
   return {
     label: `use:${option.entry.itemId}`,
-    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count),
+    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count, option.roadNodeId),
     item: {
       itemId: option.entry.itemId,
       entryId: option.entry.id,
@@ -70,6 +72,11 @@ function listUsableItems(store: GameStore): ItemOption[] {
   if (!player) return [];
   return player.inventory.flatMap((entry): ItemOption[] => {
     if (entry.kind !== "item") return [];
+    if (ITEM_CATALOG[entry.itemId].target === "road") {
+      return getBarrierRoads(store, player.position)
+        .filter((nodeId) => planItemUse(store, entry.id, undefined, 1, nodeId) !== null)
+        .map((roadNodeId) => ({ entry, roadNodeId }));
+    }
     if (ITEM_CATALOG[entry.itemId].target !== "player") {
       return planItemUse(store, entry.id) ? [{ entry }] : [];
     }

@@ -99,7 +99,9 @@ function checkTheft(previous: GameState, next: GameState, found: RuleViolation[]
     }
     return;
   }
-  if (after.position !== HELL_NODE_ID)
+  // A Parachute spent on the way down keeps the caught thief out of Hell.
+  const parachuted = countItemUnits(after, "parachute") < countItemUnits(thief, "parachute");
+  if (after.position !== HELL_NODE_ID && !parachuted)
     found.push(violation("theft-caught", `${thief.name} was caught but not in Hell`));
   const hadItems = thief.inventory.some((entry) => entry.kind === "item");
   const lostItem = thief.inventory.some(

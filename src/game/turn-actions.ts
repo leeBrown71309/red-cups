@@ -1,6 +1,6 @@
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
+import { earnsStartBonus, getBoard, getOpenBoard, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
 import { carryOffIce, drawSlide, recordSlide } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
@@ -42,6 +42,7 @@ import {
   spendItemEntry,
   placeInHell,
   updatePlayer,
+  loseTurns,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
 import {
@@ -159,10 +160,26 @@ export interface ItemPlan {
   count: number;
   /** Draven: players who cancelled it for themselves with Non merci. */
   sparedIds?: PlayerId[];
+  /** The Barrière: the tile at the other end of the road it closes. */
+  roadNodeId?: NodeId;
+  /** The target's Miroir sent it back: its effects fall on the user instead. */
+  reflected?: boolean;
 }
 
+/** Items a Miroir sends back to whoever used them. */
+export const REFLECTABLE_ITEMS: ItemId[] = ["ndoye", "hollow-purple", "rope", "middle-finger"];
+
 /** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
-const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot", "hell-touch", "shield"];
+const NOT_USED_FROM_BAG: ItemId[] = [
+  "eraser",
+  "helmet",
+  "boot",
+  "hell-touch",
+  "shield",
+  "wake-up",
+  "parachute",
+  "mirror",
+];
 
 /** Pulled by the Corde, swapped by the Monopoly Man, rewound by Made In Heaven: moved, but no wheel for it. */
 const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man", "made-in-heaven"];
@@ -192,6 +209,7 @@ export function planItemUse(
   entryId: string,
   targetPlayerId?: PlayerId,
   requestedCount = 1,
+  targetNodeId?: NodeId,
 ): ItemPlan | null {
   const player = getActivePlayer(state);
   if (!player || state.phase !== "playing") return null;
@@ -220,6 +238,13 @@ export function planItemUse(
   if (!Number.isInteger(count) || count < 1 || (entry && count > getEntryUnits(entry))) return null;
 
   const definition = ITEM_CATALOG[itemId];
+  if (definition.target === "road") {
+    // One Barrière on the board at a time, on a road beside the user's tile.
+    if (state.barrier !== null || inHell || targetNodeId === undefined) return null;
+    return getBarrierRoads(state, player.position).includes(targetNodeId)
+      ? { itemId, count, roadNodeId: targetNodeId }
+      : null;
+  }
   if (definition.target !== "player") return { itemId, count };
 
   const target = findPlayer(state, targetPlayerId);
@@ -228,13 +253,32 @@ export function planItemUse(
   return { itemId, target, count };
 }
 
+/**
+ * The roads a Barrière may close from `nodeId`: every road to a neighbouring
+ * tile, tunnels aside, arrows or not.
+ */
+export function getBarrierRoads(state: GameState, nodeId: NodeId): NodeId[] {
+  const roads = new Set<NodeId>();
+  for (const edge of getOpenBoard(state).edges) {
+    if (edge.kind === "tunnel") continue;
+    if (edge.from === nodeId) roads.add(edge.to);
+    if (edge.to === nodeId) roads.add(edge.from);
+  }
+  roads.delete(HELL_NODE_ID);
+  roads.delete(nodeId);
+  return [...roads];
+}
+
 /** Items whose use already writes a line naming the player (patch 0.1.5 journal). */
-const SELF_ANNOUNCED_ITEMS: ItemId[] = ["ndoye", "bullet-bill", "mud", "tomato"];
+const SELF_ANNOUNCED_ITEMS: ItemId[] = ["ndoye", "bullet-bill", "mud", "tomato", "barrier"];
 
 export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan): GameState {
   const player = getActivePlayer(state);
   if (!player) return state;
   const { itemId, target, count } = plan;
+  // Reflected by a Miroir, the item hurts its user and the aimed player is the one who acts.
+  const victim = plan.reflected ? player : target;
+  const aggressor = plan.reflected ? target : player;
 
   // The turn goes on in the stage it was in: more items, then the move.
   let nextState = spendEnergy(state, getItemEnergyCost(itemId));
@@ -251,21 +295,24 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
 
   switch (itemId) {
     case "ndoye":
-      if (!target) return state;
+      if (!target || !victim) return state;
       nextState = addLog(nextState, `${player.name} active Ndoye sur ${target.name}.`, "event");
       // Je note copies Ndoye when the wheel resolves, through the wheel's source item.
-      return startWheel(nextState, "misfortune", target.id, state.turnStage, { sourceItemId: "ndoye", origin: "item" });
+      return startWheel(nextState, "misfortune", victim.id, state.turnStage, {
+        ...(plan.reflected ? {} : { sourceItemId: "ndoye" as const }),
+        origin: "item",
+      });
 
     case "hollow-purple":
-      if (!target) return state;
-      nextState = sendPlayerToHell(nextState, target.id);
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim) return state;
+      nextState = sendPlayerToHell(nextState, victim.id);
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "rope":
-      if (!target) return state;
-      nextState = pullWithRope(nextState, player, target);
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim || !aggressor) return state;
+      nextState = pullWithRope(nextState, aggressor, victim);
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "bullet-bill":
@@ -273,6 +320,16 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       nextState = addLog(
         nextState,
         `${player.name} lance Bullet Bill : il attend au départ et fonce au prochain tour.`,
+        "event",
+      );
+      break;
+
+    case "barrier":
+      if (plan.roadNodeId === undefined) return state;
+      nextState = { ...nextState, barrier: { ownerId: player.id, a: player.position, b: plan.roadNodeId } };
+      nextState = addLog(
+        nextState,
+        `${player.name} pose une Barrière sur la route entre les cases ${player.position} et ${plan.roadNodeId}.`,
         "event",
       );
       break;
@@ -286,13 +343,10 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "middle-finger":
-      if (!target) return state;
-      nextState = updatePlayer(nextState, target.id, (currentPlayer) => ({
-        ...currentPlayer,
-        skippedTurns: currentPlayer.skippedTurns + 1,
-      }));
-      nextState = addLog(nextState, `${target.name} devra passer son prochain tour.`, "bad");
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim) return state;
+      nextState = updatePlayer(nextState, victim.id, (currentPlayer) => loseTurns(currentPlayer));
+      nextState = addLog(nextState, `${victim.name} devra passer son prochain tour.`, "bad");
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "monopoly-man":
@@ -404,7 +458,7 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
     nextState = applyCurrencyChange(nextState, target.id, TOMATO_ENJOYER_HIT_REWARD * count);
   }
   if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
-  nextState = updatePlayer(nextState, target.id, (current) => ({ ...current, skippedTurns: current.skippedTurns + 1 }));
+  nextState = updatePlayer(nextState, target.id, (current) => loseTurns(current));
   return addLog(
     nextState,
     `${thrower.name} lance ${volley} sur ${target.name}, qui est assommé : il passera son prochain tour !`,
@@ -458,7 +512,7 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
     return addLog(nextState, `${target.name} est tiré sur la case de ${user.name}.`, "event");
   }
 
-  const path = getShortestPath(getBoard(state), target.position, user.position, true) ?? [];
+  const path = getShortestPath(getOpenBoard(state), target.position, user.position, true) ?? [];
   const steps = Math.ceil(path.length / 2);
   const nextState = updatePlayer(state, target.id, (currentPlayer) => ({
     ...currentPlayer,

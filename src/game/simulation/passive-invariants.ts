@@ -1,5 +1,5 @@
 import { hasCard } from "../cards";
-import { getBoard, getShortestPath } from "../board";
+import { getOpenBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG } from "../catalog";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import { isThrownItem } from "../turn-actions";
@@ -29,7 +29,7 @@ import {
 
 function distanceToCup(state: GameState, nodeId: NodeId): number {
   if (state.redCupNodeId === null) return Infinity;
-  return getShortestPath(getBoard(state), state.redCupNodeId, nodeId, true)?.length ?? Infinity;
+  return getShortestPath(getOpenBoard(state), state.redCupNodeId, nodeId, true)?.length ?? Infinity;
 }
 
 /** New Cup, New Me: before the Cup appears, its holder goes to the start with the bonus, or stays put. */

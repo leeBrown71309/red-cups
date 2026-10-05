@@ -56,6 +56,9 @@ const GUARDIAN_FORBIDDEN_ITEMS: ItemId[] = [
   "middle-finger",
   "draven",
   "helmet",
+  "parachute",
+  "barrier",
+  "mirror",
 ];
 
 /** The shelf as `player` sees it: everything but the items of other passives, and none that L'Ange-Gardien may not use. */
@@ -74,6 +77,8 @@ export function canUseItemKind(player: Player, itemId: ItemId): boolean {
 /** Items a passive may not buy: the Roller has no use for the Botte, and exclusive items stay with their passive. */
 export function canBuyItemKind(player: Player, itemId: ItemId): boolean {
   if (hasCard(player, "roller") && itemId === "boot") return false;
+  // The Miroir is sold once to each player, however it ended.
+  if (itemId === "mirror" && player.mirrorUsed) return false;
   return getShopItems(player).includes(itemId);
 }
 
@@ -105,7 +110,7 @@ export function getTomatoStunChance(thrower: Player): number {
 export const TOMATO_ENJOYER_HIT_REWARD = 5;
 
 /** Items a bag holds a single copy of. */
-const SINGLE_COPY_ITEMS: ItemId[] = ["eraser", "made-in-heaven"];
+const SINGLE_COPY_ITEMS: ItemId[] = ["eraser", "made-in-heaven", "mirror"];
 
 /**
  * Copies of an item a bag may hold: two, a single Gomme or Made In Heaven, a

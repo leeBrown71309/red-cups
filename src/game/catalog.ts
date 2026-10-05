@@ -8,7 +8,8 @@ export interface ItemDefinition {
   symbol: string;
   /** A general description, for the shop, the bag, How to play and the target picker. */
   description: string;
-  target: "self" | "player" | "none" | "special";
+  /** `road`: the player picks a road beside their tile (the Barrière). */
+  target: "self" | "player" | "none" | "special" | "road";
   /** Energy spent to use it on your turn; nothing for the items that trigger on their own. */
   energyCost: number;
   /**
@@ -224,6 +225,46 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     target: "special",
     energyCost: 0,
   },
+  "wake-up": {
+    id: "wake-up",
+    name: "Réveil",
+    price: 250,
+    symbol: "⏰",
+    description:
+      "S’active tout seul : annule ton prochain tour sauté (Middle Finger, Bullet Bill, boule de neige, roue…). Un seul usage.",
+    target: "special",
+    energyCost: 0,
+  },
+  parachute: {
+    id: "parachute",
+    name: "Parachute",
+    price: 450,
+    symbol: "☂",
+    description:
+      "S’active tout seul : annule ta prochaine descente en Enfer, quelle qu’en soit la cause. Un seul usage.",
+    target: "special",
+    energyCost: 0,
+  },
+  barrier: {
+    id: "barrier",
+    name: "Barrière",
+    price: 350,
+    symbol: "⛔",
+    description:
+      "Bloque une route voisine de ta case jusqu’à ton prochain tour : personne n’y passe à pied. Une seule barrière sur le plateau à la fois.",
+    target: "road",
+    energyCost: 2,
+  },
+  mirror: {
+    id: "mirror",
+    name: "Miroir",
+    price: 700,
+    symbol: "◈",
+    description:
+      "S’active tout seul : renvoie à son lanceur le prochain objet qui te vise (Ndoye, Hollow Purple, Middle Finger, Corde). Un seul par partie et par joueur.",
+    target: "special",
+    energyCost: 0,
+  },
 };
 
 export const ITEM_ORDER: ItemId[] = [
@@ -239,6 +280,10 @@ export const ITEM_ORDER: ItemId[] = [
   "monopoly-man",
   "water-bottle",
   "helmet",
+  "wake-up",
+  "parachute",
+  "barrier",
+  "mirror",
   "draven",
   "made-in-heaven",
   "shield",

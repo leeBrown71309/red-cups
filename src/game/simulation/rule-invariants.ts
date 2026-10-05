@@ -938,6 +938,19 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   }
 }
 
+const AUTOMATIC_ITEMS: ItemId[] = ["wake-up", "parachute", "mirror"];
+
+/** True when any player's bag lost a Réveil, a Parachute or a Miroir without the owner using it by hand. */
+function spentAnAutomaticItem(previous: GameState, next: GameState): boolean {
+  return previous.players.some((before) => {
+    const after = findPlayer(next, before.id);
+    return (
+      after !== undefined &&
+      AUTOMATIC_ITEMS.some((itemId) => countItemUnits(after, itemId) < countItemUnits(before, itemId))
+    );
+  });
+}
+
 /** Nobody stays in Hell past their sentence, and nobody is let out early. */
 function checkHellSentence(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (!turnChanged(previous, next) || next.phase !== "playing") return;
@@ -977,6 +990,8 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   const found: RuleViolation[] = [];
   checkAdvancedPassives(previous, nextState, found);
   if (previous.turnStage === "gamble") return found;
+  // A Réveil, a Parachute or a Miroir spent in this action cancels an effect the checks below expect.
+  if (spentAnAutomaticItem(previous, nextState)) return found;
   const next = withoutGamblePause(nextState);
   // An item announced to a Non merci holder has not happened yet.
   const itemApplied = appliedItem && next.turnStage !== "reaction" ? appliedItem : undefined;

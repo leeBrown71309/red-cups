@@ -263,6 +263,64 @@ const ITEM_ARTWORK: Record<ItemId, () => ReactElement> = {
       <path d="M32 26 V48 M24 35 H40" stroke="#4fa5f2" strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
+  // An alarm clock: wakes a player who was to sleep a turn.
+  "wake-up": () => (
+    <>
+      <circle cx="18" cy="14" r="8" fill="#ffd166" {...OUTLINE} strokeWidth="3" />
+      <circle cx="46" cy="14" r="8" fill="#ffd166" {...OUTLINE} strokeWidth="3" />
+      <path d="M12 56 L18 48 M52 56 L46 48" stroke={INK} strokeWidth="4" strokeLinecap="round" />
+      <circle cx="32" cy="35" r="21" fill="#e8453c" {...OUTLINE} />
+      <circle cx="32" cy="35" r="14" fill="#fff4ec" stroke={INK} strokeWidth="3" />
+      <path d="M32 35 V25 M32 35 L39 39" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M24 9 L32 14 L40 9" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
+  // A parachute: no fall into Hell.
+  parachute: () => (
+    <>
+      <path
+        d="M6 28 C6 10 58 10 58 28 C52 24 46 24 40 28 C36 24 28 24 24 28 C18 24 12 24 6 28 Z"
+        fill="#e8453c"
+        {...OUTLINE}
+      />
+      <path
+        d="M24 28 C26 18 28 12 32 12 M40 28 C38 18 36 12 32 12"
+        fill="none"
+        stroke="#fff4ec"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M8 28 L28 50 M56 28 L36 50 M24 28 L30 50 M40 28 L34 50"
+        stroke={INK}
+        strokeWidth="2.5"
+        strokeLinecap="round"
+      />
+      <rect x="26" y="48" width="12" height="10" rx="3" fill="#ffd166" {...OUTLINE} strokeWidth="3" />
+    </>
+  ),
+  // A road barrier in red and white stripes.
+  barrier: () => (
+    <>
+      <path d="M12 58 V28 M52 58 V28" stroke={INK} strokeWidth="6" strokeLinecap="round" />
+      <path d="M12 58 V28 M52 58 V28" stroke="#c9c1b6" strokeWidth="2.5" strokeLinecap="round" />
+      <rect x="4" y="16" width="56" height="16" rx="3" fill="#fff4ec" {...OUTLINE} />
+      <path d="M14 16 L8 32 M26 16 L20 32 M38 16 L32 32 M50 16 L44 32" stroke="#e8453c" strokeWidth="6" />
+      <rect x="4" y="16" width="56" height="16" rx="3" fill="none" {...OUTLINE} />
+      <circle cx="32" cy="9" r="4" fill="#ffd166" {...OUTLINE} strokeWidth="2.5" />
+    </>
+  ),
+  // A hand mirror, with its glint.
+  mirror: () => (
+    <>
+      <path d="M32 40 V58" stroke={INK} strokeWidth="9" strokeLinecap="round" />
+      <path d="M32 40 V58" stroke="#c98e5a" strokeWidth="4.5" strokeLinecap="round" />
+      <ellipse cx="32" cy="24" rx="19" ry="21" fill="#c98e5a" {...OUTLINE} />
+      <ellipse cx="32" cy="24" rx="14" ry="16" fill="#cfe9ff" stroke={INK} strokeWidth="3" />
+      <path d="M22 18 C24 12 30 9 36 10" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+      <path d="M40 30 L44 34" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
+    </>
+  ),
 };
 
 export function ItemIcon({ itemId, size, className }: IconProps & { itemId: ItemId }) {

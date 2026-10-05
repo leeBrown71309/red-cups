@@ -1,5 +1,5 @@
 import { hasCard } from "./cards";
-import { getBoard, getNeighbors, getShortestPath } from "./board";
+import { getNeighbors, getOpenBoard, getShortestPath } from "./board";
 import { createEngineId } from "./engine-random";
 import { settleBoard } from "./game-effects";
 import { carryOffIce } from "./ice";
@@ -96,7 +96,7 @@ function setDown(player: Player, nodeId: NodeId): Player {
  */
 function nudgeAfterDraw(state: GameState, attacker: Player, defender: Player): GameState {
   if (attacker.position === HELL_NODE_ID || defender.position === HELL_NODE_ID) return state;
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   const path = getShortestPath(board, attacker.position, defender.position, true);
   if (!path || path.length === 0) return state;
 

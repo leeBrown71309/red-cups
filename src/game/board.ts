@@ -18,12 +18,19 @@ export interface Board {
   carouselReversed: boolean;
   /** Banquise: the blizzard's temporary ice tile, on top of the map's own ice. */
   iceTileNodeId: NodeId | null;
+  /** The road a Barrière closes, as its two tiles: nobody walks it. */
+  blocked: [NodeId, NodeId] | null;
 }
 
 const boardCache = new Map<string, Board>();
 
-export function resolveBoard(mapId: MapId, carouselReversed = false, iceTileNodeId: NodeId | null = null): Board {
-  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}`;
+export function resolveBoard(
+  mapId: MapId,
+  carouselReversed = false,
+  iceTileNodeId: NodeId | null = null,
+  blocked: [NodeId, NodeId] | null = null,
+): Board {
+  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}:${blocked?.join("-") ?? ""}`;
   const cached = boardCache.get(key);
   if (cached) return cached;
 
@@ -39,13 +46,37 @@ export function resolveBoard(mapId: MapId, carouselReversed = false, iceTileNode
     normalNodeIds: nodes.filter((node) => node.id !== HELL_NODE_ID).map((node) => node.id),
     carouselReversed,
     iceTileNodeId,
+    blocked,
   };
   boardCache.set(key, board);
   return board;
 }
 
-export function getBoard(state: Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId">): Board {
+type BoardState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId"> & Partial<Pick<GameState, "barrier">>;
+
+/** The board as it stands: the Barrière, if there is one, closes its road to every walker. */
+export function getBoard(state: BoardState): Board {
+  const { barrier } = state;
+  return resolveBoard(
+    state.mapId,
+    state.carouselReversed,
+    state.iceTileNodeId,
+    barrier ? [barrier.a, barrier.b] : null,
+  );
+}
+
+/** The board without the Barrière: for what the Barrière does not stop (Bullet Bill, a pull, a draw of Calme-toi). */
+export function getOpenBoard(state: BoardState): Board {
   return resolveBoard(state.mapId, state.carouselReversed, state.iceTileNodeId);
+}
+
+/** Whether the road between two tiles is the one a Barrière closes. */
+export function isBlockedRoad(board: Board, fromNodeId: NodeId, toNodeId: NodeId): boolean {
+  const blocked = board.blocked;
+  return (
+    blocked !== null &&
+    ((blocked[0] === fromNodeId && blocked[1] === toNodeId) || (blocked[0] === toNodeId && blocked[1] === fromNodeId))
+  );
 }
 
 export function hasIce(board: Board): boolean {
@@ -116,7 +147,7 @@ export function getNeighbors(board: Board, nodeId: NodeId, ignoreArrows = false)
     }
   }
 
-  return [...neighbors].filter((neighbor) => neighbor !== HELL_NODE_ID);
+  return [...neighbors].filter((neighbor) => neighbor !== HELL_NODE_ID && !isBlockedRoad(board, nodeId, neighbor));
 }
 
 /** Tiles whose arrow points at the start: entering the start from them completes the loop. */

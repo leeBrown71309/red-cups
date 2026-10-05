@@ -166,6 +166,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
         : [],
       redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
+      barrierEdge: playing && game.barrier ? [game.barrier.a, game.barrier.b] : null,
       portalNodeIds: playing
         ? game.hellPortals.filter((portal) => isPortalVisible(game, portal)).map((portal) => portal.nodeId)
         : [],

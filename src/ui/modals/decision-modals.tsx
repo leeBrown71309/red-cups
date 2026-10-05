@@ -1,3 +1,4 @@
+import { getBarrierRoads } from "../../game/turn-actions";
 import { hasCard } from "../../game/cards";
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
@@ -72,6 +73,23 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
   const units = getEntryUnits(entry);
   const target = players.find((player) => player.id === targetId);
 
+  // The Barrière aims at a road, not at a player.
+  if (item.target === "road") {
+    return (
+      <RoadTargetModal
+        itemName={item.name}
+        description={item.description}
+        itemId={entry.itemId}
+        fromNodeId={activePlayer.position}
+        onPick={(nodeId) => {
+          useItem(entry.id, undefined, undefined, nodeId);
+          onClose();
+        }}
+        onClose={onClose}
+      />
+    );
+  }
+
   const throwAt = (playerId: PlayerId, volley: number) => {
     useItem(entry.id, playerId, volley > 1 ? volley : undefined);
     onClose();
@@ -144,6 +162,41 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
           }
         }}
       />
+    </ModalShell>
+  );
+}
+
+/** The Barrière: which road beside the player's tile to close. */
+function RoadTargetModal({
+  itemName,
+  description,
+  itemId,
+  fromNodeId,
+  onPick,
+  onClose,
+}: {
+  itemName: string;
+  description: string;
+  itemId: ItemId;
+  fromNodeId: number;
+  onPick: (nodeId: number) => void;
+  onClose: () => void;
+}) {
+  const game = useGameStore();
+  const roads = getBarrierRoads(game, fromNodeId).sort((left, right) => left - right);
+  return (
+    <ModalShell title={`Où poser ${itemName} ?`} eyebrow="Choisis une route" onClose={onClose} className="target-modal">
+      <div className="target-modal__item">
+        <ItemIcon itemId={itemId} size={46} />
+        <p>{description}</p>
+      </div>
+      <div className="modal-actions">
+        {roads.map((nodeId) => (
+          <button key={nodeId} type="button" className="btn btn--cream" onClick={() => onPick(nodeId)}>
+            <UiIcon name="arrowRight" size={18} /> Route vers la case {nodeId}
+          </button>
+        ))}
+      </div>
     </ModalShell>
   );
 }

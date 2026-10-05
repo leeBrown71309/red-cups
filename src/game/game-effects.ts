@@ -1,6 +1,6 @@
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
+import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
@@ -39,6 +39,7 @@ import {
   randomChoice,
   sendPlayerToHell,
   updatePlayer,
+  loseTurns,
 } from "./state-utils";
 import type {
   GameState,
@@ -347,7 +348,7 @@ function getDistanceToCup(board: Board, cupNodeId: NodeId, nodeId: NodeId): numb
 export function getCalmDownTiles(state: GameState): NodeId[] {
   const cupNodeId = state.redCupNodeId;
   if (cupNodeId === null) return [];
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   return board.normalNodeIds.filter(
     (nodeId) => !isIce(board, nodeId) && getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE,
   );
@@ -363,7 +364,7 @@ export function addCupCycleEffects(state: GameState): GameState {
   const cupNodeId = state.redCupNodeId;
   if (!holder || cupNodeId === null || getCalmDownTiles(state).length === 0) return state;
 
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   const holderDistance = getDistanceToCup(board, cupNodeId, holder.position);
   const targets = state.players.filter((player) => {
     const distance = getDistanceToCup(board, cupNodeId, player.position);
@@ -607,10 +608,7 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId,
   nextState = addLog(nextState, `${player.name} tombe dans la Boue.`, "bad");
   // L'Ange-Gardien loses their next turn rather than coins; the mud's owner is paid all the same.
   if (avoidsHell(player)) {
-    nextState = updatePlayer(nextState, playerId, (current) => ({
-      ...current,
-      skippedTurns: current.skippedTurns + 1,
-    }));
+    nextState = updatePlayer(nextState, playerId, (current) => loseTurns(current));
     nextState = addLog(nextState, `${player.name} perd son prochain tour dans la Boue.`, "bad");
   } else {
     nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
@@ -822,8 +820,16 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   };
   // Le diable's Portails, Black Cup and Doomsday last whole rounds, from turn to turn.
   nextState = expireDevilSpells(nextState);
+  nextState = expireBarrier(nextState, activePlayer.id);
   nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);
+}
+
+/** The Barrière falls when its owner's turn comes round again, or when its owner has left the table. */
+function expireBarrier(state: GameState, seatedId: PlayerId): GameState {
+  const barrier = state.barrier;
+  if (!barrier || (barrier.ownerId !== seatedId && findPlayer(state, barrier.ownerId))) return state;
+  return addLog({ ...state, barrier: null }, "La Barrière tombe : la route est de nouveau ouverte.", "event");
 }
 
 /** The turn change holds while Bullet Bill's victim (Non merci) or their angel (Bouclier) decides. */

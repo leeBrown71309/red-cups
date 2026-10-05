@@ -144,7 +144,12 @@ export type ItemId =
   | "sentence"
   | "doomsday"
   /** L'Ange-Gardien's own item. */
-  | "shield";
+  | "shield"
+  // Items added in patch 0.1.6: three that act on their own, and the Barrière.
+  | "wake-up"
+  | "parachute"
+  | "barrier"
+  | "mirror";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -198,6 +203,10 @@ export interface Player {
   passiveId: PassiveId;
   /** The player's passif: a card that helps in one kind of situation; none until the draft is over. */
   passifId?: PassiveId | null;
+  /** Items that acted on their own during the action in progress, announced in the journal and then cleared. */
+  spentItems?: ItemId[];
+  /** The Miroir was used: this player may not buy another one this game. */
+  mirrorUsed?: boolean;
   skippedTurns: number;
   /** First round in which Non merci may cancel an action again. */
   noThanksReadyRound: number;
@@ -380,6 +389,13 @@ export type GhostReward =
 export interface GhostStakes {
   penalty: GhostPenalty;
   reward: GhostReward;
+}
+
+/** A road between two tiles closed by its owner's Barrière until their turn comes again. */
+export interface Barrier {
+  ownerId: PlayerId;
+  a: NodeId;
+  b: NodeId;
 }
 
 /** Meneur de jeu: two mini-games were drawn, and `chooserId` picks the one the duel is played with. */
@@ -713,6 +729,8 @@ export interface GameState {
   pendingWheel: PendingWheel | null;
   pendingDuel: PendingDuel | null;
   pendingDuelChoice: PendingDuelChoice | null;
+  /** The Barrière on a road: nobody walks it until its owner's next turn. */
+  barrier: Barrier | null;
   pendingDiscard: PendingDiscard | null;
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
@@ -818,6 +836,7 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingWheel: null,
   pendingDuel: null,
   pendingDuelChoice: null,
+  barrier: null,
   pendingDiscard: null,
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,

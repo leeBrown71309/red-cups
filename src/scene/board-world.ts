@@ -16,7 +16,13 @@ import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from ".
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
 import { createIceCrevasse } from "./models/polar-landmarks-model";
 import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
-import { createHellPortal, createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
+import {
+  createBarrierProp,
+  createHellPortal,
+  createMudPuddle,
+  createRedCup,
+  type AnimatedProp,
+} from "./models/props-model";
 import { createTileArrow } from "./models/tile-arrow-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
@@ -36,6 +42,8 @@ export interface BoardView {
   mudNodeIds: NodeId[];
   /** Le diable's Portails onto Hell. */
   portalNodeIds: NodeId[];
+  /** The road a Barrière closes, as its two tiles. */
+  barrierEdge: [NodeId, NodeId] | null;
   bulletBill: BulletView | null;
   /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
   bulletFlightSeq: number | null;
@@ -99,6 +107,8 @@ export class BoardWorld {
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
   private readonly portals = new Map<NodeId, AnimatedProp>();
+  /** The Barrière on its road, with the road it stands on. */
+  private barrierProp: { key: string; prop: AnimatedProp } | null = null;
   /** The arrows of the arrow tiles, which ride on their tile. */
   private readonly tileArrows: AnimatedProp[] = [];
   /** Banquise: the penguins of the scenery, who throw the snowballs. */
@@ -198,6 +208,7 @@ export class BoardWorld {
 
     this.syncMud(view.mudNodeIds);
     this.syncPortals(view.portalNodeIds);
+    this.syncBarrier(view.barrierEdge);
     this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
     this.ghost?.sync(view.ghost, view.ghostEventSeq);
     this.refreshCoveredTiles(view);
@@ -414,6 +425,27 @@ export class BoardWorld {
     this.scene.add(prop.group);
   }
 
+  /** The Barrière lies across the middle of its road, the bar across the way. */
+  private syncBarrier(edge: [NodeId, NodeId] | null): void {
+    const key = edge ? edge.join("-") : "";
+    if (this.barrierProp && this.barrierProp.key === key) return;
+    if (this.barrierProp) {
+      this.barrierProp.prop.group.removeFromParent();
+      this.barrierProp = null;
+    }
+    if (!edge) return;
+    const from = this.layout.getNodePosition(edge[0]);
+    const to = this.layout.getNodePosition(edge[1]);
+    const prop = createBarrierProp(this.kit);
+    prop.group.position
+      .copy(from)
+      .lerp(to, 0.5)
+      .setY(TILE_HEIGHT * 0.5);
+    prop.group.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+    this.scene.add(prop.group);
+    this.barrierProp = { key, prop };
+  }
+
   /** Le diable's Portails sit on the tile's top, in its back-left quarter, clear of the mud. */
   private syncPortals(nodeIds: NodeId[]): void {
     const wanted = new Set(nodeIds);
@@ -494,6 +526,7 @@ export class BoardWorld {
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
     for (const portal of this.portals.values()) portal.update(elapsed, delta);
+    this.barrierProp?.prop.update(elapsed, delta);
     for (const arrow of this.tileArrows) arrow.update(elapsed, delta);
     for (const tile of this.tiles.values()) tile.update(elapsed, delta);
 

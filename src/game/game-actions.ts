@@ -73,12 +73,15 @@ import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getPriceF
 import {
   addBagLog,
   addLog,
+  announceSpentItems,
   appendItem,
   applyCurrencyChange,
+  findItemEntry,
   findPlayer,
   getActivePlayer,
   getEntryUnits,
   getItemEntry,
+  loseTurns,
   makeLog,
   placeInHell,
   randomChoice,
@@ -92,6 +95,7 @@ import {
   cancelDeclaredAction,
   carryOutDeclaredAction,
   isThrownItem,
+  REFLECTABLE_ITEMS,
   openReactionWindow,
   planItemUse,
   planMove,
@@ -157,7 +161,7 @@ export type GameAction =
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
-  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
+  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number; targetNodeId?: NodeId }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
@@ -377,10 +381,7 @@ function applyWheelOutcome(
     }
     case "skip-turn":
     case "hell-skip": {
-      const nextState = updatePlayer(state, player.id, (current) => ({
-        ...current,
-        skippedTurns: current.skippedTurns + 1,
-      }));
+      const nextState = updatePlayer(state, player.id, (current) => loseTurns(current));
       return addLog(nextState, `${player.name} devra passer son prochain tour.`, "bad");
     }
     case "go-to-hell":
@@ -605,10 +606,26 @@ function useItem(
   entryId: string,
   targetPlayerId: PlayerId | undefined,
   count: number | undefined,
+  targetNodeId?: NodeId,
 ): GameState {
-  const plan = planItemUse(state, entryId, targetPlayerId, count);
+  const plan = planItemUse(state, entryId, targetPlayerId, count, targetNodeId);
   if (!plan) return state;
   if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
+  // A Miroir answers before anybody else may: it sends the item back to its user.
+  const mirror =
+    plan.target && REFLECTABLE_ITEMS.includes(plan.itemId) ? findItemEntry(plan.target, "mirror") : undefined;
+  if (plan.target && mirror) {
+    const spent = updatePlayer(state, plan.target.id, (current) => ({
+      ...spendItemEntry(current, mirror.id),
+      mirrorUsed: true,
+    }));
+    const logged = addLog(
+      spent,
+      `Le Miroir de ${plan.target.name} renvoie ${ITEM_CATALOG[plan.itemId].name} sur son lanceur !`,
+      "good",
+    );
+    return applyItemUse(logged, entryId, { ...plan, reflected: true });
+  }
   const waiting = openReactionWindow(state, {
     type: "item",
     entryId,
@@ -865,6 +882,11 @@ function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState 
 
   let nextState = updatePlayer(state, targetPlayerId, placeInHell);
   nextState = { ...nextState, pendingChallenge: null };
+  // A Parachute kept them out of Hell: nobody to duel there.
+  if (findPlayer(nextState, targetPlayerId)?.position !== HELL_NODE_ID) {
+    nextState = addLog(nextState, `${target.name} reste où il est : pas de duel.`, "event");
+    return settleBoard({ ...nextState, turnStage: pending.resumeStage }, pending.resumeStage);
+  }
   nextState = addLog(nextState, `${target.name} est appelé en Enfer pour un duel.`, "event");
   return startDuel(nextState, pending.playerId, targetPlayerId, pending.resumeStage);
 }
@@ -1021,7 +1043,7 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
   const counted = rewardHellRegulars(prepared, rewardDevilInHell(prepared, recordPreviousTiles(prepared, result)));
   const forfeited = applyForfeits(counted);
-  const settled = offerGamble(checkVictories(skipBenchedTurns(forfeited)));
+  const settled = announceSpentItems(offerGamble(checkVictories(skipBenchedTurns(forfeited))));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;
@@ -1062,7 +1084,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "stealItem":
       return stealItem(state, action.itemId);
     case "useItem":
-      return useItem(state, action.entryId, action.targetPlayerId, action.count);
+      return useItem(state, action.entryId, action.targetPlayerId, action.count, action.targetNodeId);
     case "resolveReaction":
       return resolveReaction(state, action.reactorId);
     case "endTurn":
