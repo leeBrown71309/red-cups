@@ -70,7 +70,11 @@ export function GameHud() {
 
   return (
     <div className={`hud ${decision ? "has-decision" : ""}`}>
-      <TopBar onOpenMenu={() => setOverlay("menu")} onOpenHelp={() => setOverlay("help")} />
+      <TopBar
+        onOpenMenu={() => setOverlay("menu")}
+        onOpenJournal={() => setOverlay("journal")}
+        onOpenHelp={() => setOverlay("help")}
+      />
       <EventToasts />
       <CameraControls />
       <PlayersPanel />

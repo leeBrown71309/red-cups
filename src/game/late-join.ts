@@ -42,12 +42,7 @@ function drawLatePassive(state: GameState): PassiveId {
   return randomChoice(free) ?? "lambda";
 }
 
-export function joinLatePlayer(
-  state: GameState,
-  playerId: PlayerId,
-  name: string,
-  color: PlayerColor,
-): GameState {
+export function joinLatePlayer(state: GameState, playerId: PlayerId, name: string, color: PlayerColor): GameState {
   if (!canJoinLate(state) || state.players.some((player) => player.id === playerId)) return state;
   const offer = state.draft ? dealLateOffer(state) : null;
   const passiveId = offer ? offer[0] : drawLatePassive(state);

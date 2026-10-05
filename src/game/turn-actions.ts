@@ -225,6 +225,9 @@ export function planItemUse(
   return { itemId, target, count };
 }
 
+/** Items whose use already writes a line naming the player (patch 0.1.5 journal). */
+const SELF_ANNOUNCED_ITEMS: ItemId[] = ["ndoye", "bullet-bill", "mud", "tomato"];
+
 export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan): GameState {
   const player = getActivePlayer(state);
   if (!player) return state;
@@ -237,6 +240,11 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   }
   if (itemId === "mud") nextState = { ...nextState, mudPlacedThisTurn: true };
   if (isThrownItem(itemId)) nextState = { ...nextState, thrownStackId: entryId };
+  // Every use shows in the journal; the items below announce themselves in their own words.
+  if (!SELF_ANNOUNCED_ITEMS.includes(itemId)) {
+    const on = target ? ` sur ${target.name}` : "";
+    nextState = addLog(nextState, `${player.name} utilise ${ITEM_CATALOG[itemId].name}${on}.`, "event");
+  }
 
   switch (itemId) {
     case "ndoye":

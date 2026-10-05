@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { getStartBonusNodeIds, resolveBoard } from "../../game/board";
-import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
+import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "../../game/catalog";
 import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
@@ -9,10 +9,10 @@ import { BASE_ENERGY, HELL_EXIT_TOLL, HELL_TURN_LIMIT, START_BONUS } from "../..
 import { BoardMap, TileArrowSwatch } from "../components/board-map";
 import { EnergyCost } from "../components/energy-meter";
 import { ModalShell } from "../components/modal-shell";
+import { PassiveCard } from "../components/passive-card";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
-import { UiIcon } from "../icons/ui-icon";
 import { useMapChoiceStore } from "../lobby/map-choice-store";
 
 type HelpTab = "board" | "turn" | "items" | "passives";
@@ -54,7 +54,7 @@ function getTurnSteps(mapId: MapId): string[] {
       "énergie. Ce que tu achètes sert à partir de ton prochain tour. Deux exemplaires au plus d’un même objet, " +
       "une seule Gomme. Les Tomates s’empilent par 5 : une pile compte comme un exemplaire, et tu ne lances " +
       "qu’une pile par tour.",
-    "Ramasse 3 Red Cups pour gagner (Cupide gagne à 5 000 pièces, le diable quand les autres ont passé assez de tours en Enfer, " +
+    "Ramasse 3 Red Cups pour gagner (Cupide gagne à 6 000 pièces, le diable quand les autres ont passé assez de tours en Enfer, " +
       "L’Ange-Gardien avec son protégé). Chaque Cup prend une place de ton " +
       "sac (4 places) ; " +
       "sac plein, tu jettes un objet, jamais une Cup.",
@@ -208,23 +208,12 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
       )}
 
       {tab === "passives" && (
-        <ul className="help-cards">
-          {PASSIVE_ORDER.map((passiveId) => {
-            const passive = PASSIVE_CATALOG[passiveId];
-            return (
-              <li key={passiveId} className="help-card help-card--passive">
-                <header className="help-card__head">
-                  <span className="help-card__art help-card__art--passive" aria-hidden="true">
-                    <UiIcon name="sparkle" size={20} strokeWidth={2.6} />
-                  </span>
-                  <div className="help-card__title">
-                    <strong>{passive.name}</strong>
-                  </div>
-                </header>
-                <HelpCardText text={passive.description} />
-              </li>
-            );
-          })}
+        <ul className="tarot-deck">
+          {PASSIVE_ORDER.map((passiveId) => (
+            <li key={passiveId}>
+              <PassiveCard passiveId={passiveId} />
+            </li>
+          ))}
         </ul>
       )}
     </ModalShell>

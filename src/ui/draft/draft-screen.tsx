@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { PASSIVE_CATALOG } from "../../game/catalog";
 import { getPlayersToPick } from "../../game/draft";
 import { useGameStore } from "../../game/store";
 import type { PassiveId, Player } from "../../game/types";
 import { getServerNow, useLocalPlayerId } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
+import { PassiveCard } from "../components/passive-card";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
 import { useClockBeeps } from "../hud/use-clock-beeps";
@@ -32,26 +32,16 @@ function PassiveCards({
   return (
     <ul className="draft-cards" aria-label="Passifs proposés">
       {offers.map((passiveId) => {
-        const passive = PASSIVE_CATALOG[passiveId];
         const selected = picked === passiveId;
         return (
           <li key={passiveId}>
-            <button
-              type="button"
-              className={`draft-card ${selected ? "is-selected" : ""}`}
-              aria-pressed={selected}
-              onClick={() => onPick(passiveId)}
-            >
-              <span className="draft-card__name">
-                <UiIcon name="sparkle" size={16} /> {passive.name}
-              </span>
-              <span className="draft-card__text">{passive.description}</span>
+            <PassiveCard passiveId={passiveId} selected={selected} onPick={() => onPick(passiveId)}>
               {selected && (
-                <span className="draft-card__picked">
+                <span className="tarot-card__picked">
                   <UiIcon name="check" size={14} /> Choisi
                 </span>
               )}
-            </button>
+            </PassiveCard>
           </li>
         );
       })}

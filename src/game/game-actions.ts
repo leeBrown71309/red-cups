@@ -604,7 +604,8 @@ function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: 
 
 function endTurn(state: GameState): GameState {
   if (!canEndTurn(state)) return state;
-  return endTurnNow(state);
+  const player = getActivePlayer(state);
+  return endTurnNow(player ? addLog(state, `${player.name} termine son tour.`, "event") : state);
 }
 
 /** The turn is over, whatever is left of it; a broke table first goes through its Tour de Bénédiction. */

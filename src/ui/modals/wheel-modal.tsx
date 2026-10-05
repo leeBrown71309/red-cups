@@ -155,14 +155,17 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
           ) : (
             <div className="wheel-waiting">
               <p>Suspense…</p>
-              <button
-                type="button"
-                className="btn btn--cream btn--small"
-                onClick={() => (skipRef.current = true)}
-                data-silent
-              >
-                Passer l’animation
-              </button>
+              {/* Only the table's player of this wheel may hurry it along. */}
+              {canAct && (
+                <button
+                  type="button"
+                  className="btn btn--cream btn--small"
+                  onClick={() => (skipRef.current = true)}
+                  data-silent
+                >
+                  Passer l’animation
+                </button>
+              )}
             </div>
           )}
         </div>

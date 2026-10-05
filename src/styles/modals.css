@@ -1752,3 +1752,65 @@
   text-transform: uppercase;
   vertical-align: middle;
 }
+
+/*
+ * Help on a phone (patch 0.1.5): one scroll for the whole tab. Panes that
+ * scroll inside a scrolling body trap the finger, so on a small screen
+ * nothing but the body scrolls and the tabs stay in sight above it.
+ */
+@media (max-width: 760px), (max-height: 520px) {
+  .help-modal .modal-card__body {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .help-modal .modal-card__body:has(> .help-board) {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .help-modal .modal-card__body > .segmented {
+    position: sticky;
+    top: -16px;
+    z-index: 2;
+    margin-top: -16px;
+    padding-top: 8px;
+    box-shadow: 0 -12px 0 var(--cream);
+  }
+
+  .help-modal .help-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+  }
+
+  .help-board__plan {
+    width: min(100%, 440px);
+    margin-inline: auto;
+  }
+
+  .help-modal .segmented__option {
+    min-height: 32px;
+    padding: 0 6px;
+    font-size: 0.9rem;
+  }
+
+  .help-board__legend {
+    max-height: none;
+    padding-right: 0;
+    overflow: visible;
+  }
+
+  .help-cards {
+    grid-template-columns: repeat(auto-fill, minmax(min(250px, 100%), 1fr));
+  }
+
+  .help-card,
+  .help-card--passive {
+    height: auto;
+  }
+
+  .help-card__text {
+    max-height: none;
+    overflow: visible;
+  }
+}

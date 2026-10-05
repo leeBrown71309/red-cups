@@ -6,7 +6,7 @@ import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
 /** Small immutable helpers shared by every rule of the engine. */
 
-const MAX_LOG_ENTRIES = 60;
+const MAX_LOG_ENTRIES = 120;
 
 export function makeLog(text: string, tone: GameLogEntry["tone"] = "neutral"): GameLogEntry {
   return { id: createEngineId(), text, tone };

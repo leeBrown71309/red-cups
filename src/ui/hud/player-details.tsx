@@ -11,6 +11,7 @@ import { EnergyGauge } from "../components/energy-meter";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CloverIcon, CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
+import { UiIcon } from "../icons/ui-icon";
 import { CupPips, getAvatarExpression, getChancesLeft, getPlayerStatuses, StatusToken } from "./player-status";
 
 const DETAILS_WIDTH = 290;
@@ -105,7 +106,15 @@ function ChancesStat({ player }: { player: Player }) {
   );
 }
 
-export function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
+export function PlayerDetails({
+  player,
+  anchor,
+  onClose,
+}: {
+  player: Player;
+  anchor: DetailsAnchor;
+  onClose: () => void;
+}) {
   const round = useGameStore((state) => state.round);
   const game = useGameStore();
   // The chances only count online, where turns have a clock.
@@ -146,6 +155,14 @@ export function PlayerDetails({ player, anchor }: { player: Player; anchor: Deta
               {player.position === HELL_NODE_ID ? "En Enfer" : `Case ${player.position}`}
             </span>
           </div>
+          <button
+            type="button"
+            className="icon-button player-details__close"
+            onClick={onClose}
+            aria-label={`Fermer les détails de ${player.name}`}
+          >
+            <UiIcon name="close" size={16} strokeWidth={3} />
+          </button>
         </div>
         {statuses.length > 0 && (
           <ul className="player-details__statuses">

@@ -84,7 +84,9 @@ export function startWheel(
     pendingWheel: { id: createEngineId(), wheelId, playerId, result, resumeStage, ...options },
     turnStage: "wheel-result",
   };
-  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]} indique : ${result.label}.`, "event");
+  const spinner = findPlayer(state, playerId);
+  const whose = spinner ? ` de ${spinner.name}` : "";
+  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}.`, "event");
 }
 
 /**

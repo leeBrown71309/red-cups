@@ -270,6 +270,8 @@
 .player-details {
   position: fixed;
   z-index: 30;
+  /* The panel around it lets clicks through to the board: the card must catch its own wheel and touches. */
+  pointer-events: auto;
   width: min(290px, calc(100vw - 16px));
   transform-origin: left var(--arrow-top, 50%);
   animation: details-in 200ms var(--ease-out) both;
@@ -296,6 +298,7 @@
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   scrollbar-width: thin;
 }
 
@@ -376,6 +379,13 @@
   gap: 10px;
 }
 
+.player-details__close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+}
+
 .player-details__head strong {
   display: block;
   font-family: var(--font-display);
@@ -445,6 +455,7 @@
  */
 .scroll-block {
   padding-right: 4px;
+  touch-action: pan-y;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;

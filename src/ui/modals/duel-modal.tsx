@@ -231,6 +231,14 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
     if (decided || showingTie) soundEffects.reveal();
   }, [decided, showingTie]);
 
+  // Online, only a duellist presses « On rejoue »: the others watch the tie, then the table goes on by itself.
+  const canAdvanceTie = localPlayerId === null || choosers.some((duellist) => duellist.id === localPlayerId);
+  useEffect(() => {
+    if (!showingTie || canAdvanceTie) return undefined;
+    const timer = window.setTimeout(() => setSeenTies(duel.rpsTies), TIE_BREAK_REVEAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [showingTie, canAdvanceTie, duel.rpsTies]);
+
   useEffect(() => {
     // A new round starts with nobody's hand picked: the local hand-over starts over too.
     if (Object.keys(duel.rpsChoices).length === 0) setHandedOver(false);
@@ -248,9 +256,13 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
     return (
       <div className="duel-panel">
         <HandsReveal duel={duel} first={first} second={second} />
-        <button type="button" className="btn btn--gold" onClick={() => setSeenTies(duel.rpsTies)} data-autofocus>
-          Égalité ! On rejoue
-        </button>
+        {canAdvanceTie ? (
+          <button type="button" className="btn btn--gold" onClick={() => setSeenTies(duel.rpsTies)} data-autofocus>
+            Égalité ! On rejoue
+          </button>
+        ) : (
+          <p className="duel-secret">Égalité ! On rejoue…</p>
+        )}
       </div>
     );
   }
