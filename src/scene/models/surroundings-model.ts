@@ -4,6 +4,18 @@ import type { MapThemeId } from "../../game/maps/map-types";
 import { SCENE_COLORS } from "../../theme/palette";
 import { RIM_THICKNESS, type BoardLayout } from "../board-layout";
 import { createRandom, jitterGeometry, type SceneKit } from "../scene-kit";
+import {
+  circleFlight,
+  createBird,
+  createDog,
+  createFox,
+  createPolarBear,
+  createRabbit,
+  createSeal,
+  createSheep,
+  Mover,
+  type Poseable,
+} from "./creatures-model";
 import type { AnimatedProp } from "./props-model";
 
 /**
@@ -18,6 +30,10 @@ import type { AnimatedProp } from "./props-model";
 /** Ground of the table the tray stands on, just below its shadow plane. */
 const GROUND_Y = -1.7;
 const GROUND_RADIUS = 70;
+/** Where the visitors walk, in units beyond the rim. */
+const LANE_MIN = 2.4;
+const LANE_MAX = 4.4;
+const LANE_GAP = 3.4;
 
 interface Surroundings {
   group: THREE.Group;
@@ -92,7 +108,7 @@ class Placer {
    * side facing the camera, where they would hide the tiles.
    */
   spot(minGap: number, maxGap: number, frontSafe = true): { x: number; z: number; gap: number } {
-    const gap = this.between(minGap, maxGap);
+    const gap = this.keepOffLane(this.between(minGap, maxGap));
     const alongWidth = this.outerWidth * 2;
     const alongDepth = this.outerDepth * 2;
     const horizontal = this.random() < alongWidth / (alongWidth + alongDepth);
@@ -107,6 +123,29 @@ class Placer {
     const side = this.random() < 0.5 ? -1 : 1;
     const limit = frontSafe ? this.outerDepth * 0.6 : this.outerDepth;
     return { x: side * (this.outerWidth + gap), z: (this.random() * 2 - 1) * limit - (frontSafe ? 0.4 * gap : 0), gap };
+  }
+
+  /** The lane the visitors walk along stays free of trees and rocks: gaps inside it are pushed past its far edge. */
+  private keepOffLane(gap: number): number {
+    return gap > LANE_MIN && gap < LANE_MAX ? LANE_MAX + (gap - LANE_MIN) : gap;
+  }
+
+  /** A closed walking path round the tray, `gap` units beyond its rim, corners cut. `reversed` walks the other way. */
+  loop(gap: number, reversed = false): THREE.Vector3[] {
+    const width = this.outerWidth + gap;
+    const depth = this.outerDepth + gap;
+    const cut = 3;
+    const points = [
+      [-width + cut, -depth],
+      [width - cut, -depth],
+      [width, -depth + cut],
+      [width, depth - cut],
+      [width - cut, depth],
+      [-width + cut, depth],
+      [-width, depth - cut],
+      [-width, -depth + cut],
+    ].map(([x, z]) => new THREE.Vector3(x, GROUND_Y, z));
+    return reversed ? points.reverse() : points;
   }
 
   /** `color` seen through `gap` units of air. */
@@ -308,7 +347,7 @@ function buildToyBox(kit: SceneKit, world: Placer): Surroundings {
   const posts: Parameters<typeof instance>[2] = [];
   const bulbs: Parameters<typeof instance>[2] = [];
   for (let index = 0; index < 8; index += 1) {
-    const spot = world.spot(1.4, 2.2);
+    const spot = world.spot(1.0, 2.2);
     posts.push({
       position: new THREE.Vector3(spot.x, GROUND_Y + 1.2, spot.z),
       scale: scale(1),
@@ -336,10 +375,7 @@ function buildToyBox(kit: SceneKit, world: Placer): Surroundings {
   group.add(balloon.group);
   tickers.push(balloon.update);
 
-  // Butterflies flutter in loops above the flowers beside the tray.
-  const butterflies = createButterflies(world, 7);
-  group.add(butterflies.group);
-  tickers.push(butterflies.update);
+  tickers.push(addLife(group, world, kit, "toy-box"));
 
   const clouds = createClouds(world, { count: 8, color: "#ffffff", opacity: 0.92, minHeight: 12, maxHeight: 20 });
   group.add(clouds.group);
@@ -410,69 +446,33 @@ function createHotAirBalloon(kit: SceneKit): AnimatedProp {
   };
 }
 
-function createButterflies(world: Placer, count: number): AnimatedProp {
-  const group = new THREE.Group();
-  const wing = new THREE.BufferGeometry();
-  wing.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0.32, 0.18, 0.1, 0.3, -0.14, -0.05], 3));
-  wing.computeVertexNormals();
-  const flyers = Array.from({ length: count }, (_, index) => {
-    const spot = world.spot(0.8, 4.5, false);
-    const material = new THREE.MeshBasicMaterial({
-      color: SCENE_COLORS.flowers[index % SCENE_COLORS.flowers.length],
-      side: THREE.DoubleSide,
-    });
-    const body = new THREE.Group();
-    const left = new THREE.Mesh(wing, material);
-    const right = new THREE.Mesh(wing, material);
-    right.scale.x = -1;
-    body.add(left, right);
-    group.add(body);
-    return {
-      body,
-      left,
-      right,
-      cx: spot.x,
-      cz: spot.z,
-      radius: world.between(1.2, 2.8),
-      phase: world.rand() * 6,
-      speed: world.between(0.35, 0.7),
-    };
-  });
-  return {
-    group,
-    update: (elapsed) => {
-      for (const flyer of flyers) {
-        const angle = elapsed * flyer.speed + flyer.phase;
-        flyer.body.position.set(
-          flyer.cx + Math.cos(angle) * flyer.radius,
-          GROUND_Y + 2.4 + Math.sin(angle * 2.3) * 0.5,
-          flyer.cz + Math.sin(angle * 1.4) * flyer.radius,
-        );
-        flyer.body.rotation.y = -angle;
-        const flap = Math.sin(elapsed * 14 + flyer.phase) * 0.9;
-        flyer.left.rotation.z = flap;
-        flyer.right.rotation.z = -flap;
-      }
-    },
-  };
-}
-
 // --------------------------------------------------------------- night fair
 
 function buildNightFair(kit: SceneKit, world: Placer): Surroundings {
   const group = new THREE.Group();
   const tickers: ((elapsed: number, delta: number) => void)[] = [];
 
-  group.add(
-    createHills(kit, world, {
-      count: 10,
-      colors: ["#2b2f63", "#252a5a", "#32376e"],
-      minGap: 16,
-      maxGap: 28,
-      minSize: 2.6,
-      maxSize: 4.6,
-    }),
-  );
+  // A dark treeline closes the horizon: the park, the wheel and the tents are already inside the tray.
+  const crown = kit.geometry("night-crown", () => jitterGeometry(new THREE.IcosahedronGeometry(1, 0), 0.18, 41));
+  const trunk = kit.geometry("night-trunk", () => new THREE.CylinderGeometry(0.12, 0.17, 1, 5));
+  const crowns: Parameters<typeof instance>[2] = [];
+  const trunks: Parameters<typeof instance>[2] = [];
+  for (let index = 0; index < 44; index += 1) {
+    const spot = world.spot(5, 24);
+    const size = world.between(1.1, 2.2);
+    trunks.push({
+      position: new THREE.Vector3(spot.x, GROUND_Y + 0.6 * size, spot.z),
+      scale: scale(size, size * 1.3, size),
+      color: world.tint("#2a2540", spot.gap, 30, 0.5),
+    });
+    crowns.push({
+      position: new THREE.Vector3(spot.x, GROUND_Y + 1.9 * size, spot.z),
+      scale: scale(size * 1.05, size * 0.95, size * 1.05),
+      rotation: world.rand() * 3,
+      color: world.tint(index % 2 === 0 ? "#2f3d63" : "#34476f", spot.gap, 30, 0.55),
+    });
+  }
+  group.add(instance(trunk, tintable(), trunks), instance(crown, tintable(), crowns));
 
   // A moon and a sky of twinkling stars, far behind the board.
   const moon = new THREE.Mesh(
@@ -497,37 +497,29 @@ function buildNightFair(kit: SceneKit, world: Placer): Surroundings {
   group.add(stars.group);
   tickers.push(stars.update);
 
-  // The big wheel, lit all round, turning slowly behind the tray.
-  const wheel = createFerrisWheel(kit);
-  wheel.group.position.set(world.outerWidth * 0.55, GROUND_Y, -world.outerDepth - 15);
-  group.add(wheel.group);
-  tickers.push(wheel.update);
+  // Beyond the fair, other rides light the night: a roller coaster with its cars running, a drop tower.
+  const coaster = createRollerCoaster(kit, world);
+  group.add(coaster.group);
+  tickers.push(coaster.update);
 
-  // Striped tents beside and behind.
-  const tentColors = ["#ff6fb8", "#7dffb2", "#ffd166", "#8fd3ff", "#b8a6ff"];
-  for (let index = 0; index < 6; index += 1) {
-    const spot = world.spot(5, 13);
-    const tent = createBigTop(kit, tentColors[index % tentColors.length], world.tint("#ffffff", spot.gap, 30, 0.55));
-    tent.position.set(spot.x, GROUND_Y, spot.z);
-    tent.rotation.y = world.rand() * Math.PI;
-    tent.scale.setScalar(world.between(0.9, 1.5));
-    group.add(tent);
-  }
+  const tower = createDropTower(kit);
+  tower.group.position.set(world.outerWidth + 10, GROUND_Y, -world.outerDepth * 0.35);
+  group.add(tower.group);
+  tickers.push(tower.update);
 
-  // Poles hung with strings of bulbs, glowing in three groups that twinkle in turn.
-  const strings = createLightStrings(kit, world);
-  group.add(strings.group);
-  tickers.push(strings.update);
+  const lights = createSearchlights(world);
+  group.add(lights.group);
+  tickers.push(lights.update);
 
-  // Balloons and lanterns rise slowly and begin again.
-  const balloons = createRisingBalloons(world, 14);
-  group.add(balloons.group);
-  tickers.push(balloons.update);
+  const fireworks = createFireworks(world);
+  group.add(fireworks.group);
+  tickers.push(fireworks.update);
 
-  const fireflies = createFireflies(world, 36);
+  const fireflies = createFireflies(world, 30);
   group.add(fireflies.group);
   tickers.push(fireflies.update);
 
+  tickers.push(addLife(group, world, kit, "night-fair"));
   return { group, tick: (elapsed, delta) => tickers.forEach((tick) => tick(elapsed, delta)) };
 }
 
@@ -556,193 +548,6 @@ function createStars(world: Placer, count: number): AnimatedProp {
   const group = new THREE.Group();
   group.add(points);
   return { group, update: (elapsed) => (material.opacity = 0.65 + Math.sin(elapsed * 1.7) * 0.25) };
-}
-
-function createFerrisWheel(kit: SceneKit): AnimatedProp {
-  const group = new THREE.Group();
-  const radius = 7;
-  const hubHeight = radius + 1.4;
-  const rimMaterial = new THREE.MeshBasicMaterial({ color: "#ff9fd1", toneMapped: false });
-  const frameMaterial = kit.flat("#6a6fb8");
-
-  const wheel = new THREE.Group();
-  wheel.position.y = hubHeight;
-  const rim = new THREE.Mesh(
-    kit.geometry("wheel-rim", () => new THREE.TorusGeometry(radius, 0.14, 5, 36)),
-    rimMaterial,
-  );
-  const inner = new THREE.Mesh(
-    kit.geometry("wheel-inner", () => new THREE.TorusGeometry(radius * 0.55, 0.1, 5, 28)),
-    new THREE.MeshBasicMaterial({ color: "#7dffb2", toneMapped: false }),
-  );
-  wheel.add(rim, inner);
-  const spoke = kit.geometry("wheel-spoke", () => new THREE.BoxGeometry(0.08, radius * 2, 0.08));
-  for (let index = 0; index < 4; index += 1) {
-    const arm = new THREE.Mesh(spoke, frameMaterial);
-    arm.rotation.z = (index * Math.PI) / 4;
-    wheel.add(arm);
-  }
-  const cabins: THREE.Group[] = [];
-  const cabinColors = ["#ff6fb8", "#ffd166", "#7dffb2", "#8fd3ff"];
-  const cabinGeometry = kit.geometry("wheel-cabin", () => new THREE.BoxGeometry(0.9, 0.7, 0.7));
-  for (let index = 0; index < 12; index += 1) {
-    const angle = (index / 12) * Math.PI * 2;
-    const hanger = new THREE.Group();
-    hanger.position.set(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
-    const cabin = new THREE.Mesh(
-      cabinGeometry,
-      new THREE.MeshBasicMaterial({ color: cabinColors[index % 4], toneMapped: false }),
-    );
-    cabin.position.y = -0.55;
-    hanger.add(cabin);
-    wheel.add(hanger);
-    cabins.push(hanger);
-  }
-  group.add(wheel);
-
-  // The A-frame it turns on.
-  const leg = kit.geometry("wheel-leg", () => new THREE.BoxGeometry(0.28, hubHeight + 0.4, 0.28));
-  for (const side of [-1, 1]) {
-    const part = new THREE.Mesh(leg, frameMaterial);
-    part.position.set(side * 2.2, hubHeight / 2, 0);
-    part.rotation.z = -side * 0.27;
-    group.add(part);
-  }
-  return {
-    group,
-    update: (elapsed) => {
-      wheel.rotation.z = -elapsed * 0.12;
-      // Cabins keep hanging straight down as the wheel turns.
-      for (const cabin of cabins) cabin.rotation.z = elapsed * 0.12;
-    },
-  };
-}
-
-function createBigTop(kit: SceneKit, color: string, accent: THREE.Color): THREE.Group {
-  const group = new THREE.Group();
-  const wall = new THREE.Mesh(
-    kit.geometry("bigtop-wall", () => new THREE.CylinderGeometry(1.6, 1.7, 1.4, 10)),
-    kit.flat("#f2e6ff"),
-  );
-  wall.position.y = 0.7;
-  const roofGeometry = kit.geometry("bigtop-roof", () => {
-    const cone = new THREE.ConeGeometry(2, 1.9, 10).toNonIndexed();
-    const colors: number[] = [];
-    const tint = new THREE.Color();
-    for (let face = 0; face < cone.attributes.position.count / 3; face += 1) {
-      tint.set(face % 2 === 0 ? "#ffffff" : "#ff5a8c");
-      for (let vertex = 0; vertex < 3; vertex += 1) colors.push(tint.r, tint.g, tint.b);
-    }
-    cone.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-    return cone;
-  });
-  const roof = new THREE.Mesh(
-    roofGeometry,
-    new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true, color: accent }),
-  );
-  roof.position.y = 2.3;
-  const flag = new THREE.Mesh(
-    kit.geometry("bigtop-flag", () => new THREE.ConeGeometry(0.18, 0.5, 3)),
-    kit.flat(color),
-  );
-  flag.position.y = 3.5;
-  flag.rotation.z = -Math.PI / 2;
-  group.add(wall, roof, flag);
-  return group;
-}
-
-function createLightStrings(kit: SceneKit, world: Placer): AnimatedProp {
-  const group = new THREE.Group();
-  const post = kit.geometry("string-post", () => new THREE.CylinderGeometry(0.07, 0.09, 3.2, 5));
-  const bulb = kit.geometry("string-bulb", () => new THREE.IcosahedronGeometry(0.13, 0));
-  const poles: THREE.Vector3[] = [];
-  const count = 8;
-  for (let index = 0; index < count; index += 1) {
-    // Evenly along the back and the two sides, close to the rim.
-    const t = index / (count - 1);
-    const x = (t * 2 - 1) * (world.outerWidth + 1.8);
-    const z = -world.outerDepth - 1.6 - Math.abs(t - 0.5) * 1.0;
-    poles.push(new THREE.Vector3(x, GROUND_Y, z));
-  }
-  const meshes = poles.map((pole) => {
-    const mesh = new THREE.Mesh(post, kit.flat("#5a5f9c"));
-    mesh.position.set(pole.x, GROUND_Y + 1.6, pole.z);
-    group.add(mesh);
-    return mesh;
-  });
-  void meshes;
-
-  const materials = ["#ffd166", "#ff9fd1", "#7dffb2"].map(
-    (color) => new THREE.MeshBasicMaterial({ color, toneMapped: false }),
-  );
-  const buckets: THREE.Vector3[][] = [[], [], []];
-  for (let index = 0; index < poles.length - 1; index += 1) {
-    const from = poles[index];
-    const to = poles[index + 1];
-    for (let step = 1; step < 8; step += 1) {
-      const t = step / 8;
-      const sag = Math.sin(t * Math.PI) * 0.7;
-      buckets[(index + step) % 3].push(
-        new THREE.Vector3(
-          THREE.MathUtils.lerp(from.x, to.x, t),
-          GROUND_Y + 3.1 - sag,
-          THREE.MathUtils.lerp(from.z, to.z, t),
-        ),
-      );
-    }
-  }
-  buckets.forEach((positions, index) => {
-    group.add(
-      instance(
-        bulb,
-        materials[index],
-        positions.map((position) => ({ position, scale: scale(1) })),
-      ),
-    );
-  });
-  return {
-    group,
-    update: (elapsed) => {
-      materials.forEach((material, index) => {
-        const glow = 0.55 + 0.45 * Math.sin(elapsed * 2.2 + index * 2.1);
-        material.color.setScalar(1).multiplyScalar(0.55 + glow * 0.45);
-      });
-    },
-  };
-}
-
-function createRisingBalloons(world: Placer, count: number): AnimatedProp {
-  const geometry = new THREE.SphereGeometry(0.55, 8, 6);
-  const material = new THREE.MeshLambertMaterial({ color: "#ffffff", flatShading: true });
-  const mesh = new THREE.InstancedMesh(geometry, material, count);
-  mesh.frustumCulled = false;
-  mesh.raycast = () => undefined;
-  const colors = ["#ff6fb8", "#ffd166", "#7dffb2", "#8fd3ff", "#b8a6ff"];
-  const balloons = Array.from({ length: count }, (_, index) => {
-    const spot = world.spot(1.5, 12, false);
-    mesh.setColorAt(index, new THREE.Color(colors[index % colors.length]));
-    return { x: spot.x, z: spot.z, offset: world.rand() * 18, speed: world.between(0.35, 0.7), sway: world.rand() * 6 };
-  });
-  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  const matrix = new THREE.Matrix4();
-  const top = 20;
-  const group = new THREE.Group();
-  group.add(mesh);
-  return {
-    group,
-    update: (elapsed) => {
-      balloons.forEach((balloon, index) => {
-        const height = (balloon.offset + elapsed * balloon.speed) % top;
-        matrix.compose(
-          new THREE.Vector3(balloon.x + Math.sin(elapsed * 0.5 + balloon.sway) * 0.5, GROUND_Y + 1 + height, balloon.z),
-          new THREE.Quaternion(),
-          new THREE.Vector3(1, 1.25, 1),
-        );
-        mesh.setMatrixAt(index, matrix);
-      });
-      mesh.instanceMatrix.needsUpdate = true;
-    },
-  };
 }
 
 function createFireflies(world: Placer, count: number): AnimatedProp {
@@ -820,10 +625,10 @@ function buildPolar(kit: SceneKit, world: Placer): Surroundings {
   }
   group.add(instance(mountain, tintable(), mountains), instance(cap, tintable(), caps));
 
-  // Ice spires and blocks lying on the snow beside the tray.
+  // Ice spires lying on the snow beside the tray.
   const spire = kit.geometry("ice-spire", () => jitterGeometry(new THREE.ConeGeometry(0.35, 1.8, 5), 0.08, 21));
   const spires: Parameters<typeof instance>[2] = [];
-  for (let index = 0; index < 34; index += 1) {
+  for (let index = 0; index < 30; index += 1) {
     const spot = world.spot(1.8, 11);
     const size = world.between(0.7, 1.8);
     spires.push({
@@ -865,14 +670,10 @@ function buildPolar(kit: SceneKit, world: Placer): Surroundings {
   group.add(snow.group);
   tickers.push(snow.update);
 
-  const gulls = createGulls(world, 5);
-  group.add(gulls.group);
-  tickers.push(gulls.update);
-
+  tickers.push(addLife(group, world, kit, "polar"));
   return { group, tick: (elapsed, delta) => tickers.forEach((tick) => tick(elapsed, delta)) };
 }
 
-/** Curtains of light high in the north sky, waving in the vertex shader: no CPU cost per frame. */
 function createAurora(world: Placer): AnimatedProp {
   const material = new THREE.ShaderMaterial({
     transparent: true,
@@ -958,46 +759,339 @@ function createFarSnow(world: Placer, count: number): AnimatedProp {
   };
 }
 
-/** Gulls gliding in wide circles high above the far shore. */
-function createGulls(world: Placer, count: number): AnimatedProp {
+// ---------------------------------------------------------------------- life
+
+type Ticker = (elapsed: number, delta: number) => void;
+
+/** Animals and birds of a map. Returns the ticker that moves them all. */
+function addLife(group: THREE.Group, world: Placer, kit: SceneKit, theme: MapThemeId): Ticker {
+  const movers: Mover[] = [];
+  const flights: ((elapsed: number) => void)[] = [];
+  const idles: { creature: Poseable }[] = [];
+  const add = (creature: Poseable) => {
+    group.add(creature.group);
+    return creature;
+  };
+
+  // A dog trots round the tray on its own.
+  const dogCoat = theme === "polar" ? "#8a8f9a" : theme === "night-fair" ? "#6a5a7a" : "#c58a4e";
+  movers.push(
+    new Mover(add(createDog(kit, dogCoat)), world.loop(LANE_GAP, theme === "night-fair"), {
+      speed: 0.75,
+      closed: true,
+      start: world.rand(),
+    }),
+  );
+
+  if (theme === "toy-box") {
+    // Sheep graze on the slopes: they walk a few steps, stop to eat, and walk back.
+    for (let index = 0; index < 6; index += 1) {
+      const spot = world.spot(6, 14);
+      const path = [
+        new THREE.Vector3(spot.x, GROUND_Y, spot.z),
+        new THREE.Vector3(spot.x + 2 + world.rand() * 2, GROUND_Y, spot.z + (world.rand() - 0.5) * 2),
+      ];
+      movers.push(
+        new Mover(add(createSheep(kit)), path, {
+          speed: 0.35,
+          closed: false,
+          start: world.rand(),
+          restSeconds: 4 + world.rand() * 4,
+        }),
+      );
+    }
+    // Rabbits hop along the edge of the field.
+    for (let index = 0; index < 4; index += 1) {
+      const spot = world.spot(5, 10);
+      const path = [new THREE.Vector3(spot.x, GROUND_Y, spot.z), new THREE.Vector3(spot.x + 2.5, GROUND_Y, spot.z + 1)];
+      movers.push(
+        new Mover(add(createRabbit(kit)), path, { speed: 0.9, closed: false, start: world.rand(), restSeconds: 3 }),
+      );
+    }
+    for (let index = 0; index < 6; index += 1) {
+      const bird = add(createBird(kit, "songbird"));
+      const spot = world.spot(1.5, 7, false);
+      flights.push(
+        circleFlight(bird, {
+          center: new THREE.Vector3(spot.x, 0, spot.z),
+          radius: world.between(1.6, 3.4),
+          height: world.between(2.2, 4.4) + GROUND_Y,
+          speed: world.between(0.5, 0.9),
+          phase: world.rand() * 6,
+          squash: 0.8,
+        }),
+      );
+    }
+    for (let index = 0; index < 3; index += 1) {
+      const bird = add(createBird(kit, "gull"));
+      flights.push(
+        circleFlight(bird, {
+          center: new THREE.Vector3(world.between(-8, 8), 0, -world.outerDepth - 8),
+          radius: world.between(5, 9),
+          height: world.between(10, 15),
+          speed: world.between(0.12, 0.2),
+          phase: world.rand() * 6,
+        }),
+      );
+    }
+  }
+
+  if (theme === "night-fair") {
+    // Bats flit over the fair, in tight, quick loops.
+    for (let index = 0; index < 7; index += 1) {
+      const bat = add(createBird(kit, "bat"));
+      const spot = world.spot(2, 12, false);
+      flights.push(
+        circleFlight(bat, {
+          center: new THREE.Vector3(spot.x, 0, spot.z),
+          radius: world.between(2, 5),
+          height: world.between(4, 9),
+          speed: world.between(0.6, 1.1),
+          phase: world.rand() * 6,
+          squash: 0.8,
+        }),
+      );
+    }
+  }
+
+  if (theme === "polar") {
+    for (let index = 0; index < 3; index += 1) {
+      const seal = add(createSeal(kit));
+      const spot = world.spot(5, 12);
+      seal.group.position.set(spot.x, GROUND_Y, spot.z);
+      seal.group.rotation.y = world.rand() * Math.PI * 2;
+      idles.push({ creature: seal });
+    }
+    for (let index = 0; index < 2; index += 1) {
+      const spot = world.spot(6, 12);
+      const path = [
+        new THREE.Vector3(spot.x, GROUND_Y, spot.z),
+        new THREE.Vector3(spot.x + 4, GROUND_Y, spot.z + (index === 0 ? 1.5 : -1.5)),
+      ];
+      movers.push(
+        new Mover(add(createFox(kit)), path, { speed: 1.1, closed: false, start: world.rand(), restSeconds: 2.5 }),
+      );
+    }
+    const bearSpot = world.spot(15, 19);
+    movers.push(
+      new Mover(
+        add(createPolarBear(kit)),
+        [
+          new THREE.Vector3(bearSpot.x, GROUND_Y, bearSpot.z),
+          new THREE.Vector3(bearSpot.x + 9, GROUND_Y, bearSpot.z + 2),
+        ],
+        { speed: 0.4, closed: false, start: 0.2, restSeconds: 5 },
+      ),
+    );
+    for (let index = 0; index < 5; index += 1) {
+      const bird = add(createBird(kit, "gull"));
+      flights.push(
+        circleFlight(bird, {
+          center: new THREE.Vector3(world.between(-10, 10), 0, -world.outerDepth - world.between(2, 12)),
+          radius: world.between(5, 10),
+          height: world.between(8, 14),
+          speed: world.between(0.12, 0.22),
+          phase: world.rand() * 6,
+        }),
+      );
+    }
+  }
+
+  return (elapsed, delta) => {
+    for (const mover of movers) mover.update(elapsed, delta);
+    for (const flight of flights) flight(elapsed);
+    for (const idle of idles) idle.creature.pose(0, 0, elapsed);
+  };
+}
+
+// ---------------------------------------------------------------- night rides
+
+/** A roller coaster on the horizon: a lit rail on stilts, with cars that run along it. */
+function createRollerCoaster(kit: SceneKit, world: Placer): AnimatedProp {
   const group = new THREE.Group();
-  const wing = new THREE.BufferGeometry();
-  wing.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 0.7, 0.12, -0.12, 0.7, 0.04, 0.16], 3));
-  wing.computeVertexNormals();
-  const material = new THREE.MeshBasicMaterial({ color: "#f8fbff", side: THREE.DoubleSide });
-  const birds = Array.from({ length: count }, () => {
-    const body = new THREE.Group();
-    const left = new THREE.Mesh(wing, material);
-    const right = new THREE.Mesh(wing, material);
-    right.scale.x = -1;
-    body.add(left, right);
-    group.add(body);
-    return {
-      body,
-      left,
-      right,
-      cx: world.between(-world.outerWidth, world.outerWidth),
-      cz: -world.between(world.outerDepth + 2, world.outerDepth + 14),
-      radius: world.between(5, 11),
-      height: world.between(9, 15),
-      phase: world.rand() * 6,
-      speed: world.between(0.12, 0.22),
-    };
+  const baseX = -world.outerWidth * 0.55;
+  const baseZ = -world.outerDepth - 17;
+  const profile: [number, number][] = [
+    [-12, 1],
+    [-8, 8],
+    [-4.5, 2.5],
+    [-1.5, 6.5],
+    [1.5, 1.5],
+    [5, 5],
+    [8.5, 2],
+    [12, 3],
+  ];
+  const curve = new THREE.CatmullRomCurve3(
+    profile.map(([x, y]) => new THREE.Vector3(baseX + x, GROUND_Y + y, baseZ + Math.sin(x * 0.4) * 1.2)),
+  );
+  const rail = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 140, 0.16, 5, false),
+    new THREE.MeshBasicMaterial({ color: "#8d95e8", toneMapped: false }),
+  );
+  rail.raycast = () => undefined;
+  group.add(rail);
+
+  const stilt = kit.geometry("coaster-stilt", () => new THREE.CylinderGeometry(0.07, 0.09, 1, 5));
+  const stilts: Parameters<typeof instance>[2] = [];
+  for (let step = 0; step <= 28; step += 1) {
+    const point = curve.getPointAt(step / 28);
+    const height = point.y - GROUND_Y;
+    stilts.push({
+      position: new THREE.Vector3(point.x, GROUND_Y + height / 2, point.z),
+      scale: scale(1, height, 1),
+      color: new THREE.Color("#4a4f93"),
+    });
+  }
+  group.add(instance(stilt, tintable(), stilts));
+
+  const bulb = kit.geometry("coaster-bulb", () => new THREE.IcosahedronGeometry(0.12, 0));
+  const bulbs: Parameters<typeof instance>[2] = [];
+  for (let step = 0; step < 40; step += 1) {
+    bulbs.push({ position: curve.getPointAt(step / 40).add(new THREE.Vector3(0, 0.3, 0)), scale: scale(1) });
+  }
+  group.add(instance(bulb, new THREE.MeshBasicMaterial({ color: "#ffd166", toneMapped: false }), bulbs));
+
+  const cars: THREE.Mesh[] = [];
+  const carGeometry = kit.geometry("coaster-car", () => new THREE.BoxGeometry(0.6, 0.4, 0.9));
+  ["#ff6fb8", "#7dffb2", "#ffd166"].forEach((color) => {
+    const car = new THREE.Mesh(carGeometry, new THREE.MeshBasicMaterial({ color, toneMapped: false }));
+    car.raycast = () => undefined;
+    group.add(car);
+    cars.push(car);
+  });
+  const ahead = new THREE.Vector3();
+  return {
+    group,
+    update: (elapsed) => {
+      cars.forEach((car, index) => {
+        const t = (((elapsed * 0.045 - index * 0.012) % 1) + 1) % 1;
+        const point = curve.getPointAt(t);
+        car.position.copy(point).add(new THREE.Vector3(0, 0.45, 0));
+        car.lookAt(ahead.copy(curve.getPointAt(Math.min(1, t + 0.01))).add(new THREE.Vector3(0, 0.45, 0)));
+      });
+    },
+  };
+}
+
+/** A drop tower: a mast with a lit ring that climbs, waits, and falls. */
+function createDropTower(kit: SceneKit): AnimatedProp {
+  const group = new THREE.Group();
+  const height = 12;
+  const mast = new THREE.Mesh(
+    kit.geometry("tower-mast", () => new THREE.CylinderGeometry(0.28, 0.4, height, 6)),
+    kit.flat("#5a5f9c"),
+  );
+  mast.position.y = height / 2;
+  const cap = new THREE.Mesh(
+    kit.geometry("tower-cap", () => new THREE.ConeGeometry(0.7, 1.6, 6)),
+    new THREE.MeshBasicMaterial({ color: "#ff6fb8", toneMapped: false }),
+  );
+  cap.position.y = height + 0.8;
+  const ring = new THREE.Mesh(
+    kit.geometry("tower-ring", () => new THREE.TorusGeometry(0.85, 0.22, 6, 14).rotateX(Math.PI / 2)),
+    new THREE.MeshBasicMaterial({ color: "#7dffb2", toneMapped: false }),
+  );
+  group.add(mast, cap, ring);
+  return {
+    group,
+    update: (elapsed) => {
+      const cycle = (elapsed % 9) / 9;
+      // Slow climb, a held breath, then the drop.
+      const level = cycle < 0.6 ? cycle / 0.6 : cycle < 0.75 ? 1 : 1 - (cycle - 0.75) / 0.25;
+      ring.position.y = 1.2 + (level < 1 && cycle > 0.75 ? level * level : level) * (height - 2.4);
+    },
+  };
+}
+
+/** Searchlight beams sweeping the sky from behind the fair. */
+function createSearchlights(world: Placer): AnimatedProp {
+  const group = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({
+    color: "#cfd8ff",
+    transparent: true,
+    opacity: 0.1,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const beams = [-1, 0.2, 1].map((side, index) => {
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(1.6, 28, 12, 1, true).translate(0, 14, 0), material);
+    beam.position.set(side * (world.outerWidth * 0.6), GROUND_Y, -world.outerDepth - 12 - index * 2);
+    beam.frustumCulled = false;
+    beam.raycast = () => undefined;
+    group.add(beam);
+    return { beam, phase: index * 2.1 };
   });
   return {
     group,
     update: (elapsed) => {
-      for (const bird of birds) {
-        const angle = elapsed * bird.speed + bird.phase;
-        bird.body.position.set(
-          bird.cx + Math.cos(angle) * bird.radius,
-          bird.height + Math.sin(angle * 2) * 0.4,
-          bird.cz + Math.sin(angle) * bird.radius * 0.5,
-        );
-        bird.body.rotation.y = -angle + Math.PI / 2;
-        const flap = Math.sin(elapsed * 3 + bird.phase) * 0.35;
-        bird.left.rotation.z = flap;
-        bird.right.rotation.z = -flap;
+      for (const { beam, phase } of beams) {
+        beam.rotation.z = Math.sin(elapsed * 0.35 + phase) * 0.5;
+        beam.rotation.x = -0.15 + Math.cos(elapsed * 0.27 + phase) * 0.18;
+      }
+    },
+  };
+}
+
+/** Fireworks over the horizon: three shells, each bursting, spreading, falling and fading in turn. */
+function createFireworks(world: Placer): AnimatedProp {
+  const group = new THREE.Group();
+  const sparks = 54;
+  const period = 7;
+  const colors = ["#ff6fb8", "#ffd166", "#7dffb2", "#8fd3ff", "#b8a6ff"];
+  const shells = [0, 2.4, 4.7].map((offset, shellIndex) => {
+    const positions = new Float32Array(sparks * 3);
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    const material = new THREE.PointsMaterial({
+      color: colors[shellIndex],
+      size: 0.55,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      toneMapped: false,
+    });
+    const points = new THREE.Points(geometry, material);
+    points.frustumCulled = false;
+    points.raycast = () => undefined;
+    group.add(points);
+    const directions = Array.from({ length: sparks }, () => {
+      const vector = new THREE.Vector3(world.rand() - 0.5, world.rand() - 0.5, world.rand() - 0.5);
+      return vector.normalize().multiplyScalar(0.6 + world.rand() * 0.4);
+    });
+    return { offset, positions, geometry, material, directions, seen: -1, center: new THREE.Vector3(), shellIndex };
+  });
+  return {
+    group,
+    update: (elapsed) => {
+      for (const shell of shells) {
+        const clock = elapsed + shell.offset;
+        const cycle = Math.floor(clock / period);
+        const age = clock - cycle * period;
+        if (cycle !== shell.seen) {
+          // Each shell bursts somewhere new in the sky, in a new colour.
+          shell.seen = cycle;
+          shell.center.set(
+            Math.sin(cycle * 12.9898 + shell.shellIndex * 4.1) * (world.outerWidth + 6),
+            19 + ((Math.sin(cycle * 78.233 + shell.shellIndex) + 1) / 2) * 8,
+            -world.outerDepth - 26 - shell.shellIndex * 3,
+          );
+          shell.material.color.set(colors[(cycle + shell.shellIndex) % colors.length]);
+        }
+        const life = 2.6;
+        if (age > life) {
+          shell.material.opacity = 0;
+          continue;
+        }
+        const spread = 1 - (1 - age / life) ** 3;
+        shell.directions.forEach((direction, index) => {
+          shell.positions[index * 3] = shell.center.x + direction.x * spread * 7;
+          shell.positions[index * 3 + 1] = shell.center.y + direction.y * spread * 7 - age * age * 0.5;
+          shell.positions[index * 3 + 2] = shell.center.z + direction.z * spread * 7;
+        });
+        shell.geometry.attributes.position.needsUpdate = true;
+        shell.material.opacity = Math.max(0, 1 - age / life);
       }
     },
   };
