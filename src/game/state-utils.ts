@@ -8,12 +8,32 @@ import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
 const MAX_LOG_ENTRIES = 120;
 
-export function makeLog(text: string, tone: GameLogEntry["tone"] = "neutral"): GameLogEntry {
-  return { id: createEngineId(), text, tone };
+export function makeLog(
+  text: string,
+  tone: GameLogEntry["tone"] = "neutral",
+  secret?: GameLogEntry["secret"],
+): GameLogEntry {
+  return { id: createEngineId(), text, tone, ...(secret ? { secret } : {}) };
 }
 
-export function addLog(state: GameState, text: string, tone: GameLogEntry["tone"] = "neutral"): GameState {
-  return { ...state, log: [makeLog(text, tone), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+export function addLog(
+  state: GameState,
+  text: string,
+  tone: GameLogEntry["tone"] = "neutral",
+  secret?: GameLogEntry["secret"],
+): GameState {
+  return { ...state, log: [makeLog(text, tone, secret), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+}
+
+/** A line about what is in somebody's bag: the others online read `publicText` instead. */
+export function addBagLog(
+  state: GameState,
+  ownerId: PlayerId,
+  text: string,
+  publicText: string,
+  tone: GameLogEntry["tone"] = "neutral",
+): GameState {
+  return addLog(state, text, tone, { ownerId, publicText });
 }
 
 /** Draws from the engine source, so a local game and an online game share one code path. */

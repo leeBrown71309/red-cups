@@ -21,6 +21,7 @@ import {
   opensShop,
 } from "./rules";
 import {
+  addBagLog,
   addLog,
   appendItem,
   applyCurrencyChange,
@@ -444,14 +445,25 @@ export function itemCopyForPassive(
 
   if (canAddItem(target, itemId)) {
     const nextState = updatePlayer(state, targetPlayerId, (player) => appendItem(player, itemId));
-    return addLog(nextState, `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`, "event");
+    return addBagLog(
+      nextState,
+      target.id,
+      `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`,
+      `${target.name} récupère une copie.`,
+      "event",
+    );
   }
 
   // The no-stacking rule wins over Je note: never a third copy, a second Gomme or a sixth Tomate.
   if (!canReceiveItem(target, itemId)) {
     const onlyCups = !target.inventory.some((entry) => entry.kind === "item");
     if (onlyCups) return state;
-    return addLog(state, `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`);
+    return addBagLog(
+      state,
+      target.id,
+      `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`,
+      `${target.name} ne garde pas de copie.`,
+    );
   }
 
   return {

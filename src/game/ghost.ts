@@ -8,6 +8,7 @@ import { getBoardMap } from "./maps/map-registry";
 import { avoidsHell } from "./passive-rules";
 import { canAddItem, canReceiveItem } from "./rules";
 import {
+  addBagLog,
   addLog,
   appendItem,
   applyCurrencyChange,
@@ -324,7 +325,13 @@ function applyPenalty(state: GameState, player: Player, penalty: GhostPenalty): 
       const nextState = updatePlayer(withGhost(state, { ...ghost, loot }), player.id, (current) =>
         spendItemEntry(current, penalty.entryId),
       );
-      return addLog(nextState, `Le fantôme vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}.`, "bad");
+      return addBagLog(
+        nextState,
+        player.id,
+        `Le fantôme vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}.`,
+        `Le fantôme vole un objet à ${player.name}.`,
+        "bad",
+      );
     }
   }
 }

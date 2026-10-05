@@ -650,6 +650,12 @@ export interface GameLogEntry {
   id: string;
   text: string;
   tone: "neutral" | "good" | "bad" | "event";
+  /**
+   * Online, what a purchase, a theft or a discard says about a bag is for its
+   * owner only: everybody else reads `publicText`. A local table shares one
+   * screen and reads `text`.
+   */
+  secret?: { ownerId: PlayerId; publicText: string };
 }
 
 /** Seeded luck of an online game, stored in the state so every device draws the same. */

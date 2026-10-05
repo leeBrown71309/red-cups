@@ -182,6 +182,15 @@ export function DiscardModal() {
 
   const incoming: ItemId | "red-cup" = pending.reason === "red-cup" ? "red-cup" : (pending.itemId ?? "red-cup");
 
+  // Online, the bag and the item that does not fit are the player's own business.
+  if (!canAct) {
+    return (
+      <ModalShell title="Sac plein !" eyebrow={player.name} tone="gold" className="discard-modal">
+        <WaitingNote player={player} text={`${player.name} fait de la place dans son sac…`} />
+      </ModalShell>
+    );
+  }
+
   return (
     <ModalShell title="Sac plein !" eyebrow={player.name} tone="gold" className="discard-modal">
       <div className="discard-incoming">
@@ -192,7 +201,6 @@ export function DiscardModal() {
             : `Je note : fais de la place pour ${ITEM_CATALOG[incoming].name}.`}
         </p>
       </div>
-      {!canAct && <WaitingNote player={player} text={`${player.name} choisit quel objet jeter…`} />}
       <div className="discard-grid">
         {player.inventory.map((entry) =>
           entry.kind === "red-cup" ? (
@@ -201,13 +209,7 @@ export function DiscardModal() {
               <small>Red Cup</small>
             </span>
           ) : (
-            <button
-              key={entry.id}
-              type="button"
-              className="discard-card"
-              onClick={() => discard(entry.id)}
-              disabled={!canAct}
-            >
+            <button key={entry.id} type="button" className="discard-card" onClick={() => discard(entry.id)}>
               <ItemIcon itemId={entry.itemId} size={42} />
               <small>{ITEM_CATALOG[entry.itemId].name}</small>
               <span className="discard-card__drop">

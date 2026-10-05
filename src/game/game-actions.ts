@@ -69,6 +69,7 @@ import {
 } from "./game-effects";
 import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getItemPrice, getTileWheelFor } from "./rules";
 import {
+  addBagLog,
   addLog,
   appendItem,
   applyCurrencyChange,
@@ -309,7 +310,13 @@ function giveFreeItem(state: GameState, player: Player): GameState {
       ...current,
       inventory: [...current.inventory, stack],
     }));
-    return addLog(nextState, `${player.name} reçoit ${FREE_TOMATOES} Tomates gratuitement.`, "good");
+    return addBagLog(
+      nextState,
+      player.id,
+      `${player.name} reçoit ${FREE_TOMATOES} Tomates gratuitement.`,
+      `${player.name} reçoit un objet gratuitement.`,
+      "good",
+    );
   }
 
   const wanted = freeItem === "tomato" ? FREE_TOMATOES : 1;
@@ -320,7 +327,13 @@ function giveFreeItem(state: GameState, player: Player): GameState {
     given += 1;
   }
   const gift = freeItem === "tomato" && given > 1 ? `${given} Tomates` : ITEM_CATALOG[freeItem].name;
-  return addLog(nextState, `${player.name} reçoit ${gift} gratuitement.`, "good");
+  return addBagLog(
+    nextState,
+    player.id,
+    `${player.name} reçoit ${gift} gratuitement.`,
+    `${player.name} reçoit un objet gratuitement.`,
+    "good",
+  );
 }
 
 export { getForwardTiles };
@@ -526,10 +539,22 @@ function stealItem(state: GameState, itemId: ItemId): GameState {
   let nextState: GameState = { ...state, theftAttempted: true };
   if (drawEngineRandom() >= getTheftRisk(price)) {
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
-    return addLog(nextState, `${player.name} vole ${itemName} sans se faire prendre !`, "good");
+    return addBagLog(
+      nextState,
+      player.id,
+      `${player.name} vole ${itemName} sans se faire prendre !`,
+      `${player.name} vole un objet sans se faire prendre !`,
+      "good",
+    );
   }
 
-  nextState = addLog(nextState, `${player.name} se fait prendre en volant ${itemName} !`, "bad");
+  nextState = addBagLog(
+    nextState,
+    player.id,
+    `${player.name} se fait prendre en volant ${itemName} !`,
+    `${player.name} se fait prendre en volant un objet !`,
+    "bad",
+  );
   nextState = payTheftPenalty(nextState, player.id, getTheftPenalty(price));
   nextState = sendPlayerToHell(nextState, player.id);
   return settleBoard({ ...nextState, turnStage: "turn-end" }, "turn-end");
@@ -556,7 +581,13 @@ function payTheftPenalty(state: GameState, playerId: PlayerId, penalty: number):
     if (owed <= 0 || entry.kind !== "item") break;
     owed -= worthOf(entry);
     nextState = updatePlayer(nextState, playerId, (current) => removeInventoryEntry(current, entry.id));
-    nextState = addLog(nextState, `${player.name} rend ${ITEM_CATALOG[entry.itemId].name}.`, "bad");
+    nextState = addBagLog(
+      nextState,
+      playerId,
+      `${player.name} rend ${ITEM_CATALOG[entry.itemId].name}.`,
+      `${player.name} rend un objet.`,
+      "bad",
+    );
   }
   return owed > 0 ? applyCurrencyChange(nextState, playerId, -owed, { gamble: false }) : nextState;
 }
@@ -803,14 +834,26 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
 
   let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
   nextState = { ...nextState, pendingDiscard: null, turnStage: pending.resumeStage };
-  nextState = addLog(nextState, `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`, "bad");
+  nextState = addBagLog(
+    nextState,
+    player.id,
+    `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`,
+    `${player.name} abandonne un objet.`,
+    "bad",
+  );
 
   if (pending.reason === "red-cup" && pending.cupNodeId !== undefined) {
     nextState = finishCupCollection(nextState, player.id, pending.cupNodeId);
   } else if (pending.reason === "forced-item" && pending.itemId) {
     const copiedItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, copiedItem));
-    nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`, "event");
+    nextState = addBagLog(
+      nextState,
+      player.id,
+      `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`,
+      `${player.name} reçoit un objet grâce à Je note.`,
+      "event",
+    );
   } else if (pending.reason === "loot" && pending.itemId) {
     const lootItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, lootItem));

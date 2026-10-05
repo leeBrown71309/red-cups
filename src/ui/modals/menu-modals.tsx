@@ -9,6 +9,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { useFullscreenToggle } from "../fullscreen";
 import { usePauseControls } from "../hud/pause-controls";
 import { UiIcon } from "../icons/ui-icon";
+import { useLogReader } from "../log-text";
 import { PlayerPickList } from "./decision-modals";
 
 interface PauseMenuProps {
@@ -150,6 +151,7 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
 
 export function JournalModal({ onClose }: { onClose: () => void }) {
   const log = useGameStore((state) => state.log);
+  const readEntry = useLogReader();
 
   return (
     <ModalShell title="Journal" eyebrow="La table se souvient" onClose={onClose} className="journal-modal">
@@ -157,7 +159,7 @@ export function JournalModal({ onClose }: { onClose: () => void }) {
         {log.map((entry) => (
           <li key={entry.id} className={`journal__entry journal__entry--${entry.tone}`}>
             <span className="journal__dot" aria-hidden="true" />
-            {entry.text}
+            {readEntry(entry)}
           </li>
         ))}
       </ol>

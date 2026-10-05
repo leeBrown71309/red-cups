@@ -1,3 +1,4 @@
+import { getLocalPlayerId } from "../net/room-store";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { useGameStore } from "../game/store";
 import type { GameState } from "../game/types";
@@ -87,6 +88,8 @@ export function startAudioFeedback(): () => void {
         soundEffects.shopBell();
         break;
       case "purchase":
+        // Online, what somebody else buys is theirs to know: only their own device rings the register.
+        if (getLocalPlayerId() !== null && getLocalPlayerId() !== event.playerId) break;
         soundEffects.purchase();
         break;
       case "hell-entered":

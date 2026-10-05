@@ -1,7 +1,7 @@
 import { ITEM_CATALOG } from "./catalog";
 import { canBuyItemKind } from "./passive-rules";
 import { canAddItem, getItemPrice, isOnSale, opensShop } from "./rules";
-import { addLog, appendItem, applyCurrencyChange, getActivePlayer, updatePlayer } from "./state-utils";
+import { addBagLog, appendItem, applyCurrencyChange, getActivePlayer, updatePlayer } from "./state-utils";
 import type { GameState, ItemId, Player } from "./types";
 
 /**
@@ -53,5 +53,11 @@ export function buyItem(state: GameState, itemId: ItemId, count = 1): GameState 
   }
   const name = ITEM_CATALOG[itemId].name;
   const what = count > 1 ? `${name} ×${count}` : name;
-  return addLog(nextState, `${player.name} achète ${what} pour ${total} pièces.`, "good");
+  return addBagLog(
+    nextState,
+    player.id,
+    `${player.name} achète ${what} pour ${total} pièces.`,
+    `${player.name} achète un objet.`,
+    "good",
+  );
 }

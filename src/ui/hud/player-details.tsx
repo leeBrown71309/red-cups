@@ -10,7 +10,7 @@ import type { PassiveId, Player } from "../../game/types";
 import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
-import { useVisibleCards } from "../card-visibility";
+import { useCanSeeBagOf, useVisibleCards } from "../card-visibility";
 import { EnergyGauge } from "../components/energy-meter";
 import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -173,6 +173,7 @@ export function PlayerDetails({
   const online = useLocalPlayerId() !== null;
   const { cardRef, placement } = usePlacement(anchor);
   const cards = useVisibleCards(player);
+  const canSeeBag = useCanSeeBagOf(player.id);
   const statuses = getPlayerStatuses(game, player);
   const noThanksStatus = !hasCard(player, "no-thanks")
     ? null
@@ -250,10 +251,9 @@ export function PlayerDetails({
           {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
         </CardBlock>
         <div className="player-details__bag">
-          <span className="eyebrow">
-            Sac · {player.inventory.length}/{capacity}
-          </span>
-          <div className="mini-slots">
+          <span className="eyebrow">{canSeeBag ? `Sac · ${player.inventory.length}/${capacity}` : "Sac"}</span>
+          {!canSeeBag && <p className="player-details__passive-hidden">Le sac de chacun reste privé en ligne.</p>}
+          <div className="mini-slots" hidden={!canSeeBag}>
             {player.inventory.map((entry) => (
               <span
                 key={entry.id}

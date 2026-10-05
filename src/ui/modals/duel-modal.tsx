@@ -6,6 +6,7 @@ import { useGameStore } from "../../game/store";
 import type { GhostStakes, PendingDuel, PlayerId, RpsChoice } from "../../game/types";
 import { useCanActFor, useLocalPlayerId } from "../../net/room-store";
 import { soundEffects } from "../../audio/sound-effects";
+import { useCanSeeBagOf } from "../card-visibility";
 import { ModalShell } from "../components/modal-shell";
 import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
@@ -149,6 +150,8 @@ function GhostStakesNote() {
 }
 
 function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; player: Duellist; playerWon: boolean }) {
+  // Online, the item taken from a bag is named to its owner only.
+  const canSeeBag = useCanSeeBagOf(player.id);
   if (playerWon) {
     const { reward } = stakes;
     const text =
@@ -163,7 +166,7 @@ function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; play
       ? `Il gifle ${player.name} et l’emporte en Enfer !`
       : penalty.kind === "coins"
         ? `Il vole ${penalty.amount} pièces à ${player.name}, qu’il garde dans son butin.`
-        : `Il vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}, qu’il garde dans son butin.`;
+        : `Il vole ${canSeeBag ? ITEM_CATALOG[penalty.itemId].name : "un objet"} à ${player.name}, qu’il garde dans son butin.`;
   return <p>{text}</p>;
 }
 
