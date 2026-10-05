@@ -1,5 +1,6 @@
 import { getDuelVoterIds, getHumanDuellistIds } from "./duel";
 import type { GameAction } from "./game-actions";
+import { canJoinLate } from "./late-join";
 import { getDecidingPlayer } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, PlayerId } from "./types";
@@ -12,6 +13,8 @@ import type { GameState, PlayerId } from "./types";
  * A local game skips this: one device plays every seat.
  */
 export function getActionActorIds(state: GameState, action: GameAction): PlayerId[] {
+  // A newcomer sits at the next seat of the room, which the engine does not know yet.
+  if (action.type === "joinLatePlayer") return canJoinLate(state) ? [action.playerId] : [];
   // The draft: each player picks for themselves; anybody may close it once its minute is over.
   if (state.phase === "draft") {
     if (action.type === "pickPassive") return state.draft?.offers[action.playerId] ? [action.playerId] : [];

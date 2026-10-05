@@ -4,6 +4,7 @@ import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { setActionRelay, useGameStore } from "../game/store";
 import type { MapId, PlayerId } from "../game/types";
+import { PLAYER_COLORS } from "../game/types";
 import { EXPIRY_MARGIN_MS, getClockDeadline, getClockOwnerIds } from "../game/turn-clock";
 import { useUiStore } from "../feedback/ui-store";
 import { soundEffects } from "../audio/sound-effects";
@@ -224,6 +225,31 @@ export const useRoomStore = create<RoomState>((set, get) => {
     toast("Action refusée : la partie a changé entre-temps.", "bad");
   };
 
+  /**
+   * Sitting down after the kickoff only reserves the seat: this device then
+   * tells the engine, once, so that every board gets the new player. It is
+   * tried again on every reconnection until the board lists the player.
+   */
+  const ensureLateJoin = async () => {
+    const { code, myUserId, seatOrder, players, status } = get();
+    const game = useGameStore.getState();
+    if (!code || !myUserId || status !== "playing" || (game.phase !== "playing" && game.phase !== "draft")) return;
+    const playerId = getPlayerIdOfUser(seatOrder, myUserId);
+    const me = players.find((player) => player.userId === myUserId);
+    if (!playerId || !me || game.players.some((player) => player.id === playerId)) return;
+    await sendAction({
+      type: "joinLatePlayer",
+      playerId,
+      name: me.name,
+      color: PLAYER_COLORS[me.avatar] ?? PLAYER_COLORS[0],
+    });
+    // Refused for good (the first round ended meanwhile): the seat is of no use.
+    if (!useGameStore.getState().players.some((player) => player.id === playerId)) {
+      await get().leave();
+      toast("La première manche est terminée : tu ne peux plus rejoindre cette partie.", "bad");
+    }
+  };
+
   const handleWire = async (wire: RoomWire) => {
     switch (wire.kind) {
       case "roster":
@@ -399,6 +425,7 @@ export const useRoomStore = create<RoomState>((set, get) => {
     await resync();
     await connect(code, userId);
     broadcast({ kind: "roster" });
+    await ensureLateJoin();
   };
 
   return {
@@ -440,9 +467,10 @@ export const useRoomStore = create<RoomState>((set, get) => {
           rememberRoom(code);
           applySnapshot(room);
           await connect(code, get().myUserId!);
+          await ensureLateJoin();
           return;
         }
-        if (room.status !== "lobby") throw new Error("Cette partie a déjà commencé : impossible de la rejoindre.");
+        if (!room.joinable) throw new Error("Cette partie a déjà commencé : impossible de la rejoindre.");
         if (room.players.length >= 8) throw new Error("Ce salon est complet.");
         set({ preview: room });
       }),

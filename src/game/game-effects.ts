@@ -649,6 +649,27 @@ export function beginNextTurn(state: GameState): GameState {
 }
 
 /**
+ * A player who is put to sleep as their turn opens (a thaw wheel, a reset at
+ * −300…) must not play it: the turn they were to lose is this one, used up
+ * on the spot (patch 0.1.5). One who falls asleep after acting keeps the turn
+ * they are in and loses the next, as the wheels say.
+ */
+export function skipBenchedTurns(state: GameState): GameState {
+  let nextState = state;
+  for (let guard = 0; guard < state.players.length * 3; guard += 1) {
+    const active = getActivePlayer(nextState);
+    const waitsToMove = nextState.turnStage === "move" || nextState.turnStage === "hell";
+    if (nextState.phase !== "playing" || !active || !waitsToMove) return nextState;
+    if (active.skippedTurns <= 0 || nextState.turnActionTaken) return nextState;
+    nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, skippedTurns: player.skippedTurns - 1 }));
+    nextState = addLog(nextState, `${active.name} passe son tour.`, "bad");
+    nextState = thawSnowFrozen(nextState, active.id);
+    nextState = beginNextTurn(nextState);
+  }
+  return nextState;
+}
+
+/**
  * Hands the turn to the first player seated after `fromIndex` who may play.
  * `fromIndex` is −1 when the seat before the first one was just emptied, so
  * the round goes on from the first seat without starting a new one.

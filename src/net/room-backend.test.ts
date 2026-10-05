@@ -222,8 +222,37 @@ describe("kickoff", () => {
     const outsider = await person();
     const peek = await room(code, outsider);
     expect(peek?.state).toBeNull();
-    expect(peek?.players).toEqual([]);
-    expect(await refusal(outsider, `select claim_seat($1, 'Tom', 5::smallint)`, [code])).toMatch(/déjà commencé/);
+    expect(peek?.seatOrder).toEqual([]);
+  });
+
+  it("lets a newcomer sit down until the first round is over, at the end of the order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik"]);
+    const state = await kickoff(code, ids[0]);
+    const late = await person();
+    const peek = await room(code, late);
+    expect(peek?.joinable).toBe(true);
+    expect(peek?.players.map((player) => player.name)).toEqual(["Léa", "Malik"]);
+
+    await as(late, `select claim_seat($1, 'Tom', 5::smallint)`, [code]);
+    const seated = await room(code, late);
+    expect(seated?.isPlayer).toBe(true);
+    expect(seated?.seatOrder).toEqual([...ids, late]);
+    expect(getPlayerIdOfUser(seated!.seatOrder, late)).toBe("p3");
+    // Somebody already seated cannot change their avatar once the game runs.
+    expect(await refusal(ids[1], `select claim_seat($1, 'Malik', 6::smallint)`, [code])).toMatch(/déjà commencé/);
+
+    // The newcomer's device tells the engine, like any action.
+    const action: GameAction = { type: "joinLatePlayer", playerId: "p3", name: "Tom", color: "#fff" as never };
+    const joined = prepareLocalAction(state, action, "p3");
+    expect(joined?.players.map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
+    await as(late, `select advance_room($1, $2::jsonb, 1)`, [code, JSON.stringify(joined)]);
+
+    // From the second round on, the doors close.
+    const second = { ...joined!, phase: "playing", round: 2 };
+    await as(ids[0], `select advance_room($1, $2::jsonb, 2)`, [code, JSON.stringify(second)]);
+    const tooLate = await person();
+    expect((await room(code, tooLate))?.joinable).toBe(false);
+    expect(await refusal(tooLate, `select claim_seat($1, 'Zoé', 7::smallint)`, [code])).toMatch(/déjà commencé/);
   });
 });
 

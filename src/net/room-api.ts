@@ -23,6 +23,8 @@ export interface RoomSnapshot {
   code: string;
   status: RoomStatus;
   hostId: string;
+  /** Whether somebody who has not sat down may still do so: a lobby, or a game whose first round is not over. */
+  joinable: boolean;
   /** False for somebody who has not sat down: they only see the lobby roster, never the board. */
   isPlayer: boolean;
   state: GameState | null;
@@ -66,6 +68,7 @@ interface RawRoom {
   status: RoomStatus;
   host_id: string;
   is_player: boolean;
+  joinable?: boolean;
   state: GameState | null;
   version: number | null;
   seat_order: string[] | null;
@@ -78,6 +81,7 @@ export function parseRoom(raw: RawRoom): RoomSnapshot {
     status: raw.status,
     hostId: raw.host_id,
     isPlayer: raw.is_player,
+    joinable: raw.joinable ?? raw.status === "lobby",
     state: raw.state,
     version: raw.version ?? 0,
     seatOrder: raw.seat_order ?? [],

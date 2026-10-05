@@ -146,9 +146,29 @@ as $$
   select exists (select 1 from public.room_players where room_code = p_code and user_id = p_user);
 $$;
 
+-- A game under way that newcomers may still sit down at: from the draft until
+-- the first round of the table is over, with a chair left (patch 0.1.5).
+create or replace function public.is_late_joinable(p_code text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.rooms r
+     where r.code = p_code
+       and r.status = 'playing'
+       and r.state->>'phase' in ('draft', 'playing')
+       and coalesce((r.state->>'round')::integer, 99) <= 1
+       and jsonb_array_length(r.seat_order) < 8
+  );
+$$;
+
 -- The only way to see a room. A player gets everything. Anybody else only
--- gets what they need to sit down: the lobby's roster, or the fact that the
--- game has started without them. They never get the board.
+-- gets what they need to sit down: the roster of a lobby, or of a game whose
+-- first round is not over yet (`joinable`), or the fact that the game has
+-- started without them. They never get the board.
 -- The roster comes in turn order: the drawn `seat_order` first, then anybody
 -- who sat down after the draw, by arrival.
 create or replace function public.get_room(p_code text)
@@ -160,12 +180,14 @@ as $$
 declare
   me uuid := auth.uid();
   member boolean;
+  late boolean;
 begin
   if me is null then
     raise exception 'Identité manquante' using errcode = '28000';
   end if;
   perform public.release_empty_rooms();
   member := public.is_room_player(p_code, me);
+  late := public.is_late_joinable(p_code);
 
   return (
     select jsonb_build_object(
@@ -173,10 +195,11 @@ begin
       'status', r.status,
       'host_id', r.host_id,
       'is_player', member,
+      'joinable', r.status = 'lobby' or late,
       'state', case when member then r.state end,
       'version', case when member then r.version end,
       'seat_order', case when member then r.seat_order else '[]'::jsonb end,
-      'players', case when member or r.status = 'lobby' then coalesce((
+      'players', case when member or r.status = 'lobby' or late then coalesce((
         select jsonb_agg(jsonb_build_object(
           'user_id', p.user_id, 'seat', p.seat, 'name', p.name, 'avatar', p.avatar,
           'absent', p.last_seen < now() - interval '75 seconds'
@@ -210,9 +233,10 @@ begin
 end;
 $$;
 
--- Sitting down in a lobby, or changing name or avatar while still in it.
--- Only while the lobby is open and has a free chair: there is no standing at
--- the back. An account sits under its profile name, read here rather than
+-- Sitting down in a lobby, or changing name or avatar while still in it, or
+-- sitting down late at a game whose first round is not over (the newcomer then
+-- takes the next seat, and their device tells the engine with `joinLatePlayer`).
+-- Only while a chair is free: there is no standing at the back. An account sits under its profile name, read here rather than
 -- from the request.
 create or replace function public.claim_seat(p_code text, p_name text, p_avatar smallint)
 returns void
@@ -224,6 +248,8 @@ declare
   me        uuid := auth.uid();
   room      public.rooms%rowtype;
   seat_name text;
+  late      boolean := false;
+  new_seat  integer;
 begin
   if me is null then
     raise exception 'Identité manquante' using errcode = '28000';
@@ -235,7 +261,10 @@ begin
     raise exception 'Aucun salon avec ce code' using errcode = 'P0002';
   end if;
   if room.status <> 'lobby' then
-    raise exception 'La partie a déjà commencé' using errcode = '42501';
+    if public.is_room_player(p_code, me) or not public.is_late_joinable(p_code) then
+      raise exception 'La partie a déjà commencé' using errcode = '42501';
+    end if;
+    late := true;
   end if;
   if not public.is_room_player(p_code, me)
      and (select count(*) from public.room_players where room_code = p_code) >= 8 then
@@ -259,6 +288,17 @@ begin
     when check_violation then
       raise exception 'Nom ou avatar invalide' using errcode = '23514';
   end;
+
+  if late then
+    -- The next seat of the frozen order; the engine's player takes the id of that seat.
+    new_seat := jsonb_array_length(room.seat_order);
+    update public.room_players set seat = new_seat where room_code = p_code and user_id = me;
+    update public.rooms set seat_order = seat_order || to_jsonb(me::text) where code = p_code;
+    if room.game_id is not null and exists (select 1 from auth.users u where u.id = me and u.is_anonymous is not true) then
+      insert into public.game_seats (game_id, seat, account_id, name, avatar)
+      values (room.game_id, new_seat, me, seat_name, p_avatar);
+    end if;
+  end if;
 
   update public.rooms set updated_at = now() where code = p_code;
 end;

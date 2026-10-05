@@ -12,6 +12,7 @@ import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
 import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
+import { joinLatePlayer } from "./late-join";
 import { pauseGame, resumeGame } from "./pause";
 import { buyItem, isOnShelf } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
@@ -54,6 +55,7 @@ import {
   startDuel,
   startWheel,
   validTileWheels,
+  skipBenchedTurns,
 } from "./game-effects";
 import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getItemPrice, getTileWheelFor } from "./rules";
 import {
@@ -147,6 +149,8 @@ export type GameAction =
   | { type: "spinTileWheel" }
   | { type: "spinBlessingWheel" }
   | { type: "abandonGame"; playerId: PlayerId }
+  /** Online: somebody sat down after the kickoff, while the first round is not over. */
+  | { type: "joinLatePlayer"; playerId: PlayerId; name: string; color: PlayerColor }
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
   | { type: "resolveWheel" }
   /** With the Gomme, or with a ready Non merci when `withNoThanks` is set. */
@@ -906,7 +910,7 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // The pause only touches the clocks: nothing on the board follows from it.
   if (action.type === "pauseGame" || action.type === "resumeGame") return dispatchGameAction(state, action, now);
   // Nothing is played while the game is paused, but a player may still leave the table.
-  if (state.pause && action.type !== "abandonGame") return state;
+  if (state.pause && action.type !== "abandonGame" && action.type !== "joinLatePlayer") return state;
   const prepared = spareHellPlayers(state);
   const dispatched = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
@@ -916,7 +920,7 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
   const counted = rewardDevilInHell(prepared, recordPreviousTiles(prepared, result));
   const forfeited = applyForfeits(counted);
-  const settled = offerGamble(checkVictories(forfeited));
+  const settled = offerGamble(checkVictories(skipBenchedTurns(forfeited)));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;
@@ -966,6 +970,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return spinTileWheel(state);
     case "spinBlessingWheel":
       return spinBlessingWheel(state);
+    case "joinLatePlayer":
+      return joinLatePlayer(state, action.playerId, action.name, action.color);
     case "abandonGame":
       return abandonPlayer(state, action.playerId);
     case "spinWheel":

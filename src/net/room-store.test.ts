@@ -52,6 +52,7 @@ function lobbySnapshot(playerIds: string[]): RoomSnapshot {
     status: "lobby",
     hostId: HOST_ID,
     isPlayer: true,
+    joinable: true,
     state: null,
     version: 0,
     seatOrder: [],
