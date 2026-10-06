@@ -1,6 +1,6 @@
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
+import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isBlockedRoad, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
@@ -52,6 +52,7 @@ import type {
   WheelId,
   WheelOrigin,
   WheelResult,
+  QueuedWheel,
 } from "./types";
 import {
   BOOT_PRICE_STEP,
@@ -89,23 +90,28 @@ export function startWheel(
   wheelId: WheelId,
   playerId: PlayerId,
   resumeStage: TurnStage,
-  options: { sourceItemId?: ItemId; origin?: WheelOrigin; repeats?: WheelId[] } = {},
+  options: { sourceItemId?: ItemId; origin?: WheelOrigin; repeats?: QueuedWheel[]; preset?: WheelResult } = {},
 ): GameState {
   const spinner = findPlayer(state, playerId);
   // L'Ange-Gardien's wheel of misfortune is not everybody's.
-  let result = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
-  let discarded: WheelResult | undefined;
-  if (drawsTwiceKeepingBest(spinner, wheelId)) {
+  let result = options.preset ?? chooseWheelResult(wheelId, drawEngineRandom(), spinner);
+  // Main verte, Main rouge: a second wheel beside the first, the player keeps one of the two. The better one
+  // stands in for the choice of a player who never makes it.
+  let choices: [WheelResult, WheelResult] | undefined;
+  if (!options.preset && drawsTwiceKeepingBest(spinner, wheelId)) {
     const other = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
-    if (getWheelResultValue(other) > getWheelResultValue(result)) [result, discarded] = [other, result];
-    else discarded = other;
+    choices = [result, other];
+    if (getWheelResultValue(other) > getWheelResultValue(result)) result = other;
   }
-  // A second spin of the same wheel for Touché angélique and Main du diable, once this one is settled.
-  const repeats = [
+  // A second wheel of the same kind for Touché angélique and Main du diable, spun along with this one and
+  // applied once this one is settled.
+  const repeats: QueuedWheel[] = [
     ...(options.repeats ?? []),
-    ...(options.origin !== "double" && spinsTwice(spinner, wheelId) ? [wheelId] : []),
+    ...(!options.preset && options.origin !== "double" && spinsTwice(spinner, wheelId)
+      ? [{ wheelId, result: chooseWheelResult(wheelId, drawEngineRandom(), spinner) }]
+      : []),
   ];
-  const { repeats: _inherited, ...rest } = options;
+  const { repeats: _inherited, preset, ...rest } = options;
   const nextState: GameState = {
     ...state,
     pendingWheel: {
@@ -115,14 +121,17 @@ export function startWheel(
       result,
       resumeStage,
       ...rest,
-      ...(discarded ? { discarded } : {}),
+      ...(preset ? { preSpun: true } : {}),
+      ...(choices ? { choices } : {}),
       ...(repeats.length > 0 ? { repeats } : {}),
     },
     turnStage: "wheel-result",
   };
   const whose = spinner ? ` de ${spinner.name}` : "";
-  const aside = discarded ? ` (l’autre tirage, ${discarded.label}, est écarté)` : "";
-  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}${aside}.`, "event");
+  const text = choices
+    ? `Les deux roues ${WHEEL_LOG_NAMES[wheelId]}${whose} indiquent : ${choices[0].label} et ${choices[1].label}.`
+    : `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}.`;
+  return addLog(nextState, text, "event");
 }
 
 /**
@@ -619,9 +628,24 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId,
   if (owner && owner.id !== playerId) {
     const reward = getMudOwnerReward(owner);
     nextState = addLog(nextState, `${owner.name} touche ${reward} pièces grâce à sa Boue.`, "good");
+    nextState = linkLastGamble(nextState, playerId, { playerId: owner.id, amount: reward });
     nextState = applyCurrencyChange(nextState, owner.id, reward);
   }
   return nextState;
+}
+
+/** The gamble just queued for `playerId` also settles what the loss paid somebody else. */
+function linkLastGamble(
+  state: GameState,
+  playerId: PlayerId,
+  linked: { playerId: PlayerId; amount: number },
+): GameState {
+  const index = state.pendingGambles.map((gamble) => gamble.playerId).lastIndexOf(playerId);
+  if (index < 0 || state.pendingGambles[index].amount >= 0) return state;
+  return {
+    ...state,
+    pendingGambles: state.pendingGambles.map((gamble, at) => (at === index ? { ...gamble, linked } : gamble)),
+  };
 }
 
 /** Chance aveugle slips in the mud: one tile back, without an arrival there, and not a coin lost. */
@@ -890,9 +914,21 @@ function thawFrozenSlide(state: GameState): GameState {
   // Pulled, swapped or sent to Hell meanwhile: the slide it was finishing no longer exists.
   if (active.position !== frozen.from) return nextState;
 
+  const board = getBoard(state);
+  // A Barrière set on the road meanwhile stops the slide: it bounces back on the tile and slides on another way.
+  const barred = isBlockedRoad(board, frozen.from, frozen.to);
   // The blizzard may have frozen the tile meanwhile: the slide then goes on from there.
-  const onward = isIce(getBoard(state), frozen.to) ? drawSlide(state, frozen.from, [frozen.to], false) : null;
-  const path = [frozen.to, ...(onward?.slide ?? [])];
+  const onward = barred
+    ? drawSlide(state, frozen.to, [frozen.from], false)
+    : isIce(board, frozen.to)
+      ? drawSlide(state, frozen.from, [frozen.to], false)
+      : null;
+  const path = barred ? (onward?.slide ?? []) : [frozen.to, ...(onward?.slide ?? [])];
+  if (barred && path.length === 0) {
+    // No other road to slide on: nobody stays on ice, the safety net after the action carries them off.
+    nextState = addLog(nextState, `${active.name} brise la glace, mais une Barrière lui ferme la route.`, "event");
+    return settleBoard(nextState, nextState.turnStage);
+  }
   const end = path[path.length - 1];
   nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, position: end }));
   nextState = {
@@ -905,7 +941,13 @@ function thawFrozenSlide(state: GameState): GameState {
       thawed: true,
     },
   };
-  nextState = addLog(nextState, `${active.name} brise la glace et arrive en case ${frozen.to}.`, "event");
+  nextState = addLog(
+    nextState,
+    barred
+      ? `${active.name} brise la glace, se heurte à une Barrière, rebondit et glisse jusqu’en case ${end}.`
+      : `${active.name} brise la glace et arrive en case ${frozen.to}.`,
+    "event",
+  );
   if (onward) nextState = recordSlide(nextState, active.id, onward, end);
   nextState = addRedGreenBonuses(nextState, active.id, path);
   nextState = queueTileWheel(nextState, active.id);

@@ -76,8 +76,9 @@ export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId
     let next = randomChoice(getSlideChoices(openBoard, previous, current, crossed));
     if (next !== undefined && isBlockedRoad(board, current, next)) {
       outcome.bumps.push({ step: outcome.slide.length, toward: next });
-      // Back on the tile, the ice tries another way; with none left, as for a dead end, it goes back.
-      next = randomChoice(getSlideChoices(board, previous, current, crossed));
+      // Back on the tile, the ice tries another way; with none left, as for a dead end, it goes back. Nobody
+      // stays on ice: when the barred road is the only one, the slide goes through it after all.
+      next = randomChoice(getSlideChoices(board, previous, current, crossed)) ?? next;
     }
     if (next === undefined) break;
     if (iceFall && next === state.redCupNodeId) {

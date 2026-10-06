@@ -1,25 +1,19 @@
 import { hasCard } from "../../game/cards";
 import { useState } from "react";
-import { DEVIL_ITEMS, ITEM_CATALOG, type ItemDefinition } from "../../game/catalog";
+import { DEVIL_ITEMS, ITEM_CATALOG } from "../../game/catalog";
 import { getShopItems } from "../../game/passive-rules";
 import { getInventoryCapacity } from "../../game/rules";
 import { getMaxPurchaseCount, getResalePrice } from "../../game/shopping";
 import { useGameStore } from "../../game/store";
 import type { ItemId } from "../../game/types";
-import { EnergyCost, formatEnergyCost } from "../components/energy-meter";
+import { EnergyCost } from "../components/energy-meter";
+import { ItemDetail } from "../components/item-detail";
 import { ModalShell } from "../components/modal-shell";
 import { formatCurrency } from "../display/game-display";
 import { getPurchaseStatus, getTheftStatus } from "../display/item-availability";
 import { useActivePlayer } from "../game-hooks";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-
-/** When, and for how much energy, a bought item can be used. */
-function describeEnergyUse(item: ItemDefinition): string {
-  if (item.energyCost === 0 && item.target === "special") return "Agit tout seul, sans énergie.";
-  const cost = item.energyCost === 0 ? "sans énergie" : `pour ${formatEnergyCost(item.energyCost)}`;
-  return `Utilisable dès ton prochain tour, ${cost}.`;
-}
 
 interface ShopModalProps {
   onClose: () => void;
@@ -76,11 +70,11 @@ export function ShopModal({ onClose }: ShopModalProps) {
         </>
       }
     >
-      <div className="shop-status">
-        <span className="shop-status__wallet">
+      <div className="shop-bar">
+        <span className="shop-bar__pill shop-bar__wallet">
           <CoinIcon size={22} /> {formatCurrency(player.currency)}
         </span>
-        <span className="shop-status__bag">
+        <span className="shop-bar__pill">
           <UiIcon name="bag" size={18} /> {player.inventory.length}/{capacity} places
         </span>
         {tabs.length > 1 && (
@@ -128,7 +122,9 @@ export function ShopModal({ onClose }: ShopModalProps) {
                     onClick={() => selectItem(itemId)}
                     aria-pressed={selectedId === itemId}
                   >
-                    <ItemIcon itemId={itemId} size={40} />
+                    <span className="shop-item__art">
+                      <ItemIcon itemId={itemId} size={40} />
+                    </span>
                     <span className="shop-item__name">{ITEM_CATALOG[itemId].name}</span>
                     <span className="shop-item__chips">
                       <span className="price-chip">
@@ -144,43 +140,39 @@ export function ShopModal({ onClose }: ShopModalProps) {
           </ul>
 
           <aside className="shop-detail" aria-live="polite">
-            <ItemIcon itemId={selectedId} size={72} className="shop-detail__icon" />
-            <strong className="shop-detail__name">{selected.name}</strong>
-            <p>{selected.description}</p>
-            <span className="shop-detail__energy">
-              <EnergyCost cost={selected.energyCost} /> {describeEnergyUse(selected)}
-            </span>
-            {selectedStatus.canBuy && maxCount > 1 && (
-              <QuantityPicker value={count} max={maxCount} onChange={setWantedCount} />
-            )}
-            <button
-              type="button"
-              className="btn btn--gold btn--block"
-              disabled={!selectedStatus.canBuy}
-              onClick={() => game.buyItem(selectedId, count)}
-            >
-              {selectedStatus.canBuy ? (
-                <>
-                  Acheter{count > 1 ? ` ×${count}` : ""} · <CoinIcon size={18} />{" "}
-                  {formatCurrency(selectedStatus.price * count)}
-                </>
-              ) : (
-                selectedStatus.reason
+            <ItemDetail itemId={selectedId} item={selected} price={selectedStatus.price}>
+              {selectedStatus.canBuy && maxCount > 1 && (
+                <QuantityPicker value={count} max={maxCount} onChange={setWantedCount} />
               )}
-            </button>
-            {theftStatus && (
               <button
                 type="button"
-                className="btn btn--cream btn--block"
-                disabled={!theftStatus.canSteal}
-                onClick={() => game.stealItem(selectedId)}
-                title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+                className="btn btn--gold btn--block"
+                disabled={!selectedStatus.canBuy}
+                onClick={() => game.buyItem(selectedId, count)}
               >
-                {theftStatus.canSteal
-                  ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque`
-                  : theftStatus.reason}
+                {selectedStatus.canBuy ? (
+                  <>
+                    Acheter{count > 1 ? ` ×${count}` : ""} · <CoinIcon size={18} />{" "}
+                    {formatCurrency(selectedStatus.price * count)}
+                  </>
+                ) : (
+                  selectedStatus.reason
+                )}
               </button>
-            )}
+              {theftStatus && (
+                <button
+                  type="button"
+                  className="btn btn--cream btn--block"
+                  disabled={!theftStatus.canSteal}
+                  onClick={() => game.stealItem(selectedId)}
+                  title="Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces."
+                >
+                  {theftStatus.canSteal
+                    ? `Voler · ${Math.round(theftStatus.risk * 100)} % de risque`
+                    : theftStatus.reason}
+                </button>
+              )}
+            </ItemDetail>
           </aside>
         </div>
       )}

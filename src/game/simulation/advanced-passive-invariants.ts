@@ -54,11 +54,22 @@ function checkGamble(previous: GameState, next: GameState, found: RuleViolation[
     const before = findPlayer(previous, gamble?.playerId);
     const after = findPlayer(next, gamble?.playerId);
     if (!gamble || !before || !after) return;
-    const outcomes = [before.currency, expectedBalance(before, gamble.amount), expectedBalance(before, -gamble.amount)];
+    // A loss that waited to knock the holder out ends at 0 (lost or refused) or back where it was (wiped out).
+    const outcomes = [
+      before.currency,
+      expectedBalance(before, gamble.amount),
+      expectedBalance(before, -gamble.amount),
+      0,
+      before.currency - gamble.amount,
+    ];
     if (!outcomes.includes(after.currency)) {
       found.push(violation("gamble-outcome", `${before.name} staked ${gamble.amount} and went to ${after.currency}`));
     }
-    if (withoutGamblePause(next).turnStage !== previous.gambleResumeStage && next.phase === "playing") {
+    // A knock-out that waited for the gamble passes the holder's turn at once, and play moves on with it.
+    const knockedOut = newLogTexts(previous, next).some((text) =>
+      text.startsWith(`${before.name} tombe à −300 pièces`),
+    );
+    if (!knockedOut && withoutGamblePause(next).turnStage !== previous.gambleResumeStage && next.phase === "playing") {
       found.push(violation("gamble-resumes", `play went back to ${next.turnStage}, not ${previous.gambleResumeStage}`));
     }
     return;

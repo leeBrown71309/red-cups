@@ -117,6 +117,14 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * 22 le diable's count of turns spent in Hell instead of entries. Version 23
  * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages.
  */
+/** Earlier saves queued the wheels still to spin by name, and set the other draw aside: both are dropped. */
+function upgradeWheel(wheel: SaveRecord | null | undefined): SaveRecord | null {
+  if (!wheel) return null;
+  const { discarded: _discarded, repeats, ...rest } = wheel;
+  const queued = Array.isArray(repeats) ? repeats.filter((entry) => typeof entry === "object" && entry !== null) : [];
+  return queued.length > 0 ? { ...rest, repeats: queued } : rest;
+}
+
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
   const duel = save.pendingDuel as SaveRecord | null | undefined;
@@ -150,12 +158,15 @@ function upgradeSave(save: SaveRecord): SaveRecord {
         }
       : null,
     pendingDuelChoice: save.pendingDuelChoice ?? null,
+    pendingWheel: upgradeWheel(save.pendingWheel as SaveRecord | null | undefined),
     barriers: save.barriers ?? [],
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     thrownStackId: save.thrownStackId ?? null,
     diceRoll: save.diceRoll ?? null,
     pendingGambles: save.pendingGambles ?? [],
+    queuedWheels: save.queuedWheels ?? [],
     gambleResumeStage: save.gambleResumeStage ?? "turn-end",
+    lastGambleResult: save.lastGambleResult ?? null,
     theftAttempted: save.theftAttempted ?? false,
     coWinnerId: save.coWinnerId ?? null,
     startingPlayerCount: save.startingPlayerCount ?? players.length,

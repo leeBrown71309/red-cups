@@ -16,6 +16,8 @@ import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
 import { GameCountdown } from "./game-countdown";
+import { DiceRollAnimation } from "./dice-roll";
+import { GambleSplash } from "./gamble-splash";
 import { PauseOverlay } from "./pause-controls";
 import { PlayerDock } from "./player-dock";
 import { LeftTableBanner } from "./left-table-banner";
@@ -108,6 +110,8 @@ export function GameHud() {
       <LeftTableBanner />
       <TurnSplash />
       <GameCountdown />
+      <DiceRollAnimation />
+      <GambleSplash />
       <AlertBannerView />
       {decision}
       {/* Above every decision; the menu opened from it takes its place until closed. */}

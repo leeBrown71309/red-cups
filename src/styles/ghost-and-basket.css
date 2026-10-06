@@ -121,9 +121,17 @@
 }
 
 /* ---------- Blackjack and arm wrestle (patch 0.1.4) ---------- */
-.blackjack {
+.duel-panel.blackjack {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  justify-items: stretch;
   gap: 10px;
+}
+
+/* Both hands side by side, each under its duellist; the buttons and the waiting note take the full row. */
+.blackjack > :not(.blackjack-hand) {
+  grid-column: 1 / -1;
 }
 
 .blackjack-hand {
@@ -143,6 +151,10 @@
 
 .blackjack-hand__who .is-bust {
   color: var(--cup-deep);
+}
+
+.blackjack-hand__who {
+  overflow-wrap: anywhere;
 }
 
 .blackjack-hand__cards {

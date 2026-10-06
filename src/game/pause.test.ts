@@ -95,3 +95,13 @@ describe("host pause", () => {
     expect(play(duelling, { type: "pauseGame", playerId: state.players[1].id }, 0)).toBe(duelling);
   });
 });
+
+describe("a paused game that ends", () => {
+  it("is no longer paused once the last abandonment ends it", () => {
+    const table = onlineTable(2);
+    const paused = play(table, { type: "pauseGame", playerId: table.hostPlayerId! }, 1_000);
+    expect(paused.pause).not.toBeNull();
+    const ended = play(paused, { type: "abandonGame", playerId: paused.players[0].id }, 2_000);
+    expect(ended).toMatchObject({ phase: "finished", pause: null });
+  });
+});

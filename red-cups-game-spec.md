@@ -688,3 +688,17 @@ Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponse
 - **Non merci** : utilisable une fois tous les 3 tours de table au lieu d’une fois par cycle de Red Cup.
 - **Tour de Bénédiction** : si tous les joueurs ont 0 pièce ou moins, chacun tourne la roue du bonheur à tour de rôle.
 - **Interface** : la boutique ne se ferme plus un instant après chaque achat ; la fenêtre Non merci laisse 15 secondes pour réagir (au lieu de 8).
+
+## 13 quater. Choix à valider : seconde liste de retours (patch 0.1.5)
+
+1. **Roues doubles** : Main verte / Main rouge affichent deux roues côte à côte et le joueur touche celle qu’il garde (`pickWheelResult`) ; sans choix (horloge en ligne), le meilleur des deux est gardé. Touché angélique / Main du diable lancent leurs deux roues en parallèle : les deux résultats sont tirés d’un coup, le second s’applique juste après le premier (il reste affiché, déjà arrêté).
+2. **Barrière** : 400 pièces, un seul tour de table (`BARRIER_TURNS = 1`). La Botte, posée juste devant, la saute : un pas, pas deux.
+3. **Botte** : impossible à chausser sans route libre (saut compris), et le tour ne peut plus finir une fois chaussée tant qu’un déplacement existe.
+4. **Prix** : Parachute 650, Doomsday 555.
+5. **Cartes** : le Piégeur est refusé à L’Ange-Gardien ; Cupide ne reçoit pas Nepo Baby ; l’objet gratuit d’une roue respecte les objets interdits à L’Ange-Gardien. L’unicité des cartes à la table (point 8) est laissée de côté, comme demandé.
+6. **Portails** : le diable est immunisé contre ses propres Portails (ils restent ouverts).
+7. **Bullet Bill** : l’explosion atteint tous les joueurs de la case (200 pièces et un tour sauté chacun, hors immunisés). Pas de Non merci pour les voisins de la victime : à valider.
+8. **Calme-toi** : un seul joueur, au choix parmi ceux qui sont déplaçables.
+9. **Double or nothing** : (a) la Boue : si la perte est doublée, le poseur touche de nouveau sa récompense ; si elle est annulée, il la perd ; (b) une perte qui mènerait à −300 se joue avant l’assommoir (le solde reste sous −300 le temps du pari ; perdue ou refusée, la perte assomme ; annulée, le joueur continue) ; (c) « Double » en vert ou « Nothing » en rouge s’affiche au centre de l’écran de toute la table.
+10. **Toasts d’achat** : ni le prix ni l’objet ne figurent dans les messages d’achat, même à une table locale.
+11. **Cupide à Banquise (point 7 de la liste)** : non corrigé, en attente de précisions de l’auteur (la glace tombée sur lui puis le dégel le font arriver sur la Red Cup, comme le dit la règle de la tombée de glace).

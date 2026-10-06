@@ -98,6 +98,8 @@ const KEYS_BEFORE_PATCH_0_1_4: Record<string, true> = Object.fromEntries(
     "frozenSlides",
     "lastBlizzard",
     "lastIceFall",
+    "lastGambleResult",
+    "queuedWheels",
     "ghost",
     "lastGhostEvent",
     "lastTomatoThrow",

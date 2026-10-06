@@ -16,6 +16,8 @@ export type FeedbackEvent =
   | { type: "hell-escaped"; playerId: PlayerId }
   | { type: "teleport"; playerId: PlayerId }
   | { type: "duel-started" }
+  /** Double or nothing: the coin flip of a gamble, shown to the whole table. */
+  | { type: "gamble-result"; playerId: PlayerId; doubled: boolean }
   | { type: "mud-placed"; nodeId: NodeId }
   | { type: "mud-triggered"; nodeId: NodeId }
   | { type: "bullet-launched" }

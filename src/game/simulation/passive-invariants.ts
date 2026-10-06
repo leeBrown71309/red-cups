@@ -84,15 +84,14 @@ export function checkCalmDown(previous: GameState, next: GameState, found: RuleV
   }
 
   const pending = previous.pendingCalmDown;
-  if (
-    !pending ||
-    previous.turnStage !== "passive-choice" ||
-    next.pendingCalmDown?.targetIds.length === pending.targetIds.length
-  ) {
-    return;
-  }
-  const before = findPlayer(previous, pending.targetIds[0]);
-  const after = findPlayer(next, pending.targetIds[0]);
+  if (!pending || previous.turnStage !== "passive-choice" || next.pendingCalmDown !== null) return;
+  // One player of the offered ones, at most, was set down.
+  const movedIds = pending.targetIds.filter(
+    (id) => findPlayer(previous, id)?.position !== findPlayer(next, id)?.position,
+  );
+  if (movedIds.length > 1) found.push(violation("calm-down-one", `Calme-toi moved ${movedIds.length} players`));
+  const before = findPlayer(previous, movedIds[0]);
+  const after = findPlayer(next, movedIds[0]);
   if (!before || !after || before.position === after.position) return;
   // Knocked out on le diable's tile, the player set down may go on to Hell through their Toucher d'Enfer.
   const touched = touchedByHell(previous, next, after.id);

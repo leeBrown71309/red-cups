@@ -114,45 +114,56 @@ describe("the wheel cards", () => {
   /** The wedge picked by a draw: the wheel has eight wedges of equal weight. */
   const draw = (wedge: number) => (wedge + 0.5) / 8;
 
-  it("Main verte draws twice on the wheel of fortune and keeps the better", () => {
+  it("Main verte spins two wheels of fortune side by side and lets the player keep one result", () => {
     startTable(["green-hand", "lambda"]);
     // Wedge 0 is +100 pièces, wedge 7 « Va au Départ ».
     vi.spyOn(Math, "random").mockReturnValueOnce(draw(0)).mockReturnValueOnce(draw(7));
-    const state = startWheel(store(), "fortune", store().players[0].id, "move");
-    expect(state.pendingWheel?.result.id).toBe("go-to-start");
-    expect(state.pendingWheel?.discarded?.id).toBe("gain-100");
+    useGameStore.setState(startWheel(store(), "fortune", store().players[0].id, "move"));
+    expect(store().pendingWheel?.choices?.map((result) => result.id)).toEqual(["gain-100", "go-to-start"]);
+    // Whoever lets the clock run out keeps the better of the two.
+    expect(store().pendingWheel?.result.id).toBe("go-to-start");
+
+    expect(getActionActorIds(store(), { type: "pickWheelResult", index: 0 })).toEqual([store().players[0].id]);
+    store().pickWheelResult(0);
+    expect(store().pendingWheel).toMatchObject({ chosen: 0, result: { id: "gain-100" } });
+    store().resolveWheel();
+    expect(store().players[0].currency).toBe(STARTING_CURRENCY + 100);
   });
 
-  it("Main rouge keeps the better of two misfortunes, and nobody else draws twice", () => {
+  it("Main rouge offers two misfortunes, and nobody else spins two wheels", () => {
     startTable(["red-hand", "lambda"]);
     // Wedge 6 is « Direction l'Enfer », wedge 3 « Retourne d'où tu viens ».
     vi.spyOn(Math, "random").mockReturnValueOnce(draw(6)).mockReturnValueOnce(draw(3));
     const state = startWheel(store(), "misfortune", store().players[0].id, "move");
+    expect(state.pendingWheel?.choices?.map((result) => result.id)).toEqual(["go-to-hell", "go-back"]);
     expect(state.pendingWheel?.result.id).toBe("go-back");
 
     const other = startWheel(store(), "misfortune", store().players[1].id, "move");
-    expect(other.pendingWheel?.discarded).toBeUndefined();
-    expect(startWheel(store(), "fortune", store().players[0].id, "move").pendingWheel?.discarded).toBeUndefined();
+    expect(other.pendingWheel?.choices).toBeUndefined();
+    expect(startWheel(store(), "fortune", store().players[0].id, "move").pendingWheel?.choices).toBeUndefined();
   });
 
-  it("Touché angélique spins the wheel of fortune a second time, and both results count", () => {
+  it("Touché angélique spins two wheels of fortune together, and both results apply one after the other", () => {
     startTable(["angelic-touch", "lambda"]);
     vi.spyOn(Math, "random").mockReturnValueOnce(draw(1)).mockReturnValueOnce(draw(3));
     useGameStore.setState(startWheel(store(), "fortune", store().players[0].id, "move"));
-    expect(store().pendingWheel?.repeats).toEqual(["fortune"]);
-    store().resolveWheel();
-    const afterFirst = store().players[0].currency;
-    expect(afterFirst).toBe(STARTING_CURRENCY + 200);
-    expect(store().pendingWheel).toMatchObject({ origin: "double", wheelId: "fortune" });
+    // Both results are known from the start: the second wheel has spun beside the first.
+    expect(store().pendingWheel?.result.id).toBe("gain-200");
+    expect(store().pendingWheel?.repeats?.map((queued) => [queued.wheelId, queued.result.id])).toEqual([
+      ["fortune", "gain-400"],
+    ]);
+    // One click applies both, in the same turn, before anything else goes on.
     store().resolveWheel();
     expect(store().players[0].currency).toBe(STARTING_CURRENCY + 200 + 400);
     expect(store().pendingWheel).toBeNull();
+    expect(store().queuedWheels).toEqual([]);
+    expect(store().turnStage).toBe("move");
   });
 
   it("Main du diable spins the wheel of Hell twice, and not the wheel of fortune", () => {
     startTable(["devils-hand", "lambda"]);
     const hell = startWheel(store(), "hell", store().players[0].id, "turn-end", { origin: "hell" });
-    expect(hell.pendingWheel?.repeats).toEqual(["hell"]);
+    expect(hell.pendingWheel?.repeats?.map((queued) => queued.wheelId)).toEqual(["hell"]);
     const fortune = startWheel(store(), "fortune", store().players[0].id, "move");
     expect(fortune.pendingWheel?.repeats).toBeUndefined();
   });

@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { getLocalPlayerId } from "../net/room-store";
 import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
@@ -700,8 +699,8 @@ export class BoardWorld {
       case "currency": {
         const position = this.pawns.getPawnPosition(event.playerId);
         if (!position) return;
-        // Online, what somebody else pays in the shop would give away what they bought.
-        if (event.purchase && getLocalPlayerId() !== null && getLocalPlayerId() !== event.playerId) return;
+        // The price paid in the shop would give away what was bought, to the table and online alike.
+        if (event.purchase) return;
         const text = `${event.delta > 0 ? "+" : "−"}${Math.abs(event.delta)}`;
         this.effects.spawnFloatingText(position, text, event.delta > 0 ? "#7ee07a" : "#ff6b5e");
         return;

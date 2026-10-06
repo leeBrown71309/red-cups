@@ -33,6 +33,8 @@ interface UiState {
   roadPickEntryId: string | null;
   /** Corrupteur toggle for the current move. */
   ignoreArrows: boolean;
+  /** Calme-toi: the player the holder has chosen to set down, among those offered. */
+  calmTargetId: PlayerId | null;
   /** Destination selected by a first tap on touch screens, waiting for confirmation. */
   previewNodeId: NodeId | null;
   /** Destination hovered in the HUD chips, highlighted on the board without selecting it. */
@@ -41,6 +43,7 @@ interface UiState {
   setCountdownUntil: (timestamp: number) => void;
   setRoadPickEntryId: (entryId: string | null) => void;
   setIgnoreArrows: (ignoreArrows: boolean) => void;
+  setCalmTargetId: (playerId: PlayerId | null) => void;
   setPreviewNodeId: (nodeId: NodeId | null) => void;
   setHoveredChipNodeId: (nodeId: NodeId | null) => void;
   pushToast: (toast: Toast) => void;
@@ -72,8 +75,10 @@ export const useUiStore = create<UiState>((set) => ({
   ghostLootOpen: false,
   roadPickEntryId: null,
   ignoreArrows: false,
+  calmTargetId: null,
   previewNodeId: null,
   hoveredChipNodeId: null,
+  setCalmTargetId: (calmTargetId) => set({ calmTargetId }),
   setRoadPickEntryId: (roadPickEntryId) => set({ roadPickEntryId }),
   setBoardBusyUntil: (boardBusyUntil) => set({ boardBusyUntil }),
   setCountdownUntil: (countdownUntil) => set({ countdownUntil }),
@@ -102,6 +107,7 @@ export const useUiStore = create<UiState>((set) => ({
       ghostLootOpen: false,
       roadPickEntryId: null,
       ignoreArrows: false,
+      calmTargetId: null,
       previewNodeId: null,
       hoveredChipNodeId: null,
     }),
@@ -124,4 +130,23 @@ export function useBoardSettled(): boolean {
 
   // The live clock covers a deadline already behind us, so an open modal never blinks off for a render.
   return now >= busyUntil || performance.now() >= busyUntil;
+}
+
+/** True while the countdown after the draft is still running: nobody may play yet. */
+export function isCountdownRunning(): boolean {
+  return performance.now() < useUiStore.getState().countdownUntil;
+}
+
+export function useCountdownRunning(): boolean {
+  const countdownUntil = useUiStore((state) => state.countdownUntil);
+  const [now, setNow] = useState(() => performance.now());
+
+  useEffect(() => {
+    const remaining = countdownUntil - performance.now();
+    if (remaining <= 0) return undefined;
+    const timer = window.setTimeout(() => setNow(performance.now()), remaining + 16);
+    return () => window.clearTimeout(timer);
+  }, [countdownUntil]);
+
+  return now < countdownUntil && performance.now() < countdownUntil;
 }

@@ -193,6 +193,20 @@ export interface CurrencyChangeOptions {
    * purchase, Corrupteur, a theft gone wrong) and the coin flip's own outcome.
    */
   gamble?: boolean;
+  /** No journal line, so a toast never gives away what the coins were spent on (a purchase). */
+  silent?: boolean;
+}
+
+/** A holder left below −300 while their gamble was pending is knocked out now: balance back to 0, next turn lost. */
+export function settleKnockout(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player || player.currency > CURRENCY_RESET_THRESHOLD) return state;
+  const nextState = updatePlayer(state, playerId, (current) => loseTurns({ ...current, currency: 0 }));
+  return addLog(
+    nextState,
+    `${player.name} tombe à −300 pièces : son solde revient à 0 et son prochain tour sera sauté.`,
+    "bad",
+  );
 }
 
 /**
@@ -210,9 +224,8 @@ export function applyCurrencyChange(
   if (!player || amount === 0) return state;
 
   let nextState = state;
-  if (options.gamble !== false && offersGamble(player) && state.phase === "playing") {
-    nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
-  }
+  const staked = options.gamble !== false && offersGamble(player) && state.phase === "playing";
+  if (staked) nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
   let nextCurrency = player.currency + amount;
   let nextInventory = player.inventory;
 
@@ -225,7 +238,19 @@ export function applyCurrencyChange(
     }
   }
 
-  const reachedResetThreshold = nextCurrency <= CURRENCY_RESET_THRESHOLD;
+  // A loss the holder may stake does not knock them out yet: wiping it out lets them play on.
+  const knockedOut = nextCurrency <= CURRENCY_RESET_THRESHOLD;
+  const awaitsGamble = staked && amount < 0 && knockedOut;
+  if (awaitsGamble) {
+    const queued = nextState.pendingGambles;
+    nextState = {
+      ...nextState,
+      pendingGambles: queued.map((gamble, index) =>
+        index === queued.length - 1 ? { ...gamble, knockout: true } : gamble,
+      ),
+    };
+  }
+  const reachedResetThreshold = knockedOut && !awaitsGamble;
   if (reachedResetThreshold) nextCurrency = 0;
 
   nextState = updatePlayer(nextState, playerId, (currentPlayer) => {
@@ -241,6 +266,7 @@ export function applyCurrencyChange(
     );
   }
 
+  if (options.silent) return nextState;
   const sign = amount > 0 ? "+" : "−";
   return addLog(nextState, `${player.name} ${sign}${Math.abs(amount)} pièces.`, amount > 0 ? "good" : "bad");
 }

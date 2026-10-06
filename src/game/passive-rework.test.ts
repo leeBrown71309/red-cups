@@ -325,18 +325,16 @@ describe("Calme-toi", () => {
     expect(getCalmDownTiles(store())).toEqual([3, 5, 6, 7, 9]);
   });
 
-  it("sets them down three steps from the Cup, one after the other, without a wheel", () => {
+  it("sets one chosen player down three steps from the Cup, without a wheel, and leaves the others be", () => {
     newCupOnEight();
     const before = store();
     store().resolveCalmDown(4);
     expect(store()).toBe(before);
 
-    store().resolveCalmDown(5);
-    expect(store().players[0].position).toBe(5);
-    expect(store().pendingCalmDown?.targetIds).toEqual([playerId(2)]);
-
-    store().resolveCalmDown(null);
-    expect(store().players[2].position).toBe(10);
+    // Both are offered; the holder picks the second one.
+    store().resolveCalmDown(5, playerId(2));
+    expect(store().players[2].position).toBe(5);
+    expect(store().players[0].position).toBe(before.players[0].position);
     expect(store()).toMatchObject({ turnStage: "turn-end", pendingCalmDown: null, pendingTileWheels: [] });
   });
 

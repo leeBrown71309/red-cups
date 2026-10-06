@@ -2,7 +2,7 @@ import { applyRemoteAction, getUserIdOfPlayer } from "../../net/room-protocol";
 import { getActionActorIds } from "../action-permissions";
 import { CARD_KINDS, getCards, withCard } from "../cards";
 import { PASSIVE_ORDER } from "../catalog";
-import { HARMFUL_PASSIFS } from "../draft";
+import { getRefusedPassifs } from "../draft";
 import { MAP_ORDER } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
 import { runWithSeededSource } from "../engine-random";
@@ -124,9 +124,9 @@ function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
       };
     }
     // L'Ange-Gardien takes nothing from anybody: a harmful passif drawn before it became the angel is swapped.
-    if (next.passiveId === "guardian-angel" && next.passifId && HARMFUL_PASSIFS.includes(next.passifId)) {
+    if (next.passifId && getRefusedPassifs(next.passiveId).includes(next.passifId)) {
       used.delete(next.passifId);
-      next = { ...next, passifId: free("passif", null, HARMFUL_PASSIFS) };
+      next = { ...next, passifId: free("passif", null, getRefusedPassifs(next.passiveId)) };
     }
     used.add(next.passiveId);
     if (next.passifId) used.add(next.passifId);

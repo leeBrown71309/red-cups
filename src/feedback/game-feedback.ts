@@ -178,10 +178,9 @@ function collectEvents(
   newLogEntries.reverse().forEach((entry) => events.push({ type: "log", entry }));
 
   const previousActive = previous.players.find((player) => player.id === activePlayer?.id);
+  const inShop = state.turnStage === "shop" && previous.turnStage === "shop" && activePlayer !== undefined;
   const boughtItem =
-    state.turnStage === "shop" &&
-    previous.turnStage === "shop" &&
-    activePlayer !== undefined &&
+    inShop &&
     previousActive !== undefined &&
     // A Tomate bought onto its stack adds no slot: the bag's units tell a purchase.
     countBagUnits(activePlayer) > countBagUnits(previousActive);
@@ -191,7 +190,8 @@ function collectEvents(
     if (!before) continue;
 
     const delta = player.currency - before.currency;
-    const purchase = boughtItem && player.id === activePlayer?.id && delta < 0;
+    // Whatever leaves the purse inside the shop is a price: it must never be shown, a Tomate stack included.
+    const purchase = inShop && player.id === activePlayer?.id && delta < 0;
     if (delta !== 0) events.push({ type: "currency", playerId: player.id, delta, purchase });
 
     if (countRedCups(player) > countRedCups(before)) {
@@ -232,6 +232,11 @@ function collectEvents(
   if (usedItem) events.push({ type: "item-used" });
 
   if (state.pendingDuel && !previous.pendingDuel) events.push({ type: "duel-started" });
+
+  const gamble = state.lastGambleResult;
+  if (gamble && gamble.seq !== previous.lastGambleResult?.seq) {
+    events.push({ type: "gamble-result", playerId: gamble.playerId, doubled: gamble.doubled });
+  }
 
   if (state.mudTraps.length > previous.mudTraps.length) {
     const trap = state.mudTraps[state.mudTraps.length - 1];

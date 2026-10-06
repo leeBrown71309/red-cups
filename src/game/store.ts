@@ -63,6 +63,7 @@ interface GameActions {
   abandonGame: (playerId: PlayerId) => void;
   spinWheel: (wheelId: WheelId, playerId: PlayerId, resumeStage: TurnStage, sourceItemId?: ItemId) => void;
   resolveWheel: () => void;
+  pickWheelResult: (index: 0 | 1) => void;
   /** Rubs the wheel's result out with the Gomme, or with Non merci when `withNoThanks` is set. */
   cancelWheel: (withNoThanks?: boolean) => void;
   challengePlayer: (targetPlayerId: PlayerId) => void;
@@ -82,7 +83,7 @@ interface GameActions {
   /** Wheel of fortune: the step forward onto a neighbouring tile. */
   advanceOneTile: (destination: NodeId) => void;
   /** Calme-toi: the tile the player is set down on, or null to let them be. */
-  resolveCalmDown: (destination: NodeId | null) => void;
+  resolveCalmDown: (destination: NodeId | null, targetId?: PlayerId) => void;
   /** Double or nothing: stakes the gain or loss on offer on a coin flip, or keeps it. */
   resolveGamble: (accept: boolean) => void;
   blackjackHit: (playerId: PlayerId) => void;
@@ -160,6 +161,7 @@ export const useGameStore = create<GameStore>()(
       spinWheel: (wheelId, playerId, resumeStage, sourceItemId) =>
         dispatch({ type: "spinWheel", wheelId, playerId, resumeStage, sourceItemId }),
       resolveWheel: () => dispatch({ type: "resolveWheel" }),
+      pickWheelResult: (index) => dispatch({ type: "pickWheelResult", index }),
       cancelWheel: (withNoThanks) => dispatch({ type: "cancelWheel", ...(withNoThanks ? { withNoThanks } : {}) }),
       challengePlayer: (targetPlayerId) => dispatch({ type: "challengePlayer", targetPlayerId }),
       chooseDuelMode: (mode) => dispatch({ type: "chooseDuelMode", mode }),
@@ -172,7 +174,8 @@ export const useGameStore = create<GameStore>()(
       discardInventoryEntry: (entryId) => dispatch({ type: "discardInventoryEntry", entryId }),
       resolveNewCup: (goToStart) => dispatch({ type: "resolveNewCup", goToStart }),
       advanceOneTile: (destination) => dispatch({ type: "advanceOneTile", destination }),
-      resolveCalmDown: (destination) => dispatch({ type: "resolveCalmDown", destination }),
+      resolveCalmDown: (destination, targetId) =>
+        dispatch({ type: "resolveCalmDown", destination, ...(targetId ? { targetId } : {}) }),
       resolveGamble: (accept) => dispatch({ type: "resolveGamble", accept }),
       blackjackHit: (playerId) => dispatch({ type: "blackjackHit", playerId }),
       blackjackStand: (playerId) => dispatch({ type: "blackjackStand", playerId }),

@@ -1,6 +1,7 @@
 import { useEffect, type CSSProperties } from "react";
 import { getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
+import { useCountdownRunning } from "../../feedback/ui-store";
 import { useCanActFor, useLocalPlayerId } from "../../net/room-store";
 import { PlayerAvatar } from "../components/player-avatar";
 import { useActivePlayer, useDecidingPlayer } from "../game-hooks";
@@ -25,6 +26,7 @@ interface PlayerDockProps {
  */
 export function PlayerDock({ onRequestTarget, onOpenShop }: PlayerDockProps) {
   const [collapsed, setCollapsed] = usePersistentToggle(COLLAPSED_KEY, () => false);
+  const countdownRunning = useCountdownRunning();
   const activePlayerId = useActivePlayer()?.id;
   const localPlayerId = useLocalPlayerId();
   const ownOnlineTurn = localPlayerId !== null && localPlayerId === activePlayerId;
@@ -33,6 +35,8 @@ export function PlayerDock({ onRequestTarget, onOpenShop }: PlayerDockProps) {
     if (ownOnlineTurn) setCollapsed(false);
   }, [ownOnlineTurn, setCollapsed]);
 
+  // Nobody plays during the countdown that follows the draft.
+  if (countdownRunning) return null;
   if (collapsed) return <DockTab onExpand={() => setCollapsed(false)} />;
   return (
     <div className="hud__bottom">

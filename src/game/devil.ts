@@ -163,13 +163,14 @@ export function openPortals(state: GameState, casterId: PlayerId): GameState {
 }
 
 /**
- * Stopping on a Portail drops the player into Hell, le diable included, and
+ * Stopping on a Portail drops the player into Hell, le diable excepted, and
  * closes both Portails of its pair; Chance aveugle is spared.
  */
 export function triggerPortal(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
   const portal = state.hellPortals.find((candidate) => candidate.nodeId === player?.position);
-  if (!player || !portal || isImmuneToItems(player)) return state;
+  // Le diable placed them: they never take him.
+  if (!player || !portal || isImmuneToItems(player) || hasCard(player, "devil")) return state;
   const pairId = portal.pairId ?? portal.id;
   const closed: GameState = {
     ...state,

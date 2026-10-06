@@ -52,7 +52,7 @@ export function buyItem(state: GameState, itemId: ItemId, count = 1): GameState 
 
   // Shopping costs no energy: what is bought is used from the next turn on, Bullet Bill included.
   const total = getPriceFor(state, itemId, player) * count;
-  let nextState = applyCurrencyChange(state, player.id, -total, { gamble: false });
+  let nextState = applyCurrencyChange(state, player.id, -total, { gamble: false, silent: true });
   for (let bought = 0; bought < count; bought += 1) {
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
   }

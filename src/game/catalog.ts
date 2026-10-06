@@ -87,7 +87,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "➤",
     description:
       "Lance-le depuis ton sac : il attend au départ, puis fonce sur le joueur le plus proche à chaque tour de " +
-      "table. Sa victime perd 200 pièces et un tour.",
+      "table. Sa victime perd 200 pièces et un tour, tout comme les autres joueurs sur sa case au moment de l’explosion.",
     target: "none",
     energyCost: 2,
   },
@@ -169,8 +169,8 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "◎",
     description:
       "Le diable : ouvre deux portails vers l’Enfer sur des cases au hasard, ni l’Enfer, ni le Départ, ni la Red " +
-      "Cup. Invisibles le premier tour, l’un se montre au deuxième, les deux au troisième. Qui s’arrête sur l’un, " +
-      "toi compris, tombe en Enfer et les referme tous deux, sinon ils se ferment après 3 tours de table.",
+      "Cup. Invisibles le premier tour, l’un se montre au deuxième, les deux au troisième. Qui s’arrête sur l’un " +
+      "tombe en Enfer et les referme tous deux, sauf toi, immunisé ; sinon ils se ferment après 3 tours de table.",
     target: "none",
     energyCost: 2,
   },
@@ -207,7 +207,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   doomsday: {
     id: "doomsday",
     name: "Doomsday",
-    price: 666,
+    price: 555,
     symbol: "☄",
     description:
       "Le diable : jusqu’à ton prochain tour, toutes les cases font tourner la roue du malheur, Départ et " +
@@ -238,7 +238,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   parachute: {
     id: "parachute",
     name: "Parachute",
-    price: 450,
+    price: 650,
     symbol: "☂",
     description:
       "S’active tout seul : annule ta prochaine descente en Enfer, quelle qu’en soit la cause. Un seul usage.",
@@ -248,10 +248,10 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   barrier: {
     id: "barrier",
     name: "Barrière",
-    price: 350,
+    price: 400,
     symbol: "⛔",
     description:
-      "Touche n’importe quelle route du plateau : elle est fermée pendant 2 de tes tours, personne n’y passe à pied. Une seule Barrière à la fois par joueur, deux sur le plateau au plus. À Banquise, une glissade qui s’y heurte rebondit.",
+      "Touche n’importe quelle route du plateau : elle est fermée pendant 1 tour de table, personne n’y passe à pied, sauf une Botte posée juste devant (un saut d’une seule case). Une seule Barrière à la fois par joueur, deux sur le plateau au plus. À Banquise, une glissade qui s’y heurte rebondit.",
     target: "road",
     energyCost: 2,
   },
