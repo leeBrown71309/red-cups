@@ -1,5 +1,6 @@
 import { findEdge, getBoard } from "../board";
 import type { GameState } from "../types";
+import { countItemUnits } from "../rules";
 import { newLogTexts } from "./invariant-helpers";
 
 /**
@@ -54,4 +55,12 @@ export function countMapEvents(
   // Items that work on their own, without being used: le diable's Toucher d'Enfer, the angel's Bouclier.
   if (logs.some((text) => text.includes("active son Toucher d’Enfer"))) add("item:hell-touch");
   if (logs.some((text) => text.includes("lève son Bouclier"))) add("item:shield");
+  // The automatic items show when they leave a bag: they were spent without being used by hand.
+  for (const before of previous.players) {
+    const after = next.players.find((player) => player.id === before.id);
+    for (const itemId of ["wake-up", "parachute", "mirror"] as const) {
+      if (after && countItemUnits(after, itemId) < countItemUnits(before, itemId)) add(`item:${itemId}`);
+    }
+  }
+  if (next.barriers.length > previous.barriers.length) add("item:barrier");
 }

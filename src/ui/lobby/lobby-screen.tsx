@@ -46,9 +46,11 @@ interface LobbyScreenProps {
   onStart: (names: string[], mapId: MapId) => void;
   /** Offered only when the build has an online backend. */
   onPlayOnline?: () => void;
+  /** Back to the game's menu. */
+  onBack?: () => void;
 }
 
-export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
+export function LobbyScreen({ onStart, onPlayOnline, onBack }: LobbyScreenProps) {
   const [names, setNames] = useState<string[]>(loadRememberedNames);
   const [helpOpen, setHelpOpen] = useState(false);
   const [step, setStep] = useState<LobbyStep>("players");
@@ -166,6 +168,16 @@ export function LobbyScreen({ onStart, onPlayOnline }: LobbyScreenProps) {
 
           <p className="lobby__note">Chacun choisit son passif parmi ses cartes, juste avant la partie.</p>
           <div className="lobby__actions">
+            {onBack && (
+              <button
+                type="button"
+                className="btn btn--cream lobby__leave"
+                onClick={onBack}
+                aria-label="Retour au menu"
+              >
+                <UiIcon name="arrowLeft" size={18} /> Menu
+              </button>
+            )}
             <button type="button" className="btn btn--cup btn--large lobby__start" onClick={() => setStep("map")}>
               Suivant : la carte →
             </button>

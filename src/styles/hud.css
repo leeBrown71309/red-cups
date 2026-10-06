@@ -1113,3 +1113,28 @@
     display: none;
   }
 }
+
+/* A ribbon under the top bar: setting down a Barrière, or waiting for a rematch after abandoning. */
+.hud-ribbon {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--cream, #fff4ec);
+  border: 3px solid var(--ink, #2a1d22);
+  box-shadow: 0 4px 0 var(--ink, #2a1d22);
+  font-weight: 800;
+  pointer-events: auto;
+}
+
+.hud-ribbon > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

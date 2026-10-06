@@ -1,16 +1,22 @@
-import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { hasCard } from "../../game/cards";
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { canAbandon } from "../../game/abandon";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "../../game/catalog";
 import { getEnergyCapacity } from "../../game/energy";
 import { countRedCups, getInventoryCapacity } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import { IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
-import type { Player } from "../../game/types";
+import type { PassiveId, Player } from "../../game/types";
 import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
-import { useLocalPlayerId } from "../../net/room-store";
+import { getUserIdOfPlayer } from "../../net/room-protocol";
+import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
+import { useCanSeeBagOf, useVisibleCards } from "../card-visibility";
 import { EnergyGauge } from "../components/energy-meter";
+import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
 import { formatCurrency } from "../display/game-display";
 import { CloverIcon, CoinIcon, ItemIcon, RedCupIcon } from "../icons/item-icon";
+import { UiIcon } from "../icons/ui-icon";
 import { CupPips, getAvatarExpression, getChancesLeft, getPlayerStatuses, StatusToken } from "./player-status";
 
 const DETAILS_WIDTH = 290;
@@ -65,7 +71,8 @@ function EnergyStat({ player }: { player: Player }) {
     (state) => state.phase === "playing" && state.players[state.activePlayerIndex]?.id === player.id,
   );
   const energyLeft = useGameStore((state) => state.energyLeft);
-  const capacity = getEnergyCapacity(player);
+  const game = useGameStore();
+  const capacity = getEnergyCapacity(player, game);
   const shown = playing ? energyLeft : capacity;
 
   return (
@@ -105,20 +112,107 @@ function ChancesStat({ player }: { player: Player }) {
   );
 }
 
-export function PlayerDetails({ player, anchor }: { player: Player; anchor: DetailsAnchor }) {
+/** Online, the host may send another player away; a seat in the middle of a decision has to wait. */
+function KickControl({ player }: { player: Player }) {
+  const seatOrder = useRoomStore((state) => state.seatOrder);
+  const hostId = useRoomStore((state) => state.hostId);
+  const myUserId = useRoomStore((state) => state.myUserId);
+  const busy = useRoomStore((state) => state.busy);
+  const kick = useRoomStore((state) => state.kick);
+  const atRest = useGameStore((state) => canAbandon(state));
+  const userId = getUserIdOfPlayer(seatOrder, player.id);
+  if (!myUserId || myUserId !== hostId || !userId || userId === myUserId) return null;
+  return <KickButton name={player.name} labelled disabled={busy || !atRest} onKick={() => void kick(userId)} />;
+}
+
+interface CardEntry {
+  label: string;
+  cardId: PassiveId;
+  children?: ReactNode;
+}
+
+/** One of the two cards of a player: its name and rules. */
+function CardBlock({ label, cardId, children }: CardEntry) {
+  const card = PASSIVE_CATALOG[cardId];
+  return (
+    <div className="player-details__passive">
+      <span className="eyebrow">{label}</span>
+      <strong>{card.name}</strong>
+      {/* Some cards explain a lot: the text scrolls instead of stretching the card. */}
+      <div className="player-details__passive-text scroll-block" tabIndex={0}>
+        <p>{card.description}</p>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * The cards a viewer may see. Two of them sit side by side and slide, one card
+ * wide, under two arrows, so they take no more room than one; a card nobody
+ * may see is not shown at all.
+ */
+function CardPager({ entries }: { entries: CardEntry[] }) {
+  const [index, setIndex] = useState(0);
+  if (entries.length === 0) return null;
+  if (entries.length === 1) return <CardBlock {...entries[0]} />;
+  const current = Math.min(index, entries.length - 1);
+
+  return (
+    <div className="card-pager">
+      <button
+        type="button"
+        className="card-pager__arrow"
+        aria-label="Carte précédente"
+        disabled={current === 0}
+        onClick={() => setIndex(current - 1)}
+      >
+        <UiIcon name="chevronLeft" size={18} />
+      </button>
+      <div className="card-pager__window">
+        <div className="card-pager__track" style={{ transform: `translateX(-${current * 100}%)` }}>
+          {entries.map((entry) => (
+            <div key={entry.label} className="card-pager__slide" aria-hidden={entries[current] !== entry}>
+              <CardBlock {...entry} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <button
+        type="button"
+        className="card-pager__arrow"
+        aria-label="Carte suivante"
+        disabled={current === entries.length - 1}
+        onClick={() => setIndex(current + 1)}
+      >
+        <UiIcon name="chevronRight" size={18} />
+      </button>
+    </div>
+  );
+}
+
+export function PlayerDetails({
+  player,
+  anchor,
+  onClose,
+}: {
+  player: Player;
+  anchor: DetailsAnchor;
+  onClose: () => void;
+}) {
   const round = useGameStore((state) => state.round);
   const game = useGameStore();
   // The chances only count online, where turns have a clock.
   const online = useLocalPlayerId() !== null;
   const { cardRef, placement } = usePlacement(anchor);
-  const passive = PASSIVE_CATALOG[player.passiveId];
+  const cards = useVisibleCards(player);
+  const canSeeBag = useCanSeeBagOf(player.id);
   const statuses = getPlayerStatuses(game, player);
-  const noThanksStatus =
-    player.passiveId !== "no-thanks"
-      ? null
-      : player.noThanksReadyRound <= round
-        ? "Prêt à servir."
-        : `De retour au tour ${player.noThanksReadyRound}.`;
+  const noThanksStatus = !hasCard(player, "no-thanks")
+    ? null
+    : player.noThanksReadyRound <= round
+      ? "Prêt à servir."
+      : `De retour au tour ${player.noThanksReadyRound}.`;
   const capacity = getInventoryCapacity(player);
   const empty = Math.max(0, capacity - player.inventory.length);
   const cups = countRedCups(player);
@@ -146,6 +240,14 @@ export function PlayerDetails({ player, anchor }: { player: Player; anchor: Deta
               {player.position === HELL_NODE_ID ? "En Enfer" : `Case ${player.position}`}
             </span>
           </div>
+          <button
+            type="button"
+            className="icon-button player-details__close"
+            onClick={onClose}
+            aria-label={`Fermer les détails de ${player.name}`}
+          >
+            <UiIcon name="close" size={16} strokeWidth={3} />
+          </button>
         </div>
         {statuses.length > 0 && (
           <ul className="player-details__statuses">
@@ -177,34 +279,42 @@ export function PlayerDetails({ player, anchor }: { player: Player; anchor: Deta
           <EnergyStat player={player} />
           {online && <ChancesStat player={player} />}
         </div>
-        <div className="player-details__passive">
-          <span className="eyebrow">Passif</span>
-          <strong>{passive.name}</strong>
-          {/* Some passives explain a lot: the text scrolls instead of stretching the card. */}
-          <div className="player-details__passive-text scroll-block" tabIndex={0}>
-            <p>{passive.description}</p>
+        <CardPager
+          entries={[
+            ...(cards.actif ? [{ label: "Actif", cardId: cards.actif }] : []),
+            ...(cards.passif
+              ? [
+                  {
+                    label: "Passif",
+                    cardId: cards.passif,
+                    children: noThanksStatus ? (
+                      <p className="player-details__passive-status">{noThanksStatus}</p>
+                    ) : undefined,
+                  },
+                ]
+              : []),
+          ]}
+        />
+        {canSeeBag && (
+          <div className="player-details__bag">
+            <span className="eyebrow">{`Sac · ${player.inventory.length}/${capacity}`}</span>
+            <div className="mini-slots">
+              {player.inventory.map((entry) => (
+                <span
+                  key={entry.id}
+                  className="mini-slot"
+                  title={entry.kind === "red-cup" ? "Red Cup" : ITEM_CATALOG[entry.itemId].name}
+                >
+                  {entry.kind === "red-cup" ? <RedCupIcon size={24} /> : <ItemIcon itemId={entry.itemId} size={24} />}
+                </span>
+              ))}
+              {Array.from({ length: empty }, (_, index) => (
+                <span key={`empty-${index}`} className="mini-slot is-empty" />
+              ))}
+            </div>
           </div>
-          {noThanksStatus && <p className="player-details__passive-status">{noThanksStatus}</p>}
-        </div>
-        <div className="player-details__bag">
-          <span className="eyebrow">
-            Sac · {player.inventory.length}/{capacity}
-          </span>
-          <div className="mini-slots">
-            {player.inventory.map((entry) => (
-              <span
-                key={entry.id}
-                className="mini-slot"
-                title={entry.kind === "red-cup" ? "Red Cup" : ITEM_CATALOG[entry.itemId].name}
-              >
-                {entry.kind === "red-cup" ? <RedCupIcon size={24} /> : <ItemIcon itemId={entry.itemId} size={24} />}
-              </span>
-            ))}
-            {Array.from({ length: empty }, (_, index) => (
-              <span key={`empty-${index}`} className="mini-slot is-empty" />
-            ))}
-          </div>
-        </div>
+        )}
+        <KickControl player={player} />
       </div>
     </div>
   );

@@ -9,6 +9,8 @@ export const TUNNEL_EXTRA_MS = 560;
 
 /** Banquise: the spin on the ice before a slide sets off, then one tile of gliding. */
 export const WOBBLE_MS = 280;
+/** A pawn sliding into a Barrière: the lunge, the knock and the rebound. */
+export const BUMP_MS = 620;
 export const GLIDE_MS = 440;
 
 /** Banquise: falling ice lands and closes around a pawn; later, the pawn bursts out of it. */
@@ -82,6 +84,7 @@ export function estimateMovementMs(
     previous = nodeId;
   });
 
+  total += (movement.bumps?.length ?? 0) * BUMP_MS;
   if (movement.interruptedTo !== undefined) total += WOBBLE_MS + GLIDE_MS / 2;
   return total;
 }

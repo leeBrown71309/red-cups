@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { getLocalPlayerId } from "../net/room-store";
 import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
@@ -10,12 +11,19 @@ import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { EffectsLayer } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
+import { createSurroundings } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
 import { createIceCrevasse } from "./models/polar-landmarks-model";
 import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
-import { createHellPortal, createMudPuddle, createRedCup, type AnimatedProp } from "./models/props-model";
+import {
+  createBarrierProp,
+  createHellPortal,
+  createMudPuddle,
+  createRedCup,
+  type AnimatedProp,
+} from "./models/props-model";
 import { createTileArrow } from "./models/tile-arrow-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
@@ -35,6 +43,10 @@ export interface BoardView {
   mudNodeIds: NodeId[];
   /** Le diable's Portails onto Hell. */
   portalNodeIds: NodeId[];
+  /** The roads the Barrières close, as pairs of tiles. */
+  barrierEdges: [NodeId, NodeId][];
+  /** While a Barrière is being set down: every road the player may tap. */
+  pickableRoads: [NodeId, NodeId][];
   bulletBill: BulletView | null;
   /** Sequence of Bullet Bill's last charge, so the scene knows one is about to be replayed. */
   bulletFlightSeq: number | null;
@@ -54,6 +66,8 @@ export interface BoardView {
 
 export interface BoardWorldCallbacks {
   onTileSelect: (nodeId: NodeId, pointerType: string) => void;
+  /** A road was tapped while a Barrière is being set down. */
+  onRoadSelect: (road: [NodeId, NodeId]) => void;
   /** Luna Park: the ghost was clicked, to look at its loot. */
   onGhostSelect: () => void;
 }
@@ -98,6 +112,10 @@ export class BoardWorld {
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
   private readonly portals = new Map<NodeId, AnimatedProp>();
+  /** The Barrières on their roads, by road. */
+  private readonly barrierProps = new Map<string, AnimatedProp>();
+  /** The tap targets on the roads while a Barrière is being set down. */
+  private roadHandles: { key: string; group: THREE.Group; handles: THREE.Mesh[] } | null = null;
   /** The arrows of the arrow tiles, which ride on their tile. */
   private readonly tileArrows: AnimatedProp[] = [];
   /** Banquise: the penguins of the scenery, who throw the snowballs. */
@@ -197,6 +215,8 @@ export class BoardWorld {
 
     this.syncMud(view.mudNodeIds);
     this.syncPortals(view.portalNodeIds);
+    this.syncBarriers(view.barrierEdges);
+    this.syncRoadHandles(view.pickableRoads);
     this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
     this.ghost?.sync(view.ghost, view.ghostEventSeq);
     this.refreshCoveredTiles(view);
@@ -279,6 +299,7 @@ export class BoardWorld {
   /** Tray, decorations and Hell follow the map's art direction. */
   private buildSurroundings(): void {
     const { layout } = this;
+    this.addAnimated(createSurroundings(this.kit, layout, layout.map.themeId));
     switch (layout.map.themeId) {
       case "night-fair":
         this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
@@ -412,6 +433,71 @@ export class BoardWorld {
     this.scene.add(prop.group);
   }
 
+  /** A Barrière lies across the middle of its road, the bar across the way. */
+  private syncBarriers(edges: [NodeId, NodeId][]): void {
+    const wanted = new Map(edges.map((edge) => [edge.join("-"), edge]));
+    for (const [key, prop] of this.barrierProps) {
+      if (wanted.has(key)) continue;
+      prop.group.removeFromParent();
+      this.barrierProps.delete(key);
+    }
+    for (const [key, edge] of wanted) {
+      if (this.barrierProps.has(key)) continue;
+      const from = this.layout.getNodePosition(edge[0]);
+      const to = this.layout.getNodePosition(edge[1]);
+      const prop = createBarrierProp(this.kit);
+      prop.group.position
+        .copy(from)
+        .lerp(to, 0.5)
+        .setY(TILE_HEIGHT * 0.5);
+      prop.group.rotation.y = Math.atan2(to.x - from.x, to.z - from.z);
+      this.scene.add(prop.group);
+      this.barrierProps.set(key, prop);
+    }
+  }
+
+  /** Glowing discs on every road a Barrière may close: tapping one sets it down there. */
+  private syncRoadHandles(roads: [NodeId, NodeId][]): void {
+    const key = roads.map((road) => road.join("-")).join(",");
+    if ((this.roadHandles?.key ?? "") === key) return;
+    if (this.roadHandles) {
+      this.roadHandles.group.removeFromParent();
+      this.roadHandles = null;
+    }
+    if (roads.length === 0) return;
+    const group = new THREE.Group();
+    const geometry = this.kit.geometry("road-handle", () => new THREE.CylinderGeometry(0.42, 0.42, 0.14, 20));
+    const material = this.kit.flat("#ff5a4d", { emissive: "#ff2d1f", emissiveIntensity: 0.75 });
+    const handles = roads.map((road) => {
+      const from = this.layout.getNodePosition(road[0]);
+      const to = this.layout.getNodePosition(road[1]);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position
+        .copy(from)
+        .lerp(to, 0.5)
+        .setY(TILE_HEIGHT + 0.12);
+      mesh.userData.road = road;
+      group.add(mesh);
+      return mesh;
+    });
+    this.scene.add(group);
+    this.roadHandles = { key, group, handles };
+  }
+
+  private pulseRoadHandles(elapsed: number): void {
+    if (!this.roadHandles) return;
+    const pulse = 1 + Math.sin(elapsed * 5) * 0.12;
+    for (const handle of this.roadHandles.handles) handle.scale.set(pulse, 1, pulse);
+  }
+
+  private pickRoad(event: PointerEvent): [NodeId, NodeId] | null {
+    if (!this.roadHandles) return null;
+    this.aimRaycaster(event);
+    const hit = this.raycaster.intersectObjects(this.roadHandles.handles, false)[0];
+    const road = hit?.object.userData.road;
+    return Array.isArray(road) ? (road as [NodeId, NodeId]) : null;
+  }
+
   /** Le diable's Portails sit on the tile's top, in its back-left quarter, clear of the mud. */
   private syncPortals(nodeIds: NodeId[]): void {
     const wanted = new Set(nodeIds);
@@ -492,6 +578,8 @@ export class BoardWorld {
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
     for (const portal of this.portals.values()) portal.update(elapsed, delta);
+    for (const barrier of this.barrierProps.values()) barrier.update(elapsed, delta);
+    this.pulseRoadHandles(elapsed);
     for (const arrow of this.tileArrows) arrow.update(elapsed, delta);
     for (const tile of this.tiles.values()) tile.update(elapsed, delta);
 
@@ -564,6 +652,11 @@ export class BoardWorld {
     const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y);
     if (moved > TAP_DISTANCE_PX || performance.now() - start.time > TAP_DURATION_MS) return;
 
+    const road = this.pickRoad(event);
+    if (road) {
+      this.callbacks.onRoadSelect(road);
+      return;
+    }
     if (this.pickGhost(event)) {
       this.callbacks.onGhostSelect();
       return;
@@ -576,10 +669,11 @@ export class BoardWorld {
 
   private readonly handlePointerMove = (event: PointerEvent) => {
     if (event.pointerType !== "mouse" || event.buttons !== 0) return;
-    const onGhost = this.pickGhost(event);
-    const nodeId = onGhost ? null : this.pickNode(event);
+    const onRoad = this.pickRoad(event) !== null;
+    const onGhost = !onRoad && this.pickGhost(event);
+    const nodeId = onGhost || onRoad ? null : this.pickNode(event);
     const hovered = nodeId !== null && this.view?.legalPaths.has(nodeId) ? nodeId : null;
-    this.renderer.domElement.style.cursor = onGhost || hovered !== null ? "pointer" : "";
+    this.renderer.domElement.style.cursor = onRoad || onGhost || hovered !== null ? "pointer" : "";
     if (hovered === this.hoveredNodeId) return;
     this.hoveredNodeId = hovered;
     this.refreshHighlights();
@@ -606,8 +700,22 @@ export class BoardWorld {
       case "currency": {
         const position = this.pawns.getPawnPosition(event.playerId);
         if (!position) return;
+        // Online, what somebody else pays in the shop would give away what they bought.
+        if (event.purchase && getLocalPlayerId() !== null && getLocalPlayerId() !== event.playerId) return;
         const text = `${event.delta > 0 ? "+" : "−"}${Math.abs(event.delta)}`;
         this.effects.spawnFloatingText(position, text, event.delta > 0 ? "#7ee07a" : "#ff6b5e");
+        return;
+      }
+      case "barrier-bump": {
+        const from = this.layout.getNodePosition(event.from);
+        const to = this.layout.getNodePosition(event.toward);
+        this.effects.spawnPoof(
+          from
+            .clone()
+            .lerp(to, 0.5)
+            .setY(TILE_HEIGHT + 0.5),
+          "#ffd166",
+        );
         return;
       }
       case "cup-collected":

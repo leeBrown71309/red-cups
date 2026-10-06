@@ -1,19 +1,33 @@
+import { hasCard } from "./cards";
 import { abandonPlayer, canAbandon } from "./abandon";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
-import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival } from "./ice";
+import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival, toPathBumps } from "./ice";
 import { getBoardMap } from "./maps/map-registry";
-import { FREE_ITEM_POOL, ITEM_CATALOG, PASSIVE_ORDER } from "./catalog";
+import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
+import { chooseDuelMode } from "./duel-choice";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
 import { announceDevil, leaveHell, rewardDevilInHell } from "./devil";
 import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
-import { closeDraft, createDraft, DRAFT_TIME_MS, pickPassive } from "./draft";
+import {
+  closeDraft,
+  createDraft,
+  DRAFT_TIME_MS,
+  dealOffers,
+  getDraftPool,
+  HARMFUL_PASSIFS,
+  pickPassive,
+} from "./draft";
 import { offerGamble, resolveGamble } from "./gamble";
+import { rewardHellRegulars } from "./hell-regular";
+import { kickPlayer } from "./kick";
+import { joinLatePlayer } from "./late-join";
+import { reinstatePlayer } from "./reinstate";
 import { pauseGame, resumeGame } from "./pause";
-import { buyItem, isOnShelf } from "./shopping";
+import { buyItem, isOnShelf, sellItem } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
 import { canBeChallenged, getStartingCurrency, getTheftPenalty, getTheftRisk, isDoomed } from "./passive-rules";
 import { checkVictories } from "./victory";
@@ -54,22 +68,26 @@ import {
   startDuel,
   startWheel,
   validTileWheels,
+  skipBenchedTurns,
 } from "./game-effects";
-import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getItemPrice, getTileWheelFor } from "./rules";
+import { canAddItem, canStartNewSlot, canUseNoThanks, getForwardTiles, getPriceFor, getTileWheelFor } from "./rules";
 import {
+  addBagLog,
   addLog,
+  announceSpentItems,
   appendItem,
   applyCurrencyChange,
+  findItemEntry,
   findPlayer,
   getActivePlayer,
   getEntryUnits,
   getItemEntry,
+  loseTurns,
   makeLog,
   placeInHell,
   randomChoice,
   removeInventoryEntry,
   spendItemEntry,
-  shuffle,
   updatePlayer,
 } from "./state-utils";
 import {
@@ -78,17 +96,20 @@ import {
   cancelDeclaredAction,
   carryOutDeclaredAction,
   isThrownItem,
+  REFLECTABLE_ITEMS,
   openReactionWindow,
   planItemUse,
   planMove,
   spendNoThanks,
 } from "./turn-actions";
 import type {
+  DuelMode,
   GameState,
   ItemId,
   MapId,
   NodeId,
   PassiveId,
+  PendingWheel,
   Player,
   PlayerColor,
   PlayerId,
@@ -102,7 +123,6 @@ import {
   FIRST_ROUND,
   FREE_TOMATOES,
   GAME_COUNTDOWN_MS,
-  GUARDIAN_MIN_PLAYERS,
   HELL_NODE_ID,
   PLAYER_COLORS,
   ROLLER_DIE_FACES,
@@ -137,22 +157,32 @@ export type GameAction =
   | { type: "rescueProtege" }
   /** `count`: copies bought in one go, one by default. */
   | { type: "buyItem"; itemId: ItemId; count?: number }
+  /** Brocanteur: sells one item of the bag back to the shop. */
+  | { type: "sellItem"; entryId: string }
   /** Voleur: one attempt per visit to the shop. */
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
-  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number }
+  | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number; targetRoad?: [NodeId, NodeId] }
   | { type: "resolveReaction"; reactorId: PlayerId | null }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
   | { type: "spinTileWheel" }
   | { type: "spinBlessingWheel" }
   | { type: "abandonGame"; playerId: PlayerId }
+  /** Online: somebody sat down after the kickoff, while the first round is not over. */
+  | { type: "joinLatePlayer"; playerId: PlayerId; name: string; color: PlayerColor }
+  /** A player the host sent away, accepted back: they send it themselves, once their seat is restored. */
+  | { type: "reinstatePlayer"; playerId: PlayerId }
+  /** Online: the host sends a player away, at the lobby's table or in the game. */
+  | { type: "kickPlayer"; hostId: PlayerId; playerId: PlayerId }
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
   | { type: "resolveWheel" }
   /** With the Gomme, or with a ready Non merci when `withNoThanks` is set. */
   | { type: "cancelWheel"; withNoThanks?: boolean }
   | { type: "challengePlayer"; targetPlayerId: PlayerId }
   | { type: "flipDuelCoin" }
+  /** Meneur de jeu: the mini-game picked among the two drawn. */
+  | { type: "chooseDuelMode"; mode: DuelMode }
   | { type: "pickDuelHand"; playerId: PlayerId; choice: RpsChoice }
   | { type: "castDuelVote"; voterId: PlayerId; candidateId: PlayerId }
   | { type: "resolveDuel"; winnerId: PlayerId }
@@ -189,19 +219,21 @@ const MAX_PLAYERS = 8;
 /** Online players pick their avatar in the lobby; a local table takes the palette in seat order. */
 function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | undefined): Player[] {
   const names = playerNames.slice(0, MAX_PLAYERS).map((name, index) => name.trim() || `Joueur ${index + 1}`);
-  // L'Ange-Gardien only joins a table of four or more.
-  const pool = PASSIVE_ORDER.filter(
-    (passiveId) => passiveId !== "guardian-angel" || names.length >= GUARDIAN_MIN_PLAYERS,
+  // One actif and one passif each, drawn at random; L'Ange-Gardien only joins a table of four or more.
+  const ids = names.map((_, index) => getSeatPlayerId(index));
+  const actifs = dealOffers(ids, getDraftPool("actif", names.length), 1);
+  const passifs = dealOffers(ids, getDraftPool("passif", names.length), 1, (playerId) =>
+    actifs[playerId][0] === "guardian-angel" ? HARMFUL_PASSIFS : [],
   );
-  const passives = shuffle(pool).slice(0, names.length);
   return names.map((name, index) => ({
-    id: getSeatPlayerId(index),
+    id: ids[index],
     name,
     color: avatarColors?.[index] ?? PLAYER_COLORS[index],
     position: START_NODE_ID,
-    currency: getStartingCurrency(passives[index]),
+    currency: getStartingCurrency(actifs[ids[index]][0], passifs[ids[index]][0]),
     inventory: [],
-    passiveId: passives[index],
+    passiveId: actifs[ids[index]][0],
+    passifId: passifs[ids[index]][0],
     skippedTurns: 0,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
@@ -293,7 +325,13 @@ function giveFreeItem(state: GameState, player: Player): GameState {
       ...current,
       inventory: [...current.inventory, stack],
     }));
-    return addLog(nextState, `${player.name} reçoit ${FREE_TOMATOES} Tomates gratuitement.`, "good");
+    return addBagLog(
+      nextState,
+      player.id,
+      `${player.name} reçoit ${FREE_TOMATOES} Tomates gratuitement.`,
+      `${player.name} reçoit un objet gratuitement.`,
+      "good",
+    );
   }
 
   const wanted = freeItem === "tomato" ? FREE_TOMATOES : 1;
@@ -304,7 +342,13 @@ function giveFreeItem(state: GameState, player: Player): GameState {
     given += 1;
   }
   const gift = freeItem === "tomato" && given > 1 ? `${given} Tomates` : ITEM_CATALOG[freeItem].name;
-  return addLog(nextState, `${player.name} reçoit ${gift} gratuitement.`, "good");
+  return addBagLog(
+    nextState,
+    player.id,
+    `${player.name} reçoit ${gift} gratuitement.`,
+    `${player.name} reçoit un objet gratuitement.`,
+    "good",
+  );
 }
 
 export { getForwardTiles };
@@ -340,10 +384,7 @@ function applyWheelOutcome(
     }
     case "skip-turn":
     case "hell-skip": {
-      const nextState = updatePlayer(state, player.id, (current) => ({
-        ...current,
-        skippedTurns: current.skippedTurns + 1,
-      }));
+      const nextState = updatePlayer(state, player.id, (current) => loseTurns(current));
       return addLog(nextState, `${player.name} devra passer son prochain tour.`, "bad");
     }
     case "go-to-hell":
@@ -439,6 +480,7 @@ function advanceOneTile(state: GameState, destination: NodeId): GameState {
       from: player.position,
       path,
       ...(slid ? { slideStart: 1 } : {}),
+      ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(1, slide.bumps) } : {}),
       ...(heldTo === null ? {} : { interruptedTo: heldTo }),
     },
   };
@@ -466,7 +508,7 @@ function movePlayer(state: GameState, destination: NodeId, ignoreArrows: boolean
 /** One Botte per turn: it costs a point and keeps another for the two-tile move. The Roller has its die. */
 function prepareBoot(state: GameState, entryId: string): GameState {
   const player = getActivePlayer(state);
-  if (!player || state.turnStage !== "move" || state.moveDistance !== 1 || player.passiveId === "roller") {
+  if (!player || state.turnStage !== "move" || state.moveDistance !== 1 || hasCard(player, "roller")) {
     return state;
   }
   if (getItemEntry(player, entryId) !== "boot" || !canAffordItem(state, "boot")) return state;
@@ -488,7 +530,7 @@ function leaveHellAndSettle(state: GameState): GameState {
  */
 function rollDice(state: GameState): GameState {
   const player = getActivePlayer(state);
-  if (!player || player.passiveId !== "roller" || state.turnStage !== "move" || state.diceRoll !== null) return state;
+  if (!player || !hasCard(player, "roller") || state.turnStage !== "move" || state.diceRoll !== null) return state;
   if (!canAffordMove(state)) return state;
   const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
   return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
@@ -501,19 +543,31 @@ function rollDice(state: GameState): GameState {
  */
 function stealItem(state: GameState, itemId: ItemId): GameState {
   const player = getActivePlayer(state);
-  if (!player || player.passiveId !== "thief" || state.theftAttempted || !isOnShelf(state, player, itemId)) {
+  if (!player || !hasCard(player, "thief") || state.theftAttempted || !isOnShelf(state, player, itemId)) {
     return state;
   }
 
-  const price = getItemPrice(itemId, state.bootPrice, player);
+  const price = getPriceFor(state, itemId, player);
   const itemName = ITEM_CATALOG[itemId].name;
   let nextState: GameState = { ...state, theftAttempted: true };
   if (drawEngineRandom() >= getTheftRisk(price)) {
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, itemId));
-    return addLog(nextState, `${player.name} vole ${itemName} sans se faire prendre !`, "good");
+    return addBagLog(
+      nextState,
+      player.id,
+      `${player.name} vole ${itemName} sans se faire prendre !`,
+      `${player.name} vole un objet sans se faire prendre !`,
+      "good",
+    );
   }
 
-  nextState = addLog(nextState, `${player.name} se fait prendre en volant ${itemName} !`, "bad");
+  nextState = addBagLog(
+    nextState,
+    player.id,
+    `${player.name} se fait prendre en volant ${itemName} !`,
+    `${player.name} se fait prendre en volant un objet !`,
+    "bad",
+  );
   nextState = payTheftPenalty(nextState, player.id, getTheftPenalty(price));
   nextState = sendPlayerToHell(nextState, player.id);
   return settleBoard({ ...nextState, turnStage: "turn-end" }, "turn-end");
@@ -529,7 +583,7 @@ function payTheftPenalty(state: GameState, playerId: PlayerId, penalty: number):
   if (!player) return state;
 
   const worthOf = (entry: Player["inventory"][number]) =>
-    entry.kind === "item" ? getItemPrice(entry.itemId, state.bootPrice, player) * (entry.count ?? 1) : 0;
+    entry.kind === "item" ? getPriceFor(state, entry.itemId, player) * (entry.count ?? 1) : 0;
   const items = player.inventory
     .filter((entry) => entry.kind === "item")
     .sort((left, right) => worthOf(right) - worthOf(left));
@@ -540,7 +594,13 @@ function payTheftPenalty(state: GameState, playerId: PlayerId, penalty: number):
     if (owed <= 0 || entry.kind !== "item") break;
     owed -= worthOf(entry);
     nextState = updatePlayer(nextState, playerId, (current) => removeInventoryEntry(current, entry.id));
-    nextState = addLog(nextState, `${player.name} rend ${ITEM_CATALOG[entry.itemId].name}.`, "bad");
+    nextState = addBagLog(
+      nextState,
+      playerId,
+      `${player.name} rend ${ITEM_CATALOG[entry.itemId].name}.`,
+      `${player.name} rend un objet.`,
+      "bad",
+    );
   }
   return owed > 0 ? applyCurrencyChange(nextState, playerId, -owed, { gamble: false }) : nextState;
 }
@@ -550,10 +610,26 @@ function useItem(
   entryId: string,
   targetPlayerId: PlayerId | undefined,
   count: number | undefined,
+  targetRoad?: [NodeId, NodeId],
 ): GameState {
-  const plan = planItemUse(state, entryId, targetPlayerId, count);
+  const plan = planItemUse(state, entryId, targetPlayerId, count, targetRoad);
   if (!plan) return state;
   if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
+  // A Miroir answers before anybody else may: it sends the item back to its user.
+  const mirror =
+    plan.target && REFLECTABLE_ITEMS.includes(plan.itemId) ? findItemEntry(plan.target, "mirror") : undefined;
+  if (plan.target && mirror) {
+    const spent = updatePlayer(state, plan.target.id, (current) => ({
+      ...spendItemEntry(current, mirror.id),
+      mirrorUsed: true,
+    }));
+    const logged = addLog(
+      spent,
+      `Le Miroir de ${plan.target.name} renvoie ${ITEM_CATALOG[plan.itemId].name} sur son lanceur !`,
+      "good",
+    );
+    return applyItemUse(logged, entryId, { ...plan, reflected: true });
+  }
   const waiting = openReactionWindow(state, {
     type: "item",
     entryId,
@@ -600,7 +676,8 @@ function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: 
 
 function endTurn(state: GameState): GameState {
   if (!canEndTurn(state)) return state;
-  return endTurnNow(state);
+  const player = getActivePlayer(state);
+  return endTurnNow(player ? addLog(state, `${player.name} termine son tour.`, "event") : state);
 }
 
 /** The turn is over, whatever is left of it; a broke table first goes through its Tour de Bénédiction. */
@@ -622,7 +699,7 @@ function expireClock(state: GameState, now: number | undefined): GameState {
   const deadline = getClockDeadline(state);
   if (now === undefined || deadline === null || now < deadline) return state;
   // The draft's minute is over: whoever has not picked gets a card at random.
-  if (state.phase === "draft") return closeDraft(state);
+  if (state.phase === "draft") return closeDraft(state, now);
   if (isActiveDecision(state)) return expireTurn(state);
 
   const stage = state.turnStage;
@@ -699,6 +776,7 @@ function resolveWheel(state: GameState): GameState {
     return startWheel(state, chainedWheel, pending.playerId, pending.resumeStage, {
       sourceItemId: pending.sourceItemId,
       origin: "chain",
+      repeats: pending.repeats,
     });
   }
 
@@ -730,14 +808,47 @@ function resolveWheel(state: GameState): GameState {
   }
   if (nextState.pendingDiscard) return nextState;
   // A wheel that moved its player onto a blue tile has opened its shop in place of the stage it came from.
-  return settleBoard(nextState, nextState.turnStage);
+  return settleThenSpinAgain(nextState, pending);
+}
+
+/**
+ * Settles the board, then spins again for Touché angélique and Main du
+ * diable if the result left the table where it was. A result that opens
+ * another decision (a step forward, a duel, a shop) loses the second spin.
+ */
+function settleThenSpinAgain(state: GameState, pending: PendingWheel): GameState {
+  const settled = settleBoard(state, state.turnStage);
+  const undecided =
+    settled.pendingAdvance ||
+    settled.pendingDiscard ||
+    settled.pendingDuel ||
+    settled.pendingChallenge ||
+    settled.pendingCalmDown ||
+    settled.pendingReaction ||
+    settled.pendingArmWrestle ||
+    settled.pendingCupRepositionPlayerId ||
+    settled.pendingTileWheels.length > 0 ||
+    settled.pendingGambles.length > 0;
+  if (settled.turnStage !== state.turnStage || undecided) return settled;
+  return spinAgain(settled, pending) ?? settled;
+}
+
+/** The wheel still owed after a result was applied or rubbed out, if the player can still spin it. */
+function spinAgain(state: GameState, pending: PendingWheel): GameState | null {
+  const [wheelId, ...repeats] = pending.repeats ?? [];
+  if (!wheelId || state.phase !== "playing" || !findPlayer(state, pending.playerId)) return null;
+  return startWheel(state, wheelId, pending.playerId, pending.resumeStage, {
+    sourceItemId: pending.sourceItemId,
+    origin: "double",
+    repeats,
+  });
 }
 
 /** Cupide: whatever their Ndoye's wheel makes its target lose comes back to them. */
 function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | undefined): GameState {
   const user = findPlayer(state, userId);
   const lost = target.currency - (findPlayer(state, target.id)?.currency ?? target.currency);
-  if (user?.passiveId !== "greedy" || user.id === target.id || lost <= 0) return state;
+  if (!user || !hasCard(user, "greedy") || user.id === target.id || lost <= 0) return state;
   const nextState = applyCurrencyChange(state, user.id, lost);
   return addLog(nextState, `${user.name} récupère les ${lost} pièces perdues par ${target.name}.`, "good");
 }
@@ -763,7 +874,8 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
     nextState = addLog(nextState, `${player.name} utilise la Gomme et annule l’effet.`, "good");
   }
   nextState = { ...nextState, pendingWheel: null, turnStage: pending.resumeStage };
-  return settleBoard(nextState, pending.resumeStage);
+  // Only this result is rubbed out: a second spin of Touché angélique or Main du diable still comes.
+  return settleThenSpinAgain(nextState, pending);
 }
 
 function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState {
@@ -774,6 +886,11 @@ function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState 
 
   let nextState = updatePlayer(state, targetPlayerId, placeInHell);
   nextState = { ...nextState, pendingChallenge: null };
+  // A Parachute kept them out of Hell: nobody to duel there.
+  if (findPlayer(nextState, targetPlayerId)?.position !== HELL_NODE_ID) {
+    nextState = addLog(nextState, `${target.name} reste où il est : pas de duel.`, "event");
+    return settleBoard({ ...nextState, turnStage: pending.resumeStage }, pending.resumeStage);
+  }
   nextState = addLog(nextState, `${target.name} est appelé en Enfer pour un duel.`, "event");
   return startDuel(nextState, pending.playerId, targetPlayerId, pending.resumeStage);
 }
@@ -786,14 +903,26 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
 
   let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
   nextState = { ...nextState, pendingDiscard: null, turnStage: pending.resumeStage };
-  nextState = addLog(nextState, `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`, "bad");
+  nextState = addBagLog(
+    nextState,
+    player.id,
+    `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`,
+    `${player.name} abandonne un objet.`,
+    "bad",
+  );
 
   if (pending.reason === "red-cup" && pending.cupNodeId !== undefined) {
     nextState = finishCupCollection(nextState, player.id, pending.cupNodeId);
   } else if (pending.reason === "forced-item" && pending.itemId) {
     const copiedItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, copiedItem));
-    nextState = addLog(nextState, `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`, "event");
+    nextState = addBagLog(
+      nextState,
+      player.id,
+      `${player.name} reçoit ${ITEM_CATALOG[copiedItem].name} grâce à Je note.`,
+      `${player.name} reçoit un objet grâce à Je note.`,
+      "event",
+    );
   } else if (pending.reason === "loot" && pending.itemId) {
     const lootItem = pending.itemId;
     nextState = updatePlayer(nextState, player.id, (current) => appendItem(current, lootItem));
@@ -906,7 +1035,14 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // The pause only touches the clocks: nothing on the board follows from it.
   if (action.type === "pauseGame" || action.type === "resumeGame") return dispatchGameAction(state, action, now);
   // Nothing is played while the game is paused, but a player may still leave the table.
-  if (state.pause && action.type !== "abandonGame") return state;
+  if (
+    state.pause &&
+    action.type !== "abandonGame" &&
+    action.type !== "joinLatePlayer" &&
+    action.type !== "reinstatePlayer"
+  ) {
+    return state;
+  }
   const prepared = spareHellPlayers(state);
   const dispatched = dispatchGameAction(prepared, action, now);
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
@@ -914,9 +1050,9 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // Banquise: nobody stays on ice, whatever set them down there.
   const result = slideOffIce(prepared, dispatched);
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
-  const counted = rewardDevilInHell(prepared, recordPreviousTiles(prepared, result));
+  const counted = rewardHellRegulars(prepared, rewardDevilInHell(prepared, recordPreviousTiles(prepared, result)));
   const forfeited = applyForfeits(counted);
-  const settled = offerGamble(checkVictories(forfeited));
+  const settled = announceSpentItems(offerGamble(checkVictories(skipBenchedTurns(forfeited))));
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;
@@ -937,7 +1073,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
         action.draft ? { now } : null,
       );
     case "pickPassive":
-      return pickPassive(state, action.playerId, action.passiveId);
+      return pickPassive(state, action.playerId, action.passiveId, now);
     case "resetGame":
       return EMPTY_GAME_STATE;
     case "movePlayer":
@@ -952,10 +1088,12 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return rescueProtege(state);
     case "buyItem":
       return buyItem(state, action.itemId, action.count);
+    case "sellItem":
+      return sellItem(state, action.entryId);
     case "stealItem":
       return stealItem(state, action.itemId);
     case "useItem":
-      return useItem(state, action.entryId, action.targetPlayerId, action.count);
+      return useItem(state, action.entryId, action.targetPlayerId, action.count, action.targetRoad);
     case "resolveReaction":
       return resolveReaction(state, action.reactorId);
     case "endTurn":
@@ -966,6 +1104,12 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return spinTileWheel(state);
     case "spinBlessingWheel":
       return spinBlessingWheel(state);
+    case "kickPlayer":
+      return kickPlayer(state, action.hostId, action.playerId);
+    case "joinLatePlayer":
+      return joinLatePlayer(state, action.playerId, action.name, action.color);
+    case "reinstatePlayer":
+      return reinstatePlayer(state, action.playerId);
     case "abandonGame":
       return abandonPlayer(state, action.playerId);
     case "spinWheel":
@@ -978,6 +1122,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return cancelWheel(state, action.withNoThanks === true);
     case "challengePlayer":
       return challengePlayer(state, action.targetPlayerId);
+    case "chooseDuelMode":
+      return chooseDuelMode(state, action.mode);
     case "flipDuelCoin":
       return flipDuelCoin(state);
     case "pickDuelHand":

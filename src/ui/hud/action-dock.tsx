@@ -1,3 +1,7 @@
+import { getHellTurnLimit } from "../../game/passive-rules";
+import { hasCard } from "../../game/cards";
+import type { PassiveId } from "../../game/types";
+import { useVisibleCards } from "../card-visibility";
 import type { CSSProperties, ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
@@ -7,14 +11,7 @@ import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import {
-  CALM_DOWN_DISTANCE,
-  CORRUPTER_COST,
-  HELL_EXIT_TOLL,
-  HELL_TURN_LIMIT,
-  MOVE_MINIMUM_ENERGY,
-  START_BONUS,
-} from "../../game/types";
+import { CALM_DOWN_DISTANCE, CORRUPTER_COST, HELL_EXIT_TOLL, MOVE_MINIMUM_ENERGY, START_BONUS } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { EnergyGauge } from "../components/energy-meter";
@@ -40,10 +37,10 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const phase = useGameStore((state) => state.phase);
   const decider = useDecidingPlayer();
   const energyLeft = useGameStore((state) => state.energyLeft);
+  const game = useGameStore();
   const canAct = useCanActFor([decider?.id]);
+  const cards = useVisibleCards(decider ?? undefined);
   if (!activePlayer || !decider || phase !== "playing") return null;
-
-  const passive = PASSIVE_CATALOG[decider.passiveId];
 
   return (
     <section
@@ -68,15 +65,22 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
         <PlayerAvatar color={decider.color} size={56} expression={getAvatarExpression(decider)} />
         <div className="action-dock__identity">
           <strong>{decider.name}</strong>
-          <span className="action-dock__passive" title={passive.description}>
-            <UiIcon name="sparkle" size={12} /> {passive.name}
+          <span
+            className="action-dock__passive"
+            title={[cards.actif, cards.passif]
+              .filter((cardId): cardId is PassiveId => cardId !== null)
+              .map((cardId) => `${PASSIVE_CATALOG[cardId].name} : ${PASSIVE_CATALOG[cardId].description}`)
+              .join(" — ")}
+          >
+            <UiIcon name="sparkle" size={12} /> {cards.actif ? PASSIVE_CATALOG[cards.actif].name : "Actif caché"}
+            {cards.passif ? ` · ${PASSIVE_CATALOG[cards.passif].name}` : ""}
           </span>
           <span className="action-dock__wallet">
             <CoinIcon size={15} />
             {formatCurrency(decider.currency)}
           </span>
           {decider.id === activePlayer.id && (
-            <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer)} />
+            <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer, game)} />
           )}
         </div>
       </div>
@@ -216,6 +220,8 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
       return <DockPrompt title="Sac plein !" hint="Choisis l’objet à abandonner." />;
     case "wheel-result":
       return <DockPrompt title="La roue tourne…" hint="Croise les doigts." />;
+    case "duel-choice":
+      return <DockPrompt title="Duel en Enfer !" hint="Le meneur de jeu choisit le mini-jeu." />;
     case "duel":
       return ghostDuel ? (
         <DockPrompt title="Le fantôme attaque !" hint="Bats-le pour reprendre son butin." />
@@ -258,10 +264,11 @@ function HellContent({ player }: { player: Player }) {
   const canLeave = useGameStore(canLeaveHell);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const hasBottle = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "water-bottle");
-  const lastTurn = player.hellTurns >= HELL_TURN_LIMIT;
+  const hellLimit = getHellTurnLimit(player);
+  const lastTurn = player.hellTurns >= hellLimit;
   const countdown = lastTurn
     ? `Dernier tour : sans évasion, tu sors en case 0 contre ${HELL_EXIT_TOLL} pièces.`
-    : `Tour ${player.hellTurns}/${HELL_TURN_LIMIT} : au bout de ${HELL_TURN_LIMIT}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
+    : `Tour ${player.hellTurns}/${hellLimit} : au bout de ${hellLimit}, tu sors contre ${HELL_EXIT_TOLL} pièces.`;
   const advice = tired
     ? "Plus d’énergie pour la roue : elle t’attend au prochain tour."
     : hasBottle
@@ -270,7 +277,7 @@ function HellContent({ player }: { player: Player }) {
 
   return (
     <DockPrompt title="Bienvenue en Enfer…" hint={`${advice} ${countdown}`}>
-      {player.passiveId === "devil" && (
+      {hasCard(player, "devil") && (
         <button
           type="button"
           className="btn btn--cup"
@@ -309,7 +316,7 @@ function MoveContent({ player }: { player: Player }) {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const isCorrupter = player.passiveId === "corrupter";
+  const isCorrupter = hasCard(player, "corrupter");
   const corrupterHint = getCorrupterHint(player, round);
 
   if (tired) {
@@ -321,7 +328,7 @@ function MoveContent({ player }: { player: Player }) {
   }
 
   // Roller: the die comes first, then the walk it allows.
-  if (player.passiveId === "roller" && diceRoll === null) {
+  if (hasCard(player, "roller") && diceRoll === null) {
     return (
       <DockPrompt
         title="Lance le dé"

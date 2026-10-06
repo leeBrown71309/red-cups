@@ -1,5 +1,13 @@
+import { hasCard } from "../cards";
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
-import { avoidsHell, getCopyLimit, isDoomed, isImmuneToItems, throwsOneStackPerTurn } from "../passive-rules";
+import {
+  avoidsHell,
+  getCopyLimit,
+  isDoomed,
+  isImmuneToItems,
+  throwsOneStackPerTurn,
+  getHellTurnLimit,
+} from "../passive-rules";
 import { ITEM_CATALOG, ITEM_ORDER } from "../catalog";
 import {
   countItemCopies,
@@ -18,7 +26,6 @@ import {
   FIRST_ROUND,
   GREEDY_GOAL,
   HELL_NODE_ID,
-  HELL_TURN_LIMIT,
   RED_CUP_GOAL,
   GHOST_ID,
   GHOST_MAX_DRIFT_STEPS,
@@ -40,6 +47,7 @@ import {
   expectedBalance,
   fellIntoHell,
   carriedByIce,
+  hellRewardCoins,
   newLogTexts,
   slidOnIce,
   touchedByHell,
@@ -63,6 +71,7 @@ export type { RuleViolation } from "./invariant-helpers";
 const STAGES_WITH_PENDING: Partial<Record<TurnStage, keyof GameState>> = {
   "wheel-result": "pendingWheel",
   duel: "pendingDuel",
+  "duel-choice": "pendingDuelChoice",
   discard: "pendingDiscard",
   target: "pendingChallenge",
   "passive-choice": "pendingCalmDown",
@@ -164,8 +173,10 @@ export function checkState(state: GameState): RuleViolation[] {
         found.push(violation("lost-tile-wheel", `${state.pendingTileWheels.length} tile wheel(s) never spun`));
       }
     }
-    if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > HELL_TURN_LIMIT)) {
-      found.push(violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${HELL_TURN_LIMIT}`));
+    if (state.turnStage === "hell" && (active.hellTurns < 1 || active.hellTurns > getHellTurnLimit(active))) {
+      found.push(
+        violation("hell-countdown", `${active.name} plays Hell turn ${active.hellTurns}/${getHellTurnLimit(active)}`),
+      );
     }
     // A skip drawn while breaking free of Banquise's ice, at the start of the turn, is for the next one.
     const thawedNow = state.lastMovement?.thawed === true && state.lastMovement.playerId === active.id;
@@ -205,7 +216,7 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   for (const player of state.players) {
-    if (player.position === HELL_NODE_ID && player.hellTurns > HELL_TURN_LIMIT) {
+    if (player.position === HELL_NODE_ID && player.hellTurns > getHellTurnLimit(player)) {
       found.push(violation("hell-overstay", `${player.name} spent ${player.hellTurns} turns in Hell`));
     }
   }
@@ -235,14 +246,17 @@ export function checkState(state: GameState): RuleViolation[] {
   const wonByForfeit = state.winReason === "forfeit" && state.players.length === 1;
   const greedyWinner = findPlayer(state, state.winnerId);
   const wonByGreed =
-    state.winReason === "greedy" && greedyWinner?.passiveId === "greedy" && greedyWinner.currency >= GREEDY_GOAL;
+    state.winReason === "greedy" &&
+    greedyWinner !== undefined &&
+    hasCard(greedyWinner, "greedy") &&
+    greedyWinner.currency >= GREEDY_GOAL;
   const devil = findDevil(state);
   const wonByDevil =
     state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellTurns >= getDevilGoalFor(state);
   if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
     found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
-  const rich = state.players.find((player) => player.passiveId === "greedy" && player.currency >= GREEDY_GOAL);
+  const rich = state.players.find((player) => hasCard(player, "greedy") && player.currency >= GREEDY_GOAL);
   if (rich && state.phase === "playing") {
     found.push(violation("greedy-victory", `${rich.name} holds ${rich.currency} coins but the game goes on`));
   }
@@ -271,11 +285,12 @@ export function checkState(state: GameState): RuleViolation[] {
       // L'Ange-Gardien answers with a Bouclier, when the item aims at their protégé.
       const action = state.pendingReaction.action;
       const shield =
-        reactor?.passiveId === "guardian-angel" &&
+        reactor !== undefined &&
+        hasCard(reactor, "guardian-angel") &&
         reactor.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield") &&
         (action.type === "item" ? action.targetPlayerId : action.victimId) === state.guardian?.protegeId;
       if (shield) continue;
-      if (!reactor || reactor.passiveId !== "no-thanks") {
+      if (!reactor || !hasCard(reactor, "no-thanks")) {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
       } else if (reactor.id === state.pendingReaction.actorId) {
         found.push(violation("no-self-reaction", `${reactor.name} may cancel their own action`));
@@ -322,7 +337,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   // Roller: the die's count, or as far as a walk that never comes back to a tile can go.
   const roll = previous.diceRoll;
   const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
-  const rolled = !stepForward && mover.passiveId === "roller";
+  const rolled = !stepForward && hasCard(mover, "roller");
   const expectedLength = stepForward ? 1 : rolled ? rollerReach : previous.moveDistance;
   if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
@@ -341,7 +356,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const board = getBoard(previous);
   let from = movement.from;
   for (const step of movement.path) {
-    const allowed = getNeighbors(board, from, rebel && mover.passiveId === "corrupter");
+    const allowed = getNeighbors(board, from, rebel && hasCard(mover, "corrupter"));
     if (!allowed.includes(step)) {
       found.push(violation("move-follows-roads", `${mover.name} went ${from} → ${step} against the board`));
     }
@@ -382,7 +397,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     steppedBack ||
     portalFall ||
     movement.interruptedTo !== undefined ||
-    ["discard", "reposition", "passive-choice", "duel", "finished"].includes(next.turnStage);
+    ["discard", "reposition", "passive-choice", "duel", "duel-choice", "finished"].includes(next.turnStage);
   if (!interrupted) {
     const expected: TurnStage = getTileWheelFor(previous, mover, destination)
       ? "tile-wheel"
@@ -594,7 +609,13 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
     ...(emptyBag ? { "lose-item": -amount } : {}),
   };
   const delta = moneyOutcomes[wheel.result.id];
-  if (delta !== undefined && after.currency !== expectedBalance(before, delta)) {
+  // The coins of a descent into Hell the wheel's loss led to (a −300 reset, a duel) come on top.
+  const hellCoins = hellRewardCoins(newLogTexts(previous, next), before.name);
+  if (
+    delta !== undefined &&
+    after.currency !== expectedBalance(before, delta) &&
+    after.currency !== expectedBalance(before, delta) + hellCoins
+  ) {
     found.push(
       violation("wheel-money", `${before.name}: ${wheel.result.id} took ${before.currency} to ${after.currency}`),
     );
@@ -610,7 +631,9 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
     wheel.result.id === "escape" &&
     before.position === HELL_NODE_ID &&
     after.position !== START_NODE_ID &&
-    !escapedOnIce
+    !escapedOnIce &&
+    // A knocked-out player landing on le diable's tile goes straight back down (a skipped turn drawn first).
+    !newLogTexts(previous, next).some((text) => text.includes("Toucher d’Enfer"))
   ) {
     found.push(violation("wheel-escape", `${before.name} escaped Hell to tile ${after.position} instead of 0`));
   }
@@ -727,7 +750,11 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
     // Bullet Bill moves at the end of the round and may stun a player right before their turn.
     // Banquise's penguins throw as the turn ends, and a third snowball freezes a player on the spot.
     const stunnedNow = logs.some(
-      (text) => text.includes(`Bullet Bill percute ${before.name}`) || text.includes(`: ${before.name} est gelé`),
+      (text) =>
+        text.includes(`Bullet Bill percute ${before.name}`) ||
+        text.includes(`: ${before.name} est gelé`) ||
+        // Robbed by a Goblin as the Cup changes hands, down to −300: the lost turn comes at once.
+        text.startsWith(`${before.name} tombe à −300 pièces`),
     );
     const announced = logs.includes(`${before.name} passe son tour.`);
     if (!announced || (before.skippedTurns < 1 && !stunnedNow)) {
@@ -790,7 +817,7 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     found.push(violation("item-consumed", `${label} but the bag did not lose it`));
   }
 
-  const tank = target?.passiveId === "built-like-a-tank";
+  const tank = hasCard(target, "built-like-a-tank");
   switch (item.itemId) {
     case "hollow-purple":
       // L'Ange-Gardien loses a turn instead.
@@ -918,17 +945,32 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   }
 }
 
+const AUTOMATIC_ITEMS: ItemId[] = ["wake-up", "parachute", "mirror"];
+
+/** True when any player's bag lost a Réveil, a Parachute or a Miroir without the owner using it by hand. */
+function spentAnAutomaticItem(previous: GameState, next: GameState): boolean {
+  return previous.players.some((before) => {
+    const after = findPlayer(next, before.id);
+    return (
+      after !== undefined &&
+      AUTOMATIC_ITEMS.some((itemId) => countItemUnits(after, itemId) < countItemUnits(before, itemId))
+    );
+  });
+}
+
 /** Nobody stays in Hell past their sentence, and nobody is let out early. */
 function checkHellSentence(previous: GameState, next: GameState, found: RuleViolation[]): void {
   if (!turnChanged(previous, next) || next.phase !== "playing") return;
 
   const outgoing = getActivePlayer(previous);
   const outgoingAfter = outgoing && findPlayer(next, outgoing.id);
-  if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= HELL_TURN_LIMIT && outgoingAfter) {
+  if (outgoing?.position === HELL_NODE_ID && outgoing.hellTurns >= getHellTurnLimit(outgoing) && outgoingAfter) {
     const carriedOn =
       fellIntoHell(previous, next, outgoing.id, START_NODE_ID) || slidOnIce(previous, next, outgoing.id);
     if (outgoingAfter.position !== START_NODE_ID && !carriedOn) {
-      found.push(violation("hell-release", `${outgoing.name} served ${HELL_TURN_LIMIT} Hell turns but stayed`));
+      found.push(
+        violation("hell-release", `${outgoing.name} served ${getHellTurnLimit(outgoing)} Hell turns but stayed`),
+      );
     }
   }
 
@@ -938,7 +980,7 @@ function checkHellSentence(previous: GameState, next: GameState, found: RuleViol
     // A skipped turn counts too, so the release may come one turn after the last spin; when every seat
     // skips, a single action may go round the table and count several of them.
     const skips = logs.filter((text) => text === `${player.name} passe son tour.`).length;
-    if (player.position !== HELL_NODE_ID || player.hellTurns + Math.max(0, skips - 1) < HELL_TURN_LIMIT - 1) {
+    if (player.position !== HELL_NODE_ID || player.hellTurns + Math.max(0, skips - 1) < getHellTurnLimit(player) - 1) {
       found.push(violation("hell-early-release", `${player.name} left Hell after ${player.hellTurns} turns`));
     }
   }
@@ -955,6 +997,8 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   const found: RuleViolation[] = [];
   checkAdvancedPassives(previous, nextState, found);
   if (previous.turnStage === "gamble") return found;
+  // A Réveil, a Parachute or a Miroir spent in this action cancels an effect the checks below expect.
+  if (spentAnAutomaticItem(previous, nextState)) return found;
   const next = withoutGamblePause(nextState);
   // An item announced to a Non merci holder has not happened yet.
   const itemApplied = appliedItem && next.turnStage !== "reaction" ? appliedItem : undefined;

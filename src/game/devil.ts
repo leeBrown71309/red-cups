@@ -1,10 +1,11 @@
+import { hasCard } from "./cards";
 import { getBoard, isIce } from "./board";
 import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
 import { avoidsHell, getDevilGoal, isImmuneToItems } from "./passive-rules";
 import { carryOffIce } from "./ice";
 import { addLog, applyCurrencyChange, findPlayer, randomChoice, sendPlayerToHell, updatePlayer } from "./state-utils";
-import type { DevilSpell, GameState, Player, PlayerId } from "./types";
+import type { DevilSpell, GameState, HellPortal, Player, PlayerId } from "./types";
 import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_NODE_ID } from "./types";
 
 /**
@@ -14,11 +15,14 @@ import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_N
  */
 
 export function findDevil(state: GameState): Player | undefined {
-  return state.players.find((player) => player.passiveId === "devil");
+  return state.players.find((player) => hasCard(player, "devil"));
 }
 
 /** Coins le diable earns each time they go to Hell themselves (author's buff). */
 export const DEVIL_HELL_REWARD = 100;
+
+/** Coins le diable earns each time another player goes to Hell (patch 0.1.5). */
+export const DEVIL_OTHERS_HELL_REWARD = 50;
 
 /** At the start, the whole table learns who le diable is and what they need. */
 export function announceDevil(state: GameState): GameState {
@@ -33,22 +37,40 @@ export function announceDevil(state: GameState): GameState {
 
 /**
  * A player other than le diable begins one more of their turns in Hell,
- * played or skipped: it brings le diable closer to winning (author's buff,
- * which replaced the count of entries).
+ * played or skipped: it brings le diable closer to winning (author's buff).
  */
 export function countDevilHellTurn(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
-  if (!findDevil(state) || !player || player.passiveId === "devil") return state;
+  if (!findDevil(state) || !player || hasCard(player, "devil")) return state;
   return { ...state, devilHellTurns: state.devilHellTurns + 1 };
 }
 
-/** Le diable stepping into Hell between two states earns their coins (author's buff). */
+/**
+ * Every step into Hell between two states pays le diable (patch 0.1.5): 100
+ * coins for their own, and 50 coins plus a point of their score for another
+ * player's, on top of the point each turn spent there brings.
+ */
 export function rewardDevilInHell(before: GameState, after: GameState): GameState {
   const devil = findDevil(after);
-  const previous = devil && findPlayer(before, devil.id);
-  if (!devil || !previous || devil.position !== HELL_NODE_ID || previous.position === HELL_NODE_ID) return after;
-  const paid = applyCurrencyChange(after, devil.id, DEVIL_HELL_REWARD);
-  return addLog(paid, `${devil.name} est chez lui en Enfer : +${DEVIL_HELL_REWARD} pièces.`, "good");
+  if (!devil) return after;
+  let nextState = after;
+  for (const player of after.players) {
+    const previous = findPlayer(before, player.id);
+    if (!previous || player.position !== HELL_NODE_ID || previous.position === HELL_NODE_ID) continue;
+    if (player.id === devil.id) {
+      nextState = applyCurrencyChange(nextState, devil.id, DEVIL_HELL_REWARD);
+      nextState = addLog(nextState, `${devil.name} est chez lui en Enfer : +${DEVIL_HELL_REWARD} pièces.`, "good");
+      continue;
+    }
+    nextState = applyCurrencyChange(nextState, devil.id, DEVIL_OTHERS_HELL_REWARD);
+    nextState = { ...nextState, devilHellTurns: nextState.devilHellTurns + 1 };
+    nextState = addLog(
+      nextState,
+      `${player.name} entre en Enfer : ${devil.name} gagne ${DEVIL_OTHERS_HELL_REWARD} pièces et un point.`,
+      "bad",
+    );
+  }
+  return nextState;
 }
 
 export function getDevilGoalFor(state: GameState): number {
@@ -62,7 +84,7 @@ export const DEVIL_HELL_EXIT_ENERGY = 1;
 export function canLeaveHell(state: GameState): boolean {
   const player = state.players[state.activePlayerIndex];
   return (
-    player?.passiveId === "devil" &&
+    hasCard(player, "devil") &&
     state.turnStage === "hell" &&
     player.position === HELL_NODE_ID &&
     state.energyLeft >= DEVIL_HELL_EXIT_ENERGY
@@ -102,30 +124,58 @@ function hasExpired(state: GameState, spell: DevilSpell): boolean {
   return casterIndex === -1 || state.activePlayerIndex >= casterIndex;
 }
 
-/** Portail: a random tile, neither Hell nor the start nor the Red Cup's, opens onto Hell. */
-export function openPortal(state: GameState, casterId: PlayerId): GameState {
-  const taken = new Set([START_NODE_ID, HELL_NODE_ID, state.redCupNodeId, ...state.hellPortals.map((p) => p.nodeId)]);
-  // Never on ice: nobody stops there, so the Portail would wait for nothing.
-  const board = getBoard(state);
-  const nodeId = randomChoice(
-    board.normalNodeIds.filter((candidate) => !taken.has(candidate) && !isIce(board, candidate)),
-  );
-  if (nodeId === undefined) return addLog(state, "Le Portail ne trouve aucune case où s’ouvrir.");
-  const portal = { id: createEngineId(), nodeId, ...castSpell(state, casterId, PORTAL_ROUNDS) };
-  const nextState: GameState = { ...state, hellPortals: [...state.hellPortals, portal] };
-  return addLog(nextState, `Un Portail vers l’Enfer s’ouvre en case ${nodeId}.`, "bad");
+/**
+ * Whether a Portail shows on the board. Hidden for the round it opened in,
+ * the first of the pair shows during the second round and both during the
+ * third (patch 0.1.5).
+ */
+export function isPortalVisible(state: GameState, portal: HellPortal): boolean {
+  if (portal.castRound === undefined) return true;
+  const age = state.round - portal.castRound;
+  return age >= 2 || (age === 1 && portal.rank === 0);
 }
 
-/** Stopping on a Portail drops the player into Hell, le diable included, and closes it; Chance aveugle is spared. */
+/** Portails: two random tiles, neither Hell nor the start nor the Red Cup's, open onto Hell, unseen at first. */
+export function openPortals(state: GameState, casterId: PlayerId): GameState {
+  // Never on ice: nobody stops there, so a Portail would wait for nothing.
+  const board = getBoard(state);
+  const taken = new Set([START_NODE_ID, HELL_NODE_ID, state.redCupNodeId, ...state.hellPortals.map((p) => p.nodeId)]);
+  let free = board.normalNodeIds.filter((candidate) => !taken.has(candidate) && !isIce(board, candidate));
+  const nodeIds: number[] = [];
+  while (nodeIds.length < 2) {
+    const nodeId = randomChoice(free);
+    if (nodeId === undefined) break;
+    nodeIds.push(nodeId);
+    free = free.filter((candidate) => candidate !== nodeId);
+  }
+  if (nodeIds.length < 2) return addLog(state, "Les Portails ne trouvent pas deux cases où s’ouvrir.");
+  const pairId = createEngineId();
+  const portals: HellPortal[] = nodeIds.map((nodeId, index) => ({
+    id: createEngineId(),
+    pairId,
+    nodeId,
+    castRound: state.round,
+    rank: index === 0 ? 0 : 1,
+    ...castSpell(state, casterId, PORTAL_ROUNDS),
+  }));
+  const nextState: GameState = { ...state, hellPortals: [...state.hellPortals, ...portals] };
+  return addLog(nextState, "Deux Portails vers l’Enfer s’ouvrent, cachés, quelque part sur la carte.", "bad");
+}
+
+/**
+ * Stopping on a Portail drops the player into Hell, le diable included, and
+ * closes both Portails of its pair; Chance aveugle is spared.
+ */
 export function triggerPortal(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
   const portal = state.hellPortals.find((candidate) => candidate.nodeId === player?.position);
   if (!player || !portal || isImmuneToItems(player)) return state;
+  const pairId = portal.pairId ?? portal.id;
   const closed: GameState = {
     ...state,
-    hellPortals: state.hellPortals.filter((candidate) => candidate.id !== portal.id),
+    hellPortals: state.hellPortals.filter((candidate) => (candidate.pairId ?? candidate.id) !== pairId),
   };
-  return sendPlayerToHell(addLog(closed, `${player.name} s’arrête sur le Portail !`, "bad"), playerId);
+  return sendPlayerToHell(addLog(closed, `${player.name} s’arrête sur un Portail !`, "bad"), playerId);
 }
 
 /** Black Cup: the Red Cup waits in Hell; whoever already stood there does not pick it up. */
@@ -190,7 +240,7 @@ export function expireDevilSpells(state: GameState): GameState {
   let nextState = state;
   const open = state.hellPortals.filter((portal) => !hasExpired(state, portal));
   if (open.length !== state.hellPortals.length) {
-    nextState = addLog({ ...nextState, hellPortals: open }, "Un Portail se referme.", "event");
+    nextState = addLog({ ...nextState, hellPortals: open }, "Des Portails se referment.", "event");
   }
   if (state.doomsday && hasExpired(state, state.doomsday)) {
     nextState = addLog(

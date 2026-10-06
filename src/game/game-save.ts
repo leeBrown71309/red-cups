@@ -1,12 +1,13 @@
 import type { PersistOptions, PersistStorage, StorageValue } from "zustand/middleware";
 import { readStorage, removeStorage, writeStorage } from "../utils/safe-local-storage";
-import type { GameState, GhostState } from "./types";
+import { CARD_KINDS } from "./cards";
+import type { GameState, GhostState, PassiveId } from "./types";
 import { isMapId } from "./maps/map-registry";
 import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./types";
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 22;
+export const GAME_SAVE_VERSION = 24;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -113,7 +114,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * the chances lost and the rules version, version 19 the passive draft (a
  * game saved during its draft comes back to it), version 20 the mini-games
  * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause, version
- * 22 le diable's count of turns spent in Hell instead of entries.
+ * 22 le diable's count of turns spent in Hell instead of entries. Version 23
+ * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages.
  */
 function upgradeSave(save: SaveRecord): SaveRecord {
   const players = Array.isArray(save.players) ? (save.players as SaveRecord[]) : [];
@@ -147,6 +149,8 @@ function upgradeSave(save: SaveRecord): SaveRecord {
           ...duel,
         }
       : null,
+    pendingDuelChoice: save.pendingDuelChoice ?? null,
+    barriers: save.barriers ?? [],
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     thrownStackId: save.thrownStackId ?? null,
     diceRoll: save.diceRoll ?? null,
@@ -167,7 +171,7 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     hostPlayerId: save.hostPlayerId ?? null,
     pause: save.pause ?? null,
     rulesVersion: save.rulesVersion ?? RULES_VERSION,
-    draft: save.draft ?? null,
+    draft: save.draft ? { stage: "actif", actifs: {}, ...(save.draft as SaveRecord) } : null,
     pendingArmWrestle: save.pendingArmWrestle ?? null,
     lastBulletFlight: save.lastBulletFlight ?? null,
     blessingQueue: save.blessingQueue ?? [],
@@ -179,12 +183,23 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     ...upgradePassiveWindows(save),
     players: players.map(({ noThanksUsedCycle: _replaced, ...player }) => ({
       ...player,
-      passiveId: REPLACED_PASSIVES[String(player.passiveId)] ?? player.passiveId,
+      ...splitCards(REPLACED_PASSIVES[String(player.passiveId)] ?? player.passiveId, player.passifId),
       hellTurns: player.hellTurns ?? 0,
       noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
       previousNodeId: player.previousNodeId ?? null,
     })),
   };
+}
+
+/**
+ * A save from before patch 0.1.6 holds one card per player. One that is now a
+ * passif moves to the passif slot, and the player has no actif (Lambda).
+ */
+function splitCards(card: unknown, passif: unknown): { passiveId: PassiveId; passifId: PassiveId | null } {
+  const cardId = card as PassiveId;
+  const passifId = (passif ?? null) as PassiveId | null;
+  if (CARD_KINDS[cardId] === "passif") return { passiveId: "lambda", passifId: passifId ?? cardId };
+  return { passiveId: cardId, passifId };
 }
 
 function createAbsentGhost(round: number): GhostState {

@@ -5,6 +5,7 @@ import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { emitFeedback } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
 import {
+  BUMP_MS,
   FREEZE_MS,
   GHOST_CARRY_MS,
   GHOST_SLAP_IMPACT_MS,
@@ -39,6 +40,8 @@ type PawnAction =
   | { type: "slide"; to: THREE.Vector3; duration: number }
   | { type: "glide"; to: THREE.Vector3; duration: number }
   | { type: "wobble"; duration: number }
+  /** Banquise: runs at a Barrière, knocks against it and rebounds to where it stood. */
+  | { type: "bump"; to: THREE.Vector3; from: NodeId; toward: NodeId; duration: number }
   | { type: "freeze"; duration: number }
   | { type: "shatter"; duration: number }
   | { type: "vanish"; duration: number }
@@ -274,6 +277,22 @@ export class PawnController {
       return;
     }
 
+    // A slide that ran into a Barrière stood on `path[index]`: it bumps there, then slides on another way.
+    const pushBumps = (index: number) => {
+      for (const bump of movement.bumps ?? []) {
+        if (bump.index !== index) continue;
+        const standing = this.layout.getNodePosition(path[index] ?? from);
+        const aimed = standing.clone().lerp(this.layout.getNodePosition(bump.toward), 0.5);
+        pawn.actions.push({
+          type: "bump",
+          to: aimed.setY(standing.y),
+          from: path[index] ?? from,
+          toward: bump.toward,
+          duration: BUMP_MS,
+        });
+      }
+    };
+
     let previous = from;
     path.forEach((nodeId, index) => {
       const isLast = index === path.length - 1 && !interrupted;
@@ -283,6 +302,7 @@ export class PawnController {
       if (index >= slideStart) {
         pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
         previous = nodeId;
+        pushBumps(index);
         return;
       }
 
@@ -297,6 +317,7 @@ export class PawnController {
 
       pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
       previous = nodeId;
+      pushBumps(index);
     });
 
     if (interrupted) {
@@ -324,9 +345,14 @@ export class PawnController {
 
     if (pawn.actionElapsed === 0) {
       if (action.type === "appear") root.position.copy(action.at);
+      if (action.type === "bump") emitFeedback({ type: "barrier-bump", from: action.from, toward: action.toward });
       pawn.actionStart.copy(root.position);
       if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
       if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
+      if (action.type === "bump") {
+        const direction = action.to.clone().sub(root.position);
+        if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
+      }
       if (action.type === "shatter") emitFeedback({ type: "ice-shatter", playerId: pawn.id });
       if (action.type === "slapped") {
         action.source = this.hooks.onGhostSlap?.(pawn.id) ?? undefined;
@@ -355,6 +381,18 @@ export class PawnController {
         const direction = action.to.clone().sub(pawn.actionStart);
         if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
         body.rotation.x = -0.25 * Math.sin(progress * Math.PI);
+        break;
+      }
+      case "bump": {
+        // A lunge at the bar, a knock that squashes the pawn flat against it, then a bounce back.
+        const lunge = Math.min(1, progress / 0.4);
+        const rebound = progress < 0.4 ? 0 : (progress - 0.4) / 0.6;
+        const reach = progress < 0.4 ? easeInOutCubic(lunge) * 0.85 : 0.85 * (1 - easeOutBack(Math.min(1, rebound)));
+        root.position.lerpVectors(pawn.actionStart, action.to, Math.max(0, reach));
+        root.position.y += progress >= 0.4 ? Math.sin(rebound * Math.PI) * 0.7 : 0;
+        const knock = progress >= 0.4 && progress < 0.6 ? Math.sin(((progress - 0.4) / 0.2) * Math.PI) : 0;
+        body.scale.set(1 + knock * 0.25, 1 - knock * 0.3, 1 + knock * 0.25);
+        body.rotation.z = Math.sin(progress * Math.PI * 5) * 0.3 * (1 - progress);
         break;
       }
       case "wobble":
@@ -415,6 +453,10 @@ export class PawnController {
         emitFeedback({ type: "pawn-hop" });
       }
       if (action.type === "appear") body.scale.setScalar(1);
+      if (action.type === "bump") {
+        root.position.copy(pawn.actionStart);
+        body.scale.setScalar(1);
+      }
       if (action.type === "freeze") pawn.iceBlock.scale.setScalar(1);
       if (action.type === "shatter") pawn.iceBlock.scale.setScalar(0.001);
       if (pawn.actions.length === 0) pawn.targetYaw = 0;

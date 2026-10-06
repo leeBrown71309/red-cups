@@ -1,7 +1,7 @@
-import { getBoard, getShortestPath } from "./board";
+import { getOpenBoard, getShortestPath } from "./board";
 import { isImmuneToItems } from "./passive-rules";
 import { canUseNoThanks } from "./rules";
-import { addLog, applyCurrencyChange, updatePlayer } from "./state-utils";
+import { addLog, applyCurrencyChange, updatePlayer, loseTurns } from "./state-utils";
 import type { BulletFlight, GameState, NodeId, Player, PlayerId } from "./types";
 import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "./types";
 
@@ -28,7 +28,7 @@ interface ChaseTarget {
  * Chance aveugle is never chased. Ties go to the first seat.
  */
 function findNearestTarget(state: GameState, from: NodeId): ChaseTarget | undefined {
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   return state.players
     .filter((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player))
     .map((player) => ({ player, path: getShortestPath(board, from, player.position, true) }))
@@ -121,10 +121,7 @@ function chargeNearestPlayer(state: GameState, dodged: boolean): GameState {
   if (!hit) return addLog(nextState, `Bullet Bill fonce vers ${target.player.name}.`, "event");
 
   nextState = applyCurrencyChange(nextState, target.player.id, -BULLET_BILL_DAMAGE);
-  nextState = updatePlayer(nextState, target.player.id, (player) => ({
-    ...player,
-    skippedTurns: player.skippedTurns + 1,
-  }));
+  nextState = updatePlayer(nextState, target.player.id, (player) => loseTurns(player));
   nextState = addLog(
     nextState,
     `Bullet Bill percute ${target.player.name} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,

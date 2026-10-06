@@ -2,7 +2,18 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reduceGame, type GameAction } from "./game-actions";
 import { createGameSaveOptions, pickGameState } from "./game-save";
-import type { GameState, ItemId, MapId, NodeId, PassiveId, PlayerId, RpsChoice, TurnStage, WheelId } from "./types";
+import type {
+  DuelMode,
+  GameState,
+  ItemId,
+  MapId,
+  NodeId,
+  PassiveId,
+  PlayerId,
+  RpsChoice,
+  TurnStage,
+  WheelId,
+} from "./types";
 import { EMPTY_GAME_STATE } from "./types";
 
 interface GameActions {
@@ -33,11 +44,14 @@ interface GameActions {
   rescueProtege: () => void;
   /** `count`: copies bought in one go. */
   buyItem: (itemId: ItemId, count?: number) => void;
+  /** Brocanteur: sells one item of the bag back to the shop. */
+  sellItem: (entryId: string) => void;
   /** Voleur: tries to walk off with an item instead of paying for it. */
   stealItem: (itemId: ItemId) => void;
   /** Declares an item use; it may wait in a Non merci reaction window before applying. */
   /** `count`: Tomates thrown at once from their stack. */
-  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number) => void;
+  /** `targetRoad`: the two tiles of the road a Barrière closes. */
+  useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number, targetRoad?: [NodeId, NodeId]) => void;
   /** A Non merci holder cancels the declared action, or null lets it happen. */
   resolveReaction: (reactorId: PlayerId | null) => void;
   /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
@@ -52,6 +66,8 @@ interface GameActions {
   /** Rubs the wheel's result out with the Gomme, or with Non merci when `withNoThanks` is set. */
   cancelWheel: (withNoThanks?: boolean) => void;
   challengePlayer: (targetPlayerId: PlayerId) => void;
+  /** Meneur de jeu: picks the mini-game of the duel. */
+  chooseDuelMode: (mode: DuelMode) => void;
   flipDuelCoin: () => void;
   pickDuelHand: (playerId: PlayerId, choice: RpsChoice) => void;
   castDuelVote: (voterId: PlayerId, candidateId: PlayerId) => void;
@@ -124,9 +140,17 @@ export const useGameStore = create<GameStore>()(
       rollDice: () => dispatch({ type: "rollDice" }),
       leaveHell: () => dispatch({ type: "leaveHell" }),
       rescueProtege: () => dispatch({ type: "rescueProtege" }),
+      sellItem: (entryId) => dispatch({ type: "sellItem", entryId }),
       buyItem: (itemId, count) => dispatch({ type: "buyItem", itemId, ...(count && count > 1 ? { count } : {}) }),
       stealItem: (itemId) => dispatch({ type: "stealItem", itemId }),
-      useItem: (entryId, targetPlayerId, count) => dispatch({ type: "useItem", entryId, targetPlayerId, count }),
+      useItem: (entryId, targetPlayerId, count, targetRoad) =>
+        dispatch({
+          type: "useItem",
+          entryId,
+          targetPlayerId,
+          count,
+          ...(targetRoad !== undefined ? { targetRoad } : {}),
+        }),
       resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
       endTurn: () => dispatch({ type: "endTurn" }),
       spinHellWheel: () => dispatch({ type: "spinHellWheel" }),
@@ -138,6 +162,7 @@ export const useGameStore = create<GameStore>()(
       resolveWheel: () => dispatch({ type: "resolveWheel" }),
       cancelWheel: (withNoThanks) => dispatch({ type: "cancelWheel", ...(withNoThanks ? { withNoThanks } : {}) }),
       challengePlayer: (targetPlayerId) => dispatch({ type: "challengePlayer", targetPlayerId }),
+      chooseDuelMode: (mode) => dispatch({ type: "chooseDuelMode", mode }),
       flipDuelCoin: () => dispatch({ type: "flipDuelCoin" }),
       pickDuelHand: (playerId, choice) => dispatch({ type: "pickDuelHand", playerId, choice }),
       castDuelVote: (voterId, candidateId) => dispatch({ type: "castDuelVote", voterId, candidateId }),

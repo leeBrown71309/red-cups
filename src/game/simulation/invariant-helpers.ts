@@ -22,6 +22,21 @@ export function newLogTexts(previous: GameState, next: GameState): string[] {
   return texts;
 }
 
+/**
+ * Coins a player was paid for Hell in these lines: le diable's 50 for each
+ * other descent and 100 for their own, the Habitué de l'Enfer's 150. They come
+ * on top of whatever else the action did.
+ */
+export function hellRewardCoins(texts: string[], name: string): number {
+  let coins = 0;
+  for (const text of texts) {
+    if (text.includes(`${name} gagne 50 pièces et un point`)) coins += 50;
+    const own = new RegExp(String.raw`^${name} est chez lui en Enfer : \+(\d+) pièces`).exec(text);
+    if (own) coins += Number(own[1]);
+  }
+  return coins;
+}
+
 /** Expected balance after a single coin change, including the Casque and the −300 reset. */
 export function expectedBalance(player: Player, delta: number): number {
   let balance = player.currency + delta;

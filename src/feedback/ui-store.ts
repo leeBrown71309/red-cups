@@ -29,6 +29,8 @@ interface UiState {
   followActivePlayer: boolean;
   /** Luna Park: the ghost's loot window, opened by clicking the ghost on the board. */
   ghostLootOpen: boolean;
+  /** The Barrière being set down: its bag entry while the player taps the road on the board to close. */
+  roadPickEntryId: string | null;
   /** Corrupteur toggle for the current move. */
   ignoreArrows: boolean;
   /** Destination selected by a first tap on touch screens, waiting for confirmation. */
@@ -37,6 +39,7 @@ interface UiState {
   hoveredChipNodeId: NodeId | null;
   setBoardBusyUntil: (timestamp: number) => void;
   setCountdownUntil: (timestamp: number) => void;
+  setRoadPickEntryId: (entryId: string | null) => void;
   setIgnoreArrows: (ignoreArrows: boolean) => void;
   setPreviewNodeId: (nodeId: NodeId | null) => void;
   setHoveredChipNodeId: (nodeId: NodeId | null) => void;
@@ -67,9 +70,11 @@ export const useUiStore = create<UiState>((set) => ({
   alert: null,
   followActivePlayer: prefersFollowCamera(),
   ghostLootOpen: false,
+  roadPickEntryId: null,
   ignoreArrows: false,
   previewNodeId: null,
   hoveredChipNodeId: null,
+  setRoadPickEntryId: (roadPickEntryId) => set({ roadPickEntryId }),
   setBoardBusyUntil: (boardBusyUntil) => set({ boardBusyUntil }),
   setCountdownUntil: (countdownUntil) => set({ countdownUntil }),
   setIgnoreArrows: (ignoreArrows) => set({ ignoreArrows, previewNodeId: null }),
@@ -95,6 +100,7 @@ export const useUiStore = create<UiState>((set) => ({
       splash: null,
       alert: null,
       ghostLootOpen: false,
+      roadPickEntryId: null,
       ignoreArrows: false,
       previewNodeId: null,
       hoveredChipNodeId: null,

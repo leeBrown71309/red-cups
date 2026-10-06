@@ -8,7 +8,7 @@ import type { GameState, PlayerId, TurnStage } from "./types";
  * emptied while the table is at rest, so no wheel, duel or decision is left
  * waiting for someone who is gone.
  */
-const ABANDON_STAGES: TurnStage[] = ["move", "hell", "shop", "turn-end"];
+export const ABANDON_STAGES: TurnStage[] = ["move", "hell", "shop", "turn-end"];
 
 export function canAbandon(state: GameState): boolean {
   return state.phase === "playing" && ABANDON_STAGES.includes(state.turnStage);
@@ -22,7 +22,7 @@ export function canAbandon(state: GameState): boolean {
 export function abandonPlayer(
   state: GameState,
   playerId: PlayerId,
-  reason: "abandon" | "forfeit" = "abandon",
+  reason: "abandon" | "forfeit" | "kick" = "abandon",
 ): GameState {
   const index = state.players.findIndex((player) => player.id === playerId);
   if (!canAbandon(state) || index < 0) return state;
@@ -40,7 +40,9 @@ export function abandonPlayer(
     },
     reason === "forfeit"
       ? `${leaver.name} déclare forfait : trois tours sans jouer.`
-      : `${leaver.name} abandonne la partie.`,
+      : reason === "kick"
+        ? `${leaver.name} est exclu de la partie par l’hôte.`
+        : `${leaver.name} abandonne la partie.`,
     "bad",
   );
   const heirInHell = state.guardian?.protegeId === leaver.id && players.length > 1;

@@ -1,3 +1,4 @@
+import { hasCard } from "../../game/cards";
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canBeChallenged, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
@@ -147,6 +148,7 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
   );
 }
 
+/** The Barrière: which road beside the player's tile to close. */
 /** Hell wheel "Duel" result: the spinner drags an opponent down for a duel. */
 export function ChallengeModal() {
   const pending = useGameStore((state) => state.pendingChallenge);
@@ -181,6 +183,15 @@ export function DiscardModal() {
 
   const incoming: ItemId | "red-cup" = pending.reason === "red-cup" ? "red-cup" : (pending.itemId ?? "red-cup");
 
+  // Online, the bag and the item that does not fit are the player's own business.
+  if (!canAct) {
+    return (
+      <ModalShell title="Sac plein !" eyebrow={player.name} tone="gold" className="discard-modal">
+        <WaitingNote player={player} text={`${player.name} fait de la place dans son sac…`} />
+      </ModalShell>
+    );
+  }
+
   return (
     <ModalShell title="Sac plein !" eyebrow={player.name} tone="gold" className="discard-modal">
       <div className="discard-incoming">
@@ -191,7 +202,6 @@ export function DiscardModal() {
             : `Je note : fais de la place pour ${ITEM_CATALOG[incoming].name}.`}
         </p>
       </div>
-      {!canAct && <WaitingNote player={player} text={`${player.name} choisit quel objet jeter…`} />}
       <div className="discard-grid">
         {player.inventory.map((entry) =>
           entry.kind === "red-cup" ? (
@@ -200,13 +210,7 @@ export function DiscardModal() {
               <small>Red Cup</small>
             </span>
           ) : (
-            <button
-              key={entry.id}
-              type="button"
-              className="discard-card"
-              onClick={() => discard(entry.id)}
-              disabled={!canAct}
-            >
+            <button key={entry.id} type="button" className="discard-card" onClick={() => discard(entry.id)}>
               <ItemIcon itemId={entry.itemId} size={42} />
               <small>{ITEM_CATALOG[entry.itemId].name}</small>
               <span className="discard-card__drop">
@@ -259,7 +263,7 @@ export function ReactionModal() {
   if (!pending) return null;
   const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
   // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci.
-  const shieldOnly = reactors.every((reactor) => reactor.passiveId === "guardian-angel");
+  const shieldOnly = reactors.every((reactor) => hasCard(reactor, "guardian-angel"));
 
   return (
     <ModalShell
@@ -288,7 +292,7 @@ export function ReactionModal() {
                 <PlayerAvatar color={reactor.color} size={44} />
                 <span className="reaction__reactor-name">{reactor.name}</span>
                 <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                  {reactor.passiveId === "guardian-angel" ? (
+                  {hasCard(reactor, "guardian-angel") ? (
                     <>
                       <UiIcon name="shield" size={18} /> Bouclier !
                     </>

@@ -26,7 +26,7 @@ export const HELD_CLOCK_SAFETY_MS = 120_000;
 /** The safety clock of a duel or a wheel shows up once this little is left. */
 export const HELD_CLOCK_SHOWN_MS = 15_000;
 /** Stages that hold the turn clock: the duels, and the wheels of fortune, misfortune, Hell and Bénédiction. */
-const HELD_CLOCK_STAGES = ["duel", "tile-wheel", "wheel-result", "blessing"];
+const HELD_CLOCK_STAGES = ["duel", "duel-choice", "tile-wheel", "wheel-result", "blessing"];
 /** Animations play after every action: the clock waits this long before it runs again. */
 export const CLOCK_GRACE_MS = 3_000;
 /** Devices other than the decider's wait this long past a deadline before closing it themselves. */
@@ -48,6 +48,8 @@ export function getClockDeciderIds(state: GameState): PlayerId[] {
   switch (state.turnStage) {
     case "wheel-result":
       return only(state.pendingWheel?.playerId);
+    case "duel-choice":
+      return only(state.pendingDuelChoice?.chooserId);
     case "discard":
       return only(state.pendingDiscard?.playerId);
     case "target":

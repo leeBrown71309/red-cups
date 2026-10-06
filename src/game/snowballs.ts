@@ -1,6 +1,6 @@
 import { drawEngineRandom } from "./engine-random";
 import { getBoardMap } from "./maps/map-registry";
-import { addLog, randomChoice, updatePlayer } from "./state-utils";
+import { addLog, findPlayer, loseTurns, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, PlayerId } from "./types";
 import { HELL_NODE_ID, SNOWBALL_HIT_CHANCE, SNOWBALL_HITS_TO_FREEZE } from "./types";
 
@@ -48,7 +48,12 @@ export function throwSnowball(state: GameState): GameState {
       "event",
     );
   }
-  nextState = updatePlayer(nextState, target.id, (player) => ({ ...player, skippedTurns: player.skippedTurns + 1 }));
+  const frozenTurns = findPlayer(nextState, target.id)?.skippedTurns ?? 0;
+  nextState = updatePlayer(nextState, target.id, (player) => loseTurns(player));
+  // A Réveil woke them: no lost turn, so no ice to melt later.
+  if ((findPlayer(nextState, target.id)?.skippedTurns ?? 0) === frozenTurns) {
+    return addLog(nextState, `Troisième boule de neige : ${target.name} se réveille à temps.`, "good");
+  }
   nextState = { ...nextState, snowFrozenPlayerIds: [...nextState.snowFrozenPlayerIds, target.id] };
   return addLog(nextState, `Troisième boule de neige : ${target.name} est gelé et passera son prochain tour !`, "bad");
 }

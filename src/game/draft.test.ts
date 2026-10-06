@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { canPlayerSendAction } from "./action-permissions";
-import { DRAFT_TIME_MS, getDraftOfferSize } from "./draft";
+import { CARD_KINDS } from "./cards";
+import { DRAFT_TIME_MS, getDraftOfferSize, getDraftPool } from "./draft";
 import { reduceGame } from "./game-actions";
 import { getStartingCurrency } from "./passive-rules";
 import { CLOCK_GRACE_MS } from "./turn-clock";
-import type { GameState } from "./types";
+import type { GameState, PassiveId } from "./types";
 import { EMPTY_GAME_STATE, GAME_COUNTDOWN_MS } from "./types";
 
-/** The passive draft before the game (patch 0.1.4). */
+/** The draft before the game: an actif, then a passif (patch 0.1.4, two stages since patch 0.1.6). */
 
 function draftTable(playerCount: number, online = false): GameState {
   const playerNames = Array.from({ length: playerCount }, (_, index) => `Joueur ${index + 1}`);
@@ -20,15 +21,31 @@ function draftTable(playerCount: number, online = false): GameState {
 
 const offersOf = (state: GameState, index: number) => state.draft!.offers[state.players[index].id];
 
-describe("passive draft", () => {
-  it("deals three cards each up to six players, two beyond, never the same card twice", () => {
-    expect([2, 6, 7, 8].map(getDraftOfferSize)).toEqual([3, 3, 2, 2]);
-    for (const count of [2, 6, 8]) {
+/** Everybody picks the first card of their offer. */
+function pickFirst(state: GameState): GameState {
+  let next = state;
+  for (const player of state.players) {
+    next = reduceGame(next, { type: "pickPassive", playerId: player.id, passiveId: next.draft!.offers[player.id][0] });
+  }
+  return next;
+}
+
+describe("two-stage draft", () => {
+  it("deals two actifs each, never a card twice while the pool lasts, never twice in one offer", () => {
+    expect([2, 6, 8].map(getDraftOfferSize)).toEqual([2, 2, 2]);
+    for (const count of [2, 4, 8]) {
       const state = draftTable(count);
       expect(state.phase).toBe("draft");
+      expect(state.draft?.stage).toBe("actif");
       const dealt = state.players.flatMap((_, index) => offersOf(state, index));
-      expect(dealt).toHaveLength(count * getDraftOfferSize(count));
-      expect(new Set(dealt).size).toBe(dealt.length);
+      expect(dealt).toHaveLength(count * 2);
+      expect(dealt.every((cardId) => CARD_KINDS[cardId] === "actif" && cardId !== "lambda")).toBe(true);
+      state.players.forEach((_, index) => expect(new Set(offersOf(state, index)).size).toBe(2));
+      if (count * 2 <= getDraftPool("actif", count).length) expect(new Set(dealt).size).toBe(dealt.length);
+      // The roles exist once per table.
+      for (const role of ["devil", "guardian-angel"] as PassiveId[]) {
+        expect(dealt.filter((cardId) => cardId === role).length).toBeLessThanOrEqual(1);
+      }
     }
   });
 
@@ -39,40 +56,57 @@ describe("passive draft", () => {
     }
   });
 
-  it("lets a pick change, and closes once everybody picked, with the passives in effect", () => {
+  it("moves on to the passifs once everybody picked an actif, then plays with both cards", () => {
     let state = draftTable(2);
     const [first, second] = state.players;
     state = reduceGame(state, { type: "pickPassive", playerId: first.id, passiveId: offersOf(state, 0)[0] });
     state = reduceGame(state, { type: "pickPassive", playerId: first.id, passiveId: offersOf(state, 0)[1] });
-    expect(state.phase).toBe("draft");
+    expect(state.draft?.stage).toBe("actif");
     // A card that was not dealt to the player is refused.
-    expect(reduceGame(state, { type: "pickPassive", playerId: second.id, passiveId: offersOf(state, 0)[2] })).toBe(
-      state,
-    );
+    const foreign = offersOf(state, 1)[0];
+    expect(reduceGame(state, { type: "pickPassive", playerId: first.id, passiveId: foreign })).toBe(state);
 
-    const chosen = offersOf(state, 1)[2];
-    const firstChoice = offersOf(state, 0)[1];
-    state = reduceGame(state, { type: "pickPassive", playerId: second.id, passiveId: chosen });
+    const firstActif = offersOf(state, 0)[1];
+    const secondActif = offersOf(state, 1)[0];
+    state = reduceGame(state, { type: "pickPassive", playerId: second.id, passiveId: secondActif });
+    expect(state.phase).toBe("draft");
+    expect(state.draft?.stage).toBe("passif");
+    expect(state.draft?.picks).toEqual({});
+    expect(state.draft?.actifs).toEqual({ [first.id]: firstActif, [second.id]: secondActif });
+    expect(
+      state.players.flatMap((_, index) => offersOf(state, index)).every((card) => CARD_KINDS[card] === "passif"),
+    ).toBe(true);
+
+    const passifs = state.players.map((_, index) => offersOf(state, index)[0]);
+    state = pickFirst(state);
     expect(state).toMatchObject({ phase: "playing", turnStage: "move", draft: null });
+    expect(state.players.map((player) => player.passifId)).toEqual(passifs);
     expect(state.players.map((player) => player.passiveId)).toEqual(
-      [firstChoice, chosen].map((passiveId) => (passiveId === "guardian-angel" ? "lambda" : passiveId)),
+      [firstActif, secondActif].map((cardId) => (cardId === "guardian-angel" ? "lambda" : cardId)),
     );
-    expect(state.players[1].currency).toBe(getStartingCurrency(state.players[1].passiveId));
+    for (const player of state.players) {
+      expect(player.currency).toBe(getStartingCurrency(player.passiveId, player.passifId));
+    }
   });
 
-  it("online, closes after a minute with a random card for whoever did not pick, then counts down", () => {
+  it("online, each stage lasts a minute, a random card for whoever did not pick, then the countdown", () => {
     const state = draftTable(3, true);
     expect(state.draft?.deadline).toBe(DRAFT_TIME_MS);
     expect(reduceGame(state, { type: "expireClock" }, { now: DRAFT_TIME_MS - 1 })).toBe(state);
 
-    const closed = reduceGame(state, { type: "expireClock" }, { now: DRAFT_TIME_MS });
+    const second = reduceGame(state, { type: "expireClock" }, { now: DRAFT_TIME_MS });
+    expect(second.phase).toBe("draft");
+    expect(second.draft?.stage).toBe("passif");
+    expect(second.draft?.deadline).toBe(DRAFT_TIME_MS * 2);
+
+    const closed = reduceGame(second, { type: "expireClock" }, { now: DRAFT_TIME_MS * 2 });
     expect(closed.phase).toBe("playing");
     closed.players.forEach((player, index) => {
-      const dealt = offersOf(state, index);
-      expect(dealt.includes(player.passiveId) || player.passiveId === "lambda").toBe(true);
+      expect(offersOf(state, index).includes(player.passiveId) || player.passiveId === "lambda").toBe(true);
+      expect(offersOf(second, index).includes(player.passifId as PassiveId)).toBe(true);
     });
     // The first turn's clock waits for the five-second countdown.
-    expect(closed.turnClock?.runningSince).toBe(DRAFT_TIME_MS + GAME_COUNTDOWN_MS + CLOCK_GRACE_MS);
+    expect(closed.turnClock?.runningSince).toBe(DRAFT_TIME_MS * 2 + GAME_COUNTDOWN_MS + CLOCK_GRACE_MS);
   });
 
   it("lets each player pick for themselves only", () => {

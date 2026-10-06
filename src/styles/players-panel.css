@@ -270,6 +270,8 @@
 .player-details {
   position: fixed;
   z-index: 30;
+  /* The panel around it lets clicks through to the board: the card must catch its own wheel and touches. */
+  pointer-events: auto;
   width: min(290px, calc(100vw - 16px));
   transform-origin: left var(--arrow-top, 50%);
   animation: details-in 200ms var(--ease-out) both;
@@ -296,6 +298,7 @@
   padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   scrollbar-width: thin;
 }
 
@@ -376,6 +379,13 @@
   gap: 10px;
 }
 
+.player-details__close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+}
+
 .player-details__head strong {
   display: block;
   font-family: var(--font-display);
@@ -403,6 +413,11 @@
 
 .player-details__passive-text {
   max-height: 4.9em;
+}
+
+.player-details__passive .player-details__passive-hidden {
+  color: var(--ink-faint);
+  font-style: italic;
 }
 
 .player-details__passive p {
@@ -445,6 +460,7 @@
  */
 .scroll-block {
   padding-right: 4px;
+  touch-action: pan-y;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -489,5 +505,51 @@
 
   .player-details__passive p {
     font-size: 0.76rem;
+  }
+}
+
+/* A player's own two cards, side by side: one shows, the arrows slide to the other. */
+.card-pager {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-pager__window {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.card-pager__track {
+  display: flex;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card-pager__slide {
+  flex: 0 0 100%;
+  min-width: 0;
+}
+
+.card-pager__arrow {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--ink, #2a1d22);
+  border-radius: 50%;
+  background: var(--cream, #fff4ec);
+  cursor: pointer;
+}
+
+.card-pager__arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-pager__track {
+    transition: none;
   }
 }

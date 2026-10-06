@@ -231,9 +231,9 @@ describe("Red light, Green light", () => {
     let state = addRedGreenBonuses(store(), holder, [1, 5, 7]);
     expect(state.players[0].currency).toBe(STARTING_CURRENCY + 200);
     state = addRedGreenBonuses(state, holder, [4, 6, 10]);
-    expect(state.players[0].currency).toBe(STARTING_CURRENCY);
+    expect(state.players[0].currency).toBe(STARTING_CURRENCY + 100);
     expect(state.redGreenTriggers).toEqual({ green: 2, red: 2 });
-    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY);
+    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY + 100);
   });
 
   it("counts afresh with every new Red Cup", () => {
@@ -362,7 +362,9 @@ describe("saves from before the passive rework", () => {
       })),
     };
     const upgraded = migrateGameSave(legacy, 13);
-    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "goblin", "corrupter", "lambda"]);
+    // Goblin and Corrupteur are passifs now: they move to the passif slot and the player keeps no actif.
+    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "lambda", "lambda", "lambda"]);
+    expect(upgraded.players.map((player) => player.passifId)).toEqual([null, "goblin", "corrupter", null]);
     expect(upgraded.redGreenTriggers).toEqual({ green: 0, red: 0 });
   });
 });

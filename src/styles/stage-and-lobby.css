@@ -12,6 +12,28 @@
   touch-action: none;
 }
 
+/*
+ * Depth of field, cheaply: a frame of blur around the view, clear in the
+ * middle where the tray is. A phone redraws the board every frame, and a
+ * live blur over it costs too much there, so only fine pointers get it.
+ */
+.board-stage__focus {
+  display: none;
+}
+
+@media (pointer: fine) {
+  .board-stage__focus {
+    position: absolute;
+    inset: 0;
+    display: block;
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    -webkit-mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
+    mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
+    pointer-events: none;
+  }
+}
+
 .board-stage__message {
   position: absolute;
   inset: 0;
@@ -701,4 +723,126 @@
 
 .board-stage[data-map-theme="night-fair"] .board-stage__message {
   color: var(--white);
+}
+
+/* ---------- Game menu and changelog (patch 0.1.5) ---------- */
+.menu-screen__panel {
+  align-self: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.menu-screen__panel .btn {
+  justify-content: center;
+}
+
+.menu-screen__version {
+  padding: 3px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--gold-light);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.settings-modal__version {
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.changelog {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: calc(clamp(12px, 3dvh, 28px) + var(--safe-top)) calc(clamp(14px, 4vw, 56px) + var(--safe-right))
+    calc(clamp(12px, 3dvh, 28px) + var(--safe-bottom)) calc(clamp(14px, 4vw, 56px) + var(--safe-left));
+}
+
+.changelog__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 14px;
+}
+
+.changelog__header h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 3.4vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.1;
+  text-shadow: 0 2px 0 var(--cream);
+}
+
+/* One scroll for the whole page, on a phone as on a desktop. */
+.changelog__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 6px 8px 2px;
+}
+
+.changelog__list {
+  display: grid;
+  gap: 12px;
+  width: min(100%, 720px);
+  margin-inline: auto;
+}
+
+.changelog__entry {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.changelog__entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.changelog__version {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.changelog__current {
+  padding: 0 10px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cup);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.7;
+  text-transform: uppercase;
+}
+
+.changelog__entry-head time {
+  margin-left: auto;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.changelog__entry h2 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.changelog__entry ul {
+  display: grid;
+  gap: 5px;
+  padding-left: 1.1em;
+  list-style: disc;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.35;
 }

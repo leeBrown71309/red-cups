@@ -1,7 +1,17 @@
-import { getBlizzardCandidates, getBoard, getNeighbors, getSlideExits, hasIce, isIce, type Board } from "./board";
+import {
+  getBlizzardCandidates,
+  getBoard,
+  getNeighbors,
+  getOpenBoard,
+  getSlideExits,
+  hasIce,
+  isBlockedRoad,
+  isIce,
+  type Board,
+} from "./board";
 import { drawEngineRandom } from "./engine-random";
 import { addLog, findPlayer, randomChoice, updatePlayer } from "./state-utils";
-import type { GameState, NodeId, PlayerId } from "./types";
+import type { GameState, NodeId, PlayerId, SlideBump } from "./types";
 import { ICE_FALL_CHANCE } from "./types";
 
 /**
@@ -22,6 +32,11 @@ export interface SlideOutcome {
   interruptedTo: NodeId | null;
   /** The fall of ice, hit or missed, when the slide headed for the Red Cup. */
   iceFall: { from: NodeId; to: NodeId; hit: boolean } | null;
+  /**
+   * Barrières the slide ran into: it had slid `step` tiles on when it was about to take the barred road
+   * towards `toward`, bounced back and drew another way from the tile it stood on.
+   */
+  bumps: { step: number; toward: NodeId }[];
 }
 
 /**
@@ -47,7 +62,9 @@ export function getSlideChoices(board: Board, previous: NodeId, iceNodeId: NodeI
  */
 export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId[], iceFall = true): SlideOutcome {
   const board = getBoard(state);
-  const outcome: SlideOutcome = { slide: [], interruptedTo: null, iceFall: null };
+  // A Barrière does not hide a road from the slide: it may head for it, and run into it.
+  const openBoard = getOpenBoard(state);
+  const outcome: SlideOutcome = { slide: [], interruptedTo: null, iceFall: null, bumps: [] };
   if (walkedPath.length === 0) return outcome;
 
   const crossed = new Set<NodeId>([walkFrom, ...walkedPath]);
@@ -56,7 +73,12 @@ export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId
 
   // Each step either reaches a tile without ice or a new one: the board's size bounds the slide.
   for (let guard = 0; isIce(board, current) && guard < board.nodes.length; guard += 1) {
-    const next = randomChoice(getSlideChoices(board, previous, current, crossed));
+    let next = randomChoice(getSlideChoices(openBoard, previous, current, crossed));
+    if (next !== undefined && isBlockedRoad(board, current, next)) {
+      outcome.bumps.push({ step: outcome.slide.length, toward: next });
+      // Back on the tile, the ice tries another way; with none left, as for a dead end, it goes back.
+      next = randomChoice(getSlideChoices(board, previous, current, crossed));
+    }
     if (next === undefined) break;
     if (iceFall && next === state.redCupNodeId) {
       const hit = drawEngineRandom() < ICE_FALL_CHANCE;
@@ -72,6 +94,14 @@ export function drawSlide(state: GameState, walkFrom: NodeId, walkedPath: NodeId
     current = next;
   }
   return outcome;
+}
+
+/**
+ * The bumps of a slide as the path of a movement tells them: the player stands on `path[slideStart - 1 + step]`
+ * when the barred road stops them.
+ */
+export function toPathBumps(slideStart: number, bumps: SlideOutcome["bumps"]): SlideBump[] {
+  return bumps.map((bump) => ({ index: slideStart - 1 + bump.step, toward: bump.toward }));
 }
 
 /** Whether falling ice holds `playerId` on the tile they stand on, until their next turn. */
@@ -92,6 +122,9 @@ export function recordSlide(state: GameState, playerId: PlayerId, outcome: Slide
   const end = outcome.slide[outcome.slide.length - 1];
   if (end !== undefined) {
     nextState = addLog(nextState, `${player.name} glisse sur la glace jusqu’en case ${end}.`, "event");
+  }
+  for (const _bump of outcome.bumps) {
+    nextState = addLog(nextState, `${player.name} glisse contre une Barrière et rebondit.`, "event");
   }
   if (outcome.iceFall) {
     const { to, hit } = outcome.iceFall;

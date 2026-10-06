@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { countRedCups } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import { HELL_NODE_ID } from "../../game/types";
@@ -28,21 +28,14 @@ export function PlayersPanel() {
   const seatOrder = useRoomStore((state) => state.seatOrder);
   const [folded, setFolded] = usePersistentToggle(FOLDED_KEY, prefersCompactHud);
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
-  const panelRef = useRef<HTMLElement>(null);
   const { players, activePlayerIndex, phase } = game;
 
+  // The card only closes with its cross (or its row): a tap on the board must not lose what is being read.
   useEffect(() => {
     if (!anchor) return undefined;
-    const close = (event: PointerEvent) => {
-      if (!panelRef.current?.contains(event.target as Node)) setAnchor(null);
-    };
     const closeOnResize = () => setAnchor(null);
-    window.addEventListener("pointerdown", close);
     window.addEventListener("resize", closeOnResize);
-    return () => {
-      window.removeEventListener("pointerdown", close);
-      window.removeEventListener("resize", closeOnResize);
-    };
+    return () => window.removeEventListener("resize", closeOnResize);
   }, [anchor]);
 
   // The rows move when the panel folds: a card left open would point at nothing.
@@ -51,7 +44,7 @@ export function PlayersPanel() {
   const openedPlayer = players.find((player) => player.id === anchor?.playerId);
 
   return (
-    <aside ref={panelRef} className={`players-panel ${folded ? "is-folded" : ""}`} aria-label="Joueurs">
+    <aside className={`players-panel ${folded ? "is-folded" : ""}`} aria-label="Joueurs">
       <header className="players-panel__head">
         <button
           type="button"
@@ -134,7 +127,9 @@ export function PlayersPanel() {
           );
         })}
       </ul>
-      {anchor && openedPlayer && <PlayerDetails player={openedPlayer} anchor={anchor} />}
+      {anchor && openedPlayer && (
+        <PlayerDetails player={openedPlayer} anchor={anchor} onClose={() => setAnchor(null)} />
+      )}
     </aside>
   );
 }

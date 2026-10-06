@@ -1092,69 +1092,9 @@
   font-weight: 600;
 }
 
-/*
- * Board tab: the plan stays put and only the legend on the right scrolls,
- * so the map never slides out of view while reading its rules.
- */
-.help-modal .modal-card__body:has(> .help-board) {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.help-modal .modal-card__body:has(> .help-board) > .segmented {
-  flex: none;
-}
-
-.help-modal .help-board {
-  flex: 1;
-  grid-template-rows: minmax(0, 1fr);
-  min-height: 0;
-}
-
-.help-board__plan {
-  align-self: start;
-}
-
-.help-board__legend {
-  align-self: stretch;
-  min-height: 0;
-  max-height: 100%;
-  padding-right: 6px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
 .help-board__tagline {
   color: var(--ink-soft);
   font-size: 0.85rem;
-}
-
-.help-steps {
-  display: grid;
-  gap: 10px;
-}
-
-.help-steps li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 16px;
-  background: var(--white);
-}
-
-.help-steps__number {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border: var(--border);
-  border-radius: 50%;
-  background: var(--gold);
-  font-family: var(--font-display);
-  font-weight: 700;
 }
 
 /*
@@ -1720,11 +1660,6 @@
   .wheel-layout {
     grid-template-columns: minmax(0, 1fr);
   }
-
-  /* Stacked: the plan on top, the legend scrolls underneath. */
-  .help-modal .help-board {
-    grid-template-rows: auto minmax(0, 1fr);
-  }
 }
 
 /* ---------- Abandon ---------- */
@@ -1751,4 +1686,135 @@
   font-weight: 800;
   text-transform: uppercase;
   vertical-align: middle;
+}
+
+/*
+ * Help (patch 0.1.5): the tabs stay put and only the page under them scrolls,
+ * on a desktop as on a phone, so the tabs are always one touch away.
+ */
+.help-modal .modal-card__body {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 0;
+  overflow: hidden;
+}
+
+.help-modal .segmented {
+  flex: none;
+}
+
+.help-content {
+  flex: 1;
+  min-height: 0;
+  padding: 2px 6px 18px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.help-board {
+  align-items: start;
+}
+
+/* On a roomy screen the plan follows the reader down the legend. */
+@media (min-width: 761px) and (min-height: 521px) {
+  .help-board__plan {
+    position: sticky;
+    top: 0;
+  }
+}
+
+@media (max-width: 760px), (max-height: 520px) {
+  .help-board {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .help-board__plan {
+    width: min(100%, 440px);
+    margin-inline: auto;
+  }
+
+  .help-modal .segmented__option {
+    min-height: 32px;
+    padding: 0 6px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Rules tab: one card per subject. */
+.rules {
+  display: grid;
+  gap: 12px;
+}
+
+.rules-section {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--white);
+  box-shadow: 0 3px 0 var(--paper-edge);
+}
+
+.rules-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.rules-section__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.rules-section__list {
+  display: grid;
+  gap: 6px;
+  padding-left: 1.1em;
+  list-style: disc;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+/* The other draw of Main verte or Main rouge, set aside. */
+.wheel-result__aside {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* Brocanteur: the resale tab of the shop. */
+.shop-resale {
+  display: grid;
+  gap: 8px;
+}
+
+.shop-resale__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 16px;
+  background: var(--white);
+}
+
+.shop-resale__row .shop-item__name {
+  flex: 1;
+}
+
+.shop-resale__empty {
+  padding: 16px;
+  color: var(--ink-soft);
+  text-align: center;
 }

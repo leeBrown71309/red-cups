@@ -21,8 +21,13 @@ export const JE_NOTE_COPY_CHANCE = 1 / 3;
 export const RED_GREEN_TRIGGERS_PER_CUP = 2;
 /** Calme-toi: how far from the new Red Cup the holder sets a player down. */
 export const CALM_DOWN_DISTANCE = 3;
+/** Red light, Green light: coins a green tile pays and a red one costs (patch 0.1.5). */
+export const RED_GREEN_GAIN = 100;
+export const RED_GREEN_PENALTY = 50;
+/** Coins the Goblin takes from each other player at every new Red Cup. */
+export const GOBLIN_THEFT = 150;
 /** Cupide wins as soon as their balance reaches this. */
-export const GREEDY_GOAL = 5_000;
+export const GREEDY_GOAL = 6_000;
 /** Cupide: what a Red Cup pays them instead of taking a bag slot. */
 export const GREEDY_CUP_REWARD = 1_000;
 /** Cupide: taken from every knocked-out player on the tile they walk onto. */
@@ -39,8 +44,8 @@ export const THEFT_PENALTY_RATE = 1.5;
 export const GUARDIAN_MIN_PLAYERS = 4;
 /** L'Ange-Gardien: turns given up to free the protégé from Hell. */
 export const RESCUE_SKIPPED_TURNS = 2;
-/** Le diable's Portail stays open this many rounds, unless somebody stops on it first. */
-export const PORTAL_ROUNDS = 2;
+/** Le diable's Portails stay open this many rounds, unless somebody stops on one of them first. */
+export const PORTAL_ROUNDS = 3;
 /** Le diable's Black Cup keeps the Red Cup in Hell this many rounds. */
 export const BLACK_CUP_ROUNDS = 2;
 /** Le diable's Doomsday lasts this many rounds. */
@@ -139,7 +144,12 @@ export type ItemId =
   | "sentence"
   | "doomsday"
   /** L'Ange-Gardien's own item. */
-  | "shield";
+  | "shield"
+  // Items added in patch 0.1.6: three that act on their own, and the Barrière.
+  | "wake-up"
+  | "parachute"
+  | "barrier"
+  | "mirror";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -161,7 +171,17 @@ export type PassiveId =
   | "blind-luck"
   | "thief"
   | "devil"
-  | "guardian-angel";
+  | "guardian-angel"
+  // Passifs added in patch 0.1.6.
+  | "last-in-class"
+  | "hell-regular"
+  | "green-hand"
+  | "red-hand"
+  | "angelic-touch"
+  | "devils-hand"
+  | "game-master"
+  | "junk-dealer"
+  | "trapper";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket" | "blackjack";
@@ -179,7 +199,14 @@ export interface Player {
   position: NodeId;
   currency: number;
   inventory: InventoryEntry[];
+  /** The player's actif: the card that carries them to victory all game long. */
   passiveId: PassiveId;
+  /** The player's passif: a card that helps in one kind of situation; none until the draft is over. */
+  passifId?: PassiveId | null;
+  /** Items that acted on their own during the action in progress, announced in the journal and then cleared. */
+  spentItems?: ItemId[];
+  /** The Miroir was used: this player may not buy another one this game. */
+  mirrorUsed?: boolean;
   skippedTurns: number;
   /** First round in which Non merci may cancel an action again. */
   noThanksReadyRound: number;
@@ -225,6 +252,8 @@ export type TurnStage =
   | "hell"
   | "wheel-result"
   | "duel"
+  /** Meneur de jeu: before the duel, its host picks one of two mini-games. */
+  | "duel-choice"
   | "discard"
   | "target"
   /** New Cup, New Me: before the new Red Cup appears, off to the start or stay. */
@@ -271,7 +300,7 @@ export interface WheelResult {
 }
 
 /** Why a wheel spins; only used to phrase the wheel screen. */
-export type WheelOrigin = "tile" | "item" | "hell" | "chain" | "blessing";
+export type WheelOrigin = "tile" | "item" | "hell" | "chain" | "blessing" | "double";
 
 export interface PendingWheel {
   /** Unique per spin so the UI can replay the animation for chained wheels. */
@@ -282,6 +311,10 @@ export interface PendingWheel {
   resumeStage: TurnStage;
   sourceItemId?: ItemId;
   origin?: WheelOrigin;
+  /** Main verte, Main rouge: the other draw, set aside because the kept one is better. */
+  discarded?: WheelResult;
+  /** Touché angélique, Main du diable: wheels still to spin once this one is settled, in order. */
+  repeats?: WheelId[];
 }
 
 /** Something about to affect a Non merci holder, waiting for their answer. */
@@ -356,6 +389,36 @@ export type GhostReward =
 export interface GhostStakes {
   penalty: GhostPenalty;
   reward: GhostReward;
+}
+
+/** How many of its owner's turns a Barrière holds its road. */
+export const BARRIER_TURNS = 2;
+/** The most Barrières on the board at once, each from a different player. */
+export const MAX_BARRIERS = 2;
+
+/** A road between two tiles closed by its owner's Barrière, for `turnsLeft` more turns of its owner. */
+export interface Barrier {
+  ownerId: PlayerId;
+  a: NodeId;
+  b: NodeId;
+  turnsLeft: number;
+}
+
+/** Banquise: a slide drawn towards a barred road bounced back from it, standing on `path[index]`. */
+export interface SlideBump {
+  index: number;
+  toward: NodeId;
+}
+
+/** Meneur de jeu: two mini-games were drawn, and `chooserId` picks the one the duel is played with. */
+export interface PendingDuelChoice {
+  playerOneId: PlayerId;
+  playerTwoId: PlayerId;
+  modes: [DuelMode, DuelMode];
+  chooserId: PlayerId;
+  resumeStage: TurnStage;
+  /** Against the Luna Park ghost: what is at stake, drawn when it struck. */
+  ghost: GhostStakes | null;
 }
 
 export interface PendingDuel {
@@ -475,10 +538,20 @@ export interface DevilSpell {
   untilRound: number;
 }
 
-/** Le diable's Portail: whoever stops on its tile drops into Hell. */
+/**
+ * One of le diable's two Portails: whoever stops on its tile drops into Hell,
+ * and both close. Hidden the round they open, the first shows the next round,
+ * the second the one after (`castRound` and `rank`; a save from before
+ * patch 0.1.5 has neither and shows plainly).
+ */
 export interface HellPortal extends DevilSpell {
   id: string;
   nodeId: NodeId;
+  /** Both portals of a pair share it; one stepped on closes the other. */
+  pairId?: string;
+  castRound?: number;
+  /** 0 shows first, 1 shows last. */
+  rank?: 0 | 1;
 }
 
 /** Le diable's Black Cup: the Red Cup waits in Hell, then goes back to its tile. */
@@ -514,10 +587,16 @@ export interface GamePause {
   since: number;
 }
 
-/** The passive cards dealt before the game, and the ones picked so far. */
+/** The cards dealt before the game, and the ones picked so far. */
 export interface PassiveDraft {
+  /** Every player first picks an actif, then a passif. */
+  stage: "actif" | "passif";
+  /** The cards dealt at this stage. */
   offers: Record<PlayerId, PassiveId[]>;
+  /** What each player picked at this stage so far. */
   picks: Partial<Record<PlayerId, PassiveId>>;
+  /** The actifs picked at the first stage, kept while the passifs are picked. */
+  actifs: Partial<Record<PlayerId, PassiveId>>;
   /** Online: when the draft closes on its own; null at a local table, which has no clock. */
   deadline: number | null;
 }
@@ -526,7 +605,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.1.4";
+export const RULES_VERSION = "0.1.5";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -544,6 +623,8 @@ export interface PlayerMovement {
   slideStart?: number;
   /** Banquise: falling ice stopped the slide on its way to this tile. */
   interruptedTo?: NodeId;
+  /** Banquise: the slide ran into a Barrière and came back, where the path says. */
+  bumps?: SlideBump[];
   /** Banquise: the player broke free of the ice and finished last turn's slide. */
   thawed?: boolean;
   /** Luna Park: the ghost slapped the player and carried them to Hell. */
@@ -628,6 +709,12 @@ export interface GameLogEntry {
   id: string;
   text: string;
   tone: "neutral" | "good" | "bad" | "event";
+  /**
+   * Online, what a purchase, a theft or a discard says about a bag is for its
+   * owner only: everybody else reads `publicText`. A local table shares one
+   * screen and reads `text`.
+   */
+  secret?: { ownerId: PlayerId; publicText: string };
 }
 
 /** Seeded luck of an online game, stored in the state so every device draws the same. */
@@ -655,6 +742,9 @@ export interface GameState {
   redCupCycle: number;
   pendingWheel: PendingWheel | null;
   pendingDuel: PendingDuel | null;
+  pendingDuelChoice: PendingDuelChoice | null;
+  /** The Barrières on the roads: nobody walks them while they stand. */
+  barriers: Barrier[];
   pendingDiscard: PendingDiscard | null;
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
@@ -759,6 +849,8 @@ export const EMPTY_GAME_STATE: GameState = {
   redCupCycle: 0,
   pendingWheel: null,
   pendingDuel: null,
+  pendingDuelChoice: null,
+  barriers: [],
   pendingDiscard: null,
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,

@@ -9,6 +9,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { useFullscreenToggle } from "../fullscreen";
 import { usePauseControls } from "../hud/pause-controls";
 import { UiIcon } from "../icons/ui-icon";
+import { useLogReader } from "../log-text";
 import { PlayerPickList } from "./decision-modals";
 
 interface PauseMenuProps {
@@ -20,8 +21,8 @@ interface PauseMenuProps {
 
 export function PauseMenu({ onClose, onOpenHelp, onOpenJournal, onOpenAbandon }: PauseMenuProps) {
   const resetGame = useGameStore((state) => state.resetGame);
-  const leaveRoom = useRoomStore((state) => state.leave);
   const isOnline = useLocalPlayerId() !== null;
+  const leaveRoom = useRoomStore((state) => state.leave);
   const [confirmQuit, setConfirmQuit] = useState(false);
   // Online, quitting leaves the room and abandons the game, so the others play on.
   const quit = () => (isOnline ? void leaveRoom() : resetGame());
@@ -92,7 +93,6 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
   const allowed = useGameStore(canAbandon);
   const abandonGame = useGameStore((state) => state.abandonGame);
   const localPlayerId = useLocalPlayerId();
-  const leaveRoom = useRoomStore((state) => state.leave);
   const [pickedId, setLeaverId] = useState<PlayerId | null>(null);
   const leaverId = localPlayerId ?? pickedId;
   const leaver = players.find((player) => player.id === leaverId);
@@ -127,9 +127,8 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
               type="button"
               className="btn btn--grape"
               onClick={() => {
-                // Online there is no watching from the side: abandoning also leaves the room.
-                if (localPlayerId) void leaveRoom();
-                else abandonGame(leaver.id);
+                // Online the seat in the room is kept: the leaver waits there for a rematch.
+                abandonGame(leaver.id);
                 onClose();
               }}
               data-autofocus
@@ -150,6 +149,7 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
 
 export function JournalModal({ onClose }: { onClose: () => void }) {
   const log = useGameStore((state) => state.log);
+  const readEntry = useLogReader();
 
   return (
     <ModalShell title="Journal" eyebrow="La table se souvient" onClose={onClose} className="journal-modal">
@@ -157,7 +157,7 @@ export function JournalModal({ onClose }: { onClose: () => void }) {
         {log.map((entry) => (
           <li key={entry.id} className={`journal__entry journal__entry--${entry.tone}`}>
             <span className="journal__dot" aria-hidden="true" />
-            {entry.text}
+            {readEntry(entry)}
           </li>
         ))}
       </ol>

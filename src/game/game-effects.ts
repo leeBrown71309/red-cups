@@ -1,14 +1,24 @@
+import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
+import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isIce, type Board } from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
-import { createDuel, getDuelModes } from "./duel-setup";
+import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
-import { ITEM_CATALOG, chooseWheelResult } from "./catalog";
+import { findGameMaster, openDuelChoice } from "./duel-choice";
+import { ITEM_CATALOG, chooseWheelResult, getWheelResultValue } from "./catalog";
 import { applyHellTouch, countDevilHellTurn, expireDevilSpells, triggerPortal } from "./devil";
-import { avoidsHell, canCollectRedCup, getMudOwnerReward, isImmuneToItems } from "./passive-rules";
+import {
+  avoidsHell,
+  canCollectRedCup,
+  drawsTwiceKeepingBest,
+  getHellTurnLimit,
+  getMudOwnerReward,
+  isImmuneToItems,
+  spinsTwice,
+} from "./passive-rules";
 import { endGame } from "./victory";
 import {
   canAddItem,
@@ -20,6 +30,7 @@ import {
   opensShop,
 } from "./rules";
 import {
+  addBagLog,
   addLog,
   appendItem,
   applyCurrencyChange,
@@ -27,20 +38,33 @@ import {
   getActivePlayer,
   randomChoice,
   sendPlayerToHell,
-  shuffle,
   updatePlayer,
+  loseTurns,
 } from "./state-utils";
-import type { DuelMode, GameState, ItemId, NodeId, Player, PlayerId, TurnStage, WheelId, WheelOrigin } from "./types";
+import type {
+  GameState,
+  ItemId,
+  NodeId,
+  Barrier,
+  Player,
+  PlayerId,
+  TurnStage,
+  WheelId,
+  WheelOrigin,
+  WheelResult,
+} from "./types";
 import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
+  GOBLIN_THEFT,
   GREEDY_CUP_REWARD,
+  RED_GREEN_GAIN,
+  RED_GREEN_PENALTY,
   GREEDY_STUN_THEFT,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
   JE_NOTE_COPY_CHANCE,
   MAXIMUM_BOOT_PRICE,
-  HELL_TURN_LIMIT,
   MUD_PENALTY,
   RED_CUP_GOAL,
   RED_GREEN_TRIGGERS_PER_CUP,
@@ -59,30 +83,46 @@ const WHEEL_LOG_NAMES: Record<WheelId, string> = {
   misfortune: "du malheur",
 };
 
-const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
-  "coin-flip": "pile ou face",
-  "rock-paper-scissors": "pierre-feuille-ciseaux",
-  "player-vote": "vote",
-  basket: "Basket",
-  blackjack: "Blackjack",
-};
-
 /** Draws the wheel result now; the UI only animates towards it. */
 export function startWheel(
   state: GameState,
   wheelId: WheelId,
   playerId: PlayerId,
   resumeStage: TurnStage,
-  options: { sourceItemId?: ItemId; origin?: WheelOrigin } = {},
+  options: { sourceItemId?: ItemId; origin?: WheelOrigin; repeats?: WheelId[] } = {},
 ): GameState {
+  const spinner = findPlayer(state, playerId);
   // L'Ange-Gardien's wheel of misfortune is not everybody's.
-  const result = chooseWheelResult(wheelId, drawEngineRandom(), findPlayer(state, playerId));
+  let result = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
+  let discarded: WheelResult | undefined;
+  if (drawsTwiceKeepingBest(spinner, wheelId)) {
+    const other = chooseWheelResult(wheelId, drawEngineRandom(), spinner);
+    if (getWheelResultValue(other) > getWheelResultValue(result)) [result, discarded] = [other, result];
+    else discarded = other;
+  }
+  // A second spin of the same wheel for Touché angélique and Main du diable, once this one is settled.
+  const repeats = [
+    ...(options.repeats ?? []),
+    ...(options.origin !== "double" && spinsTwice(spinner, wheelId) ? [wheelId] : []),
+  ];
+  const { repeats: _inherited, ...rest } = options;
   const nextState: GameState = {
     ...state,
-    pendingWheel: { id: createEngineId(), wheelId, playerId, result, resumeStage, ...options },
+    pendingWheel: {
+      id: createEngineId(),
+      wheelId,
+      playerId,
+      result,
+      resumeStage,
+      ...rest,
+      ...(discarded ? { discarded } : {}),
+      ...(repeats.length > 0 ? { repeats } : {}),
+    },
     turnStage: "wheel-result",
   };
-  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]} indique : ${result.label}.`, "event");
+  const whose = spinner ? ` de ${spinner.name}` : "";
+  const aside = discarded ? ` (l’autre tirage, ${discarded.label}, est écarté)` : "";
+  return addLog(nextState, `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}${aside}.`, "event");
 }
 
 /**
@@ -155,6 +195,11 @@ export function startDuel(
   if (!playerOne || !playerTwo || playerOneId === playerTwoId) return state;
 
   const otherPlayers = state.players.filter((player) => player.id !== playerOneId && player.id !== playerTwoId);
+  const gameMaster = findGameMaster(state, [playerOneId, playerTwoId]);
+  if (gameMaster) {
+    const announced = addLog(state, `${playerOne.name} et ${playerTwo.name} s’affrontent en duel.`, "event");
+    return openDuelChoice(announced, [playerOneId, playerTwoId], gameMaster, resumeStage, otherPlayers.length > 0);
+  }
   const mode = randomChoice(getDuelModes(otherPlayers.length > 0)) ?? "coin-flip";
 
   const nextState: GameState = {
@@ -192,6 +237,7 @@ export function settleBoard(current: GameState, resumeStage: TurnStage): GameSta
   if (
     state.phase !== "playing" ||
     state.pendingDuel ||
+    state.pendingDuelChoice ||
     state.pendingDiscard ||
     state.pendingCalmDown ||
     state.pendingChallenge ||
@@ -281,11 +327,11 @@ function flipCarousel(state: GameState): GameState {
 
 function applyGoblinEffects(state: GameState): GameState {
   let nextState = state;
-  for (const goblin of state.players.filter((player) => player.passiveId === "goblin")) {
-    const targets = shuffle(state.players.filter((player) => player.id !== goblin.id)).slice(0, 2);
-    for (const target of targets) {
-      nextState = applyCurrencyChange(nextState, target.id, -100);
-      nextState = applyCurrencyChange(nextState, goblin.id, 100);
+  for (const goblin of state.players.filter((player) => hasCard(player, "goblin"))) {
+    // Every other player, 150 coins each (patch 0.1.6).
+    for (const target of state.players.filter((player) => player.id !== goblin.id)) {
+      nextState = applyCurrencyChange(nextState, target.id, -GOBLIN_THEFT);
+      nextState = applyCurrencyChange(nextState, goblin.id, GOBLIN_THEFT);
     }
   }
   return nextState;
@@ -303,7 +349,7 @@ function getDistanceToCup(board: Board, cupNodeId: NodeId, nodeId: NodeId): numb
 export function getCalmDownTiles(state: GameState): NodeId[] {
   const cupNodeId = state.redCupNodeId;
   if (cupNodeId === null) return [];
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   return board.normalNodeIds.filter(
     (nodeId) => !isIce(board, nodeId) && getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE,
   );
@@ -315,11 +361,11 @@ export function getCalmDownTiles(state: GameState): NodeId[] {
  * holder three steps from it. The holder decides for each of them in turn.
  */
 export function addCupCycleEffects(state: GameState): GameState {
-  const holder = state.players.find((player) => player.passiveId === "calm-down");
+  const holder = state.players.find((player) => hasCard(player, "calm-down"));
   const cupNodeId = state.redCupNodeId;
   if (!holder || cupNodeId === null || getCalmDownTiles(state).length === 0) return state;
 
-  const board = getBoard(state);
+  const board = getOpenBoard(state);
   const holderDistance = getDistanceToCup(board, cupNodeId, holder.position);
   const targets = state.players.filter((player) => {
     const distance = getDistanceToCup(board, cupNodeId, player.position);
@@ -374,7 +420,7 @@ function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): Gam
 function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStage): GameState {
   let nextState = state;
   const nextCupNodeId = createCupNode(getBoard(state), cupNodeId);
-  const repositioner = nextState.players.find((candidate) => candidate.passiveId === "new-cup-new-me");
+  const repositioner = nextState.players.find((candidate) => hasCard(candidate, "new-cup-new-me"));
   const resumeStage = stageBefore === "discard" ? "turn-end" : stageBefore;
 
   nextState = {
@@ -402,7 +448,7 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
   const player = findPlayer(state, playerId);
   // Le diable and L'Ange-Gardien walk past it.
   if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
-  if (player.passiveId === "greedy") return cashInCup(state, playerId, nodeId);
+  if (hasCard(player, "greedy")) return cashInCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
     return {
@@ -427,7 +473,7 @@ export function itemCopyForPassive(
   userId: PlayerId | undefined,
 ): GameState {
   const target = findPlayer(state, targetPlayerId);
-  if (!target || target.passiveId !== "i-take-notes" || ITEM_CATALOG[itemId].target !== "player") return state;
+  if (!target || !hasCard(target, "i-take-notes") || ITEM_CATALOG[itemId].target !== "player") return state;
 
   // An item used on oneself would come straight back: Ndoye on yourself every turn, for free.
   if (userId === targetPlayerId) {
@@ -439,14 +485,25 @@ export function itemCopyForPassive(
 
   if (canAddItem(target, itemId)) {
     const nextState = updatePlayer(state, targetPlayerId, (player) => appendItem(player, itemId));
-    return addLog(nextState, `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`, "event");
+    return addBagLog(
+      nextState,
+      target.id,
+      `${target.name} récupère aussi ${ITEM_CATALOG[itemId].name}.`,
+      `${target.name} récupère une copie.`,
+      "event",
+    );
   }
 
   // The no-stacking rule wins over Je note: never a third copy, a second Gomme or a sixth Tomate.
   if (!canReceiveItem(target, itemId)) {
     const onlyCups = !target.inventory.some((entry) => entry.kind === "item");
     if (onlyCups) return state;
-    return addLog(state, `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`);
+    return addBagLog(
+      state,
+      target.id,
+      `${target.name} a déjà assez de ${ITEM_CATALOG[itemId].name} : pas de copie.`,
+      `${target.name} ne garde pas de copie.`,
+    );
   }
 
   return {
@@ -464,11 +521,11 @@ export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
 
 /**
  * Red light, Green light: per Red Cup, the first two green tiles walked on pay
- * 100 coins and the first two red ones cost 100 (patch 0.1.4).
+ * 100 coins and the first two red ones cost 50 (patch 0.1.5).
  */
 export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || player.passiveId !== "red-light-green-light") return state;
+  if (!player || !hasCard(player, "red-light-green-light")) return state;
 
   const board = getBoard(state);
   let nextState = state;
@@ -480,7 +537,7 @@ export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: N
       ...nextState,
       redGreenTriggers: { ...nextState.redGreenTriggers, [kind]: nextState.redGreenTriggers[kind] + 1 },
     };
-    nextState = applyCurrencyChange(nextState, playerId, kind === "green" ? 100 : -100);
+    nextState = applyCurrencyChange(nextState, playerId, kind === "green" ? RED_GREEN_GAIN : -RED_GREEN_PENALTY);
   }
   return nextState;
 }
@@ -520,7 +577,7 @@ export function getWheelArrivalStage(state: GameState, playerId: PlayerId, resum
 /** Cupide walks onto a tile: every knocked-out player standing there pays them a little. */
 export function stealFromKnockedOut(state: GameState, playerId: PlayerId): GameState {
   const thief = findPlayer(state, playerId);
-  if (thief?.passiveId !== "greedy") return state;
+  if (!thief || !hasCard(thief, "greedy")) return state;
   let nextState = state;
   const victims = state.players.filter(
     (player) => player.id !== thief.id && player.position === thief.position && player.skippedTurns > 0,
@@ -552,10 +609,7 @@ export function triggerMud(state: GameState, playerId: PlayerId, nodeId: NodeId,
   nextState = addLog(nextState, `${player.name} tombe dans la Boue.`, "bad");
   // L'Ange-Gardien loses their next turn rather than coins; the mud's owner is paid all the same.
   if (avoidsHell(player)) {
-    nextState = updatePlayer(nextState, playerId, (current) => ({
-      ...current,
-      skippedTurns: current.skippedTurns + 1,
-    }));
+    nextState = updatePlayer(nextState, playerId, (current) => loseTurns(current));
     nextState = addLog(nextState, `${player.name} perd son prochain tour dans la Boue.`, "bad");
   } else {
     nextState = applyCurrencyChange(nextState, playerId, -MUD_PENALTY);
@@ -587,7 +641,7 @@ function stepBackFromMud(state: GameState, player: Player, cameFrom: NodeId | nu
 
 /**
  * Bad luck on the Hell wheel must not bench a player for the whole game: after
- * HELL_TURN_LIMIT of their own turns there, they walk out to the start, get
+ * their limit (five, three for the Habitué de l'Enfer) of their own turns there, they walk out to the start, get
  * the start bonus like any other way out of Hell, and pay a toll. The bonus is
  * paid first so it cushions the toll before the usual currency rules apply
  * (Casque, reset at −300).
@@ -598,7 +652,7 @@ export function releaseFromHellWithToll(state: GameState, playerId: PlayerId): G
   let nextState = updatePlayer(state, playerId, (current) => ({ ...current, position: START_NODE_ID, hellTurns: 0 }));
   nextState = addLog(
     nextState,
-    `${player.name} a purgé ${HELL_TURN_LIMIT} tours en Enfer : retour en case 0 contre ${HELL_EXIT_TOLL} pièces.`,
+    `${player.name} a purgé ${getHellTurnLimit(player)} tours en Enfer : retour en case 0 contre ${HELL_EXIT_TOLL} pièces.`,
     "event",
   );
   nextState = addStartBonus(nextState, playerId);
@@ -631,7 +685,7 @@ function resetHellCountdowns(state: GameState): GameState {
 
 function hasServedHellSentence(state: GameState, playerId: PlayerId): boolean {
   const player = findPlayer(state, playerId);
-  return player?.position === HELL_NODE_ID && player.hellTurns >= HELL_TURN_LIMIT;
+  return player?.position === HELL_NODE_ID && player.hellTurns >= getHellTurnLimit(player);
 }
 
 /** Passes the turn, consuming skipped turns and running end-of-round effects. */
@@ -644,6 +698,27 @@ export function beginNextTurn(state: GameState): GameState {
     nextState = releaseFromHellWithToll(nextState, outgoing.id);
   }
   return passTurnFrom(nextState, state.activePlayerIndex);
+}
+
+/**
+ * A player who is put to sleep as their turn opens (a thaw wheel, a reset at
+ * −300…) must not play it: the turn they were to lose is this one, used up
+ * on the spot (patch 0.1.5). One who falls asleep after acting keeps the turn
+ * they are in and loses the next, as the wheels say.
+ */
+export function skipBenchedTurns(state: GameState): GameState {
+  let nextState = state;
+  for (let guard = 0; guard < state.players.length * 3; guard += 1) {
+    const active = getActivePlayer(nextState);
+    const waitsToMove = nextState.turnStage === "move" || nextState.turnStage === "hell";
+    if (nextState.phase !== "playing" || !active || !waitsToMove) return nextState;
+    if (active.skippedTurns <= 0 || nextState.turnActionTaken) return nextState;
+    nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, skippedTurns: player.skippedTurns - 1 }));
+    nextState = addLog(nextState, `${active.name} passe son tour.`, "bad");
+    nextState = thawSnowFrozen(nextState, active.id);
+    nextState = beginNextTurn(nextState);
+  }
+  return nextState;
 }
 
 /**
@@ -725,7 +800,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     activePlayerIndex: nextIndex,
     round: nextRound,
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
-    energyLeft: getEnergyCapacity(activePlayer),
+    energyLeft: getEnergyCapacity(activePlayer, nextState),
     turnActionTaken: false,
     moveDistance: 1,
     mudPlacedThisTurn: false,
@@ -746,8 +821,28 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   };
   // Le diable's Portails, Black Cup and Doomsday last whole rounds, from turn to turn.
   nextState = expireDevilSpells(nextState);
+  nextState = expireBarrier(nextState, activePlayer.id);
   nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);
+}
+
+/**
+ * Each turn of a Barrière's owner wears it down; it falls when none is left, or when its owner has left the
+ * table.
+ */
+function expireBarrier(state: GameState, seatedId: PlayerId): GameState {
+  if (!state.barriers.some((barrier) => barrier.ownerId === seatedId || !findPlayer(state, barrier.ownerId))) {
+    return state;
+  }
+  const standing: Barrier[] = [];
+  for (const barrier of state.barriers) {
+    const wornDown = barrier.ownerId === seatedId ? { ...barrier, turnsLeft: barrier.turnsLeft - 1 } : barrier;
+    if (wornDown.turnsLeft > 0 && findPlayer(state, barrier.ownerId)) standing.push(wornDown);
+  }
+  const nextState = { ...state, barriers: standing };
+  if (standing.length === state.barriers.length) return nextState;
+  const text = state.barriers.length - standing.length > 1 ? "Des Barrières tombent" : "Une Barrière tombe";
+  return addLog(nextState, `${text} : la route est rouverte.`, "event");
 }
 
 /** The turn change holds while Bullet Bill's victim (Non merci) or their angel (Bouclier) decides. */

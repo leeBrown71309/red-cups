@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { PASSIVE_CATALOG } from "../../game/catalog";
 import { getPlayersToPick } from "../../game/draft";
 import { useGameStore } from "../../game/store";
 import type { PassiveId, Player } from "../../game/types";
 import { getServerNow, useLocalPlayerId } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
+import { PassiveCard } from "../components/passive-card";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
 import { useClockBeeps } from "../hud/use-clock-beeps";
@@ -32,26 +32,16 @@ function PassiveCards({
   return (
     <ul className="draft-cards" aria-label="Passifs proposés">
       {offers.map((passiveId) => {
-        const passive = PASSIVE_CATALOG[passiveId];
         const selected = picked === passiveId;
         return (
           <li key={passiveId}>
-            <button
-              type="button"
-              className={`draft-card ${selected ? "is-selected" : ""}`}
-              aria-pressed={selected}
-              onClick={() => onPick(passiveId)}
-            >
-              <span className="draft-card__name">
-                <UiIcon name="sparkle" size={16} /> {passive.name}
-              </span>
-              <span className="draft-card__text">{passive.description}</span>
+            <PassiveCard passiveId={passiveId} selected={selected} onPick={() => onPick(passiveId)}>
               {selected && (
-                <span className="draft-card__picked">
+                <span className="tarot-card__picked">
                   <UiIcon name="check" size={14} /> Choisi
                 </span>
               )}
-            </button>
+            </PassiveCard>
           </li>
         );
       })}
@@ -63,19 +53,22 @@ function PassiveCards({
 function LocalDraft() {
   const game = useGameStore();
   const pickPassive = useGameStore((state) => state.pickPassive);
-  const [readyId, setReadyId] = useState<string | null>(null);
+  const [readyKey, setReadyKey] = useState<string | null>(null);
   const [chooser] = getPlayersToPick(game);
   if (!game.draft || !chooser) return null;
+  const stageLabel = game.draft.stage === "actif" ? "actif" : "passif";
+  // One hand-over per player and per stage: the second stage starts again with the first seat.
+  const key = `${game.draft.stage}:${chooser.id}`;
 
-  if (readyId !== chooser.id) {
+  if (readyKey !== key) {
     return (
-      <ModalShell title="Choix des passifs" eyebrow="Avant la partie" tone="grape" className="draft-modal">
+      <ModalShell title={`Choix des ${stageLabel}s`} eyebrow="Avant la partie" tone="grape" className="draft-modal">
         <div className="draft-handover">
           <PlayerAvatar color={chooser.color} size={72} />
           <p>
             Passe l’écran à <strong>{chooser.name}</strong> : ses cartes restent secrètes.
           </p>
-          <button type="button" className="btn btn--gold" onClick={() => setReadyId(chooser.id)} data-autofocus>
+          <button type="button" className="btn btn--gold" onClick={() => setReadyKey(key)} data-autofocus>
             <UiIcon name="eye" size={20} /> Je suis {chooser.name}
           </button>
         </div>
@@ -85,7 +78,7 @@ function LocalDraft() {
 
   return (
     <ModalShell
-      title={`${chooser.name}, choisis ton passif`}
+      title={`${chooser.name}, choisis ton ${stageLabel}`}
       eyebrow="Avant la partie"
       tone="grape"
       size="large"
@@ -111,8 +104,8 @@ function OnlineDraft({ playerId }: { playerId: string }) {
 
   return (
     <ModalShell
-      title="Choisis ton passif"
-      eyebrow={seconds === null ? "Avant la partie" : `Avant la partie · ${seconds} s`}
+      title={`Choisis ton ${draft.stage === "actif" ? "actif" : "passif"}`}
+      eyebrow={`${draft.stage === "actif" ? "Étape 1/2" : "Étape 2/2"}${seconds === null ? "" : ` · ${seconds} s`}`}
       tone="grape"
       size="large"
       className="draft-modal"

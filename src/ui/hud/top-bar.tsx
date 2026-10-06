@@ -9,10 +9,11 @@ import { PauseButton } from "./pause-controls";
 
 interface TopBarProps {
   onOpenMenu: () => void;
+  onOpenJournal: () => void;
   onOpenHelp: () => void;
 }
 
-export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
+export function TopBar({ onOpenMenu, onOpenJournal, onOpenHelp }: TopBarProps) {
   const round = useGameStore((state) => state.round);
 
   return (
@@ -20,6 +21,9 @@ export function TopBar({ onOpenMenu, onOpenHelp }: TopBarProps) {
       <div className="top-bar__left">
         <button type="button" className="icon-button icon-button--solid" onClick={onOpenMenu} aria-label="Menu pause">
           <UiIcon name="menu" />
+        </button>
+        <button type="button" className="icon-button" onClick={onOpenJournal} aria-label="Journal de la partie">
+          <UiIcon name="journal" />
         </button>
         <PauseButton />
         <span className="round-chip" title="Tour de table">

@@ -1,9 +1,10 @@
+import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { earnsStartBonus, getBoard, getShortestPath, isIce } from "./board";
+import { earnsStartBonus, getBoard, getOpenBoard, isBlockedRoad, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
-import { carryOffIce, drawSlide, recordSlide } from "./ice";
+import { carryOffIce, drawSlide, recordSlide, toPathBumps } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
-import { castBlackCup, dropBlackCup, openPortal, passSentence, startDoomsday, triggerPortal } from "./devil";
+import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { startArmWrestle } from "./arm-wrestle";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
@@ -28,6 +29,7 @@ import {
   isImmuneToItems,
   throwsOneStackPerTurn,
   TOMATO_ENJOYER_HIT_REWARD,
+  mustWaitForMudToBeSteppedOn,
 } from "./passive-rules";
 import { canUseCorrupter, canUseNoThanks, getTurnMoveOptions, opensShop } from "./rules";
 import {
@@ -40,12 +42,15 @@ import {
   spendItemEntry,
   placeInHell,
   updatePlayer,
+  loseTurns,
 } from "./state-utils";
 import type { DeclaredAction, GameState, ItemId, NodeId, PendingReaction, Player, PlayerId, TurnStage } from "./types";
 import {
+  BARRIER_TURNS,
   CANCELLED_ITEM_IS_CONSUMED,
   CORRUPTER_COST,
   HELL_NODE_ID,
+  MAX_BARRIERS,
   MADE_IN_HEAVEN_CUP_NODE_ID,
   NO_THANKS_COOLDOWN_ROUNDS,
   START_NODE_ID,
@@ -126,6 +131,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
       from: player.position,
       path,
       ...(slide && slide.slide.length + (interruptedTo === null ? 0 : 1) > 0 ? { slideStart: plan.path.length } : {}),
+      ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(plan.path.length, slide.bumps) } : {}),
       ...(interruptedTo === null ? {} : { interruptedTo }),
     },
   };
@@ -157,10 +163,26 @@ export interface ItemPlan {
   count: number;
   /** Draven: players who cancelled it for themselves with Non merci. */
   sparedIds?: PlayerId[];
+  /** The Barrière: the two tiles of the road it closes. */
+  road?: [NodeId, NodeId];
+  /** The target's Miroir sent it back: its effects fall on the user instead. */
+  reflected?: boolean;
 }
 
+/** Items a Miroir sends back to whoever used them. */
+export const REFLECTABLE_ITEMS: ItemId[] = ["ndoye", "hollow-purple", "rope", "middle-finger"];
+
 /** The Gomme and the Casque trigger on their own; the Botte is prepared through its own action. */
-const NOT_USED_FROM_BAG: ItemId[] = ["eraser", "helmet", "boot", "hell-touch", "shield"];
+const NOT_USED_FROM_BAG: ItemId[] = [
+  "eraser",
+  "helmet",
+  "boot",
+  "hell-touch",
+  "shield",
+  "wake-up",
+  "parachute",
+  "mirror",
+];
 
 /** Pulled by the Corde, swapped by the Monopoly Man, rewound by Made In Heaven: moved, but no wheel for it. */
 const MOVES_WITHOUT_ARRIVAL: ItemId[] = ["rope", "monopoly-man", "made-in-heaven"];
@@ -190,6 +212,7 @@ export function planItemUse(
   entryId: string,
   targetPlayerId?: PlayerId,
   requestedCount = 1,
+  targetRoad?: [NodeId, NodeId],
 ): ItemPlan | null {
   const player = getActivePlayer(state);
   if (!player || state.phase !== "playing") return null;
@@ -204,7 +227,8 @@ export function planItemUse(
   if (!canUseItemKind(player, itemId) || !canCastNow(state, itemId)) return null;
   if (itemId === "water-bottle" && !inHell) return null;
   // Nobody walks into Hell, so mud placed there could never be stepped on.
-  if (itemId === "mud" && (inHell || state.mudPlacedThisTurn)) return null;
+  if (itemId === "mud" && (inHell || state.mudPlacedThisTurn || mustWaitForMudToBeSteppedOn(state, player)))
+    return null;
   // A single Bullet Bill flies at a time.
   if (itemId === "bullet-bill" && state.bulletBill) return null;
 
@@ -217,6 +241,13 @@ export function planItemUse(
   if (!Number.isInteger(count) || count < 1 || (entry && count > getEntryUnits(entry))) return null;
 
   const definition = ITEM_CATALOG[itemId];
+  if (definition.target === "road") {
+    // One Barrière each, two on the board at most, on any open road.
+    if (!canPlaceBarrier(state, player.id) || targetRoad === undefined) return null;
+    return getBarrierRoads(state).some((road) => isSameRoad(road, targetRoad))
+      ? { itemId, count, road: targetRoad }
+      : null;
+  }
   if (definition.target !== "player") return { itemId, count };
 
   const target = findPlayer(state, targetPlayerId);
@@ -225,10 +256,41 @@ export function planItemUse(
   return { itemId, target, count };
 }
 
+/** Whether `playerId` may set a Barrière down: none of theirs stands, and the board holds fewer than the most. */
+export function canPlaceBarrier(state: GameState, playerId: PlayerId): boolean {
+  return state.barriers.length < MAX_BARRIERS && !state.barriers.some((barrier) => barrier.ownerId === playerId);
+}
+
+function isSameRoad(left: [NodeId, NodeId], right: [NodeId, NodeId]): boolean {
+  return (left[0] === right[0] && left[1] === right[1]) || (left[0] === right[1] && left[1] === right[0]);
+}
+
+/**
+ * The roads a Barrière may close: every road of the board that is still open,
+ * tunnels and the way into Hell aside, arrows or not. One entry per road.
+ */
+export function getBarrierRoads(state: GameState): [NodeId, NodeId][] {
+  const board = getBoard(state);
+  const roads: [NodeId, NodeId][] = [];
+  for (const edge of getOpenBoard(state).edges) {
+    if (edge.kind === "tunnel" || edge.from === HELL_NODE_ID || edge.to === HELL_NODE_ID) continue;
+    const road: [NodeId, NodeId] = [edge.from, edge.to];
+    if (isBlockedRoad(board, edge.from, edge.to) || roads.some((known) => isSameRoad(known, road))) continue;
+    roads.push(road);
+  }
+  return roads;
+}
+
+/** Items whose use already writes a line naming the player (patch 0.1.5 journal). */
+const SELF_ANNOUNCED_ITEMS: ItemId[] = ["ndoye", "bullet-bill", "mud", "tomato", "barrier"];
+
 export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan): GameState {
   const player = getActivePlayer(state);
   if (!player) return state;
   const { itemId, target, count } = plan;
+  // Reflected by a Miroir, the item hurts its user and the aimed player is the one who acts.
+  const victim = plan.reflected ? player : target;
+  const aggressor = plan.reflected ? target : player;
 
   // The turn goes on in the stage it was in: more items, then the move.
   let nextState = spendEnergy(state, getItemEnergyCost(itemId));
@@ -237,24 +299,32 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
   }
   if (itemId === "mud") nextState = { ...nextState, mudPlacedThisTurn: true };
   if (isThrownItem(itemId)) nextState = { ...nextState, thrownStackId: entryId };
+  // Every use shows in the journal; the items below announce themselves in their own words.
+  if (!SELF_ANNOUNCED_ITEMS.includes(itemId)) {
+    const on = target ? ` sur ${target.name}` : "";
+    nextState = addLog(nextState, `${player.name} utilise ${ITEM_CATALOG[itemId].name}${on}.`, "event");
+  }
 
   switch (itemId) {
     case "ndoye":
-      if (!target) return state;
+      if (!target || !victim) return state;
       nextState = addLog(nextState, `${player.name} active Ndoye sur ${target.name}.`, "event");
       // Je note copies Ndoye when the wheel resolves, through the wheel's source item.
-      return startWheel(nextState, "misfortune", target.id, state.turnStage, { sourceItemId: "ndoye", origin: "item" });
+      return startWheel(nextState, "misfortune", victim.id, state.turnStage, {
+        ...(plan.reflected ? {} : { sourceItemId: "ndoye" as const }),
+        origin: "item",
+      });
 
     case "hollow-purple":
-      if (!target) return state;
-      nextState = sendPlayerToHell(nextState, target.id);
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim) return state;
+      nextState = sendPlayerToHell(nextState, victim.id);
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "rope":
-      if (!target) return state;
-      nextState = pullWithRope(nextState, player, target);
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim || !aggressor) return state;
+      nextState = pullWithRope(nextState, aggressor, victim);
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "bullet-bill":
@@ -262,6 +332,22 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       nextState = addLog(
         nextState,
         `${player.name} lance Bullet Bill : il attend au départ et fonce au prochain tour.`,
+        "event",
+      );
+      break;
+
+    case "barrier":
+      if (plan.road === undefined) return state;
+      nextState = {
+        ...nextState,
+        barriers: [
+          ...nextState.barriers,
+          { ownerId: player.id, a: plan.road[0], b: plan.road[1], turnsLeft: BARRIER_TURNS },
+        ],
+      };
+      nextState = addLog(
+        nextState,
+        `${player.name} pose une Barrière sur la route entre les cases ${plan.road[0]} et ${plan.road[1]}.`,
         "event",
       );
       break;
@@ -275,19 +361,16 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "middle-finger":
-      if (!target) return state;
-      nextState = updatePlayer(nextState, target.id, (currentPlayer) => ({
-        ...currentPlayer,
-        skippedTurns: currentPlayer.skippedTurns + 1,
-      }));
-      nextState = addLog(nextState, `${target.name} devra passer son prochain tour.`, "bad");
-      nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      if (!target || !victim) return state;
+      nextState = updatePlayer(nextState, victim.id, (currentPlayer) => loseTurns(currentPlayer));
+      nextState = addLog(nextState, `${victim.name} devra passer son prochain tour.`, "bad");
+      if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       break;
 
     case "monopoly-man":
       if (!target) return state;
       // Baraqué does not let go: an arm wrestle decides (patch 0.1.4).
-      if (target.passiveId === "built-like-a-tank") return startArmWrestle(nextState, player, target);
+      if (hasCard(target, "built-like-a-tank")) return startArmWrestle(nextState, player, target);
       // A swap into Hell is a trip to Hell: L'Ange-Gardien then stays put and loses a turn.
       nextState = {
         ...nextState,
@@ -341,7 +424,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "portal":
-      nextState = openPortal(nextState, player.id);
+      nextState = openPortals(nextState, player.id);
       break;
 
     case "black-cup":
@@ -389,11 +472,11 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
     },
   };
   // Tomato Enjoyer loves every one of them.
-  if (target.passiveId === "tomato-enjoyer") {
+  if (hasCard(target, "tomato-enjoyer")) {
     nextState = applyCurrencyChange(nextState, target.id, TOMATO_ENJOYER_HIT_REWARD * count);
   }
   if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
-  nextState = updatePlayer(nextState, target.id, (current) => ({ ...current, skippedTurns: current.skippedTurns + 1 }));
+  nextState = updatePlayer(nextState, target.id, (current) => loseTurns(current));
   return addLog(
     nextState,
     `${thrower.name} lance ${volley} sur ${target.name}, qui est assommé : il passera son prochain tour !`,
@@ -441,13 +524,13 @@ function moveTo(player: Player, nodeId: NodeId): Player {
 
 /** Corde pulls the target onto the user's tile; Baraqué only moves half the way. */
 function pullWithRope(state: GameState, user: Player, target: Player): GameState {
-  if (target.passiveId !== "built-like-a-tank") {
+  if (!hasCard(target, "built-like-a-tank")) {
     // Pulled from Hell into Hell: a trip there, which L'Ange-Gardien never makes.
     const nextState = updatePlayer(state, target.id, (currentPlayer) => moveTo(currentPlayer, user.position));
     return addLog(nextState, `${target.name} est tiré sur la case de ${user.name}.`, "event");
   }
 
-  const path = getShortestPath(getBoard(state), target.position, user.position, true) ?? [];
+  const path = getShortestPath(getOpenBoard(state), target.position, user.position, true) ?? [];
   const steps = Math.ceil(path.length / 2);
   const nextState = updatePlayer(state, target.id, (currentPlayer) => ({
     ...currentPlayer,
@@ -531,7 +614,7 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   if (!reactor || !actor || action.type !== "item") return state;
 
   // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci.
-  const shield = reactor.passiveId === "guardian-angel";
+  const shield = hasCard(reactor, "guardian-angel");
   const shieldEntry = reactor.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
   let nextState = shield
     ? updatePlayer(state, reactor.id, (player) => spendItemEntry(player, shieldEntry?.id ?? ""))

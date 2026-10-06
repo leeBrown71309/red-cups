@@ -1,4 +1,5 @@
-import { getBoard, getShortestPath } from "../board";
+import { hasCard } from "../cards";
+import { getOpenBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG } from "../catalog";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import { isThrownItem } from "../turn-actions";
@@ -18,6 +19,7 @@ import {
   touchedByHell,
   violation,
   type RuleViolation,
+  hellRewardCoins,
 } from "./invariant-helpers";
 
 /**
@@ -27,7 +29,7 @@ import {
 
 function distanceToCup(state: GameState, nodeId: NodeId): number {
   if (state.redCupNodeId === null) return Infinity;
-  return getShortestPath(getBoard(state), state.redCupNodeId, nodeId, true)?.length ?? Infinity;
+  return getShortestPath(getOpenBoard(state), state.redCupNodeId, nodeId, true)?.length ?? Infinity;
 }
 
 /** New Cup, New Me: before the Cup appears, its holder goes to the start with the bonus, or stays put. */
@@ -44,7 +46,10 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const touched = logs.some((text) => text.includes("Toucher d’Enfer")) && after.position === HELL_NODE_ID;
   // A frozen start slides them on (Banquise).
   const landed = after.position === START_NODE_ID || touched || slidOnIce(previous, next, holderId);
-  if (toStart && (!landed || after.currency !== expectedBalance(before, START_BONUS))) {
+  if (
+    toStart &&
+    (!landed || after.currency !== expectedBalance(before, START_BONUS + hellRewardCoins(logs, before.name)))
+  ) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
   if (!toStart && after.position !== before.position) {
@@ -68,7 +73,7 @@ export function checkCalmDown(previous: GameState, next: GameState, found: RuleV
   if (offered && previous.pendingCalmDown === null) {
     const holder = findPlayer(next, offered.passivePlayerId);
     const holderDistance = holder ? distanceToCup(next, holder.position) : -1;
-    if (holder?.passiveId !== "calm-down") found.push(violation("calm-down-holder", "Calme-toi without its holder"));
+    if (!hasCard(holder, "calm-down")) found.push(violation("calm-down-holder", "Calme-toi without its holder"));
     for (const targetId of offered.targetIds) {
       const target = findPlayer(next, targetId);
       const distance = target ? distanceToCup(next, target.position) : Infinity;
@@ -138,7 +143,7 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
     const round = reacted && pending?.action.type === "bullet-bill" ? previous.round + 1 : previous.round;
     const legal =
       (reacted || wheel) &&
-      player.passiveId === "no-thanks" &&
+      hasCard(player, "no-thanks") &&
       before.noThanksReadyRound <= round &&
       player.noThanksReadyRound === round + NO_THANKS_COOLDOWN_ROUNDS;
     if (!legal) found.push(violation("no-thanks-usage", `${player.name} spent Non merci illegally`));
