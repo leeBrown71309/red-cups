@@ -1,5 +1,14 @@
 import { hasCard } from "./cards";
-import { getBoard, getBoardNode, getNeighbors, getPathsOfLength, getSimplePaths, type Board } from "./board";
+import {
+  getBoard,
+  getBoardNode,
+  getNeighbors,
+  getOpenBoard,
+  getPathsOfLength,
+  getSimplePaths,
+  isBlockedRoad,
+  type Board,
+} from "./board";
 import { ITEM_CATALOG } from "./catalog";
 import {
   getBagSlots,
@@ -187,9 +196,25 @@ export function opensShop(state: GameState, player: Player, nodeId: NodeId = pla
  */
 export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
   const board = getBoard(state);
-  if (!hasCard(player, "roller")) return getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+  if (!hasCard(player, "roller")) {
+    const walks = getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+    return state.moveDistance > 1 ? [...walks, ...getBarrierJumps(state, player, ignoreArrows)] : walks;
+  }
   if (state.diceRoll === null || player.position === HELL_NODE_ID) return [];
   return getSimplePaths(board, player.position, state.diceRoll);
+}
+
+/**
+ * The Botte hops over a Barrière set on the very road ahead: one tile only, the boots are spent on the jump.
+ * Roads that lead into Hell are never taken.
+ */
+export function getBarrierJumps(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
+  if (player.position === HELL_NODE_ID) return [];
+  const board = getBoard(state);
+  const openBoard = getOpenBoard(state);
+  return getNeighbors(openBoard, player.position, ignoreArrows)
+    .filter((nodeId) => isBlockedRoad(board, player.position, nodeId))
+    .map((nodeId) => [nodeId]);
 }
 
 /** Whether a move is still possible this turn; a Roller who has not thrown yet only needs a road. */

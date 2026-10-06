@@ -1,6 +1,7 @@
 import { hasCard } from "../../game/cards";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
+import { canWalkWithBoot } from "../../game/game-actions";
 import {
   getCopyLimit,
   getTheftRisk,
@@ -104,6 +105,9 @@ export function getItemAvailability(
       return { usable: false, kind: "prepare-boot", actionLabel: "Chaussée", reason: "Déjà prête !" };
     if (!canAffordItem(state, itemId)) {
       return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: getEnergyReason(itemId, state) };
+    }
+    if (!canWalkWithBoot(state, player)) {
+      return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Aucune route possible." };
     }
     return { usable: true, kind: "prepare-boot", actionLabel: "Chausser" };
   }

@@ -311,10 +311,26 @@ export interface PendingWheel {
   resumeStage: TurnStage;
   sourceItemId?: ItemId;
   origin?: WheelOrigin;
-  /** Main verte, Main rouge: the other draw, set aside because the kept one is better. */
-  discarded?: WheelResult;
-  /** Touché angélique, Main du diable: wheels still to spin once this one is settled, in order. */
-  repeats?: WheelId[];
+  /** Main verte, Main rouge: two wheels spin side by side and the player keeps one of the two results. */
+  choices?: [WheelResult, WheelResult];
+  /** Which of the two results the player kept; unset until they choose. */
+  chosen?: 0 | 1;
+  /** A wheel already spun in parallel with the one before it (Touché angélique, Main du diable): it only waits to be applied. */
+  preSpun?: boolean;
+  /** Touché angélique, Main du diable: wheels spun at the same time as this one, applied in order once it is settled. */
+  repeats?: QueuedWheel[];
+}
+
+/** A queued wheel waits for its player: it applies as soon as the board is at rest. */
+export interface QueuedSpin extends QueuedWheel {
+  playerId: PlayerId;
+  sourceItemId?: ItemId;
+}
+
+/** A wheel spun in parallel with another one: its result is already drawn. */
+export interface QueuedWheel {
+  wheelId: WheelId;
+  result: WheelResult;
 }
 
 /** Something about to affect a Non merci holder, waiting for their answer. */
@@ -392,7 +408,7 @@ export interface GhostStakes {
 }
 
 /** How many of its owner's turns a Barrière holds its road. */
-export const BARRIER_TURNS = 2;
+export const BARRIER_TURNS = 1;
 /** The most Barrières on the board at once, each from a different player. */
 export const MAX_BARRIERS = 2;
 
@@ -480,6 +496,20 @@ export interface PendingCalmDown {
 export interface PendingGamble {
   playerId: PlayerId;
   amount: number;
+  /**
+   * The loss would knock the holder out (−300): the knock-out waits for the gamble, since wiping the loss
+   * out lets them play on.
+   */
+  knockout?: boolean;
+  /** Coins the loss paid to somebody else (the owner of a Boue): doubled with the loss, wiped out with it. */
+  linked?: { playerId: PlayerId; amount: number };
+}
+
+/** The last Double or nothing flip, so the whole table can see its result. */
+export interface GambleResult {
+  seq: number;
+  playerId: PlayerId;
+  doubled: boolean;
 }
 
 /**
@@ -773,7 +803,10 @@ export interface GameState {
    * offered once the table is at rest, then play resumes at `gambleResumeStage`.
    */
   pendingGambles: PendingGamble[];
+  /** Touché angélique, Main du diable: the second result of a pair, applied right after the first once the table is at rest. */
+  queuedWheels: QueuedSpin[];
   gambleResumeStage: TurnStage;
+  lastGambleResult: GambleResult | null;
   /** Voleur: one theft per visit to the shop, so one per turn. */
   theftAttempted: boolean;
   bulletBill: BulletBillState | null;
@@ -868,7 +901,9 @@ export const EMPTY_GAME_STATE: GameState = {
   thrownStackId: null,
   diceRoll: null,
   pendingGambles: [],
+  queuedWheels: [],
   gambleResumeStage: "turn-end",
+  lastGambleResult: null,
   theftAttempted: false,
   bulletBill: null,
   lastBulletFlight: null,

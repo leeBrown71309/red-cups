@@ -127,12 +127,6 @@
 }
 
 /* ---------- Passive draft ---------- */
-.draft-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-}
-
 .draft-card {
   position: relative;
   display: grid;
@@ -277,138 +271,7 @@
 }
 
 /* ---------- Shop ---------- */
-.shop-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.shop-status > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--white);
-  font-family: var(--font-display);
-  font-weight: 600;
-}
-
-.shop-status__wallet {
-  font-size: 1.15rem;
-}
-
 /* Le diable's two stalls. */
-.shop-status > .shop-tabs {
-  margin-left: auto;
-  padding: 0;
-  border: none;
-  background: none;
-}
-
-.shop-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 270px;
-  gap: 14px;
-  align-items: start;
-}
-
-.shop-shelf {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
-  gap: 8px;
-}
-
-.shop-item {
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  width: 100%;
-  padding: 10px 6px 8px;
-  border: var(--border);
-  border-radius: 16px;
-  background: var(--white);
-  box-shadow: 0 3px 0 var(--ink);
-  transition:
-    transform 160ms var(--ease-bounce),
-    background-color 160ms ease;
-}
-
-.shop-item:hover {
-  transform: translateY(-2px) rotate(-1deg);
-}
-
-.shop-item.is-selected {
-  background: var(--gold-light);
-  box-shadow:
-    0 0 0 3px var(--gold),
-    0 3px 0 3px var(--ink);
-  transform: translateY(-2px);
-}
-
-.shop-item.is-unavailable {
-  background: var(--cream-2);
-}
-
-.shop-item.is-unavailable > svg {
-  opacity: 0.5;
-  filter: grayscale(0.6);
-}
-
-.shop-item__name {
-  font-family: var(--font-display);
-  font-size: 0.9rem;
-  font-weight: 600;
-  line-height: 1.1;
-  text-align: center;
-}
-
-.shop-item__chips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 4px;
-}
-
-.shop-detail__energy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-soft);
-  font-size: 0.86rem;
-  text-align: left;
-}
-
-.shop-detail {
-  position: sticky;
-  top: 0;
-  display: grid;
-  justify-items: center;
-  gap: 8px;
-  padding: 16px;
-  border: var(--border);
-  border-radius: 20px;
-  background: var(--sky-light);
-  text-align: center;
-}
-
-.shop-detail__icon {
-  animation: bob 2.4s ease-in-out infinite;
-}
-
-.shop-detail__name {
-  font-family: var(--font-display);
-  font-size: 1.4rem;
-  font-weight: 700;
-}
-
-.shop-detail p {
-  color: var(--ink-soft);
-  font-size: 0.92rem;
-}
-
 /* ---------- Wheel ---------- */
 .wheel-layout {
   display: grid;
@@ -1569,52 +1432,6 @@
     padding: 8px 14px 10px;
   }
 
-  .shop-status {
-    margin-bottom: 8px;
-  }
-
-  .shop-layout {
-    grid-template-columns: minmax(0, 1fr) 220px;
-    gap: 10px;
-  }
-
-  .shop-shelf {
-    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-    gap: 6px;
-  }
-
-  .shop-item {
-    padding: 6px 4px;
-    border-radius: 12px;
-  }
-
-  .shop-item > svg {
-    width: 30px;
-    height: 30px;
-  }
-
-  .shop-item__name {
-    font-size: 0.74rem;
-  }
-
-  .shop-detail {
-    gap: 4px;
-    padding: 10px;
-  }
-
-  .shop-detail__icon {
-    width: 44px;
-    height: 44px;
-  }
-
-  .shop-detail__name {
-    font-size: 1.1rem;
-  }
-
-  .shop-detail p {
-    font-size: 0.8rem;
-  }
-
   .wheel-layout {
     gap: 12px;
   }
@@ -1655,7 +1472,6 @@
 }
 
 @media (max-width: 640px) {
-  .shop-layout,
   .help-board,
   .wheel-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -1817,4 +1633,87 @@
   padding: 16px;
   color: var(--ink-soft);
   text-align: center;
+}
+
+/* ---------- Two wheels side by side (Main verte, Main rouge, Touché angélique, Main du diable) ---------- */
+.wheel-single {
+  display: grid;
+  place-items: center;
+}
+
+.wheel-duo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wheel-duo__side {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.wheel-layout--duo {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wheel-layout--duo .wheel-dial {
+  width: min(34vh, 260px, 100%);
+}
+
+.wheel-pick {
+  width: 100%;
+}
+
+.wheel-pick__button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+
+button.wheel-pick__button {
+  cursor: pointer;
+}
+
+button.wheel-pick__button:disabled {
+  cursor: default;
+}
+
+.wheel-pick.is-positive .wheel-pick__button {
+  background: #e4f7dc;
+}
+
+.wheel-pick.is-negative .wheel-pick__button {
+  background: #fde3df;
+}
+
+.wheel-pick__button.is-picked {
+  box-shadow: 0 0 0 4px #ffd166;
+}
+
+.wheel-pick__eyebrow {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.wheel-pick__button strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.15;
+}
+
+@media (max-width: 640px) {
+  .wheel-layout--duo .wheel-dial {
+    width: min(30vh, 100%);
+  }
 }

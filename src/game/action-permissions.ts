@@ -65,6 +65,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     // The Gomme belongs to whoever the wheel was spun for.
     case "resolveWheel":
+    case "pickWheelResult":
     case "cancelWheel":
       return only(state.pendingWheel?.playerId);
 

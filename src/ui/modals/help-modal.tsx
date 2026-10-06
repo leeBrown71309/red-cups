@@ -1,15 +1,18 @@
 import { useState } from "react";
 import { getStartBonusNodeIds, resolveBoard } from "../../game/board";
-import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_ORDER } from "../../game/catalog";
+import { ITEM_CATALOG, ITEM_ORDER, PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
-import type { MapId } from "../../game/types";
+import type { ItemId, MapId, PassiveId } from "../../game/types";
 import { BASE_ENERGY, HELL_EXIT_TOLL, HELL_TURN_LIMIT, START_BONUS } from "../../game/types";
 import { BoardMap, TileArrowSwatch } from "../components/board-map";
-import { EnergyCost } from "../components/energy-meter";
+import { CatalogBrowser } from "../components/catalog-browser";
+import { ItemDetail } from "../components/item-detail";
+import { TiltCard } from "../components/tilt-card";
+import { PassiveIcon } from "../icons/passive-icon";
 import { ModalShell } from "../components/modal-shell";
-import { CARD_KINDS } from "../../game/cards";
+import { CARD_KINDS, type CardKind } from "../../game/cards";
 import { PassiveCard } from "../components/passive-card";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
@@ -208,7 +211,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      <div className="help-content">
+      <div className={`help-content ${tab === "items" || tab === "passives" ? "help-content--catalog" : ""}`}>
         {tab === "board" && (
           <div className="help-board">
             <div className="help-board__plan">
@@ -276,67 +279,105 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {tab === "items" && (
-          <ul className="help-cards">
-            {ITEM_ORDER.map((itemId) => {
-              const item = ITEM_CATALOG[itemId];
-              return (
-                <li key={itemId} className="help-card">
-                  <header className="help-card__head">
-                    <span className="help-card__art">
-                      <ItemIcon itemId={itemId} size={40} />
-                    </span>
-                    <div className="help-card__title">
-                      <strong>{item.name}</strong>
-                      <span className="help-card__chips">
-                        <span className="price-chip">
-                          <CoinIcon size={14} />
-                          {itemId === "boot" ? "dès " : ""}
-                          {formatCurrency(item.price)}
-                        </span>
-                        <EnergyCost cost={item.energyCost} />
-                        {item.target === "player" && <span className="help-card__tag">Cible un joueur</span>}
-                      </span>
-                    </div>
-                  </header>
-                  <HelpCardText text={item.description} />
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {tab === "items" && <ItemsCatalog />}
 
-        {tab === "passives" && (
-          <div className="cards-tab">
-            <p className="cards-tab__intro">
-              Chaque joueur a deux cartes. L’<strong>actif</strong> le mène à la victoire sur la durée ; le{" "}
-              <strong>passif</strong> l’aide dans une situation précise.
-            </p>
-            {(["actif", "passif"] as const).map((kind) => (
-              <section key={kind} aria-label={kind === "actif" ? "Actifs" : "Passifs"}>
-                <h3 className="help-section-title">{kind === "actif" ? "Actifs" : "Passifs"}</h3>
-                <ul className="tarot-deck">
-                  {PASSIVE_ORDER.filter((passiveId) => CARD_KINDS[passiveId] === kind).map((passiveId) => (
-                    <li key={passiveId}>
-                      <PassiveCard passiveId={passiveId} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
+        {tab === "passives" && <CardsCatalog />}
       </div>
     </ModalShell>
   );
 }
 
-/** A card's description: long ones scroll inside the card, so every card keeps the same height. */
-function HelpCardText({ text }: { text: string }) {
+/** Every item, as in the shop: the miniatures scroll on the left, the selected one stays on the right. */
+function ItemsCatalog() {
+  const [selectedId, setSelectedId] = useState<string>(ITEM_ORDER[0]);
+  const entries = ITEM_ORDER.map((itemId) => ({
+    id: itemId,
+    name: ITEM_CATALOG[itemId].name,
+    keywords: ITEM_CATALOG[itemId].description,
+  }));
+  const itemId = (ITEM_ORDER.find((candidate) => candidate === selectedId) ?? ITEM_ORDER[0]) as ItemId;
+  const item = ITEM_CATALOG[itemId];
+
   return (
-    <div className="help-card__text scroll-block" tabIndex={0}>
-      <p>{text}</p>
-    </div>
+    <CatalogBrowser
+      entries={entries}
+      selectedId={itemId}
+      onSelect={setSelectedId}
+      searchLabel="Chercher un objet"
+      renderMini={(entry) => (
+        <>
+          <ItemIcon itemId={entry.id as ItemId} size={34} />
+          <span className="catalog__mini-name">{entry.name}</span>
+          <span className="price-chip">
+            <CoinIcon size={14} />
+            {formatCurrency(ITEM_CATALOG[entry.id as ItemId].price)}
+          </span>
+        </>
+      )}
+      detail={
+        <ItemDetail itemId={itemId} item={item} price={item.price} pricePrefix={itemId === "boot" ? "dès " : ""} />
+      }
+    />
+  );
+}
+
+type CardFilter = "all" | CardKind;
+
+const CARD_FILTERS: { id: CardFilter; label: string }[] = [
+  { id: "all", label: "Toutes" },
+  { id: "actif", label: "Actifs" },
+  { id: "passif", label: "Passifs" },
+];
+
+/** Every card: the miniatures on the left, and the tarot card itself on the right, held in 3D. */
+function CardsCatalog() {
+  const [filter, setFilter] = useState<CardFilter>("all");
+  const [selectedId, setSelectedId] = useState<PassiveId>(PASSIVE_ORDER[0]);
+  const shownIds = PASSIVE_ORDER.filter((passiveId) => filter === "all" || CARD_KINDS[passiveId] === filter);
+  const entries = shownIds.map((passiveId) => ({
+    id: passiveId,
+    name: PASSIVE_CATALOG[passiveId].name,
+    keywords: `${PASSIVE_CATALOG[passiveId].description} ${CARD_KINDS[passiveId]}`,
+  }));
+  const passiveId = shownIds.includes(selectedId) ? selectedId : (shownIds[0] ?? selectedId);
+
+  return (
+    <CatalogBrowser
+      className="catalog--cards"
+      entries={entries}
+      selectedId={passiveId}
+      onSelect={(id) => setSelectedId(id as PassiveId)}
+      searchLabel="Chercher une carte"
+      filters={
+        <div className="segmented segmented--compact" role="group" aria-label="Type de carte">
+          {CARD_FILTERS.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              className={`segmented__option ${filter === option.id ? "is-active" : ""}`}
+              aria-pressed={filter === option.id}
+              onClick={() => setFilter(option.id)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      }
+      renderMini={(entry) => (
+        <>
+          <PassiveIcon passiveId={entry.id as PassiveId} size={34} />
+          <span className="catalog__mini-name">{entry.name}</span>
+          <span className="catalog__mini-kind">
+            {CARD_KINDS[entry.id as PassiveId] === "actif" ? "Actif" : "Passif"}
+          </span>
+        </>
+      )}
+      detail={
+        <TiltCard key={passiveId}>
+          <PassiveCard passiveId={passiveId} />
+        </TiltCard>
+      }
+    />
   );
 }
 

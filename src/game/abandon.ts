@@ -57,6 +57,8 @@ export function abandonPlayer(
       activePlayerIndex: 0,
       winnerId: winner.id,
       winReason: "forfeit",
+      // Nobody holds a finished game: the pause ends with it.
+      pause: null,
     };
     return addLog(nextState, `${winner.name} remporte la partie par abandon !`, "good");
   }

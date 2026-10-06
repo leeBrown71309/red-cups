@@ -5,7 +5,7 @@ import { isBlindToRedCup } from "../game/passive-rules";
 import { getDecidingPlayer, getTurnMoveOptions } from "../game/rules";
 import { canUseCorrupter, useGameStore } from "../game/store";
 import type { GameState, NodeId, Player } from "../game/types";
-import { useUiStore } from "../feedback/ui-store";
+import { isCountdownRunning, useCountdownRunning, useUiStore } from "../feedback/ui-store";
 import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
 import { soundEffects } from "../audio/sound-effects";
 
@@ -75,13 +75,14 @@ function isLocalDecider(state: GameState, localPlayerId: string | null): boolean
 export function useLegalMoves(): LegalMoves {
   const game = useGameStore();
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
+  const countdownRunning = useCountdownRunning();
   const localPlayerId = useLocalPlayerId();
   return useMemo(
     () =>
-      isLocalDecider(game, localPlayerId)
+      isLocalDecider(game, localPlayerId) && !countdownRunning
         ? computeLegalMoves(game, ignoreArrows)
         : { origin: null, paths: new Map<NodeId, NodeId[]>() },
-    [game, ignoreArrows, localPlayerId],
+    [game, ignoreArrows, localPlayerId, countdownRunning],
   );
 }
 
@@ -90,7 +91,7 @@ export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
   const legal = computeLegalMoves(game, ui.ignoreArrows);
-  if (!isLocalDecider(game, getLocalPlayerId()) || !legal.paths.has(nodeId)) {
+  if (isCountdownRunning() || !isLocalDecider(game, getLocalPlayerId()) || !legal.paths.has(nodeId)) {
     soundEffects.error();
     return;
   }
@@ -98,7 +99,8 @@ export function commitDestination(nodeId: NodeId): void {
   ui.setPreviewNodeId(null);
   ui.setHoveredChipNodeId(null);
   if (game.turnStage === "passive-choice") {
-    game.resolveCalmDown(nodeId);
+    game.resolveCalmDown(nodeId, ui.calmTargetId ?? undefined);
+    ui.setCalmTargetId(null);
     return;
   }
   if (game.turnStage === "advance") {

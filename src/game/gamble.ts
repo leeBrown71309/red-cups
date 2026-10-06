@@ -1,5 +1,5 @@
 import { drawEngineRandom } from "./engine-random";
-import { addLog, applyCurrencyChange, findPlayer } from "./state-utils";
+import { addLog, applyCurrencyChange, findPlayer, settleKnockout } from "./state-utils";
 import type { GameState, TurnStage } from "./types";
 
 /**
@@ -47,15 +47,33 @@ export function resolveGamble(state: GameState, accept: boolean): GameState {
   if (state.turnStage !== "gamble" || !gamble || !player) return state;
 
   const resumed: GameState = { ...state, pendingGambles: rest, turnStage: state.gambleResumeStage };
-  if (!accept) return addLog(resumed, `${player.name} ne tente pas Double or nothing.`);
+  if (!accept) return settleKnockout(addLog(resumed, `${player.name} ne tente pas Double or nothing.`), player.id);
 
   const doubled = drawEngineRandom() < 0.5;
-  const nextState = addLog(
+  let nextState = addLog(
     resumed,
     doubled
       ? `Double or nothing : ${player.name} double ses ${formatGambleAmount(gamble.amount)} !`
       : `Double or nothing : les ${formatGambleAmount(gamble.amount)} de ${player.name} sont annulés !`,
     "event",
   );
-  return applyCurrencyChange(nextState, player.id, doubled ? gamble.amount : -gamble.amount, { gamble: false });
+  nextState = {
+    ...nextState,
+    lastGambleResult: { seq: (state.lastGambleResult?.seq ?? 0) + 1, playerId: player.id, doubled },
+  };
+  nextState = applyCurrencyChange(nextState, player.id, doubled ? gamble.amount : -gamble.amount, { gamble: false });
+  // Whoever the loss paid (the owner of a Boue) gets double with it, or nothing at all.
+  const linked = gamble.linked;
+  if (linked && findPlayer(nextState, linked.playerId)) {
+    const beneficiary = findPlayer(nextState, linked.playerId);
+    nextState = addLog(
+      nextState,
+      doubled
+        ? `${beneficiary?.name} touche de nouveau ${linked.amount} pièces.`
+        : `${beneficiary?.name} perd les ${linked.amount} pièces qu’il venait de toucher.`,
+      doubled ? "good" : "bad",
+    );
+    nextState = applyCurrencyChange(nextState, linked.playerId, doubled ? linked.amount : -linked.amount);
+  }
+  return settleKnockout(nextState, player.id);
 }

@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { onFeedback, type FeedbackEvent } from "../../feedback/event-bus";
 import { useUiStore, type AlertBanner, type Toast } from "../../feedback/ui-store";
 import { useGameStore } from "../../game/store";
-import { readLogEntryNow } from "../log-text";
 import { BULLET_BILL_DAMAGE } from "../../game/types";
 
 const TOAST_LIFETIME_MS = 4_200;
@@ -149,7 +148,12 @@ export function useHudFeedback(): void {
         const alert = describeAlert(event);
         if (alert) showAlert(alert);
         if (event.type === "log" && !TOASTLESS_LOG.test(event.entry.text)) {
-          pushToast({ id: event.entry.id, text: readLogEntryNow(event.entry), tone: event.entry.tone });
+          // A toast is read by the whole table: a purchase or a theft never gives its price or its item away.
+          pushToast({
+            id: event.entry.id,
+            text: event.entry.secret?.publicText ?? event.entry.text,
+            tone: event.entry.tone,
+          });
         }
       }),
     [pushToast, showSplash, showAlert],

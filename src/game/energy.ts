@@ -72,6 +72,9 @@ export function canEndTurn(state: GameState): boolean {
   if (state.turnStage === "shop" || state.turnStage === "turn-end") return true;
   const player = getActivePlayer(state);
   if (!player || (state.turnStage !== "move" && state.turnStage !== "hell")) return false;
+  // The Botte is put on to be walked: with a road to take, the turn cannot end before the walk.
+  const bootOn = state.turnStage === "move" && state.moveDistance > 1 && hasLegalMove(state, player);
+  if (bootOn && canAffordMove(state)) return false;
   if (state.turnActionTaken || !canAffordMove(state)) return true;
   return state.turnStage === "move" && player.position !== HELL_NODE_ID && !hasLegalMove(state, player);
 }

@@ -22,7 +22,14 @@ const OFFER_SIZE = 2;
 /** Roles that exist once per table: they are never dealt a second time. */
 const UNIQUE_CARDS: PassiveId[] = ["devil", "guardian-angel"];
 /** Passifs that take from other players: L'Ange-Gardien never gets them. */
-export const HARMFUL_PASSIFS: PassiveId[] = ["thief", "goblin", "corrupter"];
+export const HARMFUL_PASSIFS: PassiveId[] = ["thief", "goblin", "corrupter", "trapper"];
+
+/** Passifs a given actif may never be dealt: L'Ange-Gardien harms nobody, Cupide and Nepo Baby never go together. */
+export function getRefusedPassifs(actifId: PassiveId | null | undefined): PassiveId[] {
+  if (actifId === "guardian-angel") return HARMFUL_PASSIFS;
+  if (actifId === "greedy") return ["nepo-baby"];
+  return [];
+}
 
 export function getDraftOfferSize(_playerCount?: number): number {
   return OFFER_SIZE;
@@ -121,7 +128,7 @@ export function closeDraft(state: GameState, now?: number): GameState {
       state.players.map((player) => player.id),
       getDraftPool("passif", state.players.length),
       OFFER_SIZE,
-      (playerId) => (picks[playerId] === "guardian-angel" ? HARMFUL_PASSIFS : []),
+      (playerId) => getRefusedPassifs(picks[playerId]),
     );
     const deadline = draft.deadline === null ? null : (now ?? draft.deadline) + DRAFT_TIME_MS;
     return addLog(

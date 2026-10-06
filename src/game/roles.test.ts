@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getWheelResults } from "./catalog";
-import { expireDevilSpells, isPortalVisible } from "./devil";
+import { expireDevilSpells, isPortalVisible, triggerPortal } from "./devil";
 import { withPassives } from "./forced-passives";
 import { getDevilGoal, getShopItems } from "./passive-rules";
 import { countRedCups, getInventoryCapacity } from "./rules";
@@ -117,7 +117,7 @@ describe("Le diable", () => {
     expect(store().players[0].inventory[0]).toMatchObject({ count: 2 });
   });
 
-  it("opens two hidden Portails, into which anybody stopping falls, le diable included, closing both", () => {
+  it("opens two hidden Portails, into which anybody but le diable falls on stopping, closing both", () => {
     startTable(["devil", "lambda"]);
     editPlayer(0, { inventory: [item("portal", "portal")] });
     store().useItem("portal");
@@ -126,10 +126,20 @@ describe("Le diable", () => {
     expect(portal.nodeId).not.toBe(other.nodeId);
     expect([START_NODE_ID, HELL_NODE_ID, store().redCupNodeId]).not.toContain(portal.nodeId);
 
+    // Le diable's own Portails never take him: he stops on one, nothing happens and both stay open.
     useGameStore.setState({ hellPortals: [{ ...portal, nodeId: 2 }, other] });
     store().movePlayer(2);
-    expect(store().players[0].position).toBe(HELL_NODE_ID);
-    expect(store().hellPortals).toEqual([]);
+    expect(store().players[0].position).toBe(2);
+    expect(store().hellPortals).toHaveLength(2);
+
+    // Anybody else falls in, and both close.
+    useGameStore.setState((state) => ({ turnStage: "move", activePlayerIndex: 1, energyLeft: 4, round: state.round }));
+    editPlayer(1, { position: 1 });
+    useGameStore.setState({ hellPortals: [{ ...portal, nodeId: 3 }, other] });
+    useGameStore.setState((state) => ({ players: state.players.map((p, i) => (i === 1 ? { ...p, position: 3 } : p)) }));
+    const fallen = triggerPortal(store(), store().players[1].id);
+    expect(fallen.players[1].position).toBe(HELL_NODE_ID);
+    expect(fallen.hellPortals).toEqual([]);
   });
 
   it("shows the first Portail the second round and both the third, then closes them after three", () => {

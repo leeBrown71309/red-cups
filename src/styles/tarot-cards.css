@@ -144,8 +144,7 @@
 }
 
 /* The deck laid out: the Passifs tab of the help. Every card of a row is as tall as the tallest. */
-.tarot-deck > li,
-.draft-cards > li {
+.tarot-deck > li {
   display: grid;
 }
 

@@ -268,6 +268,11 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return endTurnAction("end-turn");
 
     case "wheel-result": {
+      const choices = store.pendingWheel?.choices;
+      if (choices && store.pendingWheel?.chosen === undefined && random() < 0.7) {
+        const index = random() < 0.5 ? 0 : 1;
+        return { label: "wheel-pick", perform: (current) => current.pickWheelResult(index) };
+      }
       const target = findPlayer(store, store.pendingWheel?.playerId);
       const hasEraser = target?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser");
       if (hasEraser && random() < 0.3) return { label: "cancel-wheel", perform: (current) => current.cancelWheel() };
@@ -334,7 +339,8 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "passive-choice": {
       const tile = random() < 0.6 ? pick(getCalmDownTiles(store), random) : undefined;
       if (tile === undefined) return { label: "calm-down:skip", perform: (current) => current.resolveCalmDown(null) };
-      return { label: "calm-down:place", perform: (current) => current.resolveCalmDown(tile) };
+      const targetId = pick(store.pendingCalmDown?.targetIds ?? [], random);
+      return { label: "calm-down:place", perform: (current) => current.resolveCalmDown(tile, targetId) };
     }
 
     case "reaction": {

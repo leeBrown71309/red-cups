@@ -120,12 +120,21 @@ function chargeNearestPlayer(state: GameState, dodged: boolean): GameState {
   }
   if (!hit) return addLog(nextState, `Bullet Bill fonce vers ${target.player.name}.`, "event");
 
-  nextState = applyCurrencyChange(nextState, target.player.id, -BULLET_BILL_DAMAGE);
-  nextState = updatePlayer(nextState, target.player.id, (player) => loseTurns(player));
-  nextState = addLog(
-    nextState,
-    `Bullet Bill percute ${target.player.name} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,
-    "bad",
+  // The blast reaches everybody who stands on the tile it explodes on, the victim first.
+  const bystanders = state.players.filter(
+    (player) =>
+      player.id !== target.player.id && player.position === target.player.position && !isImmuneToItems(player),
   );
+  for (const player of [target.player, ...bystanders]) {
+    nextState = applyCurrencyChange(nextState, player.id, -BULLET_BILL_DAMAGE);
+    nextState = updatePlayer(nextState, player.id, (current) => loseTurns(current));
+    nextState = addLog(
+      nextState,
+      player.id === target.player.id
+        ? `Bullet Bill percute ${player.name} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`
+        : `L’explosion de Bullet Bill atteint aussi ${player.name} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,
+      "bad",
+    );
+  }
   return { ...nextState, bulletBill: null };
 }

@@ -1,6 +1,6 @@
 import { hasCard } from "./cards";
 import { findDevil, getDevilGoalFor } from "./devil";
-import { addLog } from "./state-utils";
+import { addLog, settleKnockout } from "./state-utils";
 import type { GameState, PlayerId, WinReason } from "./types";
 import { GREEDY_GOAL } from "./types";
 
@@ -8,7 +8,11 @@ import { GREEDY_GOAL } from "./types";
  * Ends the game for `winnerId`, with L'Ange-Gardien when they protected the
  * winner: whatever was still waiting for a decision is dropped.
  */
-export function endGame(state: GameState, winnerId: PlayerId, winReason: WinReason): GameState {
+export function endGame(stateBeforeEnd: GameState, winnerId: PlayerId, winReason: WinReason): GameState {
+  // A loss that waited for its gamble knocks its holder out all the same: the stake does not outlive the game.
+  const state = stateBeforeEnd.pendingGambles
+    .filter((gamble) => gamble.knockout)
+    .reduce((current, gamble) => settleKnockout(current, gamble.playerId), stateBeforeEnd);
   const guardian = state.guardian;
   return {
     ...state,
@@ -27,6 +31,9 @@ export function endGame(state: GameState, winnerId: PlayerId, winReason: WinReas
     pendingReaction: null,
     pendingTileWheels: [],
     pendingGambles: [],
+    // A finished game is not held by anybody: the pause ends with it.
+    pause: null,
+    queuedWheels: [],
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
     pendingCupRepositionResumeStage: null,

@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { canUseNoThanks } from "../../game/rules";
 import { useGameStore } from "../../game/store";
-import type { PendingWheel, WheelOutcomeId } from "../../game/types";
+import type { PendingWheel, WheelOutcomeId, WheelResult } from "../../game/types";
 import { soundEffects } from "../../audio/sound-effects";
 import { useCanActFor } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
 import { WaitingNote } from "../components/waiting-note";
 import { PlayerAvatar } from "../components/player-avatar";
 import { WheelDial } from "../components/wheel-dial";
-import { WHEEL_TITLES, getWheelSegments, isPositiveOutcome } from "../display/game-display";
+import { WHEEL_TITLES, getWheelSegments, isPositiveOutcome, type WheelSegment } from "../display/game-display";
 import { ItemIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 
@@ -20,7 +20,7 @@ function getWheelEyebrow(pending: PendingWheel): string {
   if (pending.sourceItemId === "ndoye") return "Ndoye a frappé";
   if (pending.origin === "tile") return pending.wheelId === "fortune" ? "Case verte" : "Case rouge";
   if (pending.origin === "chain") return "Encore une roue !";
-  if (pending.origin === "double") return "Deuxième tour";
+  if (pending.origin === "double") return "Deuxième roue";
   if (pending.origin === "hell") return "Depuis l’Enfer";
   if (pending.origin === "blessing") return "Tour de Bénédiction";
   return "La roue tourne";
@@ -39,32 +39,36 @@ export function WheelModal() {
   return <WheelSpin key={pending.id} pending={pending} />;
 }
 
-function WheelSpin({ pending }: { pending: PendingWheel }) {
-  const player = useGameStore((state) => state.players.find((candidate) => candidate.id === pending.playerId));
-  const round = useGameStore((state) => state.round);
-  const resolveWheel = useGameStore((state) => state.resolveWheel);
-  const cancelWheel = useGameStore((state) => state.cancelWheel);
-  // Everybody watches the wheel; only its player applies the result or rubs it out.
-  const canAct = useCanActFor([pending.playerId]);
-  const passiveId = player?.passiveId;
-  const segments = useMemo(
-    () => getWheelSegments(pending.wheelId, passiveId && { passiveId }),
-    [pending.wheelId, passiveId],
-  );
-  const [rotation, setRotation] = useState(0);
-  const [done, setDone] = useState(false);
-  const skipRef = useRef(false);
+interface WheelSpinState {
+  rotation: number;
+  done: boolean;
+  targetIndex: number;
+  finalRotation: number;
+}
 
-  // The engine already chose the result; the wheel only has to land on a matching wedge.
+/**
+ * The engine already drew the result; the wheel only has to land on a matching wedge. A wheel that
+ * was spun beside another one earlier (`instant`) is shown already at rest.
+ */
+function useWheelSpin(
+  segments: WheelSegment[],
+  result: WheelResult | null,
+  skipRef: RefObject<boolean>,
+  instant: boolean,
+): WheelSpinState {
+  const resultId = result?.id;
   const { targetIndex, finalRotation } = useMemo(() => {
-    const candidates = segments.flatMap((segment, index) => (segment.outcomeId === pending.result.id ? [index] : []));
+    const candidates = segments.flatMap((segment, index) => (segment.outcomeId === resultId ? [index] : []));
     const index = candidates[Math.floor(Math.random() * candidates.length)] ?? 0;
     const segmentAngle = 360 / segments.length;
     const jitter = (Math.random() - 0.5) * segmentAngle * 0.6;
     return { targetIndex: index, finalRotation: FULL_TURNS * 360 - (index + 0.5) * segmentAngle + jitter };
-  }, [segments, pending.result.id]);
+  }, [segments, resultId]);
+  const [rotation, setRotation] = useState(instant ? finalRotation : 0);
+  const [done, setDone] = useState(instant);
 
   useEffect(() => {
+    if (instant || resultId === undefined) return undefined;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const duration = reducedMotion ? REDUCED_SPIN_DURATION_MS : SPIN_DURATION_MS;
     const segmentAngle = 360 / segments.length;
@@ -89,13 +93,47 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
         return;
       }
       setDone(true);
-      soundEffects.wheelStop(isPositiveOutcome(pending.result.id));
+      soundEffects.wheelStop(isPositiveOutcome(resultId));
     };
 
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
-  }, [finalRotation, segments.length, pending.result.id]);
+  }, [finalRotation, segments.length, resultId, instant, skipRef]);
 
+  return { rotation, done, targetIndex, finalRotation };
+}
+
+/** The wheels of a spin: one, or two side by side (Main verte, Main rouge, Touché angélique, Main du diable). */
+function getSpunResults(pending: PendingWheel): WheelResult[] {
+  if (pending.choices) return [...pending.choices];
+  const parallel = pending.repeats?.[0];
+  if (parallel && parallel.wheelId === pending.wheelId && !pending.preSpun) return [pending.result, parallel.result];
+  return [pending.result];
+}
+
+function WheelSpin({ pending }: { pending: PendingWheel }) {
+  const player = useGameStore((state) => state.players.find((candidate) => candidate.id === pending.playerId));
+  const round = useGameStore((state) => state.round);
+  const resolveWheel = useGameStore((state) => state.resolveWheel);
+  const pickWheelResult = useGameStore((state) => state.pickWheelResult);
+  const cancelWheel = useGameStore((state) => state.cancelWheel);
+  // Everybody watches the wheel; only its player applies the result or rubs it out.
+  const canAct = useCanActFor([pending.playerId]);
+  const passiveId = player?.passiveId;
+  const segments = useMemo(
+    () => getWheelSegments(pending.wheelId, passiveId && { passiveId }),
+    [pending.wheelId, passiveId],
+  );
+  const skipRef = useRef(false);
+  const spun = getSpunResults(pending);
+  const isDuo = spun.length === 2;
+  const instant = pending.preSpun === true;
+  const left = useWheelSpin(segments, spun[0], skipRef, instant);
+  const right = useWheelSpin(segments, spun[1] ?? null, skipRef, instant);
+  const done = left.done && (!isDuo || right.done);
+  const spins = isDuo ? [left, right] : [left];
+
+  const mustChoose = pending.choices !== undefined && pending.chosen === undefined;
   const hasEraser = player?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser") ?? false;
   // Non merci cancels any wheel spun for its holder, once recharged.
   const hasNoThanks = player !== undefined && canUseNoThanks(player, round);
@@ -107,17 +145,48 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
       eyebrow={getWheelEyebrow(pending)}
       tone={pending.wheelId === "fortune" ? "gold" : "grape"}
       size="large"
-      className="wheel-modal"
+      className={`wheel-modal ${isDuo ? "wheel-modal--duo" : ""}`}
     >
-      <div className="wheel-layout">
-        <div className={`wheel-stage ${done ? "is-done" : ""}`}>
-          <WheelDial
-            wheelId={pending.wheelId}
-            segments={segments}
-            rotation={rotation}
-            restRotation={finalRotation}
-            highlightIndex={done ? targetIndex : null}
-          />
+      <div className={`wheel-layout ${isDuo ? "wheel-layout--duo" : ""}`}>
+        <div className={isDuo ? "wheel-duo" : "wheel-single"}>
+          {spins.map((spin, index) => {
+            const picked = pending.chosen === index;
+            const result = spun[index];
+            return (
+              <div key={index} className="wheel-duo__side">
+                <div className={`wheel-stage ${spin.done ? "is-done" : ""}`}>
+                  <WheelDial
+                    wheelId={pending.wheelId}
+                    segments={segments}
+                    rotation={spin.rotation}
+                    restRotation={spin.finalRotation}
+                    highlightIndex={spin.done ? spin.targetIndex : null}
+                  />
+                </div>
+                {isDuo && spin.done && (
+                  <div className={`wheel-pick ${isPositiveOutcome(result.id) ? "is-positive" : "is-negative"}`}>
+                    {pending.choices ? (
+                      <button
+                        type="button"
+                        className={`wheel-pick__button ${picked ? "is-picked" : ""}`}
+                        disabled={!canAct}
+                        aria-pressed={picked}
+                        onClick={() => pickWheelResult(index as 0 | 1)}
+                      >
+                        <span className="wheel-pick__eyebrow">{picked ? "Gardé" : "Garder celui-ci"}</span>
+                        <strong>{result.label}</strong>
+                      </button>
+                    ) : (
+                      <div className="wheel-pick__button">
+                        <span className="wheel-pick__eyebrow">{index === 0 ? "D’abord" : "Ensuite"}</span>
+                        <strong>{result.label}</strong>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
         <div className="wheel-side">
           {player && (
@@ -131,20 +200,39 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
 
           {done ? (
             <div className={`wheel-result ${positive ? "is-positive" : "is-negative"}`}>
-              <span className="wheel-result__eyebrow">Résultat</span>
-              <strong className="wheel-result__label">{pending.result.label}</strong>
-              {pending.discarded && <small className="wheel-result__aside">Écarté : {pending.discarded.label}</small>}
+              {isDuo ? (
+                <>
+                  <span className="wheel-result__eyebrow">
+                    {pending.choices ? (mustChoose ? "Deux résultats" : "Résultat gardé") : "Deux roues"}
+                  </span>
+                  {!mustChoose && <strong className="wheel-result__label">{pending.result.label}</strong>}
+                  <small className="wheel-result__aside">
+                    {pending.choices
+                      ? mustChoose
+                        ? "Touche l’une des deux roues : tu n’en gardes qu’une."
+                        : "L’autre résultat est écarté."
+                      : "Un seul clic : les deux résultats s’appliquent l’un après l’autre, celui de gauche d’abord."}
+                  </small>
+                </>
+              ) : (
+                <>
+                  <span className="wheel-result__eyebrow">Résultat</span>
+                  <strong className="wheel-result__label">{pending.result.label}</strong>
+                </>
+              )}
               {canAct ? (
                 <div className="wheel-result__actions">
-                  <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
-                    <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
-                  </button>
-                  {hasEraser && (
+                  {!mustChoose && (
+                    <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
+                      <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
+                    </button>
+                  )}
+                  {hasEraser && !mustChoose && (
                     <button type="button" className="btn btn--cream btn--block" onClick={() => cancelWheel()}>
                       <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
                     </button>
                   )}
-                  {hasNoThanks && (
+                  {hasNoThanks && !mustChoose && (
                     <button type="button" className="btn btn--grape btn--block" onClick={() => cancelWheel(true)}>
                       <UiIcon name="hand" size={20} /> Non merci !
                     </button>

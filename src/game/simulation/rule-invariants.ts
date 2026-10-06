@@ -1,5 +1,5 @@
 import { hasCard } from "../cards";
-import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isIce } from "../board";
+import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isBlockedRoad, isIce } from "../board";
 import {
   avoidsHell,
   getCopyLimit,
@@ -44,7 +44,8 @@ import {
   withoutGamblePause,
 } from "./advanced-passive-invariants";
 import {
-  expectedBalance,
+  awaitsKnockout,
+  balanceMatches,
   fellIntoHell,
   carriedByIce,
   hellRewardCoins,
@@ -120,7 +121,7 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
     }
     if (itemId === "eraser" && copies > 1) found.push(violation("single-eraser", `${name} has ${copies} Gommes`));
   }
-  if (player.currency <= CURRENCY_RESET_THRESHOLD) {
+  if (player.currency <= CURRENCY_RESET_THRESHOLD && !awaitsKnockout(state, player.id)) {
     found.push(violation("negative-reset", `${name} sits at ${player.currency} coins`));
   }
   if (!Number.isInteger(player.skippedTurns) || player.skippedTurns < 0) {
@@ -575,7 +576,10 @@ function checkThaw(previous: GameState, next: GameState, movement: PlayerMovemen
   const onward = movement.path.slice(1);
   // Frozen by the blizzard in the very turn change that thaws the player.
   const slidOnward = onward.length === 0 || isIce(getBoard(next), movement.path[0]);
-  if (!frozen || frozen.from !== movement.from || movement.path[0] !== frozen.to || !slidOnward) {
+  // A Barrière set on the held road since: the slide bounces back and goes another way, never onto that road.
+  const barred = frozen !== undefined && isBlockedRoad(getBoard(previous), frozen.from, frozen.to);
+  const headsRight = barred ? movement.path[0] !== frozen.to : movement.path[0] === frozen?.to && slidOnward;
+  if (!frozen || frozen.from !== movement.from || !headsRight) {
     found.push(violation("ice-thaw", `thawed ${movement.from} → ${movement.path.join(" → ")} without a matching hold`));
   }
 }
@@ -613,8 +617,8 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   const hellCoins = hellRewardCoins(newLogTexts(previous, next), before.name);
   if (
     delta !== undefined &&
-    after.currency !== expectedBalance(before, delta) &&
-    after.currency !== expectedBalance(before, delta) + hellCoins
+    !balanceMatches(before, delta, after.currency) &&
+    !balanceMatches(before, delta, after.currency, hellCoins)
   ) {
     found.push(
       violation("wheel-money", `${before.name}: ${wheel.result.id} took ${before.currency} to ${after.currency}`),
@@ -671,8 +675,7 @@ function playersMovedWithoutArrival(previous: GameState, appliedItem?: AppliedIt
   if (previous.turnStage === "reposition" && previous.pendingCupRepositionPlayerId) {
     exempt.add(previous.pendingCupRepositionPlayerId);
   }
-  const calmed = previous.turnStage === "passive-choice" ? previous.pendingCalmDown?.targetIds[0] : undefined;
-  if (calmed) exempt.add(calmed);
+  if (previous.turnStage === "passive-choice") previous.pendingCalmDown?.targetIds.forEach((id) => exempt.add(id));
   // The arm wrestle swaps or nudges like the Monopoly Man: no arrival.
   const wrestle = previous.turnStage === "arm-wrestle" ? previous.pendingArmWrestle : null;
   if (wrestle) [wrestle.attackerId, wrestle.defenderId].forEach((id) => exempt.add(id));
@@ -752,6 +755,7 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
     const stunnedNow = logs.some(
       (text) =>
         text.includes(`Bullet Bill percute ${before.name}`) ||
+        text.includes(`L’explosion de Bullet Bill atteint aussi ${before.name}`) ||
         text.includes(`: ${before.name} est gelé`) ||
         // Robbed by a Goblin as the Cup changes hands, down to −300: the lost turn comes at once.
         text.startsWith(`${before.name} tombe à −300 pièces`),
@@ -995,6 +999,11 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   if (previous.phase === "draft") return checkDraftTransition(previous, nextState);
   if (previous.phase !== "playing") return [];
   const found: RuleViolation[] = [];
+  // The second wheel of a Touché angélique or Main du diable pair applies in the same action as the first, or as
+  // soon as the decision that kept it waiting is settled: the single-wheel checks do not describe such an action.
+  const pairResolved = previous.turnStage === "wheel-result" && (previous.pendingWheel?.repeats?.length ?? 0) > 0;
+  const secondApplied = newLogTexts(previous, nextState).some((text) => text.startsWith("La deuxième roue de "));
+  if (pairResolved || secondApplied) return found;
   checkAdvancedPassives(previous, nextState, found);
   if (previous.turnStage === "gamble") return found;
   // A Réveil, a Parachute or a Miroir spent in this action cancels an effect the checks below expect.

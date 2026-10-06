@@ -103,7 +103,7 @@ describe("Barrière", () => {
     store().useItem(entryOf(index).id, undefined, 1, road);
   };
 
-  it("closes any road of the board, however far, and holds it for two turns of its owner", () => {
+  it("closes any road of the board, however far, and holds it for one table turn", () => {
     startTable();
     giveItem(0, "barrier");
     const roads = getBarrierRoads(store());
@@ -115,10 +115,10 @@ describe("Barrière", () => {
     expect(isBlockedRoad(getBoard(store()), far[0], far[1])).toBe(true);
     expect(getBarrierRoads(store()).some(([a, b]) => a === far[0] && b === far[1])).toBe(false);
 
-    // A table turn is three passes: the first owner's turn wears it down once, the second removes it.
-    for (let pass = 0; pass < 3; pass += 1) passTurn();
+    // A table turn is three passes: it stands while the others play, and is gone when its owner's turn comes again.
+    for (let pass = 0; pass < 2; pass += 1) passTurn();
     expect(store().barriers).toHaveLength(1);
-    for (let pass = 0; pass < 3; pass += 1) passTurn();
+    passTurn();
     expect(store().barriers).toHaveLength(0);
   });
 

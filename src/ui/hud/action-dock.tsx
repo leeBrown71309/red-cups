@@ -467,16 +467,31 @@ function CalmDownContent() {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const tiles = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const target = players.find((player) => player.id === pending?.targetIds[0]);
-  const waiting = (pending?.targetIds.length ?? 1) - 1;
+  const calmTargetId = useUiStore((state) => state.calmTargetId);
+  const setCalmTargetId = useUiStore((state) => state.setCalmTargetId);
+  const offered = (pending?.targetIds ?? []).flatMap((id) => players.find((player) => player.id === id) ?? []);
+  const target = offered.find((player) => player.id === calmTargetId) ?? offered[0];
 
   return (
     <DockPrompt
       title={`Calme-toi : où replacer ${target?.name ?? "ce joueur"} ?`}
-      hint={`Choisis une case à ${CALM_DOWN_DISTANCE} cases de la Red Cup : il n’en tirera rien.${
-        waiting > 0 ? ` Encore ${waiting} joueur${waiting > 1 ? "s" : ""} ensuite.` : ""
-      }`}
+      hint={`Un seul joueur à replacer. Choisis-le, puis une case à ${CALM_DOWN_DISTANCE} cases de la Red Cup : il n’en tirera rien.`}
     >
+      {offered.length > 1 && (
+        <div className="destination-chips" role="group" aria-label="Joueur à replacer">
+          {offered.map((player) => (
+            <button
+              key={player.id}
+              type="button"
+              className={`destination-chip ${player.id === target?.id ? "is-selected" : ""}`}
+              aria-pressed={player.id === target?.id}
+              onClick={() => setCalmTargetId(player.id)}
+            >
+              {player.name}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="destination-chips" role="group" aria-label="Cases où le replacer">
         {tiles.map((nodeId) => (
           <button

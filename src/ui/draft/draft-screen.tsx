@@ -6,6 +6,7 @@ import { getServerNow, useLocalPlayerId } from "../../net/room-store";
 import { ModalShell } from "../components/modal-shell";
 import { PassiveCard } from "../components/passive-card";
 import { PlayerAvatar } from "../components/player-avatar";
+import { TiltCard } from "../components/tilt-card";
 import { UiIcon } from "../icons/ui-icon";
 import { useClockBeeps } from "../hud/use-clock-beeps";
 
@@ -31,17 +32,19 @@ function PassiveCards({
 }) {
   return (
     <ul className="draft-cards" aria-label="Passifs proposés">
-      {offers.map((passiveId) => {
+      {offers.map((passiveId, index) => {
         const selected = picked === passiveId;
         return (
           <li key={passiveId}>
-            <PassiveCard passiveId={passiveId} selected={selected} onPick={() => onPick(passiveId)}>
-              {selected && (
-                <span className="tarot-card__picked">
-                  <UiIcon name="check" size={14} /> Choisi
-                </span>
-              )}
-            </PassiveCard>
+            <TiltCard delayMs={250 + index * 220} scrollable>
+              <PassiveCard passiveId={passiveId} selected={selected} onPick={() => onPick(passiveId)}>
+                {selected && (
+                  <span className="tarot-card__picked">
+                    <UiIcon name="check" size={14} /> Choisi
+                  </span>
+                )}
+              </PassiveCard>
+            </TiltCard>
           </li>
         );
       })}
