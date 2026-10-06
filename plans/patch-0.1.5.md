@@ -15,8 +15,8 @@ Les choix laissés à ma main sont listés dans la section 13 bis de `red-cups-g
 
 ## À faire côté base
 
-`supabase/schema.sql` a changé : `claim_seat`, `get_room`, `touch_seat`, `kick_player`, `is_late_joinable` et la table
-`room_kicks`. Le fichier est idempotent : il suffit de le rejouer sur le projet Supabase avant de déployer le front.
+`supabase/schema.sql` a changé : `claim_seat`, `get_room`, `touch_seat`, `kick_player`, `is_late_joinable`, `request_rejoin`, `rejoin_status`, `list_rejoin_requests`, `answer_rejoin` et les tables
+`room_kicks` et `room_rejoin_requests`. Le fichier est idempotent : il suffit de le rejouer sur le projet Supabase avant de déployer le front.
 Sans lui, le salon reste fermé après le lancement et le bouton d'exclusion échoue.
 
 ## Vérifications

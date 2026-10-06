@@ -29,6 +29,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Le journal a son propre bouton à côté du menu et note chaque action : achats, déplacements, objets, cases.",
       "Pendant un mini-jeu, les joueurs qui n’y participent pas n’ont plus aucun bouton.",
       "Le diable : chaque descente d’un autre joueur en Enfer lui rapporte 50 pièces et un point, la sienne 100 pièces. Son objet devient les Portails (400 pièces) : deux portails cachés qui se dévoilent au deuxième et au troisième tour.",
+      "Un joueur exclu peut demander à revenir : l’hôte reçoit la demande et l’accepte ou la refuse (la base de données doit être mise à jour).",
       "Deux cartes par joueur : un actif (le moteur de ta victoire) et un passif (un avantage ciblé), choisis en deux étapes. En ligne, les autres ne voient plus ton sac ni ton actif.",
       "Goblin devient un passif : il vole 150 pièces à chaque joueur à chaque nouvelle Red Cup.",
       "Neuf nouveaux passifs : Dernier de la classe, Habitué de l’Enfer, Main verte, Main rouge, Touché angélique, Main du diable, Meneur de jeu, Brocanteur et Piégeur.",

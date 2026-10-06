@@ -2,6 +2,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
+import { canReinstatePlayer } from "../game/reinstate";
 import { setActionRelay, useGameStore } from "../game/store";
 import type { MapId, PlayerId } from "../game/types";
 import { PLAYER_COLORS } from "../game/types";
@@ -11,17 +12,22 @@ import { soundEffects } from "../audio/sound-effects";
 import { createRandomSeed } from "../utils/seeded-random";
 import {
   advanceRoom,
+  answerRejoin as answerRejoinInRoom,
   claimSeat,
   createRoom,
+  fetchRejoinStatus,
   fetchRoom,
   fetchServerTime,
   KICKED_VERSION,
   kickPlayer as kickPlayerFromRoom,
   leaveRoom,
+  listRejoinRequests,
   openRoom,
   rematchRoom,
+  requestRejoin as requestRejoinInRoom,
   shuffleRoom,
   touchSeat,
+  type RejoinRequest,
   type RoomPlayer,
   type RoomSnapshot,
   type RoomStatus,
@@ -72,6 +78,10 @@ interface RoomState {
   connection: ConnectionStatus;
   /** A lobby looked up by code, before sitting down in it. */
   preview: RoomSnapshot | null;
+  /** Host only: the players sent away who ask to come back, waiting for an answer. */
+  rejoinRequests: RejoinRequest[];
+  /** The room code this device, sent away, has asked to come back to and waits on. */
+  rejoinWaitingFor: string | null;
   busy: boolean;
   error: string | null;
 
@@ -89,6 +99,11 @@ interface RoomState {
   rematch: (mapId: MapId) => Promise<void>;
   /** Host only: sends a player away from the lobby or the game. */
   kick: (userId: string) => Promise<void>;
+  /** Sent away: asks the host to be let back into the room looked up in `preview`. */
+  requestRejoin: (name: string, avatar: number) => Promise<void>;
+  cancelRejoinWait: () => void;
+  /** Host only: lets a player sent away back, or refuses. */
+  answerRejoin: (userId: string, accept: boolean) => Promise<void>;
   leave: () => Promise<void>;
   restore: () => Promise<void>;
   clearError: () => void;
@@ -97,6 +112,8 @@ interface RoomState {
 const KICKED_MESSAGE = "L’hôte t’a exclu du salon.";
 const ROOM_MEMORY_KEY = "red-cups-room";
 const HEARTBEAT_MS = 20_000;
+/** How often the host looks for requests to come back, and a waiting player for the answer. */
+const REJOIN_POLL_MS = 4_000;
 /** How often this device looks at the clocks of the game. */
 const CLOCK_CHECK_MS = 500;
 /** A refused write is retried on the fresh board, e.g. when both duellists picked a hand at once. */
@@ -105,6 +122,10 @@ const MAX_SEND_ATTEMPTS = 3;
 let channel: RealtimeChannel | null = null;
 let heartbeat: number | null = null;
 let clockCheck: number | null = null;
+/** Host: looks for players asking to come back. Sent away: waits for the host's answer. */
+let rejoinPoll: number | null = null;
+/** This device was accepted back after being sent away: it tells the engine once the table is at rest. */
+let reinstating = false;
 /** The last deadline this device closed, so it asks once per deadline. */
 let lastExpiredDeadline: number | null = null;
 /** Server time minus device time, measured at every heartbeat. */
@@ -245,6 +266,15 @@ export const useRoomStore = create<RoomState>((set, get) => {
     if (!code || !myUserId || status !== "playing" || (game.phase !== "playing" && game.phase !== "draft")) return;
     const playerId = getPlayerIdOfUser(seatOrder, myUserId);
     const me = players.find((player) => player.userId === myUserId);
+    // Accepted back by the host: the engine seats the player again once the table is at rest, tried at every beat.
+    if (reinstating && playerId) {
+      if (game.players.some((player) => player.id === playerId)) {
+        reinstating = false;
+      } else if (canReinstatePlayer(game, playerId)) {
+        await sendAction({ type: "reinstatePlayer", playerId });
+      }
+      return;
+    }
     if (!playerId || !me || game.players.some((player) => player.id === playerId)) return;
     await sendAction({
       type: "joinLatePlayer",
@@ -326,6 +356,24 @@ export const useRoomStore = create<RoomState>((set, get) => {
     if (storedVersion !== get().version) enqueue(resync);
   };
 
+  /** Host: the players asking to come back; a toast tells of each new one. */
+  const pollRejoinRequests = async () => {
+    const { code, myUserId, hostId, rejoinRequests } = get();
+    if (!code || !myUserId || myUserId !== hostId) return;
+    try {
+      const requests = await listRejoinRequests(code);
+      const known = new Set(rejoinRequests.map((request) => request.userId));
+      for (const request of requests) {
+        if (!known.has(request.userId)) toast(`${request.name} demande à revenir à la table.`, "neutral");
+      }
+      if (requests.length !== rejoinRequests.length || requests.some((request) => !known.has(request.userId))) {
+        set({ rejoinRequests: requests });
+      }
+    } catch {
+      // The next poll tries again.
+    }
+  };
+
   const connect = async (code: string, userId: string) => {
     await disconnect();
     const supabase = getSupabase();
@@ -384,6 +432,11 @@ export const useRoomStore = create<RoomState>((set, get) => {
     });
 
     heartbeat = window.setInterval(() => void beat(), HEARTBEAT_MS);
+    rejoinPoll = window.setInterval(() => {
+      void pollRejoinRequests();
+      if (reinstating) enqueue(ensureLateJoin);
+    }, REJOIN_POLL_MS);
+    void pollRejoinRequests();
     clockCheck = window.setInterval(checkClocks, CLOCK_CHECK_MS);
     void measureServerOffset();
     setActionRelay((action) => enqueue(() => sendAction(action)));
@@ -398,12 +451,16 @@ export const useRoomStore = create<RoomState>((set, get) => {
     heartbeat = null;
     if (clockCheck !== null) window.clearInterval(clockCheck);
     clockCheck = null;
+    if (rejoinPoll !== null) window.clearInterval(rejoinPoll);
+    rejoinPoll = null;
+    set({ rejoinRequests: [] });
     if (channel) await getSupabase().removeChannel(channel);
     channel = null;
     set({ connection: "offline", connectedUserIds: [] });
   };
 
   const closeRoom = async (message?: string) => {
+    reinstating = false;
     await disconnect();
     rememberRoom(null);
     const wasPlaying = get().view === "playing";
@@ -457,6 +514,8 @@ export const useRoomStore = create<RoomState>((set, get) => {
     connectedUserIds: [],
     connection: "offline",
     preview: null,
+    rejoinRequests: [],
+    rejoinWaitingFor: null,
     busy: false,
     error: null,
 
@@ -485,6 +544,11 @@ export const useRoomStore = create<RoomState>((set, get) => {
           applySnapshot(room);
           await connect(code, get().myUserId!);
           await ensureLateJoin();
+          return;
+        }
+        // Sent away by the host: no seat to take, but a request to make.
+        if (room.kicked) {
+          set({ preview: room });
           return;
         }
         if (!room.joinable) throw new Error("Cette partie a déjà commencé : impossible de la rejoindre.");
@@ -580,6 +644,57 @@ export const useRoomStore = create<RoomState>((set, get) => {
         await kickPlayerFromRoom(code, userId);
         await resync();
         broadcast({ kind: "kicked", userId });
+      }),
+
+    requestRejoin: (name, avatar) =>
+      run(async () => {
+        const code = get().preview?.code;
+        if (!code) return;
+        await ensureSession();
+        const status = await requestRejoinInRoom(code, name, avatar);
+        if (status === "refused") throw new Error("L’hôte a refusé ton retour dans ce salon.");
+        set({ rejoinWaitingFor: code });
+        const wait = window.setInterval(() => {
+          void (async () => {
+            if (get().rejoinWaitingFor !== code) {
+              window.clearInterval(wait);
+              return;
+            }
+            try {
+              const answer = await fetchRejoinStatus(code);
+              if (answer === "pending") return;
+              window.clearInterval(wait);
+              set({ rejoinWaitingFor: null });
+              if (answer === "refused") {
+                toast("L’hôte a refusé ton retour.", "bad");
+                set({ preview: null });
+                return;
+              }
+              if (answer === "accepted") {
+                toast("L’hôte t’a laissé revenir !", "good");
+                reinstating = true;
+                set({ preview: null });
+                await get().lookUpRoom(code);
+              }
+            } catch {
+              // The next poll tries again.
+            }
+          })();
+        }, REJOIN_POLL_MS);
+      }),
+
+    cancelRejoinWait: () => set({ rejoinWaitingFor: null }),
+
+    answerRejoin: (userId, accept) =>
+      run(async () => {
+        const { code, myUserId, hostId, rejoinRequests } = get();
+        if (!code || !myUserId || myUserId !== hostId) return;
+        await answerRejoinInRoom(code, userId, accept);
+        set({ rejoinRequests: rejoinRequests.filter((request) => request.userId !== userId) });
+        if (accept) {
+          await resync();
+          broadcast({ kind: "roster" });
+        }
       }),
 
     leave: () =>

@@ -17,6 +17,7 @@ import { useHomeStore } from "./ui/home/home-store";
 import { MenuScreen } from "./ui/home/menu-screen";
 import { LobbyScreen } from "./ui/lobby/lobby-screen";
 import { OnlineScreen } from "./ui/online/online-screen";
+import { RejoinRequests } from "./ui/online/rejoin-requests";
 
 /** Read once at startup: a game in progress at this point came back from the browser save. */
 const RESTORED_ON_LOAD = useGameStore.getState().phase === "playing";
@@ -98,6 +99,7 @@ export default function App() {
       ) : (
         <OnlineScreen />
       )}
+      <RejoinRequests />
       <OrientationHint />
       <FullscreenGate />
     </div>

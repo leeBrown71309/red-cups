@@ -461,3 +461,45 @@
   width: 100%;
   height: 34px;
 }
+
+/* Host: players sent away who ask to come back, a card in the corner. */
+.rejoin-requests {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 60;
+  display: grid;
+  gap: 8px;
+  max-width: min(340px, calc(100vw - 24px));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rejoin-requests__item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 3px solid var(--ink, #2a1d22);
+  border-radius: 16px;
+  background: var(--cream, #fff4ec);
+  box-shadow: 0 4px 0 var(--ink, #2a1d22);
+}
+
+.rejoin-requests__item p {
+  margin: 0;
+}
+
+.rejoin-requests__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.rejoin-panel {
+  display: grid;
+  gap: 12px;
+}

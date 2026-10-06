@@ -27,6 +27,8 @@ export interface RoomSnapshot {
   joinable: boolean;
   /** False for somebody who has not sat down: they only see the lobby roster, never the board. */
   isPlayer: boolean;
+  /** The host sent this player away: they may ask to come back. */
+  kicked: boolean;
   state: GameState | null;
   version: number;
   seatOrder: string[];
@@ -68,6 +70,7 @@ interface RawRoom {
   status: RoomStatus;
   host_id: string;
   is_player: boolean;
+  kicked?: boolean;
   joinable?: boolean;
   state: GameState | null;
   version: number | null;
@@ -81,6 +84,7 @@ export function parseRoom(raw: RawRoom): RoomSnapshot {
     status: raw.status,
     hostId: raw.host_id,
     isPlayer: raw.is_player,
+    kicked: raw.kicked ?? false,
     joinable: raw.joinable ?? raw.status === "lobby",
     state: raw.state,
     version: raw.version ?? 0,
@@ -138,6 +142,37 @@ export function touchSeat(code: string): Promise<number | null> {
 /** Host only: sends a player away from the lobby or the game. They cannot sit down again. */
 export function kickPlayer(code: string, userId: string): Promise<void> {
   return callRoomFunction("kick_player", { p_code: code, p_user: userId });
+}
+
+export type RejoinStatus = "none" | "pending" | "accepted" | "refused";
+
+export interface RejoinRequest {
+  userId: string;
+  name: string;
+  avatar: number;
+}
+
+/** A player sent away asks the host to let them back; returns where the request stands. */
+export function requestRejoin(code: string, name: string, avatar: number): Promise<RejoinStatus> {
+  return callRoomFunction<RejoinStatus>("request_rejoin", { p_code: code, p_name: name, p_avatar: avatar });
+}
+
+export function fetchRejoinStatus(code: string): Promise<RejoinStatus> {
+  return callRoomFunction<RejoinStatus>("rejoin_status", { p_code: code });
+}
+
+/** Host only: the players waiting to be let back. */
+export async function listRejoinRequests(code: string): Promise<RejoinRequest[]> {
+  const raw = await callRoomFunction<{ user_id: string; name: string; avatar: number }[] | null>(
+    "list_rejoin_requests",
+    { p_code: code },
+  );
+  return (raw ?? []).map((request) => ({ userId: request.user_id, name: request.name, avatar: request.avatar }));
+}
+
+/** Host only: lets a player sent away back, or refuses for good. */
+export function answerRejoin(code: string, userId: string, accept: boolean): Promise<void> {
+  return callRoomFunction("answer_rejoin", { p_code: code, p_user: userId, p_accept: accept });
 }
 
 export function leaveRoom(code: string): Promise<void> {

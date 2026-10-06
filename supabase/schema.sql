@@ -62,6 +62,17 @@ create table if not exists public.room_kicks (
   primary key (room_code, user_id)
 );
 
+-- A player the host sent away may ask to come back; the host answers (patch 0.1.5).
+create table if not exists public.room_rejoin_requests (
+  room_code    text not null references public.rooms(code) on delete cascade,
+  user_id      uuid not null,
+  name         text not null check (char_length(name) between 1 and 16),
+  avatar       smallint not null check (avatar >= 0 and avatar < 8),
+  status       text not null default 'pending' check (status in ('pending', 'accepted', 'refused')),
+  requested_at timestamptz not null default now(),
+  primary key (room_code, user_id)
+);
+
 -- A Google account and the name the table calls it. A guest has no row here.
 -- Only the name for now; the game history will hang off this table later.
 create table if not exists public.profiles (
@@ -110,6 +121,7 @@ alter table public.rooms add column if not exists game_id uuid;
 alter table public.rooms enable row level security;
 alter table public.room_players enable row level security;
 alter table public.room_kicks enable row level security;
+alter table public.room_rejoin_requests enable row level security;
 alter table public.profiles enable row level security;
 alter table public.games enable row level security;
 alter table public.game_seats enable row level security;
@@ -203,6 +215,7 @@ begin
       'status', r.status,
       'host_id', r.host_id,
       'is_player', member,
+      'kicked', exists (select 1 from public.room_kicks k where k.room_code = r.code and k.user_id = me),
       'joinable', r.status = 'lobby' or late,
       'state', case when member then r.state end,
       'version', case when member then r.version end,
@@ -372,7 +385,8 @@ $$;
 
 -- Sending a player away, by the host only, in the lobby or during the game.
 -- The seat stays in the frozen order, like the seat of anybody who left: the
--- host's device tells the engine with `kickPlayer`. The player cannot come back.
+-- host's device tells the engine with `kickPlayer`. The player cannot sit down again on their own:
+-- they ask the host with `request_rejoin`, who answers with `answer_rejoin`.
 create or replace function public.kick_player(p_code text, p_user uuid)
 returns void
 language plpgsql
@@ -393,6 +407,7 @@ begin
 
   delete from public.room_players where room_code = p_code and user_id = p_user;
   insert into public.room_kicks (room_code, user_id) values (p_code, p_user) on conflict do nothing;
+  delete from public.room_rejoin_requests where room_code = p_code and user_id = p_user;
   -- In the lobby the drawn order forgets them; in a game the seat stays frozen.
   update public.rooms
      set seat_order = case
@@ -403,6 +418,139 @@ begin
          end,
          updated_at = now()
    where code = p_code;
+end;
+$$;
+
+-- A player sent away asks the host to let them back. Returns the status of the
+-- request: 'pending', or 'refused' once the host said no (final).
+create or replace function public.request_rejoin(p_code text, p_name text, p_avatar smallint)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me        uuid := auth.uid();
+  seat_name text;
+  existing  text;
+begin
+  if me is null then
+    raise exception 'Identité manquante' using errcode = '28000';
+  end if;
+  if not exists (select 1 from public.rooms where code = p_code and status in ('lobby', 'playing')) then
+    raise exception 'Aucun salon avec ce code' using errcode = 'P0002';
+  end if;
+  if not exists (select 1 from public.room_kicks where room_code = p_code and user_id = me) then
+    raise exception 'Tu n''as pas été exclu de ce salon' using errcode = '42501';
+  end if;
+  select status into existing from public.room_rejoin_requests where room_code = p_code and user_id = me;
+  if existing = 'refused' then
+    return 'refused';
+  end if;
+
+  select pr.display_name into seat_name from public.profiles pr where pr.id = me;
+  seat_name := left(btrim(coalesce(seat_name, p_name, '')), 16);
+  if seat_name = '' then
+    raise exception 'Il faut un nom' using errcode = '22023';
+  end if;
+
+  insert into public.room_rejoin_requests (room_code, user_id, name, avatar, status)
+  values (p_code, me, seat_name, p_avatar, 'pending')
+  on conflict (room_code, user_id)
+  do update set name = excluded.name, avatar = excluded.avatar, status = 'pending', requested_at = now();
+  return 'pending';
+end;
+$$;
+
+-- Where the caller's request stands: 'none', 'pending', 'accepted' or 'refused'.
+create or replace function public.rejoin_status(p_code text)
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce(
+    (select status from public.room_rejoin_requests where room_code = p_code and user_id = auth.uid()),
+    'none'
+  );
+$$;
+
+-- Host only: the requests waiting for an answer.
+create or replace function public.list_rejoin_requests(p_code text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.rooms where code = p_code and host_id = auth.uid()) then
+    return '[]'::jsonb;
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('user_id', q.user_id, 'name', q.name, 'avatar', q.avatar) order by q.requested_at)
+      from public.room_rejoin_requests q
+     where q.room_code = p_code and q.status = 'pending'
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- Host only: lets a player sent away back, or refuses for good. Accepting lifts the
+-- exclusion; in a game under way it also seats the player again at their old chair,
+-- and their own device then tells the engine with `reinstatePlayer`.
+create or replace function public.answer_rejoin(p_code text, p_user uuid, p_accept boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  me       uuid := auth.uid();
+  room     public.rooms%rowtype;
+  request  public.room_rejoin_requests%rowtype;
+  old_seat integer;
+  chosen   smallint;
+begin
+  select * into room from public.rooms where code = p_code and host_id = me for update;
+  if not found then
+    raise exception 'Seul l''hôte peut répondre' using errcode = '42501';
+  end if;
+  select * into request from public.room_rejoin_requests where room_code = p_code and user_id = p_user and status = 'pending';
+  if not found then
+    raise exception 'Aucune demande en attente' using errcode = 'P0002';
+  end if;
+
+  if not p_accept then
+    update public.room_rejoin_requests set status = 'refused' where room_code = p_code and user_id = p_user;
+    return;
+  end if;
+
+  if room.status = 'playing' then
+    select (position - 1)::integer into old_seat
+      from jsonb_array_elements_text(room.seat_order) with ordinality as s(user_id, position)
+     where s.user_id = p_user::text;
+    if old_seat is null then
+      raise exception 'Place introuvable' using errcode = 'P0002';
+    end if;
+    if (select count(*) from public.room_players where room_code = p_code) >= 8 then
+      raise exception 'Le salon est complet' using errcode = '53400';
+    end if;
+    -- Their avatar if nobody took it meanwhile, else the first one free.
+    chosen := request.avatar;
+    if exists (select 1 from public.room_players where room_code = p_code and avatar = chosen) then
+      select g::smallint into chosen from generate_series(0, 7) as g
+       where not exists (select 1 from public.room_players where room_code = p_code and avatar = g)
+       order by g limit 1;
+    end if;
+    insert into public.room_players (room_code, user_id, seat, name, avatar, last_seen)
+    values (p_code, p_user, old_seat, request.name, chosen, now())
+    on conflict (room_code, user_id) do nothing;
+  end if;
+
+  delete from public.room_kicks where room_code = p_code and user_id = p_user;
+  update public.room_rejoin_requests set status = 'accepted' where room_code = p_code and user_id = p_user;
+  update public.rooms set updated_at = now() where code = p_code;
 end;
 $$;
 

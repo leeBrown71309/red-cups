@@ -8,7 +8,7 @@ import type { GameState, PlayerId, TurnStage } from "./types";
  * emptied while the table is at rest, so no wheel, duel or decision is left
  * waiting for someone who is gone.
  */
-const ABANDON_STAGES: TurnStage[] = ["move", "hell", "shop", "turn-end"];
+export const ABANDON_STAGES: TurnStage[] = ["move", "hell", "shop", "turn-end"];
 
 export function canAbandon(state: GameState): boolean {
   return state.phase === "playing" && ABANDON_STAGES.includes(state.turnStage);

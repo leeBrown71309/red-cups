@@ -38,6 +38,7 @@ export function OnlineScreen() {
 
   let panel = <OnlineHome />;
   if (view === "lobby") panel = <RoomLobby />;
+  else if (preview?.kicked) panel = <RejoinRoom code={preview.code} />;
   else if (preview) panel = <JoinRoom players={preview.players} code={preview.code} />;
 
   return (
@@ -156,6 +157,62 @@ function OnlineHome() {
         </button>
       </form>
     </>
+  );
+}
+
+/** A room the host sent this player away from: they may ask to come back, and wait for the answer. */
+function RejoinRoom({ code }: { code: string }) {
+  const busy = useRoomStore((state) => state.busy);
+  const waiting = useRoomStore((state) => state.rejoinWaitingFor === code);
+  const requestRejoin = useRoomStore((state) => state.requestRejoin);
+  const cancelWait = useRoomStore((state) => state.cancelRejoinWait);
+  const clearPreview = useRoomStore((state) => state.clearPreview);
+  const identity = useSeatIdentity();
+  const avatar = identity.rememberedAvatar ?? 0;
+
+  return (
+    <div className="rejoin-panel">
+      <header className="lobby__panel-header">
+        <div>
+          <span className="eyebrow">Salon {formatCode(code)}</span>
+          <h1>Retour à la table</h1>
+        </div>
+      </header>
+      {waiting ? (
+        <>
+          <p className="modal-lead">Demande envoyée : l’hôte doit l’accepter. Reste sur cette page.</p>
+          <button
+            type="button"
+            className="btn btn--cream btn--small"
+            onClick={() => {
+              cancelWait();
+              clearPreview();
+            }}
+          >
+            Annuler la demande
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="modal-lead">L’hôte t’a exclu de ce salon. Tu peux lui demander de te laisser revenir.</p>
+          <NameField identity={identity} />
+          <button
+            type="button"
+            className="btn btn--cup btn--large lobby__start"
+            disabled={busy || !identity.isValid}
+            onClick={() => {
+              saveOnlineIdentity(identity.name, avatar);
+              void requestRejoin(identity.name, avatar);
+            }}
+          >
+            <UiIcon name="play" size={22} /> Demander à revenir
+          </button>
+          <button type="button" className="btn btn--cream btn--small" onClick={clearPreview}>
+            Annuler
+          </button>
+        </>
+      )}
+    </div>
   );
 }
 

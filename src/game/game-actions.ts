@@ -25,6 +25,7 @@ import { offerGamble, resolveGamble } from "./gamble";
 import { rewardHellRegulars } from "./hell-regular";
 import { kickPlayer } from "./kick";
 import { joinLatePlayer } from "./late-join";
+import { reinstatePlayer } from "./reinstate";
 import { pauseGame, resumeGame } from "./pause";
 import { buyItem, isOnShelf, sellItem } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
@@ -170,6 +171,8 @@ export type GameAction =
   | { type: "abandonGame"; playerId: PlayerId }
   /** Online: somebody sat down after the kickoff, while the first round is not over. */
   | { type: "joinLatePlayer"; playerId: PlayerId; name: string; color: PlayerColor }
+  /** A player the host sent away, accepted back: they send it themselves, once their seat is restored. */
+  | { type: "reinstatePlayer"; playerId: PlayerId }
   /** Online: the host sends a player away, at the lobby's table or in the game. */
   | { type: "kickPlayer"; hostId: PlayerId; playerId: PlayerId }
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
@@ -1032,7 +1035,12 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // The pause only touches the clocks: nothing on the board follows from it.
   if (action.type === "pauseGame" || action.type === "resumeGame") return dispatchGameAction(state, action, now);
   // Nothing is played while the game is paused, but a player may still leave the table.
-  if (state.pause && action.type !== "abandonGame" && action.type !== "joinLatePlayer") {
+  if (
+    state.pause &&
+    action.type !== "abandonGame" &&
+    action.type !== "joinLatePlayer" &&
+    action.type !== "reinstatePlayer"
+  ) {
     return state;
   }
   const prepared = spareHellPlayers(state);
@@ -1100,6 +1108,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return kickPlayer(state, action.hostId, action.playerId);
     case "joinLatePlayer":
       return joinLatePlayer(state, action.playerId, action.name, action.color);
+    case "reinstatePlayer":
+      return reinstatePlayer(state, action.playerId);
     case "abandonGame":
       return abandonPlayer(state, action.playerId);
     case "spinWheel":

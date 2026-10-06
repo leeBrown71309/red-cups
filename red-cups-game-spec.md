@@ -612,6 +612,8 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 
 `supabase/schema.sql` ne change pas pour ces règles.
 
+11. **À valider** — **Retour d'un joueur exclu** : il demande à revenir depuis l'écran du salon (code ou lien) ; l'hôte voit une carte « demande à revenir » avec Accepter / Refuser. Refuser est définitif pour ce salon. Accepter lève l'exclusion et, en partie, rend sa place au joueur : il revient **dernier** dans l'ordre des tours, avec ce qu'il avait (pièces, objets, Red Cups, cartes), tour sauté remis à zéro, et seulement quand la table est au repos (sa demande est rejouée jusque-là). L'Ange-Gardien revient en Lambda. Pendant le draft, il se rassoit comme un retardataire, avec de nouvelles offres. Il faut rejouer `supabase/schema.sql` (table `room_rejoin_requests`, fonctions `request_rejoin`, `rejoin_status`, `list_rejoin_requests`, `answer_rejoin`, champ `kicked` de `get_room`).
+
 ## 14. Historique des versions
 
 ### 0.1.5 — octobre 2026
