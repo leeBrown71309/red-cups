@@ -48,6 +48,13 @@ describe("game save upgrade", () => {
     expect(key in upgraded).toBe(true);
   });
 
+  it("restores a game saved before the Barrière took its final shape, with no barriers", () => {
+    const legacy = { ...saved, barrier: { ownerId: "p1", a: 0, b: 1 } } as Record<string, unknown>;
+    delete legacy.barriers;
+    const upgraded = migrateGameSave(legacy, 23);
+    expect(upgraded.barriers).toEqual([]);
+  });
+
   it("knows every key of the state", () => {
     const tracked = new Set<string>([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6]);
     // A key added later must be listed above and filled in by `upgradeSave`.
