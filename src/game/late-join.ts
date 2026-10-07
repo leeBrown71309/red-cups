@@ -75,6 +75,7 @@ export function joinLatePlayer(state: GameState, playerId: PlayerId, name: strin
     passiveId: actif,
     passifId: passif,
     skippedTurns: 0,
+    knockedOut: false,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
     previousNodeId: null,

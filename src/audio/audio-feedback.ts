@@ -74,6 +74,12 @@ export function startAudioFeedback(): () => void {
       case "teleport":
         soundEffects.tunnel();
         break;
+      case "portal-swallowed":
+        soundEffects.tunnel();
+        break;
+      case "hell-portal-open":
+        soundEffects.hellRumble();
+        break;
       case "currency": {
         // The shop's price is heard as the cash register of the purchase event.
         if (event.purchase) break;

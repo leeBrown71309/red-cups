@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { canUseNoThanks } from "../../game/rules";
 import { useGameStore } from "../../game/store";
+import { START_BONUS } from "../../game/types";
 import type { PendingWheel, WheelOutcomeId, WheelResult } from "../../game/types";
 import { soundEffects } from "../../audio/sound-effects";
 import { useCanActFor } from "../../net/room-store";
@@ -105,6 +106,8 @@ function useWheelSpin(
 
 /** The wheels of a spin: one, or two side by side (Main verte, Main rouge, Touché angélique, Main du diable). */
 function getSpunResults(pending: PendingWheel): WheelResult[] {
+  // « Va au Départ »: a single dial, and the Départ/rien choice offered under it.
+  if (pending.randomFallback) return [pending.result];
   if (pending.choices) return [...pending.choices];
   const parallel = pending.repeats?.[0];
   if (parallel && parallel.wheelId === pending.wheelId && !pending.preSpun) return [pending.result, parallel.result];
@@ -214,6 +217,12 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
                       : "Un seul clic : les deux résultats s’appliquent l’un après l’autre, celui de gauche d’abord."}
                   </small>
                 </>
+              ) : mustChoose && pending.randomFallback ? (
+                <>
+                  <span className="wheel-result__eyebrow">La roue indique</span>
+                  <strong className="wheel-result__label">{pending.choices?.[0].label}</strong>
+                  <small className="wheel-result__aside">Tu choisis : y aller, ou que rien ne se passe.</small>
+                </>
               ) : (
                 <>
                   <span className="wheel-result__eyebrow">Résultat</span>
@@ -222,20 +231,38 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
               )}
               {canAct ? (
                 <div className="wheel-result__actions">
-                  {!mustChoose && (
-                    <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
-                      <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
-                    </button>
-                  )}
-                  {hasEraser && !mustChoose && (
-                    <button type="button" className="btn btn--cream btn--block" onClick={() => cancelWheel()}>
-                      <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
-                    </button>
-                  )}
-                  {hasNoThanks && !mustChoose && (
-                    <button type="button" className="btn btn--grape btn--block" onClick={() => cancelWheel(true)}>
-                      <UiIcon name="hand" size={20} /> Non merci !
-                    </button>
+                  {mustChoose && pending.randomFallback ? (
+                    <>
+                      <button
+                        type="button"
+                        className="btn btn--cup btn--block"
+                        onClick={() => pickWheelResult(0)}
+                        data-autofocus
+                      >
+                        <UiIcon name="flag" size={20} /> Aller au Départ · +{START_BONUS}
+                      </button>
+                      <button type="button" className="btn btn--cream btn--block" onClick={() => pickWheelResult(1)}>
+                        Rien ne se passe
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {!mustChoose && (
+                        <button type="button" className="btn btn--cup btn--block" onClick={resolveWheel} data-autofocus>
+                          <UiIcon name="check" size={20} /> {CHAINED_WHEEL_ACTIONS[pending.result.id] ?? "Appliquer"}
+                        </button>
+                      )}
+                      {hasEraser && !mustChoose && (
+                        <button type="button" className="btn btn--cream btn--block" onClick={() => cancelWheel()}>
+                          <ItemIcon itemId="eraser" size={24} /> Effacer avec la Gomme
+                        </button>
+                      )}
+                      {hasNoThanks && !mustChoose && (
+                        <button type="button" className="btn btn--grape btn--block" onClick={() => cancelWheel(true)}>
+                          <UiIcon name="hand" size={20} /> Non merci !
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               ) : (

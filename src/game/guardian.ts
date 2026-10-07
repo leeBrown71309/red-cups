@@ -61,6 +61,7 @@ export function rescueProtege(state: GameState): GameState {
   nextState = updatePlayer(nextState, angel.id, (player) => ({
     ...player,
     skippedTurns: player.skippedTurns + RESCUE_SKIPPED_TURNS,
+    knockedOut: true,
   }));
   return addLog(
     { ...spendAllEnergy(nextState), turnStage: "turn-end" },

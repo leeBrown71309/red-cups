@@ -2,6 +2,7 @@ import { getHellTurnLimit } from "../../game/passive-rules";
 import { hasCard } from "../../game/cards";
 import type { ReactNode } from "react";
 import { getDevilGoalFor } from "../../game/devil";
+import { isKnockedOut } from "../../game/rules";
 import { getIdleStrikes, IDLE_STRIKES_TO_FORFEIT } from "../../game/turn-clock";
 import type { GameState, Player } from "../../game/types";
 import { HELL_NODE_ID, RED_CUP_GOAL, SNOWBALL_HITS_TO_FREEZE } from "../../game/types";
@@ -10,7 +11,7 @@ import { CloverIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
 
 export function getAvatarExpression(player: Player): AvatarExpression {
-  if (player.skippedTurns > 0) return "sleepy";
+  if (isKnockedOut(player)) return "sleepy";
   if (player.position === HELL_NODE_ID) return "worried";
   return "happy";
 }
@@ -92,6 +93,13 @@ export function getPlayerStatuses(state: GameState, player: Player): PlayerStatu
       tone: "sleep",
       icon: <UiIcon name="sleep" size={11} strokeWidth={3} />,
       label: "Passe son prochain tour",
+    });
+  } else if (player.knockedOut) {
+    statuses.push({
+      id: "sleep",
+      tone: "sleep",
+      icon: <UiIcon name="sleep" size={11} strokeWidth={3} />,
+      label: "Encore assommé : son tour sauté, libéré à son prochain tour",
     });
   }
   if (player.position === HELL_NODE_ID) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GameLogo } from "../ui/components/game-logo";
 import { UiIcon } from "../ui/icons/ui-icon";
 import {
@@ -12,7 +12,7 @@ import {
   type ReportStatus,
 } from "./api";
 import { getReportClient, reportsAvailable } from "./client";
-import { ELEMENT_GROUPS } from "./elements";
+import { ELEMENT_OPTIONS, normalizeElementText, type ElementOption } from "./elements";
 
 /**
  * The reporting page, served next to the game (`feedback.html`): players send
@@ -166,21 +166,12 @@ function ReportForm() {
         </div>
       </div>
 
-      <label className="report-field">
-        <span className="report-label">Élément concerné (facultatif)</span>
-        <select className="report-input" value={element} onChange={(event) => setElement(event.target.value)}>
-          <option value="">Général, ou je ne sais pas</option>
-          {ELEMENT_GROUPS.map((group) => (
-            <optgroup key={group.label} label={group.label}>
-              {group.options.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
+      <div className="report-field">
+        <span className="report-label" id="report-element-label">
+          Élément concerné (facultatif)
+        </span>
+        <ElementPicker value={element} onChange={setElement} />
+      </div>
 
       <label className="report-field">
         <span className="report-label">Titre</span>
@@ -224,6 +215,113 @@ function ReportForm() {
   );
 }
 
+/**
+ * The searchable element picker: the full catalogue drops down on focus,
+ * typing narrows it (accents ignored), and a text that is not in the list
+ * stays allowed — the field is optional and free.
+ */
+function ElementPicker({ value, onChange }: { value: string; onChange: (element: string) => void }) {
+  const [text, setText] = useState(value);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => setText(value), [value]);
+
+  const matches = useMemo(() => {
+    const needle = normalizeElementText(text.trim());
+    return needle === ""
+      ? ELEMENT_OPTIONS
+      : ELEMENT_OPTIONS.filter((option) => normalizeElementText(option.name).includes(needle));
+  }, [text]);
+
+  const type = (next: string) => {
+    setText(next);
+    onChange(next.trim());
+    setActive(0);
+    setOpen(true);
+  };
+
+  const choose = (option: ElementOption) => {
+    setText(option.name);
+    onChange(option.name);
+    setOpen(false);
+    inputRef.current?.blur();
+  };
+
+  return (
+    <div className="picker" onBlur={(event) => !event.currentTarget.contains(event.relatedTarget) && setOpen(false)}>
+      <input
+        ref={inputRef}
+        id="report-element"
+        className="report-input"
+        role="combobox"
+        aria-labelledby="report-element-label"
+        aria-expanded={open}
+        aria-controls="report-element-list"
+        aria-autocomplete="list"
+        autoComplete="off"
+        maxLength={60}
+        placeholder="Tape pour rechercher : Barrière, Cupide, Banquise…"
+        value={text}
+        onFocus={() => setOpen(true)}
+        onChange={(event) => type(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+          else if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setActive((index) => Math.min(index + 1, matches.length - 1));
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActive((index) => Math.max(index - 1, 0));
+          } else if (event.key === "Enter" && open) {
+            // Never submit the form from the combobox: Enter takes the highlighted element, if any.
+            event.preventDefault();
+            if (matches[active]) choose(matches[active]);
+          }
+        }}
+      />
+      {text !== "" && (
+        <button
+          type="button"
+          className="picker__clear"
+          aria-label="Effacer l'élément"
+          onClick={() => {
+            type("");
+            inputRef.current?.focus();
+          }}
+        >
+          <UiIcon name="close" size={14} />
+        </button>
+      )}
+      {open && (
+        <div id="report-element-list" className="picker__list" role="listbox">
+          {matches.length === 0 && (
+            <p className="picker__empty">Aucun élément trouvé — ton texte sera gardé tel quel.</p>
+          )}
+          {matches.map((option, index) => (
+            <div key={option.name}>
+              {(index === 0 || matches[index - 1].group !== option.group) && (
+                <p className="picker__group">{option.group}</p>
+              )}
+              <button
+                type="button"
+                role="option"
+                aria-selected={index === active}
+                className={`picker__option ${index === active ? "is-active" : ""}`}
+                onMouseEnter={() => setActive(index)}
+                onClick={() => choose(option)}
+              >
+                {option.name}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type AdminView = "loading" | "signed-out" | "signed-in";
 
 function AdminSection() {
@@ -260,7 +358,7 @@ function AdminSection() {
           onSignOut={() => void adminSignOut().then(() => setView("signed-out"))}
         />
       )}
-      {view === "loading" && <p className="report-hint">Vérification de la session…</p>}
+      {view === "loading" && <p className="admin__empty">Vérification de la session…</p>}
       {view === "signed-out" && (
         <AdminSignIn
           error={error}
@@ -343,6 +441,36 @@ type StatusFilter = "all" | ReportStatus;
 /** Reports shown per admin page, newest first. */
 const REPORT_PAGE_SIZE = 10;
 
+const FILTER_LABEL: Record<StatusFilter, string> = {
+  all: "Tous",
+  new: "Nouveaux",
+  in_progress: "En cours",
+  fixed: "Corrigés",
+  rejected: "Rejetés",
+};
+const KIND_TAG: Record<ReportKind, string> = { bug: "BUG", idea: "IDÉE", other: "AUTRE" };
+
+/**
+ * The admin's « Copier » text: the whole filtered list as one paste-ready
+ * brief, one block per report (type, elements touched, title, description),
+ * meant to be pasted straight into a chat to drive the corrections.
+ */
+function formatReportsForCopy(reports: Report[], filter: StatusFilter): string {
+  const blocks = reports.map((report, index) => {
+    const target = report.element || "Général";
+    const note = report.adminNote ? `\n   Note de l’équipe : ${report.adminNote}` : "";
+    return (
+      `${index + 1}. [${KIND_TAG[report.kind]}] ${target} — ${report.title}\n` +
+      `   Signalé le ${formatDate(report.createdAt)} · statut : ${STATUS_LABEL[report.status]}\n` +
+      `   ${report.message}${note}`
+    );
+  });
+  return [
+    `Red Cups — signalements (${FILTER_LABEL[filter]}), ${reports.length} au total, du plus récent au plus ancien.`,
+    ...blocks,
+  ].join("\n\n");
+}
+
 function AdminReports({
   reports,
   onReload,
@@ -354,12 +482,23 @@ function AdminReports({
 }) {
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
+  const [copied, setCopied] = useState(false);
   const counts: Record<StatusFilter, number> = { all: reports.length, new: 0, in_progress: 0, fixed: 0, rejected: 0 };
   for (const report of reports) counts[report.status] += 1;
   const shown = filter === "all" ? reports : reports.filter((report) => report.status === filter);
   const pages = Math.max(1, Math.ceil(shown.length / REPORT_PAGE_SIZE));
   const current = Math.min(page, pages);
   const visible = shown.slice((current - 1) * REPORT_PAGE_SIZE, current * REPORT_PAGE_SIZE);
+
+  const copyList = async () => {
+    try {
+      await navigator.clipboard.writeText(formatReportsForCopy(shown, filter));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // A browser refusing clipboard access leaves the button silent; the text is on screen anyway.
+    }
+  };
 
   return (
     <div className="admin__panel">
@@ -375,11 +514,20 @@ function AdminReports({
                 setPage(1);
               }}
             >
-              {option === "all" ? "Tous" : STATUS_LABEL[option]} <small>{counts[option] ?? 0}</small>
+              {FILTER_LABEL[option]} <small>{counts[option] ?? 0}</small>
             </button>
           ))}
         </div>
         <div className="admin__tools">
+          <button
+            type="button"
+            className="btn btn--mint btn--small"
+            onClick={() => void copyList()}
+            disabled={shown.length === 0}
+            title="Copier tout le filtre affiché, formaté pour un chat"
+          >
+            <UiIcon name={copied ? "check" : "copy"} size={18} /> {copied ? "Copié !" : "Copier"}
+          </button>
           <button
             type="button"
             className="icon-button icon-button--small"
@@ -394,7 +542,7 @@ function AdminReports({
         </div>
       </div>
 
-      {shown.length === 0 && <p className="report-hint">Rien dans cette case, pour l’instant.</p>}
+      {shown.length === 0 && <p className="admin__empty">Rien dans cette case, pour l’instant.</p>}
       {visible.map((report) => (
         <AdminReportCard key={report.id} report={report} onSaved={onReload} />
       ))}
@@ -482,7 +630,7 @@ function AdminReportCard({ report, onSaved }: { report: Report; onSaved: () => P
             className="report-input report-input--small"
             value={note}
             maxLength={500}
-            placeholder="Ex : corrigé dans la 0.2.1"
+            placeholder="Ex : corrigé dans la 0.2.0"
             onChange={(event) => setNote(event.target.value)}
           />
         </label>

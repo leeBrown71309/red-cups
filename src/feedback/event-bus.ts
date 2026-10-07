@@ -41,6 +41,10 @@ export type FeedbackEvent =
   | { type: "pawn-hop" }
   | { type: "pawn-tunnel" }
   | { type: "pawn-slide" }
+  /** Portail: the pawn landed on the tile and the portal is swallowing it whole. */
+  | { type: "portal-swallowed"; nodeId: NodeId }
+  /** Portail: a portal opens on the Hell side for the pawn to drop through. */
+  | { type: "hell-portal-open" }
   /** Banquise: a slide ran into a Barrière on the road between two tiles and bounced back. */
   | { type: "barrier-bump"; from: NodeId; toward: NodeId }
   | { type: "ice-shatter"; playerId: PlayerId }

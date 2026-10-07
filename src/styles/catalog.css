@@ -130,6 +130,20 @@
   min-height: 0;
 }
 
+/* In the help, the item card fills the height its column offers. */
+.catalog__detail .item-detail {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* There the description uses all the leftover height instead of a capped box. */
+.catalog__detail .item-detail__description {
+  max-height: none;
+}
+
 /* ---------- The item detail (shop and help) ---------- */
 .item-detail {
   display: flex;
@@ -188,6 +202,9 @@
   min-height: 3.2rem;
   max-height: 11rem;
   padding: 8px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.7);
   color: var(--ink-soft);
@@ -345,8 +362,10 @@
   gap: 4px;
 }
 
+/* The card hugs its content (top-aligned) instead of stretching to the shelf's height and leaving a blank gap. */
 .shop-detail {
   display: flex;
+  align-items: flex-start;
   min-height: 0;
 }
 
@@ -719,17 +738,6 @@
 
 /* Phones in portrait: the shelf keeps room for several rows, the detail stays short. */
 @media (max-width: 760px) and (min-height: 521px) {
-  .shop-modal .modal-card__footer {
-    flex-wrap: nowrap;
-    padding: 8px 12px 10px;
-  }
-
-  .shop-modal .modal-card__footer .btn {
-    flex: 1;
-    padding-inline: 8px;
-    white-space: nowrap;
-  }
-
   .shop-item__chips {
     flex-wrap: nowrap;
     gap: 2px;

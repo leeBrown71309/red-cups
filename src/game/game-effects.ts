@@ -27,6 +27,7 @@ import {
   getInventoryCapacity,
   getNodeKind,
   getTileWheelFor,
+  isKnockedOut,
   opensShop,
 } from "./rules";
 import {
@@ -103,6 +104,13 @@ export function startWheel(
     choices = [result, other];
     if (getWheelResultValue(other) > getWheelResultValue(result)) result = other;
   }
+  // « Va au Départ » (patch 0.2.0): the player of the wheel of fortune may refuse the start and pick
+  // nothing instead; time running out falls on one or the other at 50/50.
+  let randomFallback = false;
+  if (!choices && wheelId === "fortune" && result.id === "go-to-start") {
+    choices = [result, { id: "nothing", label: "Rien ne se passe" }];
+    randomFallback = true;
+  }
   // A second wheel of the same kind for Touché angélique and Main du diable, spun along with this one and
   // applied once this one is settled.
   const repeats: QueuedWheel[] = [
@@ -123,14 +131,17 @@ export function startWheel(
       ...rest,
       ...(preset ? { preSpun: true } : {}),
       ...(choices ? { choices } : {}),
+      ...(randomFallback ? { randomFallback: true } : {}),
       ...(repeats.length > 0 ? { repeats } : {}),
     },
     turnStage: "wheel-result",
   };
   const whose = spinner ? ` de ${spinner.name}` : "";
-  const text = choices
-    ? `Les deux roues ${WHEEL_LOG_NAMES[wheelId]}${whose} indiquent : ${choices[0].label} et ${choices[1].label}.`
-    : `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}.`;
+  const text = randomFallback
+    ? `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label} — ou rien, au choix du joueur.`
+    : choices
+      ? `Les deux roues ${WHEEL_LOG_NAMES[wheelId]}${whose} indiquent : ${choices[0].label} et ${choices[1].label}.`
+      : `La roue ${WHEEL_LOG_NAMES[wheelId]}${whose} indique : ${result.label}.`;
   return addLog(nextState, text, "event");
 }
 
@@ -589,7 +600,7 @@ export function stealFromKnockedOut(state: GameState, playerId: PlayerId): GameS
   if (!thief || !hasCard(thief, "greedy")) return state;
   let nextState = state;
   const victims = state.players.filter(
-    (player) => player.id !== thief.id && player.position === thief.position && player.skippedTurns > 0,
+    (player) => player.id !== thief.id && player.position === thief.position && isKnockedOut(player),
   );
   for (const victim of victims) {
     nextState = applyCurrencyChange(nextState, victim.id, -GREEDY_STUN_THEFT);
@@ -817,6 +828,13 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     attempts += 1;
   } while (attempts < seatCount * 3);
 
+  // The seated player can play again: the knocked-out status ends there, once their skipped turns are used up.
+  if (nextState.players[nextIndex].knockedOut) {
+    nextState = updatePlayer(nextState, nextState.players[nextIndex].id, (player) => ({
+      ...player,
+      knockedOut: false,
+    }));
+  }
   nextState = serveHellTurn(nextState, nextState.players[nextIndex].id);
   const activePlayer = nextState.players[nextIndex];
   nextState = {

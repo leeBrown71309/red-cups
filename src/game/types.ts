@@ -208,6 +208,9 @@ export interface Player {
   /** The Miroir was used: this player may not buy another one this game. */
   mirrorUsed?: boolean;
   skippedTurns: number;
+  /** Knocked-out mark (patch 0.2.0): raised when a turn is lost, kept until the player can play again,
+   * one turn after the skipped ones are used up; it is what Toucher d'Enfer and Cupide read. */
+  knockedOut: boolean;
   /** First round in which Non merci may cancel an action again. */
   noThanksReadyRound: number;
   /** Own turns spent in Hell since the last trip there, skipped ones included. */
@@ -315,6 +318,9 @@ export interface PendingWheel {
   choices?: [WheelResult, WheelResult];
   /** Which of the two results the player kept; unset until they choose. */
   chosen?: 0 | 1;
+  /** « Va au Départ » of the wheel of fortune: the player may prefer that nothing happens; a choice left
+   * undecided (the clock ran out) falls on one or the other at 50/50. */
+  randomFallback?: boolean;
   /** A wheel already spun in parallel with the one before it (Touché angélique, Main du diable): it only waits to be applied. */
   preSpun?: boolean;
   /** Touché angélique, Main du diable: wheels spun at the same time as this one, applied in order once it is settled. */
@@ -635,7 +641,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.1.5";
+export const RULES_VERSION = "0.2.0";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -659,6 +665,8 @@ export interface PlayerMovement {
   thawed?: boolean;
   /** Luna Park: the ghost slapped the player and carried them to Hell. */
   flungByGhost?: boolean;
+  /** Portail: the walk ends on this tile, whose portal then swallows the player whole. */
+  portalNodeId?: NodeId;
 }
 
 /** Banquise: the last snowball thrown by the penguins, kept so the scene can replay it. */

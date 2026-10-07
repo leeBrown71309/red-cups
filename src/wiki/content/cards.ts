@@ -25,7 +25,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• À CHAQUE nouvelle Red Cup, AVANT qu'elle apparaisse : tu choisis de filer au Départ (avec les 200 du bonus) ou de rester où tu es.",
         "• Filer au Départ n'est pas une arrivée : pas de boutique, pas de roue sur la case, et une roue que tu devais encore sur la case quittée s'efface.",
         "• La nouvelle Cup se pose après ton choix; tu peux donc te retrouver juste à côté d'elle.",
-        "• En Enfer, « aller au Départ » te libère sans péage (et ta peine recommence à zéro si tu y retournes).",
+        "• En Enfer, la carte ne libère pas (patch 0.2.0) : « aller au Départ » t'est refusé, tu restes purger ta peine.",
         "• À Banquise, si le Départ est gelé, la glace t'emporte.",
       ],
     },
@@ -116,7 +116,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• 3 000 pièces au départ au lieu de 2 000.",
+        "• +1 000 pièces au départ (3 000 quand l'autre carte est neutre, contre 2 000 pour tout le monde).",
         "• Jamais distribué au même joueur que Cupide.",
         "• Avec eShop les départs se corrigent : 2 000 + 1 000 − 1 000 = 2 000.",
       ],
@@ -174,7 +174,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Victoire propre : dès qu'il atteint 6 000 pièces, le compte est bon, Cups ou pas Cups, au tour de qui que ce soit.",
         "• Une Red Cup lui rapporte 1 000 pièces au lieu d'occuper une place de sac (une nouvelle Cup apparaît comme d'habitude).",
-        "• Marcher sur un joueur ASSOMMÉ lui vole 50 pièces (à chaque assommé de la case).",
+        "• Marcher sur un joueur ASSOMMÉ lui vole 50 pièces (à chaque assommé de la case) — l'assommement court jusqu'à ce que la victime puisse rejouer (patch 0.2.0).",
         "• Sa Boue coûte 100; qui tombe dedans lui paie 200.",
         "• Les pièces que son Ndoye fait perdre à la cible finissent dans sa poche — jamais s'il se vise lui-même.",
         "• Hors du jeu des Cups : il compte dans le sac mais n'en garde aucune, et reste hors de la comparaison pour Dernier de la classe.",

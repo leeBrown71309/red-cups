@@ -325,7 +325,9 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "new-cup-new-me",
     name: "New Cup, New Me",
     shortName: "New Cup",
-    description: "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es.",
+    description:
+      "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es. " +
+      "La carte ne sort pas de l’Enfer.",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
@@ -379,7 +381,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "nepo-baby",
     name: "Nepo Baby",
     shortName: "Nepo Baby",
-    description: "Tu commences la partie avec 3 000 pièces.",
+    description: "Tu commences la partie avec 1 000 pièces de plus que les autres.",
   },
   "red-bull": {
     id: "red-bull",
