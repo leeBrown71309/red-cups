@@ -43,6 +43,7 @@ export function MenuScreen({ onPlayOnline }: MenuScreenProps) {
         </button>
         {onPlayOnline && <MenuButton tone="sky" icon="globe" label="Jouer en ligne" onClick={onPlayOnline} />}
         <MenuButton tone="cream" icon="help" label="Comment jouer" onClick={() => setHelpOpen(true)} />
+        <MenuButton tone="cream" icon="info" label="Wiki du jeu" onClick={openWiki} />
         <MenuButton tone="cream" icon="settings" label="Paramètres" onClick={() => setSettingsOpen(true)} />
         <MenuButton
           tone="cream"
@@ -56,6 +57,11 @@ export function MenuScreen({ onPlayOnline }: MenuScreenProps) {
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
     </main>
   );
+}
+
+/** The wiki is a second page of this build, served next to the game. */
+function openWiki() {
+  window.open(`${import.meta.env.BASE_URL}wiki.html`, "_blank", "noopener");
 }
 
 function MenuButton({
