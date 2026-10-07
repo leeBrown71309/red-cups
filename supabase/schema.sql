@@ -810,6 +810,160 @@ begin
 end;
 $$;
 
+-- ------------------------------------------------------------- signalements
+--
+-- The bugs-and-ideas page (feedback.html): any visitor reports a bug or an
+-- idea without an account, through `submit_report` only. The admin reads and
+-- sorts the reports after signing in with the email+password account listed
+-- in `report_admins`. The table is closed like the others: reads and writes
+-- go through definer functions, the caller comes from `auth.uid()`.
+
+create table if not exists public.reports (
+  id            uuid primary key default gen_random_uuid(),
+  kind          text not null check (kind in ('bug', 'idea', 'other')),
+  element       text check (element is null or char_length(element) <= 60),
+  title         text not null check (char_length(title) between 3 and 80),
+  message       text not null check (char_length(message) between 10 and 2000),
+  contact_email text check (contact_email is null or contact_email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+  status        text not null default 'new' check (status in ('new', 'in_progress', 'fixed', 'rejected')),
+  admin_note    text check (admin_note is null or char_length(admin_note) <= 500),
+  -- The account behind the report when the visitor happened to be signed in; null for a guest.
+  reporter_id   uuid references auth.users(id) on delete set null,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists reports_status_newest on public.reports (status, created_at desc);
+
+-- The mailboxes allowed to manage the reports. The Supabase auth account must
+-- exist too, with this email: provision it with the local script
+-- `scripts/create-admin.ts` (untracked, uses the service_role key, no
+-- confirmation email), or from the dashboard (Authentication → Users).
+create table if not exists public.report_admins (
+  email text primary key check (email = lower(email))
+);
+
+insert into public.report_admins (email)
+values ('blee71309@gmail.com')
+on conflict (email) do nothing;
+
+alter table public.reports enable row level security;
+alter table public.report_admins enable row level security;
+
+create or replace function public.is_report_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from auth.users u
+      join public.report_admins a on a.email = lower(u.email)
+     where u.id = auth.uid()
+  );
+$$;
+
+-- A report from anybody, signed in or not. The checks of the table answer
+-- with the database's own words when the form sends something out of bounds.
+create or replace function public.submit_report(
+  p_kind text,
+  p_element text,
+  p_title text,
+  p_message text,
+  p_contact_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_kind not in ('bug', 'idea', 'other') then
+    raise exception 'Type de signalement inconnu' using errcode = '22023';
+  end if;
+  insert into public.reports (kind, element, title, message, contact_email, reporter_id)
+  values (
+    p_kind,
+    nullif(btrim(coalesce(p_element, '')), ''),
+    btrim(coalesce(p_title, '')),
+    btrim(coalesce(p_message, '')),
+    lower(nullif(btrim(coalesce(p_contact_email, '')), '')),
+    auth.uid()
+  );
+exception
+  when check_violation then
+    raise exception 'Le titre (3 à 80 caractères) ou le texte (10 à 2000) ne va pas' using errcode = '23514';
+end;
+$$;
+
+-- Admin only: every report, the newest arrivals first.
+create or replace function public.list_reports()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_report_admin() then
+    raise exception 'Accès réservé à l''administrateur' using errcode = '42501';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', r.id, 'kind', r.kind, 'element', r.element, 'title', r.title, 'message', r.message,
+      'contact_email', r.contact_email, 'status', r.status, 'admin_note', r.admin_note,
+      'created_at', r.created_at
+    ) order by r.created_at desc)
+    from public.reports r
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- Admin only: sorts one report and leaves a note beside it.
+create or replace function public.set_report_status(p_id uuid, p_status text, p_note text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_report_admin() then
+    raise exception 'Accès réservé à l''administrateur' using errcode = '42501';
+  end if;
+  if p_status not in ('new', 'in_progress', 'fixed', 'rejected') then
+    raise exception 'Statut inconnu' using errcode = '22023';
+  end if;
+  update public.reports
+     set status = p_status,
+         admin_note = left(nullif(btrim(coalesce(p_note, '')), ''), 500),
+         updated_at = now()
+   where id = p_id;
+  if not found then
+    raise exception 'Signalement introuvable' using errcode = 'P0002';
+  end if;
+end;
+$$;
+
+-- The visitor's page is anonymous, so its only function opens to `anon` too.
+revoke execute on function public.submit_report(text, text, text, text, text) from public;
+grant execute on function public.submit_report(text, text, text, text, text) to anon, authenticated;
+
+do $$
+declare
+  fn text;
+begin
+  foreach fn in array array[
+    'public.is_report_admin()',
+    'public.list_reports()',
+    'public.set_report_status(uuid, text, text)'
+  ] loop
+    execute format('revoke execute on function %s from public, anon', fn);
+    execute format('grant execute on function %s to authenticated', fn);
+  end loop;
+end;
+$$;
+
 -- --------------------------------------------------------------- realtime
 --
 -- Rooms talk on private channels named `room:<CODE>`. Realtime checks these

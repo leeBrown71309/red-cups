@@ -241,6 +241,10 @@ html,
 .wiki-nav__foot {
   margin-top: auto;
   padding-top: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 }
 
 /* ————— Content ————— */

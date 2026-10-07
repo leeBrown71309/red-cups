@@ -10,8 +10,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       // The game and its wiki ship as one build: the wiki is a second entry,
-      // served next to the game ("wiki.html" on both hosts).
-      input: { main: "index.html", wiki: "wiki.html" },
+      // served next to the game ("wiki.html" on both hosts). The reporting
+      // page is a third one, opened from the menu and from the wiki.
+      input: { main: "index.html", wiki: "wiki.html", report: "feedback.html" },
       output: {
         manualChunks(id) {
           if (id.includes("/node_modules/three/")) return "three";
