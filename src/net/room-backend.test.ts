@@ -86,7 +86,7 @@ beforeAll(async () => {
   await db.exec(`
     create role anon; create role authenticated;
     create schema auth;
-    create table auth.users (id uuid primary key, is_anonymous boolean not null default false);
+    create table auth.users (id uuid primary key, is_anonymous boolean not null default false, email text);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
     create schema realtime;
@@ -608,4 +608,80 @@ describe("history of simulated accounts, with bots playing whole games", () => {
     const { rows } = await db.query<{ n: number }>(`select count(*)::int n from games where room_code = $1`, [code]);
     return rows[0].n;
   }
+});
+
+describe("reports", () => {
+  async function makeAdmin(email: string): Promise<string> {
+    const id = await person("google");
+    await db.query(`update auth.users set email = $1 where id = $2`, [email, id]);
+    await db.query(`insert into report_admins (email) values ($1)`, [email]);
+    return id;
+  }
+
+  it("accepts a report from anybody, but shows it only to the admin", async () => {
+    const visitor = await person();
+    await as(
+      visitor,
+      `select submit_report('bug', 'Barrière', 'La Botte saute la Barrière deux fois', 'Achetée au tour 3, la Botte a passé la Barrière puis le tour a continué normalement.', null)`,
+    );
+    const { rows } = await db.query<{ n: number }>(`select count(*)::int n from reports where reporter_id = $1`, [
+      visitor,
+    ]);
+    expect(rows[0].n).toBe(1);
+
+    const outsider = await person();
+    expect(await refusal(outsider, `select list_reports()`)).toMatch(/administrateur/);
+
+    const admin = await makeAdmin("chief@example.com");
+    const [first] = await as<{ r: { title: string; element: string; status: string; kind: string }[] }>(
+      admin,
+      `select list_reports() r`,
+    );
+    expect(first.r.at(-1)).toMatchObject({ kind: "bug", element: "Barrière", status: "new" });
+
+    // Newest arrivals head the list.
+    await as(
+      visitor,
+      `select submit_report('idea', '', 'Le doigt d''honneur coûte moins cher', 'Il rendrait la boutique plus vivante.', null)`,
+    );
+    const [second] = await as<{ r: { title: string }[] }>(admin, `select list_reports() r`);
+    expect(second.r[0].title).toBe("Le doigt d'honneur coûte moins cher");
+  });
+
+  it("is sorted and annotated by the admin only", async () => {
+    const reporter = await person();
+    await as(
+      reporter,
+      `select submit_report('idea', '', 'Offrir le premier Red Cup', 'Pour débloquer les parties, le premier Red Cup coûterait moins cher au tour 1.', 'joueur@example.com')`,
+    );
+    const { rows: idRows } = await db.query<{ id: string }>(
+      `select id from reports where contact_email = 'joueur@example.com'`,
+    );
+    const id = idRows[0].id;
+
+    const random = await person("google");
+    expect(await refusal(random, `select set_report_status($1, 'fixed', '')`, [id])).toMatch(/administrateur/);
+
+    const admin = await makeAdmin("chief2@example.com");
+    await as(admin, `select set_report_status($1, 'fixed', 'idée retenue pour plus tard')`, [id]);
+    const [list] = await as<{ r: { id: string; status: string; admin_note: string }[] }>(
+      admin,
+      `select list_reports() r`,
+    );
+    expect(list.r.find((report) => report.id === id)).toMatchObject({
+      status: "fixed",
+      admin_note: "idée retenue pour plus tard",
+    });
+  });
+
+  it("refuses a report with nothing to read", async () => {
+    const visitor = await person();
+    expect(await refusal(visitor, `select submit_report('bug', '', 'Court', 'Trop !', null)`)).toMatch(/titre|texte/);
+    expect(
+      await refusal(
+        visitor,
+        `select submit_report('nimporte', '', 'Un titre correct', 'Et un texte suffisant.', null)`,
+      ),
+    ).toMatch(/Type/);
+  });
 });

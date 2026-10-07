@@ -138,6 +138,9 @@ export function WikiApp() {
         <a className="btn btn--cup btn--small" href="./">
           <UiIcon name="arrowLeft" size={16} /> Retour au jeu
         </a>
+        <a className="wiki-nav__link" href="./feedback.html" target="_blank" rel="noopener">
+          <UiIcon name="flag" size={16} /> Signaler un bug, une idée
+        </a>
       </div>
     </nav>
   );

@@ -1,15 +1,15 @@
 {
   "name": "red-cups",
   "private": true,
-  "version": "0.1.5",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "preview": "vite preview",
-    "format": "prettier --write src scripts index.html wiki.html",
-    "format:check": "prettier --check src scripts index.html wiki.html",
+    "format": "prettier --write src scripts index.html wiki.html feedback.html",
+    "format:check": "prettier --check src scripts index.html wiki.html feedback.html",
     "simulate": "bun scripts/simulate.ts"
   },
   "dependencies": {

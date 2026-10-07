@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.2.0",
+    date: "2026-10-07",
+    title: "On ne joue plus qu’en ligne, et le jeu vous écoute",
+    highlights: [
+      "Sur le site public, le jeu en local disparaît du menu : « Jouer en ligne » devient l’unique grand bouton rouge pour commencer. Le local reste réservé aux tests.",
+      "Nouvelle page « Signaler un bug, une idée », ouverte depuis le menu du jeu et depuis le wiki : un objet capricieux, une carte tordue, une idée de règle ? Écrivez-la, avec l’élément du jeu concerné.",
+      "Chaque signalement est lu et trié par l’équipe : nouveau, en cours, corrigé ou rejeté.",
+    ],
+  },
+  {
     version: "0.1.5",
     date: "2026-10-05",
     title: "Menu, cartes de tarot et salons ouverts",

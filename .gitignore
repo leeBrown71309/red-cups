@@ -5,3 +5,8 @@ coverage/
 .DS_Store
 .env.local
 .env.*.local
+
+# Local agent tooling: stays on the machine, never on GitHub.
+.mcp.json
+# Local admin-provisioning tool: uses the service_role secret, stays off GitHub.
+scripts/create-admin.ts

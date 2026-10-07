@@ -43,7 +43,9 @@ Any change to a game element (item, actif/passif card, map, wheel wedge, shop/du
 
 **Bot tests are the safety net.** `src/game/simulation/` plays hundreds of seeded games with bots (`bot-player.ts`) and checks rules after every action (`*-invariants.ts`). A rule change often needs the matching invariant updated, or the campaigns fail with a seed and step to replay (`runBotGame({ seed, mapId, trace })`). `getTableSetup` in `run-bot-game.ts` defines the table mix of a seed.
 
-**Wiki** is a second Vite entry (`wiki.html`, `src/wiki/`), linked from the main menu.
+**Wiki and reporting are second and third Vite entries** (`wiki.html` in `src/wiki/`, `feedback.html` in `src/report/`), both linked from the main menu. `feedback.html` is the bugs-and-ideas page: visitors call `submit_report`, and the admin (an email+password Supabase account listed in `report_admins`) sorts the `reports` table from the same page. The admin's auth account is provisioned by the untracked local tool `scripts/create-admin.ts` (needs `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`; the project's SMTP cannot send confirmation emails, so sign-up is deliberately not offered on the page).
+
+**Production plays online only.** `src/env.ts` (`localPlayAvailable`) hides the local game outside dev and the `/red-cups/` pre-prod preview — cards and bags cannot be hidden on one shared screen — and turns « Jouer en ligne » into the big cup button.
 
 ## Conventions worth knowing
 
