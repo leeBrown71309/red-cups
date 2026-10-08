@@ -4,7 +4,7 @@ import { getEnergyCapacity } from "./energy";
 import { getActionActorIds } from "./action-permissions";
 import { getDefaultAction } from "./clock-defaults";
 import { startDuel, startWheel } from "./game-effects";
-import { getHellTurnLimit } from "./passive-rules";
+import { getHellTurnLimit, spinsTwice } from "./passive-rules";
 import { getPriceFor } from "./rules";
 import { getResalePrice } from "./shopping";
 import { useGameStore } from "./store";
@@ -138,6 +138,8 @@ describe("the wheel cards", () => {
     expect(state.pendingWheel?.choices?.map((result) => result.id)).toEqual(["go-to-hell", "go-back"]);
     expect(state.pendingWheel?.result.id).toBe("go-back");
 
+    // « Va au Départ » itself offers a choice (patch 0.2.0): pin the draws to wedges that offer none.
+    vi.spyOn(Math, "random").mockReturnValue(draw(1));
     const other = startWheel(store(), "misfortune", store().players[1].id, "move");
     expect(other.pendingWheel?.choices).toBeUndefined();
     expect(startWheel(store(), "fortune", store().players[0].id, "move").pendingWheel?.choices).toBeUndefined();
@@ -160,7 +162,15 @@ describe("the wheel cards", () => {
     expect(store().turnStage).toBe("move");
   });
 
-  it("Main du diable spins the wheel of Hell twice, and not the wheel of fortune", () => {
+  it("Touché angélique only doubles the wheel of fortune, even for L'Ange-Gardien", () => {
+    startTable([["angelic-touch", "guardian-angel"], "lambda"]);
+    const [player] = store().players;
+    expect(spinsTwice(player, "fortune")).toBe(true);
+    expect(spinsTwice(player, "misfortune")).toBe(false);
+    expect(spinsTwice(player, "hell")).toBe(false);
+  });
+
+  it("Touché funeste spins the wheel of Hell twice, and not the wheel of fortune", () => {
     startTable(["devils-hand", "lambda"]);
     const hell = startWheel(store(), "hell", store().players[0].id, "turn-end", { origin: "hell" });
     expect(hell.pendingWheel?.repeats?.map((queued) => queued.wheelId)).toEqual(["hell"]);

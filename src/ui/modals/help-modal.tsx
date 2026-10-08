@@ -14,6 +14,7 @@ import { PassiveIcon } from "../icons/passive-icon";
 import { ModalShell } from "../components/modal-shell";
 import { CARD_KINDS, type CardKind } from "../../game/cards";
 import { PassiveCard } from "../components/passive-card";
+import { PassiveTalisman } from "../components/passive-talisman";
 import { formatCurrency, getTileLegend } from "../display/game-display";
 import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
@@ -156,8 +157,9 @@ function getRuleSections(mapId: MapId): RuleSection[] {
       title: "Avant et pendant la partie",
       icon: "users",
       paragraphs: [
-        "Avant la partie, chacun choisit son passif parmi ses cartes (3, ou 2 au-delà de 6 joueurs), jamais les " +
-          "mêmes que celles des autres. En ligne, la table a une minute ; en local, l’écran passe de main en main.",
+        "Avant la partie, chacun choisit son actif parmi deux cartes, jamais les mêmes que celles des autres. Les " +
+          "passifs, eux, sont tirés au sort : deux joueurs n’ont jamais le même. En ligne, la table a une minute " +
+          "pour les actifs ; en local, l’écran passe de main en main.",
         "En ligne, ton tour dure 45 secondes, et les décisions des autres 20 : à la fin, le choix par défaut " +
           "s’applique. Le chrono s’arrête pendant les duels et les roues, pas dans la boutique. Un tour passé sans " +
           "rien faire te coûte une chance ; à la troisième, tu déclares forfait. L’hôte peut mettre la partie en pause " +
@@ -377,9 +379,13 @@ function CardsCatalog() {
         </>
       )}
       detail={
-        <TiltCard key={passiveId}>
-          <PassiveCard passiveId={passiveId} />
-        </TiltCard>
+        CARD_KINDS[passiveId] === "actif" ? (
+          <TiltCard key={passiveId}>
+            <PassiveCard passiveId={passiveId} />
+          </TiltCard>
+        ) : (
+          <PassiveTalisman key={passiveId} passiveId={passiveId} />
+        )
       }
     />
   );

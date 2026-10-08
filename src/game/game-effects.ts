@@ -111,7 +111,7 @@ export function startWheel(
     choices = [result, { id: "nothing", label: "Rien ne se passe" }];
     randomFallback = true;
   }
-  // A second wheel of the same kind for Touché angélique and Main du diable, spun along with this one and
+  // A second wheel of the same kind for Touché angélique and Touché funeste, spun along with this one and
   // applied once this one is settled.
   const repeats: QueuedWheel[] = [
     ...(options.repeats ?? []),

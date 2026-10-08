@@ -120,8 +120,8 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Avant la partie",
       body: [
-        "• Deux manches : chacun choisit son ACTIF parmi 2 cartes distribuées, puis son PASSIF parmi 2 autres. Le diable et l'Ange-Gardien ne passent qu'UNE fois par table.",
-        "• En ligne : 1 minute par manche; qui n'a pas choisi tire au sort une de ses offres. En local : l'écran passe de main en main.",
+        "• Deux manches : chacun choisit son ACTIF parmi 2 cartes distribuées, puis découvre son PASSIF, tiré au sort (patch 0.2.1) : deux joueurs n'ont jamais le même passif. Le diable et l'Ange-Gardien ne passent qu'UNE fois par table.",
+        "• En ligne : 1 minute pour l'actif (qui n'a pas choisi tire au sort une de ses deux offres), puis 20 secondes pour lire son passif et confirmer. En local : l'écran passe de main en main.",
         "• L'[[card:guardian-angel|Ange]] (4+ joueurs) ne reçoit jamais de passif nuisible (Voleur, Goblin, Corrupteur, Piégeur) et ne protège aucun de ces criminels; [[card:greedy|Cupide]] n'aura jamais [[card:nepo-baby|Nepo Baby]].",
         "• [[card:lambda|Lambda]] : le remplissage quand le vivier est épuisé ou l'Ange sans protégé.",
         "• Fin de draft : le diable et l'Ange (+ son protégé) sont ANNONCÉS à toute la table, les pièces de départ et la jauge se règlent, compte à rebours de 5 s avant le premier tour.",
@@ -188,7 +188,7 @@ const SYSTEM_SUMMARY: Record<string, string> = {
   cups: "3 pour gagner; une Cup prise, une nouvelle naît, et les passifs du cycle se réveillent.",
   money: "2 000 au départ, Casque sous zéro, K.O. à −300 : la loi des pièces.",
   bag: "4 places, deux exemplaires par objet, des piles de Tomates — et des exceptions par carte.",
-  draft: "Avant la partie : un actif puis un passif, tirés de deux mains de 2 cartes.",
+  draft: "Avant la partie : un actif choisi parmi 2 cartes, un passif tiré au sort, jamais deux fois le même.",
   online: "Quarante-cinq secondes par tour, le choix par défaut, le forfait, la pause de l'hôte.",
   blessing: "Toute la table fauchée ? Chacun tourne la roue du bonheur, dans l'ordre.",
   victory: "3 Cups, 6 000 pièces pour Cupide, le quota d'Enfer du diable, ou la table vidée.",
@@ -202,7 +202,7 @@ const SYSTEM_KEYWORDS: Record<string, string> = {
   cups: "red cup victoire cycle apparition ramasser",
   money: "pieces coins ko knockout 300 casque helmet solde",
   bag: "sac inventory slots copies pile stack tomate",
-  draft: "draft actif passif offre pick cartes",
+  draft: "draft actif passif offre pick cartes tirage hasard",
   online: "clock chrono pause kick forfeit abandon late join host hote retard",
   blessing: "tour beneuf fortune broke fauchee blessing",
   victory: "win winreason co winner classement standings",

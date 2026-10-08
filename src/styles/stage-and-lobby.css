@@ -726,14 +726,154 @@
 }
 
 /* ---------- Game menu and changelog (patch 0.1.5) ---------- */
+/* The menu is the front door: a candy-purple panel, a big pulsing cup button, then coloured rows and tiles. */
 .menu-screen__panel {
+  --panel-pad: 16px;
   align-self: center;
   justify-content: center;
   gap: 10px;
+  border-radius: 30px;
+  background:
+    radial-gradient(rgba(255, 255, 255, 0.16) 2px, transparent 2.6px) 0 0 / 24px 24px,
+    radial-gradient(120% 70% at 50% -10%, rgba(255, 255, 255, 0.35), transparent 60%),
+    linear-gradient(165deg, #a56ff0 0%, var(--grape) 45%, var(--grape-deep) 100%);
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.4),
+    0 6px 0 var(--ink),
+    var(--shadow-float);
 }
 
-.menu-screen__panel .btn {
-  justify-content: center;
+.menu-screen__panel > * {
+  animation: menu-pop 520ms var(--ease-bounce, cubic-bezier(0.34, 1.56, 0.64, 1)) both;
+  animation-delay: calc(180ms + var(--order, 0) * 70ms);
+}
+
+.menu-screen__banner {
+  align-self: center;
+  padding: 4px 18px;
+  border: var(--border);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--gold-light), var(--gold));
+  box-shadow: 0 3px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transform: rotate(-2deg);
+}
+
+.menu-screen__banner span {
+  color: var(--cup);
+}
+
+/* The big button: red like the cups, a shine sweeping over it, pulsing until it is pressed. */
+.menu-cta {
+  position: relative;
+  min-height: 74px;
+  overflow: hidden;
+  gap: 12px;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ff6f61, var(--cup) 55%, var(--cup-deep));
+  font-size: 1.45rem;
+  animation:
+    menu-pop 520ms var(--ease-bounce, cubic-bezier(0.34, 1.56, 0.64, 1)) both,
+    button-pulse 1.8s ease-in-out 900ms infinite;
+  animation-delay: calc(180ms + var(--order, 1) * 70ms), 900ms;
+}
+
+.menu-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.5) 50%, transparent 65%) 160% 0 / 250% 100%
+    no-repeat;
+  pointer-events: none;
+  animation: menu-shine 3.6s ease-in-out 1.4s infinite;
+}
+
+.menu-cta__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--cup);
+  text-shadow: none;
+}
+
+.menu-row {
+  min-height: 58px;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 0 14px 0 10px;
+  border-radius: 18px;
+  font-size: 1.15rem;
+}
+
+.menu-row__label {
+  flex: 1;
+  text-align: left;
+}
+
+.menu-badge {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--btn-deep);
+  text-shadow: none;
+  transition: transform 200ms var(--ease-bounce, cubic-bezier(0.34, 1.56, 0.64, 1));
+}
+
+.menu-badge--big {
+  width: 50px;
+  height: 50px;
+}
+
+.btn:hover:not(:disabled) .menu-badge {
+  transform: rotate(-12deg) scale(1.12);
+}
+
+.menu-screen__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.menu-tile {
+  flex-direction: column;
+  min-height: 98px;
+  gap: 6px;
+  padding: 10px 6px 8px;
+  border-radius: 18px;
+  font-size: 0.95rem;
+  white-space: normal;
+  text-align: center;
+}
+
+.menu-tile__label {
+  line-height: 1.1;
+}
+
+.menu-screen .btn--orange {
+  --btn-bg: var(--orange);
+  --btn-deep: var(--orange-deep);
+  --btn-text: var(--white);
+  text-shadow: 0 2px 0 rgba(58, 37, 48, 0.3);
+}
+
+.menu-screen .btn--grape,
+.menu-screen .btn--mint,
+.menu-screen .btn--sky {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--btn-bg) 80%, white), var(--btn-bg));
 }
 
 .menu-screen__version {
@@ -744,6 +884,111 @@
   font-family: var(--font-display);
   font-size: 0.9rem;
   font-weight: 600;
+}
+
+/* Gold stars twinkling around the logo. */
+.menu-screen .lobby__hero {
+  position: relative;
+}
+
+.menu-screen__spark {
+  position: absolute;
+  color: var(--gold);
+  font-size: 1.8rem;
+  line-height: 1;
+  text-shadow:
+    -1.5px -1.5px 0 var(--ink),
+    1.5px -1.5px 0 var(--ink),
+    -1.5px 1.5px 0 var(--ink),
+    1.5px 1.5px 0 var(--ink);
+  pointer-events: none;
+  animation: menu-twinkle 2.6s ease-in-out infinite;
+}
+
+.menu-screen__spark--a {
+  top: -14px;
+  right: 18%;
+}
+
+.menu-screen__spark--b {
+  top: 38%;
+  left: -16px;
+  font-size: 1.3rem;
+  animation-delay: 0.9s;
+}
+
+.menu-screen__spark--c {
+  top: 8px;
+  left: 30%;
+  font-size: 1.1rem;
+  animation-delay: 1.7s;
+}
+
+@keyframes menu-pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.9);
+  }
+}
+
+@keyframes menu-shine {
+  0%,
+  55% {
+    background-position: 160% 0;
+  }
+
+  85%,
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+@keyframes menu-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scale(0.7) rotate(0deg);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15) rotate(20deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-screen__panel > *,
+  .menu-cta,
+  .menu-cta::after,
+  .menu-screen__spark {
+    animation: none;
+  }
+}
+
+@media (max-height: 520px) {
+  .menu-screen__panel {
+    gap: 6px;
+  }
+
+  .menu-cta {
+    min-height: 56px;
+    font-size: 1.2rem;
+  }
+
+  .menu-row {
+    min-height: 46px;
+  }
+
+  .menu-tile {
+    min-height: 74px;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .menu-badge--big {
+    width: 36px;
+    height: 36px;
+  }
 }
 
 .settings-modal__version {

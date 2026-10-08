@@ -17,6 +17,7 @@ import {
   createDraft,
   DRAFT_TIME_MS,
   dealOffers,
+  dealUniquePassifs,
   getDraftPool,
   getRefusedPassifs,
   pickPassive,
@@ -239,7 +240,7 @@ function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | unde
   // One actif and one passif each, drawn at random; L'Ange-Gardien only joins a table of four or more.
   const ids = names.map((_, index) => getSeatPlayerId(index));
   const actifs = dealOffers(ids, getDraftPool("actif", names.length), 1);
-  const passifs = dealOffers(ids, getDraftPool("passif", names.length), 1, (playerId) =>
+  const passifs = dealUniquePassifs(ids, getDraftPool("passif", names.length), (playerId) =>
     getRefusedPassifs(actifs[playerId][0]),
   );
   return names.map((name, index) => ({
@@ -859,7 +860,7 @@ function resolveWheel(state: GameState): GameState {
   return settleBoard(nextState, nextState.turnStage);
 }
 
-/** The wheels still owed to the player (Touché angélique, Main du diable) wait in line for the board to be at rest. */
+/** The wheels still owed to the player (Touché angélique, Touché funeste) wait in line for the board to be at rest. */
 function queueRepeats(state: GameState, pending: PendingWheel): GameState {
   const owed = pending.repeats ?? [];
   if (owed.length === 0) return state;
@@ -892,7 +893,7 @@ function isAtRest(state: GameState): boolean {
 }
 
 /**
- * Touché angélique and Main du diable: the second wheel of the pair applies in the very same turn as the first,
+ * Touché angélique and Touché funeste: the second wheel of the pair applies in the very same turn as the first,
  * as soon as the first one has left the table at rest. A first result that opened a decision (a step forward, a
  * duel, a shop...) makes the second one wait for it to be settled.
  */
@@ -959,7 +960,7 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
     nextState = addLog(nextState, `${player.name} utilise la Gomme et annule l’effet.`, "good");
   }
   nextState = { ...nextState, pendingWheel: null, turnStage: pending.resumeStage };
-  // Only this result is rubbed out: the second wheel of Touché angélique or Main du diable still applies.
+  // Only this result is rubbed out: the second wheel of Touché angélique or Touché funeste still applies.
   return settleBoard(queueRepeats(nextState, pending), nextState.turnStage);
 }
 

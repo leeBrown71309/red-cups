@@ -110,7 +110,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• La roue est annulée et le jeu reprend là où il s'était arrêté, avant son résultat.",
-        "• Elle n'efface que le résultat en cours : la deuxième roue de Touché angélique ou Main du diable s'appliquera quand même.",
+        "• Elle n'efface que le résultat en cours : la deuxième roue de Touché angélique ou Touché funeste s'appliquera quand même.",
         "• Non merci peut annuler la même chose sans la Gomme — mais se recharge 5 tours.",
       ],
     },

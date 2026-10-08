@@ -50,7 +50,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Contre Draven : toi seul es épargné, le reste de la table y va quand même.",
         "• Ne s'annulent pas : les déplacements subis (Corde, échange, Made In Heaven…), la Tomate, les pièges déjà posés (Boue, Barrière, Portails).",
         "• Sur une roue : l'annulation se déclare APRÈS avoir vu le résultat — tu sais ce que tu effaces.",
-        "• Sur un couple de roues (Touché angélique, Main du diable) : seul le résultat en cours est annulé, la seconde roue s'appliquera.",
+        "• Sur un couple de roues (Touché angélique, Touché funeste) : seul le résultat en cours est annulé, la seconde roue s'appliquera.",
         "• Le délai se compte en tours de table, pas en tours joués : tu peux enchaîner les utilisations une fois rechargé.",
       ],
     },
@@ -275,7 +275,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       title: "Détail",
       body: [
         "• Sur la roue du MALHEUR : deux secteurs tirés, il garde le moins mauvais.",
-        "• La roue de l'Enfer n'est pas « du malheur » au sens de cette carte : son tirage reste simple (c'est Main du diable qui s'en occupe).",
+        "• La roue de l'Enfer n'est pas « du malheur » au sens de cette carte : son tirage reste simple (c'est Touché funeste qui s'en occupe).",
         "• Les roues enchaînées (« Tourne la roue du malheur » depuis le bonheur) profitent du choix aussi.",
       ],
     },
@@ -284,7 +284,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• Roue du bonheur, et roue du malheur VERSION ANGE : deux roues tournent, les DEUX résultats s'appliquent, bons ou mauvais.",
+        "• Roue du bonheur : deux roues tournent, les DEUX résultats s'appliquent, bons ou mauvais.",
         "• Le second attend que la table revienne au repos : un duel, une boutique ou un « Avance d'une case » ouvert par le premier résultat passe avant.",
         "• Gomme et Non merci n'effacent que le résultat en cours : la roue jumelle suivra.",
         "• Compatible Main verte : les deux roues se comparent d'abord, la meilleure est gardée, la jumelle suit.",
