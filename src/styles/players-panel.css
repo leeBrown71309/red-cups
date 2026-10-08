@@ -296,6 +296,8 @@
   gap: 8px;
   max-height: calc(100vh - 22px);
   padding: 12px;
+  /* The scroll box is rounded like the panel: a scrolled row can't poke out of the card's corner. */
+  border-radius: inherit;
   overflow-y: auto;
   overscroll-behavior: contain;
   touch-action: pan-y;

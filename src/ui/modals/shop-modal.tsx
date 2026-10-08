@@ -59,16 +59,6 @@ export function ShopModal({ onClose }: ShopModalProps) {
       size="large"
       onClose={onClose}
       className="shop-modal"
-      footer={
-        <>
-          <button type="button" className="btn btn--cream" onClick={onClose}>
-            Voir le plateau
-          </button>
-          <button type="button" className="btn btn--cup" onClick={game.endTurn}>
-            Fin du tour <UiIcon name="arrowRight" size={20} />
-          </button>
-        </>
-      }
     >
       <div className="shop-bar">
         <span className="shop-bar__pill shop-bar__wallet">

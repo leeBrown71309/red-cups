@@ -31,6 +31,7 @@ export function reinstatePlayer(state: GameState, playerId: PlayerId): GameState
   const back = {
     ...returning,
     skippedTurns: 0,
+    knockedOut: false,
     passiveId: returning.passiveId === "guardian-angel" ? ("lambda" as const) : returning.passiveId,
   };
   return addLog(

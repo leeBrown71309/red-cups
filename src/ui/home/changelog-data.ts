@@ -20,6 +20,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Sur le site public, le jeu en local disparaît du menu : « Jouer en ligne » devient l’unique grand bouton rouge pour commencer. Le local reste réservé aux tests.",
       "Nouvelle page « Signaler un bug, une idée », ouverte depuis le menu du jeu et depuis le wiki : un objet capricieux, une carte tordue, une idée de règle ? Écrivez-la, avec l’élément du jeu concerné.",
       "Chaque signalement est lu et trié par l’équipe : nouveau, en cours, corrigé ou rejeté.",
+      "Premier tri de vos signalements — New Cup, New Me ne sort plus de l’Enfer : en peine, seule l’option « rester » reste ouverte.",
+      "Être assommé est un vrai statut : il dure jusqu’à ce que tu puisses rejouer. Le Toucher d’Enfer et les vols du Cupide peuvent encore te viser après ton tour sauté — et ton pion affiche les zzz tant que tu n’as pas rejoué.",
+      "« Va au Départ » de la roue du bonheur devient un choix : y aller pour les 200 pièces… ou que rien ne se passe. Faute de réponse, le chrono et le moteur tranchent à 50/50. En Enfer, le choix du Départ libère toujours, « rien » jamais.",
+      "Les Portails se jouent à l’écran : ton pion marche jusqu’à la case, le portail s’élargit sur toute la case et t’avale, puis un portail s’ouvre au-dessus de l’Enfer pour te laisser tomber. Plus jamais une conséquence sans la voir.",
+      "Double or nothing troque ses deux dés contre une pièce taillée en 50/50 ; Roller montre désormais un dé, fidèle à sa règle.",
+      "Nepo Baby l’annonce enfin comme il joue : 1 000 pièces de plus que les autres au départ (et non 3 000 quoi qu’il arrive).",
     ],
   },
   {

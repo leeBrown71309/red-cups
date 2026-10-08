@@ -87,14 +87,15 @@ export function findItemEntry(player: Player, itemId: ItemId): (InventoryEntry &
 }
 
 /**
- * The player loses `amount` of their next turns. A Réveil in the bag
- * cancels the first of them and is used up (patch 0.1.6).
+ * The player loses `amount` of their next turns and carries the knocked-out status until they can
+ * play again (patch 0.2.0). A Réveil in the bag cancels the first of them and is used up (patch 0.1.6).
  */
 export function loseTurns(player: Player, amount = 1): Player {
   const alarm = amount > 0 ? findItemEntry(player, "wake-up") : undefined;
-  if (!alarm) return { ...player, skippedTurns: player.skippedTurns + amount };
+  if (!alarm) return { ...player, skippedTurns: player.skippedTurns + amount, knockedOut: true };
   const woken = withSpent(spendItemEntry(player, alarm.id), "wake-up");
-  return { ...woken, skippedTurns: woken.skippedTurns + amount - 1 };
+  const skipped = woken.skippedTurns + amount - 1;
+  return { ...woken, skippedTurns: skipped, knockedOut: skipped > 0 || woken.knockedOut };
 }
 
 function withSpent(player: Player, itemId: ItemId): Player {

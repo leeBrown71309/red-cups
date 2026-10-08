@@ -198,20 +198,24 @@ const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
       <path d="M26 44 C30 48 36 48 40 44" fill="none" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
-  // A roller skate: boot over four wheels.
+  // A single die, rolled for every move: the Roller.
   roller: () => (
     <>
       <path
-        d="M14 8 H32 V28 L50 34 C58 36 58 46 50 46 H16 C12 46 10 44 10 40 V14 C10 10 12 8 14 8 Z"
-        fill="#ff9fd1"
-        {...OUTLINE}
+        d="M14 26 C18 12 30 6 42 8 M8 38 C10 30 14 26 14 26"
+        fill="none"
+        stroke={INK}
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity="0.55"
       />
-      <path d="M14 14 H28 M14 20 H28" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
-      <rect x="9" y="44" width="46" height="5" rx="2" fill="#6a6fb8" {...OUTLINE} strokeWidth="3" />
-      <circle cx="16" cy="54" r="5" fill="#7dffb2" {...OUTLINE} strokeWidth="3" />
-      <circle cx="28" cy="54" r="5" fill="#7dffb2" {...OUTLINE} strokeWidth="3" />
-      <circle cx="40" cy="54" r="5" fill="#7dffb2" {...OUTLINE} strokeWidth="3" />
-      <circle cx="52" cy="54" r="5" fill="#7dffb2" {...OUTLINE} strokeWidth="3" />
+      <rect x="14" y="14" width="38" height="38" rx="9" fill="#fff4ec" {...OUTLINE} transform="rotate(10 33 33)" />
+      <g transform="rotate(10 33 33)" fill={INK}>
+        <circle cx="25" cy="25" r="4" />
+        <circle cx="33" cy="33" r="4" />
+        <circle cx="41" cy="41" r="4" />
+      </g>
+      <path d="M20 55 C28 58 40 57 46 53" fill="none" stroke="#ff9fd1" strokeWidth="4" strokeLinecap="round" />
     </>
   ),
   // Piles of gold under a grin of glints: wins at six thousand.
@@ -232,22 +236,26 @@ const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
       <path d="M8 14 V22 M4 18 H12 M54 6 V12 M51 9 H57" stroke="#ffd166" strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
-  // Two dice, double or nothing.
+  // A coin cut half and half: fifty, fifty.
   "double-or-nothing": () => (
     <>
-      <rect x="6" y="20" width="32" height="32" rx="7" fill="#fff4ec" {...OUTLINE} transform="rotate(-10 22 36)" />
-      <g transform="rotate(-10 22 36)" fill={INK}>
-        <circle cx="15" cy="29" r="3" />
-        <circle cx="29" cy="43" r="3" />
-        <circle cx="22" cy="36" r="3" />
-      </g>
-      <rect x="30" y="8" width="28" height="28" rx="6" fill="#e8453c" {...OUTLINE} transform="rotate(12 44 22)" />
-      <g transform="rotate(12 44 22)" fill="#ffffff">
-        <circle cx="38" cy="16" r="2.8" />
-        <circle cx="50" cy="16" r="2.8" />
-        <circle cx="38" cy="28" r="2.8" />
-        <circle cx="50" cy="28" r="2.8" />
-      </g>
+      <circle cx="32" cy="32" r="22" fill="#fff4ec" {...OUTLINE} />
+      <path d="M32 10 A22 22 0 0 1 32 54 Z" fill="#e8453c" stroke={INK} strokeWidth="3.5" strokeLinejoin="round" />
+      <path d="M10 32 H54" stroke={INK} strokeWidth="3.5" strokeLinecap="round" />
+      <text
+        x="32"
+        y="37"
+        textAnchor="middle"
+        fontFamily="inherit"
+        fontWeight="800"
+        fontSize="15"
+        fill={INK}
+        stroke="#fff4ec"
+        strokeWidth="4"
+        paintOrder="stroke"
+      >
+        50/50
+      </text>
     </>
   ),
   // A four-leaf clover with its eye shut: luck that cannot see.

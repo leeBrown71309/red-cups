@@ -14,6 +14,7 @@ import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOp
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
 import { getBarrierRoads, planItemUse } from "../turn-actions";
+import { HELL_NODE_ID } from "../types";
 import type { InventoryEntry, ItemId, NodeId, PlayerId, RpsChoice } from "../types";
 import type { AppliedItem } from "./rule-invariants";
 
@@ -309,7 +310,9 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "reposition": {
-      const goToStart = random() < 0.5;
+      const holder = findPlayer(store, store.pendingCupRepositionPlayerId);
+      // New Cup, New Me never frees a player from Hell.
+      const goToStart = holder?.position !== HELL_NODE_ID && random() < 0.5;
       return {
         label: `new-cup:${goToStart ? "start" : "stay"}`,
         perform: (current) => current.resolveNewCup(goToStart),

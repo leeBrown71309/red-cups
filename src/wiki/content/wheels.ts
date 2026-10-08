@@ -21,8 +21,8 @@ export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• « Objet gratuit à 400 pièces ou moins » : tiré parmi la liste fixe du [[hub:shop|panier gratuit]] (Ndoye, Corde, Botte, Boue, Tomate, Gomme, Middle Finger, Casque). Une Tomate offerte arrive en pile de 5 ; sac plein, ce sont 200 pièces qui remplacent l'objet. L'[[card:guardian-angel|Ange]] ne reçoit jamais d'objet nuisible : à la place il garde l'objet si son sac le permet, sinon rien ne l'atteint.",
         "• « Avance d'une case » : le joueur CHOISIT la case (règle de marche normale) ; l'arrivée compte comme une fin de marche (roue, Boue, Cup, bonus du Départ). À [[map:banquise|Banquise]], marcher sur la glace déclenche la glissade.",
-        "• « Va au Départ et gagne 200 » : pose au Départ, bonus payé, arrivée normale (Boue, Portails, Cup…).",
-        "• [[card:green-hand|Main verte]] : deux secteurs tirés, le meilleur gardé.",
+        "• « Va au Départ et gagne 200 » (patch 0.2.0) : choix proposé au joueur — y aller (bonus payé, arrivée normale : Boue, Portails, Cup…) OU « Rien ne se passe ». Faute de choix avant le chrono, le sort départage les deux options à 50/50.",
+        "• [[card:green-hand|Main verte]] : deux secteurs tirés, le meilleur gardé (le choix Départ/rien de « Va au Départ » est alors remplacé par le choix des deux roues).",
         "• [[card:angelic-touch|Touché angélique]] : deux roues qui s'appliquent TOUS les deux.",
         "• Annulable par la [[item:eraser|Gomme]] ou [[card:no-thanks|Non merci]] après le résultat.",
       ],

@@ -37,6 +37,11 @@ export const GHOST_SLAP_IMPACT_MS = 430;
 /** Luna Park: the ghost carries its victim through the air down into Hell. */
 export const GHOST_CARRY_MS = 1_300;
 
+/** Portail: the swirl widens across the tile and swallows the pawn standing on it. */
+export const PORTAL_SWALLOW_MS = 900;
+/** Hell: a portal opens and the pawn drops through it onto the Hell floor. */
+export const HELL_DROP_MS = 700;
+
 /** Pause after a Red Cup pickup before modals open, so the celebration reads. */
 export const CUP_CELEBRATION_MS = 900;
 
@@ -68,7 +73,9 @@ export function estimateMovementMs(
   board: Board,
   movement: Pick<PlayerMovement, "from" | "path"> & Partial<PlayerMovement>,
 ): number {
-  if (movement.thawed) return SHATTER_MS + GLIDE_MS;
+  if (movement.thawed) {
+    return SHATTER_MS + GLIDE_MS + (movement.portalNodeId !== undefined ? PORTAL_SWALLOW_MS + HELL_DROP_MS : 0);
+  }
   if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
   const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
@@ -86,5 +93,7 @@ export function estimateMovementMs(
 
   total += (movement.bumps?.length ?? 0) * BUMP_MS;
   if (movement.interruptedTo !== undefined) total += WOBBLE_MS + GLIDE_MS / 2;
+  // A Portail at the walk's end: the pawn lands on the tile, is swallowed, then drops into Hell.
+  if (movement.portalNodeId !== undefined) total += PORTAL_SWALLOW_MS + HELL_DROP_MS;
   return total;
 }

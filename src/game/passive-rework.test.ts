@@ -292,12 +292,17 @@ describe("New Cup, New Me", () => {
     expect(store().turnStage).toBe("turn-end");
   });
 
-  it("takes its holder out of Hell", () => {
+  it("refuses to free its holder from Hell, and lets them stay instead", () => {
     collectCup(1);
     useGameStore.setState({ redCupNodeId: null });
     editPlayer(1, { position: HELL_NODE_ID, hellTurns: 2 });
+    const before = store();
     store().resolveNewCup(true);
-    expect(store().players[1].position).toBe(0);
+    expect(store()).toBe(before);
+
+    store().resolveNewCup(false);
+    expect(store().players[1].position).toBe(HELL_NODE_ID);
+    expect(store().redCupNodeId).not.toBeNull();
   });
 });
 

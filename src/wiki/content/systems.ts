@@ -24,6 +24,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Quand tout le monde a joué, un nouveau tour de table commence : [[item:bullet-bill|Bullet Bill]] charge, le blizzard peut souffler, le prix de la [[item:boot|Botte]] peut monter, les sorts du [[card:devil|diable]] et les [[item:barrier|Barrières]] s'éteignent, et la peine de chacun en Enfer avance d'un cran.",
         "• Les tours sautés (K.O., [[item:middle-finger|Middle Finger]], roues…) se consomment au passage : le tour perdu EST celui-ci, pas le suivant.",
+        "• L'assommement affiche un statut (patch 0.2.0) : il naît quand un tour est perdu et ne s'efface que quand le joueur peut rejouer — le tour d'après. [[item:hell-touch|Toucher d'Enfer]] et les vols du [[card:greedy|Cupide]] peuvent donc le viser même une fois le tour sauté consommé.",
         "• Un tour sauté en Enfer compte dans la peine — et rapporte son point au [[card:devil|diable]].",
       ],
     },
@@ -74,7 +75,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Ton tour en Enfer = roue de l'Enfer (elle prend ton énergie restante) ou objets avant; pas de marche, pas de boutique, pas de cases.",
         "• Deux joueurs en Enfer au repos de la table : DUEL (le premier en liste des sièges avec le suivant) — pas trois : un seul duel à la fois.",
-        "• Sorties : la Libération de la roue (+200, case 0), [[item:water-bottle|Bouteille d'eau]] (case au hasard), [[card:new-cup-new-me|New Cup, New Me]] (Départ), le vainqueur d'un duel (Départ + 200), la fin de peine.",
+        "• Sorties : la Libération de la roue (+200, case 0), [[item:water-bottle|Bouteille d'eau]] (case au hasard), le vainqueur d'un duel (Départ + 200), la fin de peine. [[card:new-cup-new-me|New Cup, New Me]] ne libère plus (patch 0.2.0).",
         "• Peine : 5 de TES tours commencés là-bas (3 pour l'[[card:hell-regular|Habitué de l'Enfer]]) → sortie d'office en case 0 avec le bonus du Départ, contre 500 pièces de péage (le bonus d'abord, le péage ensuite : le Casque peut jouer).",
         "• Le [[card:devil|diable]] en sort quand il veut pour 1 point d'énergie.",
       ],

@@ -1,4 +1,4 @@
-﻿import type { Interaction } from "../types";
+import type { Interaction } from "../types";
 
 /**
  * TOUTES les interactions entre éléments du jeu, une par paire. Chaque ligne
@@ -264,6 +264,11 @@ export const INTERACTIONS: Interaction[] = [
     text: "Une volée de Tomates qui assomme sur la case du diable déclenche le Toucher d'Enfer.",
   },
   {
+    a: "item:hell-touch",
+    b: "system:turn",
+    text: "patch 0.2.0 : l'assommement dure jusqu'à ce que le joueur puisse rejouer — le diable frappe même après que le tour sauté a été consommé.",
+  },
+  {
     a: "item:made-in-heaven",
     b: "system:cups",
     text: "La Cup est posée en case 8, pas ramassée : pas de cycle complet, et une Black Cup en cours est défaite.",
@@ -493,6 +498,11 @@ export const INTERACTIONS: Interaction[] = [
     text: "Choix avant l'apparition de chaque nouvelle Cup : Départ (+200, sans arrivée) ou rester ; la Cup se révèle après le choix.",
   },
   {
+    a: "card:new-cup-new-me",
+    b: "system:hell",
+    text: "La carte ne libère plus de l'Enfer (patch 0.2.0) : en peine, seule l'option « rester » reste ouverte.",
+  },
+  {
     a: "card:calm-down",
     b: "system:cups",
     text: "À chaque nouvelle Cup : remplace à exactement 3 cases de la Cup (case au choix) chaque joueur à 1-2 d'elle et plus proche qu'elle que lui ; un seul part.",
@@ -530,7 +540,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "card:green-hand",
     b: "wheel:fortune",
-    text: "Main verte : deux secteurs du bonheur tirés, le meilleur est gardé.",
+    text: "Main verte : deux secteurs du bonheur tirés, le meilleur est gardé ; face à « Va au Départ », son choix remplace celui Départ/rien.",
   },
   {
     a: "card:angelic-touch",
@@ -590,7 +600,12 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "wheel:fortune",
     b: "system:hell",
-    text: "« Va au Départ » de la roue du bonheur libère un joueur de l'Enfer sans péage (la peine recommence à la prochaine entrée).",
+    text: "« Va au Départ » de la roue du bonheur libère un joueur de l'Enfer sans péage (la peine recommence à la prochaine entrée) — mais seulement s'il choisit le Départ (patch 0.2.0).",
+  },
+  {
+    a: "wheel:fortune",
+    b: "system:turn",
+    text: "« Va au Départ » (patch 0.2.0) propose un choix : y aller ou « Rien ne se passe » ; le chrono expiré, le moteur départage les deux à 50/50.",
   },
   {
     a: "wheel:fortune",

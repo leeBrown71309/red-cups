@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBoard, getNeighbors } from "./board";
 import { advanceBulletBill } from "./bullet-bill";
-import { ITEM_CATALOG } from "./catalog";
+import { ITEM_CATALOG, PASSIVE_CATALOG } from "./catalog";
 import { canUseItemKind } from "./passive-rules";
 import { getRefusedPassifs } from "./draft";
 import { canEndTurn } from "./energy";
@@ -301,5 +301,88 @@ describe("shop purchases in the journal", () => {
     const texts = store().log.map((entry) => entry.secret?.publicText ?? entry.text);
     expect(texts.some((text) => text.includes("pièces"))).toBe(false);
     expect(texts.some((text) => text.includes("a effectué un achat"))).toBe(true);
+  });
+});
+
+describe("patch 0.2.0: the players' reports", () => {
+  const drawFortuneStart = (7 + 0.5) / 8;
+
+  it("says Nepo Baby starts with 1 000 coins more, and New Cup, New Me never frees from Hell", () => {
+    expect(PASSIVE_CATALOG["nepo-baby"].description).toContain("1 000 pièces de plus");
+    expect(PASSIVE_CATALOG["new-cup-new-me"].description).toContain("Enfer");
+  });
+
+  it("lets the wheel of fortune's « Va au Départ » be refused for nothing instead", () => {
+    startTable(["lambda", "lambda"]);
+    const holder = store().players[1];
+    vi.spyOn(Math, "random").mockReturnValue(drawFortuneStart);
+    useGameStore.setState(startWheel(store(), "fortune", holder.id, "turn-end"));
+    expect(store().pendingWheel).toMatchObject({ result: { id: "go-to-start" }, randomFallback: true });
+    expect(store().pendingWheel?.choices?.[1].id).toBe("nothing");
+
+    store().pickWheelResult(1);
+    store().resolveWheel();
+    expect(store().players[1]).toMatchObject({ position: 0, currency: STARTING_CURRENCY });
+    vi.restoreAllMocks();
+  });
+
+  it("settles the Départ/rien choice left to the clock at 50/50", () => {
+    for (const [roll, goesToStart] of [
+      [0.2, true],
+      [0.9, false],
+    ] as const) {
+      startTable(["lambda", "lambda"]);
+      const holder = store().players[1];
+      vi.spyOn(Math, "random").mockReturnValueOnce(drawFortuneStart);
+      useGameStore.setState(startWheel(store(), "fortune", holder.id, "turn-end"));
+      vi.spyOn(Math, "random").mockReturnValue(roll);
+      store().resolveWheel();
+      expect(store().players[1].currency).toBe(goesToStart ? STARTING_CURRENCY + 200 : STARTING_CURRENCY);
+      expect(store().pendingWheel).toBeNull();
+      vi.restoreAllMocks();
+      store().resetGame();
+    }
+  });
+
+  it("leaves Main verte's two-wheel choice on top of the Départ/rien choice", () => {
+    startTable(["green-hand", "lambda"]);
+    const holder = store().players[0];
+    vi.spyOn(Math, "random")
+      .mockReturnValueOnce(drawFortuneStart)
+      .mockReturnValueOnce(0.5 / 8);
+    useGameStore.setState(startWheel(store(), "fortune", holder.id, "turn-end"));
+    expect(store().pendingWheel).toMatchObject({ result: { id: "go-to-start" } });
+    expect(store().pendingWheel?.choices?.[1].id).toBe("gain-100");
+    expect(store().pendingWheel?.randomFallback).toBeUndefined();
+  });
+
+  it("keeps the knocked-out mark past the skipped turn, so le diable's Toucher d'Enfer still strikes", () => {
+    startTable(["devil", "lambda", "lambda"]);
+    editPlayer(0, { position: 4, inventory: [item("touch", "hell-touch")] });
+    editPlayer(2, { position: 9, skippedTurns: 1, knockedOut: true });
+    useGameStore.setState({ activePlayerIndex: 0, turnStage: "turn-end", energyLeft: 3 });
+    store().endTurn(); // the second lambda plays
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn(); // the skipped player is passed over, le diable sits down
+    expect(store().activePlayerIndex).toBe(0);
+    expect(store().players[2]).toMatchObject({ skippedTurns: 0, knockedOut: true });
+
+    store().movePlayer(9); // the devil steps onto the still-marked victim
+    expect(store().players[2].position).toBe(HELL_NODE_ID);
+    expect(store().players[0].inventory.some((entry) => entry.kind === "item" && entry.itemId === "hell-touch")).toBe(
+      false,
+    );
+  });
+
+  it("frees the knocked-out mark when the player sits down to play again", () => {
+    startTable(["lambda", "lambda"]);
+    editPlayer(1, { skippedTurns: 1, knockedOut: true });
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn(); // the skipped turn goes by: the mark stays
+    expect(store().players[1]).toMatchObject({ skippedTurns: 0, knockedOut: true });
+    useGameStore.setState({ turnStage: "turn-end" });
+    store().endTurn(); // seated to play at last
+    expect(store().players[1].knockedOut).toBe(false);
+    expect(store().activePlayerIndex).toBe(1);
   });
 });

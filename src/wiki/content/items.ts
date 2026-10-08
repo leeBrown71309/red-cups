@@ -237,6 +237,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
         "• Deux Portails s'ouvrent sur des cases au hasard — ni le Départ, ni l'Enfer, ni la Red Cup, jamais la glace, jamais une case déjà occupée par un Portail.",
         "• Cachés le tour de leur ouverture : le premier se montre au tour suivant, les deux au tour d'après. Ils tiennent 3 tours de table, sinon se referment.",
         "• Un joueur qui s'ARRÊTE sur un Portail part en Enfer, et les deux Portails de la paire se referment d'un coup.",
+        "• Sur le plateau (patch 0.2.0), la marche est toujours jouée d'abord : le pion atteint la case, le Portail s'élargit sur toute la case et l'avale, puis un Portail s'ouvre au-dessus de l'Enfer pour le laisser tomber.",
         "• Le diable n'est jamais pris par ses Portails; Chance aveugle est épargné; le Parachute s'ouvre normalement.",
       ],
     },
@@ -250,6 +251,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• Dès qu'un joueur ASSOMMÉ (en train de perdre un tour) se trouve sur la case du diable, le Toucher d'Enfer s'active : tous partent en Enfer d'un coup, puis l'objet est consommé.",
+        "• Depuis le patch 0.2.0, l'assommement reste affiché tant que le joueur n'a pas pu rejouer : le tour sauté passé, la victime est encore une proie jusqu'à son tour suivant.",
         "• Ça se vérifie à chaque moment où le plateau se calme (déplacements, roues, tirages) et au passage des tours.",
         "• Le diable ne déclenche pas ça sur lui-même en Enfer; Chance aveugle et l'Ange-Gardien ne sont pas des proies.",
       ],

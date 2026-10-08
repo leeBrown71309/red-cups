@@ -11,7 +11,14 @@ import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
-import { CALM_DOWN_DISTANCE, CORRUPTER_COST, HELL_EXIT_TOLL, MOVE_MINIMUM_ENERGY, START_BONUS } from "../../game/types";
+import {
+  CALM_DOWN_DISTANCE,
+  CORRUPTER_COST,
+  HELL_EXIT_TOLL,
+  HELL_NODE_ID,
+  MOVE_MINIMUM_ENERGY,
+  START_BONUS,
+} from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { useCanActFor } from "../../net/room-store";
 import { EnergyGauge } from "../components/energy-meter";
@@ -437,22 +444,34 @@ function ReactionContent() {
   );
 }
 
-/** New Cup, New Me: before the new Red Cup appears, off to the start or stay. */
+/** New Cup, New Me: before the new Red Cup appears, off to the start or stay — never out of Hell. */
 function NewCupContent() {
   const holderId = useGameStore((state) => state.pendingCupRepositionPlayerId);
   const players = useGameStore((state) => state.players);
   const resolveNewCup = useGameStore((state) => state.resolveNewCup);
   const holder = players.find((player) => player.id === holderId);
+  const inHell = holder?.position === HELL_NODE_ID;
 
   return (
     <DockPrompt
       title={`${holder?.name ?? "New Cup"}, une nouvelle Cup arrive`}
-      hint="New Cup, New Me : file au Départ pour 200 pièces, ou reste où tu es, avant qu’elle apparaisse."
+      hint={
+        inHell
+          ? "New Cup, New Me : en Enfer, la carte ne libère pas — tu restes où tu es avant qu'elle apparaisse."
+          : "New Cup, New Me : file au Départ pour 200 pièces, ou reste où tu es, avant qu’elle apparaisse."
+      }
     >
-      <button type="button" className="btn btn--cup" onClick={() => resolveNewCup(true)} data-autofocus>
-        <UiIcon name="flag" size={20} /> Départ · +{START_BONUS}
-      </button>
-      <button type="button" className="btn btn--cream" onClick={() => resolveNewCup(false)}>
+      {!inHell && (
+        <button type="button" className="btn btn--cup" onClick={() => resolveNewCup(true)} data-autofocus>
+          <UiIcon name="flag" size={20} /> Départ · +{START_BONUS}
+        </button>
+      )}
+      <button
+        type="button"
+        className="btn btn--cream"
+        onClick={() => resolveNewCup(false)}
+        {...(inHell ? { "data-autofocus": true } : {})}
+      >
         Rester
       </button>
     </DockPrompt>

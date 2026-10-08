@@ -252,6 +252,7 @@ function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | unde
     passiveId: actifs[ids[index]][0],
     passifId: passifs[ids[index]][0],
     skippedTurns: 0,
+    knockedOut: false,
     hellTurns: 0,
     noThanksReadyRound: FIRST_ROUND,
     previousNodeId: null,
@@ -803,9 +804,16 @@ function pickWheelResult(state: GameState, index: 0 | 1): GameState {
 }
 
 function resolveWheel(state: GameState): GameState {
-  const pending = state.pendingWheel;
-  const player = findPlayer(state, pending?.playerId);
-  if (!pending || !player) return state;
+  const spun = state.pendingWheel;
+  const player = findPlayer(state, spun?.playerId);
+  if (!spun || !player) return state;
+
+  // « Va au Départ » left undecided when the clock ran out: engine luck settles it at 50/50.
+  let pending: PendingWheel = spun;
+  if (spun.choices && spun.chosen === undefined && spun.randomFallback) {
+    const index: 0 | 1 = drawEngineRandom() < 0.5 ? 0 : 1;
+    pending = { ...spun, result: spun.choices[index], chosen: index };
+  }
 
   const chainedWheel = CHAINED_WHEELS[pending.result.id];
   if (chainedWheel) {
@@ -1016,8 +1024,9 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
 }
 
 /**
- * New Cup, New Me (patch 0.1.4): before the new Red Cup appears, its holder
- * goes to the start for the start bonus, out of Hell too, or stays. Going
+ * New Cup, New Me (patch 0.1.4, patched 0.2.0): before the new Red Cup appears, its holder
+ * goes to the start for the start bonus, or stays. The card never frees a player
+ * from Hell. Going
  * there is no arrival: neither wheel nor shop, and a wheel still owed on the
  * tile left behind is dropped when the board settles.
  */
@@ -1027,6 +1036,8 @@ function resolveNewCup(state: GameState, goToStart: boolean): GameState {
   if (state.turnStage !== "reposition" || !playerId || !player || state.pendingCupRevealNodeId === null) {
     return state;
   }
+  // Held in Hell, the holder may only stay: refusing the escape keeps the decision open.
+  if (goToStart && player.position === HELL_NODE_ID) return state;
 
   const resumeStage = state.pendingCupRepositionResumeStage ?? "turn-end";
   const shopLeftBehind =

@@ -279,8 +279,8 @@ Le prix de la Botte augmente de 50 pièces à la fin de chaque tour de table apr
 | Casque | S’active automatiquement pour éviter un solde négatif. |
 | Draven | Envoie tous les joueurs, utilisateur compris, en Enfer. Chance aveugle est épargné. |
 | Bouclier | Objet de L'Ange-Gardien (patch 0.1.4). Quand un autre joueur utilise un objet à cible unique sur son protégé, une fenêtre de réaction s'ouvre pour l'Ange, comme celle de Non merci : il bloque l'objet (perdu avec son énergie) ou le laisse passer (Q14). Il bloque aussi Bullet Bill qui fonce sur son protégé (réponse de l'auteur) : Bullet Bill s'écrase sans le toucher. Le Bouclier est alors consommé. Pas Draven. |
-| Portails | Boutique du diable (patch 0.1.5, remplace le Portail). Ouvre **deux** portails vers l'Enfer sur deux cases au hasard, ni l'Enfer, ni le Départ, ni la Red Cup, ni la glace. Ils sont tous deux invisibles pendant le tour de table où ils s'ouvrent ; au tour de table suivant, l'un des deux devient visible ; au troisième, les deux le sont. Le premier joueur qui s'arrête sur l'un d'eux, visible ou non, le diable compris (Q18), tombe en Enfer et les referme tous les deux. Sinon ils se referment après 3 tours de table, au tour du diable. Chance aveugle s'y arrête sans tomber. |
-| Toucher d'Enfer | Boutique du diable, agit tout seul (pas de bouton « Utiliser » : retour de l’auteur). Dès que le diable et un joueur assommé ou qui doit passer son tour se trouvent sur la même case, ce joueur part en Enfer, tous ceux de la case d'un coup ; l'objet est alors consommé. Cela vaut quand le diable s'arrête sur sa case, quand il s'y trouve déjà, ou quand le joueur est assommé à côté de lui (Middle Finger, Bullet Bill, solde sous −300, Tomate, boule de neige). Au changement de tour, il frappe **avant** que le tour sauté du joueur assommé ne soit consommé (correction : Bullet Bill en début de tour de table et un diable déjà sur la case le rataient). |
+| Portails | Boutique du diable (patch 0.1.5, remplace le Portail). Ouvre **deux** portails vers l'Enfer sur deux cases au hasard, ni l'Enfer, ni le Départ, ni la Red Cup, ni la glace. Ils sont tous deux invisibles pendant le tour de table où ils s'ouvrent ; au tour de table suivant, l'un des deux devient visible ; au troisième, les deux le sont. Le premier joueur qui s'arrête sur l'un d'eux, visible ou non, le diable compris (Q18), tombe en Enfer et les referme tous les deux. Sinon ils se referment après 3 tours de table, au tour du diable. Chance aveugle s'y arrête sans tomber. patch 0.2.0, présentation : la marche est toujours jouée avant la conséquence — le pion atteint la case du Portail, celui-ci s'élargit sur toute la case et l'avale, puis un Portail s'ouvre au-dessus de l'Enfer pour le laisser tomber. |
+| Toucher d'Enfer | Boutique du diable, agit tout seul (pas de bouton « Utiliser » : retour de l’auteur). Dès que le diable et un joueur assommé ou qui doit passer son tour se trouvent sur la même case, ce joueur part en Enfer, tous ceux de la case d'un coup ; l'objet est alors consommé. Cela vaut quand le diable s'arrête sur sa case, quand il s'y trouve déjà, ou quand le joueur est assommé à côté de lui (Middle Finger, Bullet Bill, solde sous −300, Tomate, boule de neige). Au changement de tour, il frappe **avant** que le tour sauté du joueur assommé ne soit consommé (correction : Bullet Bill en début de tour de table et un diable déjà sur la case le rataient). patch 0.2.0 : le statut d'assommé ne s'efface que quand le joueur peut jouer à nouveau — une fois son tour sauté consommé, il reste proie du Toucher (et du vol du Cupide) jusqu'à son tour suivant. |
 | Black Cup | Boutique du diable. La Red Cup plonge en Enfer pour 2 tours de table, puis revient sur sa case (la glace du blizzard y fond). Le premier joueur qui arrive en Enfer entre-temps la ramasse ; ceux qui y étaient déjà ne la ramassent pas (Q16). |
 | Sentence | Boutique du diable. Tous les autres joueurs à 0 pièce ou moins partent en Enfer. |
 | Doomsday | Boutique du diable. Jusqu'au prochain tour du diable, toutes les cases sans exception, Départ et boutiques compris, font tourner la roue du malheur à qui s'y arrête, le diable compris. Le Départ ne paie pas les 200 pièces et la boutique ne s'ouvre pas (Q17). Chance aveugle n'est pas touché. |
@@ -299,7 +299,7 @@ Depuis le patch 0.1.5, chaque joueur a **deux cartes** : un **actif** (moteur de
 | Passif | Effet |
 | --- | --- |
 | Baraqué | La Corde ne fait reculer le joueur que de la moitié de la distance. Contre le Monopoly Man, un bras de fer décide de l'échange, et ses coups comptent 1,2 fois (patch 0.1.4, voir 9.2 bis). |
-| New Cup, New Me | À chaque nouvelle Red Cup, avant qu’elle apparaisse, le joueur choisit : filer au Départ et toucher 200 pièces (même depuis l’Enfer), ou rester où il est (patch 0.1.4). Aller au Départ ne donne ni roue ni boutique. |
+| New Cup, New Me | À chaque nouvelle Red Cup, avant qu’elle apparaisse, le joueur choisit : filer au Départ et toucher 200 pièces, ou rester où il est (patch 0.1.4). Aller au Départ ne donne ni roue ni boutique. patch 0.2.0 : la carte ne libère plus de l’Enfer — en peine, seule l’option « rester » reste ouverte. |
 | Red light, Green light | Par Red Cup, ses deux premières cases vertes traversées rapportent 100 pièces et ses deux premières rouges en coûtent 50 (patch 0.1.5 ; 100 avant ; « deux de chaque » depuis le patch 0.1.4). |
 | Non merci | Une fois tous les 5 tours de table, annule un objet utilisé contre lui, une roue tournée pour lui ou Bullet Bill qui fonce sur lui (voir 4). |
 | Corrupteur | Délinquant renommé (patch 0.1.4). Peut ignorer le sens d’une flèche, au prix de 400 pièces à chaque utilisation. Pas pour quitter le départ au premier tour de table. |
@@ -384,7 +384,7 @@ Les roues du bonheur et du malheur suivent la liste de l’auteur, en huit secte
 5. Avancer d’une case, au choix du joueur (voir 3.2).
 6. Tourner la roue du malheur.
 7. Objet gratuit tiré parmi ceux qui coûtent 400 pièces ou moins (Ndoye, Corde, Botte, Boue, Tomate, Gomme, Middle Finger, Casque). La Tomate arrive en pile de 5. Sac plein : 200 pièces à la place.
-8. Aller au Départ et gagner 200 pièces, même depuis l’Enfer.
+8. Aller au Départ et gagner 200 pièces, même depuis l’Enfer — mais (patch 0.2.0) le joueur peut refuser et choisir « Rien ne se passe ». En ligne, si le chrono expire avant le choix, les deux options sont départagées à 50/50 par le moteur ; « Rien ne se passe » ne libère évidemment pas de l’Enfer.
 
 Les déplacements donnés par une roue peuvent mener à une autre roue : c’est voulu (réponse de l’auteur, patch 0.1.4).
 
@@ -615,6 +615,19 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 11. **À valider** — **Retour d'un joueur exclu** : il demande à revenir depuis l'écran du salon (code ou lien) ; l'hôte voit une carte « demande à revenir » avec Accepter / Refuser. Refuser est définitif pour ce salon. Accepter lève l'exclusion et, en partie, rend sa place au joueur : il revient **dernier** dans l'ordre des tours, avec ce qu'il avait (pièces, objets, Red Cups, cartes), tour sauté remis à zéro, et seulement quand la table est au repos (sa demande est rejouée jusque-là). L'Ange-Gardien revient en Lambda. Pendant le draft, il se rassoit comme un retardataire, avec de nouvelles offres. Il faut rejouer `supabase/schema.sql` (table `room_rejoin_requests`, fonctions `request_rejoin`, `rejoin_status`, `list_rejoin_requests`, `answer_rejoin`, champ `kicked` de `get_room`).
 
 ## 14. Historique des versions
+
+### 0.2.0 — octobre 2026
+
+Jeu en ligne seul sur le site public, page de signalements bugs-et-idées (`feedback.html`, troisième entrée Vite) avec tri admin. Premiers retours des signalements triés par l'auteur :
+
+- **New Cup, New Me** : la carte ne libère plus de l'Enfer ; en peine, seule l'option « rester » reste ouverte (voir 8).
+- **Durée des statuts** : un joueur assommé garde ce statut jusqu'à ce qu'il puisse rejouer, pas jusqu'à la consommation de son tour sauté. `loseTurns` pose une marque `knockedOut` ; elle s'efface quand le joueur est assis pour jouer. Toucher d'Enfer et vols du Cupide la lisent (voir 7).
+- **Roue du bonheur, « Va au Départ »** : choix du joueur — Départ (+200) ou « Rien ne se passe » ; le chrono expiré, le moteur tire à 50/50 (`randomFallback` sur la roue en attente). Le choix de Main verte passe avant (voir 9.3).
+- **Portails, animation** : la marche est jouée avant la conséquence — le pion atteint la case, le Portail s'élargit et l'avale (`portalNodeId` sur le dernier déplacement, `PORTAL_SWALLOW_MS` puis `HELL_DROP_MS` dans l'estimation), un Portail transitoire s'ouvre côté Enfer. Les props de Portail sont retardées comme la Cup et la Boue jusqu'à ce que le plateau soit posé.
+- **Icônes** : Double or nothing devient une pièce 50/50, Roller un dé.
+- **Nepo Baby** : la description dit « 1 000 pièces de plus que les autres » (le delta du moteur est bien +1 000 sur les 2 000 de base).
+- **Black Cup** : vérification — la ramassage en Enfer donne bien une nouvelle case aléatoire ; seul le retour de fin de sort replace la Cup sur sa case, comme prévu ici (Q16). Rien de changé.
+- Version de règles : `RULES_VERSION = "0.2.0"`, sauvegarde de partie version 25.
 
 ### 0.1.5 — octobre 2026
 

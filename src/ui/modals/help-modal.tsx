@@ -103,6 +103,8 @@ function getRuleSections(mapId: MapId): RuleSection[] {
         "Case verte : roue du bonheur. Case rouge : roue du malheur. Téléporté, reculé ou déplacé par une roue " +
           "(« Avance d’une case », « Retourne d’où tu viens »), ça compte, boutique comprise ; tiré par la Corde, " +
           "échangé par le Monopoly Man, envoyé au Départ par New Cup ou replacé par Calme-toi, non.",
+        "« Va au Départ » de la roue du bonheur te laisse choisir : y aller pour les 200 pièces, ou préférer que " +
+          "rien ne se passe.",
         `Entrer au Départ depuis la case ${bonusTiles}, dans le sens de la flèche : +${START_BONUS} pièces.`,
         "Sur une case bleue, la boutique s’ouvre. Toute la table à 0 pièce ou moins ? Tour de Bénédiction : chacun " +
           "tourne la roue du bonheur.",
@@ -145,6 +147,8 @@ function getRuleSections(mapId: MapId): RuleSection[] {
           "lui. Les déplacements et les Tomates ne s’annulent pas.",
         "Bullet Bill se lance depuis ton sac : il attend au départ, puis avance d’une case vers le joueur le plus " +
           "proche à chaque tour de table. Celui qu’il atteint perd 200 pièces et passe son prochain tour.",
+        "Un joueur assommé garde ce statut tant qu’il n’a pas pu rejouer : son tour sauté passé, il reste la proie " +
+          "du Toucher d’Enfer et des vols du Cupide jusqu’à son tour suivant.",
       ],
     },
     {

@@ -25,6 +25,11 @@ import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, 
 
 /** Pure rule queries: no state changes here, only answers about a player or a tile. */
 
+/** The « assommé » status: a turn owed, or the mark kept until the player can play again (patch 0.2.0). */
+export function isKnockedOut(player: Player): boolean {
+  return player.skippedTurns > 0 || player.knockedOut;
+}
+
 /** Tiles a player may step forward onto: one step along the roads, arrows obeyed; none from Hell. */
 export function getForwardTiles(state: GameState, player: Player): NodeId[] {
   if (player.position === HELL_NODE_ID) return [];

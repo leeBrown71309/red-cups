@@ -7,7 +7,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 24;
+export const GAME_SAVE_VERSION = 25;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -115,7 +115,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * game saved during its draft comes back to it), version 20 the mini-games
  * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause, version
  * 22 le diable's count of turns spent in Hell instead of entries. Version 23
- * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages.
+ * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages. Version 25
+ * (patch 0.2.0) added the knocked-out mark that outlives the skipped turns it came from.
  */
 /** Earlier saves queued the wheels still to spin by name, and set the other draw aside: both are dropped. */
 function upgradeWheel(wheel: SaveRecord | null | undefined): SaveRecord | null {
@@ -196,6 +197,7 @@ function upgradeSave(save: SaveRecord): SaveRecord {
       ...player,
       ...splitCards(REPLACED_PASSIVES[String(player.passiveId)] ?? player.passiveId, player.passifId),
       hellTurns: player.hellTurns ?? 0,
+      knockedOut: player.knockedOut ?? false,
       noThanksReadyRound: player.noThanksReadyRound ?? FIRST_ROUND,
       previousNodeId: player.previousNodeId ?? null,
     })),

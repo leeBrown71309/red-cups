@@ -2,6 +2,7 @@ import { hasCard } from "./cards";
 import { getBoard, isIce } from "./board";
 import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
+import { isKnockedOut } from "./rules";
 import { avoidsHell, getDevilGoal, isImmuneToItems } from "./passive-rules";
 import { carryOffIce } from "./ice";
 import { addLog, applyCurrencyChange, findPlayer, randomChoice, sendPlayerToHell, updatePlayer } from "./state-utils";
@@ -129,7 +130,7 @@ function hasExpired(state: GameState, spell: DevilSpell): boolean {
  * the first of the pair shows during the second round and both during the
  * third (patch 0.1.5).
  */
-export function isPortalVisible(state: GameState, portal: HellPortal): boolean {
+export function isPortalVisible(state: Pick<GameState, "round">, portal: HellPortal): boolean {
   if (portal.castRound === undefined) return true;
   const age = state.round - portal.castRound;
   return age >= 2 || (age === 1 && portal.rank === 0);
@@ -176,7 +177,14 @@ export function triggerPortal(state: GameState, playerId: PlayerId): GameState {
     ...state,
     hellPortals: state.hellPortals.filter((candidate) => (candidate.pairId ?? candidate.id) !== pairId),
   };
-  return sendPlayerToHell(addLog(closed, `${player.name} s’arrête sur un Portail !`, "bad"), playerId);
+  const swallowed = addLog(closed, `${player.name} s’arrête sur un Portail !`, "bad");
+  // Tell the scene: finish the walk on the Portail's tile first, then fall through it (patch 0.2.0).
+  const walked = swallowed.lastMovement;
+  const marked: GameState =
+    walked && walked.playerId === playerId && walked.path[walked.path.length - 1] === portal.nodeId
+      ? { ...swallowed, lastMovement: { ...walked, portalNodeId: portal.nodeId } }
+      : swallowed;
+  return sendPlayerToHell(marked, playerId);
 }
 
 /** Black Cup: the Red Cup waits in Hell; whoever already stood there does not pick it up. */
@@ -221,7 +229,7 @@ export function applyHellTouch(state: GameState): GameState {
     (player) =>
       player.id !== devil.id &&
       player.position === devil.position &&
-      player.skippedTurns > 0 &&
+      isKnockedOut(player) &&
       !isImmuneToItems(player) &&
       !avoidsHell(player),
   );

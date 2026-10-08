@@ -22,6 +22,7 @@ import {
   createMudPuddle,
   createRedCup,
   type AnimatedProp,
+  type HellPortalProp,
 } from "./models/props-model";
 import { createTileArrow } from "./models/tile-arrow-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
@@ -29,7 +30,13 @@ import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type Til
 import { PawnController, type PawnInput } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
 import { SceneKit, easeOutBack } from "./scene-kit";
-import { SNOWBALL_FLIGHT_MS, TOMATO_FLIGHT_MS, TOMATO_VOLLEY_GAP_MS } from "../theme/timing";
+import {
+  HELL_DROP_MS,
+  PORTAL_SWALLOW_MS,
+  SNOWBALL_FLIGHT_MS,
+  TOMATO_FLIGHT_MS,
+  TOMATO_VOLLEY_GAP_MS,
+} from "../theme/timing";
 
 export interface BoardView {
   mode: CameraMode;
@@ -110,7 +117,11 @@ export class BoardWorld {
   /** Only on maps a ghost haunts. */
   private readonly ghost: GhostActor | null = null;
   private readonly mudPuddles = new Map<NodeId, AnimatedProp>();
-  private readonly portals = new Map<NodeId, AnimatedProp>();
+  private readonly portals = new Map<NodeId, HellPortalProp>();
+  /** Portails mid-swallow: out of the sync so they finish their animation in peace. */
+  private readonly swallowingPortals: { nodeId: NodeId; prop: HellPortalProp; remaining: number }[] = [];
+  /** The portal that opens on the Hell side when a pawn drops through. */
+  private readonly hellPortals: { prop: HellPortalProp; remaining: number }[] = [];
   /** The Barrières on their roads, by road. */
   private readonly barrierProps = new Map<string, AnimatedProp>();
   /** The tap targets on the roads while a Barrière is being set down. */
@@ -502,12 +513,15 @@ export class BoardWorld {
     const wanted = new Set(nodeIds);
     for (const [nodeId, portal] of this.portals) {
       if (wanted.has(nodeId)) continue;
+      // A swallowed Portail finishes its own animation; the sync lets it go.
+      if (this.swallowingPortals.some((entry) => entry.nodeId === nodeId)) continue;
       portal.group.removeFromParent();
       this.portals.delete(nodeId);
     }
     for (const nodeId of wanted) {
       const tile = this.tiles.get(nodeId);
-      if (this.portals.has(nodeId) || !tile) continue;
+      if (this.portals.has(nodeId) || this.swallowingPortals.some((entry) => entry.nodeId === nodeId) || !tile)
+        continue;
       const portal = createHellPortal(this.kit);
       portal.group.position.set(PORTAL_OFFSET.x, tile.topY, PORTAL_OFFSET.z);
       tile.surface.add(portal.group);
@@ -577,6 +591,24 @@ export class BoardWorld {
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
     for (const portal of this.portals.values()) portal.update(elapsed, delta);
+    for (let index = this.swallowingPortals.length - 1; index >= 0; index -= 1) {
+      const entry = this.swallowingPortals[index];
+      entry.remaining -= delta;
+      entry.prop.update(elapsed, delta);
+      if (entry.remaining <= 0) {
+        entry.prop.group.removeFromParent();
+        this.swallowingPortals.splice(index, 1);
+      }
+    }
+    for (let index = this.hellPortals.length - 1; index >= 0; index -= 1) {
+      const entry = this.hellPortals[index];
+      entry.remaining -= delta;
+      entry.prop.update(elapsed, delta);
+      if (entry.remaining <= 0) {
+        entry.prop.group.removeFromParent();
+        this.hellPortals.splice(index, 1);
+      }
+    }
     for (const barrier of this.barrierProps.values()) barrier.update(elapsed, delta);
     this.pulseRoadHandles(elapsed);
     for (const arrow of this.tileArrows) arrow.update(elapsed, delta);
@@ -725,6 +757,25 @@ export class BoardWorld {
       case "teleport": {
         const position = this.pawns.getPawnPosition(event.playerId);
         if (position) this.effects.spawnPoof(position, event.type === "hell-entered" ? "#c9a2ff" : "#ffffff");
+        return;
+      }
+      case "portal-swallowed": {
+        const portal = this.portals.get(event.nodeId);
+        if (!portal) return;
+        this.portals.delete(event.nodeId);
+        portal.swallow(PORTAL_SWALLOW_MS / 1000);
+        this.swallowingPortals.push({ nodeId: event.nodeId, prop: portal, remaining: PORTAL_SWALLOW_MS / 1000 });
+        return;
+      }
+      case "hell-portal-open": {
+        // A Portail spits its victim out: the swirl opens above the Hell floor and fades once they land.
+        const hellPortal = createHellPortal(this.kit);
+        hellPortal.group.position
+          .copy(this.layout.getNodePosition(HELL_NODE_ID))
+          .setY(this.layout.config.hellFloorY + 0.02);
+        this.scene.add(hellPortal.group);
+        this.hellPortals.push({ prop: hellPortal, remaining: (HELL_DROP_MS + 400) / 1000 });
+        this.effects.spawnGhostMist(hellPortal.group.position.clone().setY(this.layout.config.hellFloorY + 0.4), 14);
         return;
       }
       case "mud-placed":

@@ -18,6 +18,7 @@ import {
   opensShop,
 } from "../rules";
 import { findPlayer, getActivePlayer, getEntryUnits } from "../state-utils";
+import { getSlideChoices } from "../ice";
 import type { GameState, ItemId, NodeId, Player, PlayerId, PlayerMovement, TurnStage } from "../types";
 import {
   BOOT_STARTING_PRICE,
@@ -339,7 +340,14 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const roll = previous.diceRoll;
   const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
   const rolled = !stepForward && hasCard(mover, "roller");
-  const expectedLength = stepForward ? 1 : rolled ? rollerReach : previous.moveDistance;
+  // The Botte, put on just in front of a Barrière that leaves no other way out, hops it in a single step.
+  const bootHop =
+    !stepForward &&
+    !rolled &&
+    walkedLength === 1 &&
+    previous.moveDistance === 2 &&
+    isBlockedRoad(getBoard(previous), movement.from, movement.path[0]);
+  const expectedLength = stepForward ? 1 : rolled ? rollerReach : bootHop ? 1 : previous.moveDistance;
   if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
   }
@@ -355,12 +363,21 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
   // The walk follows the board as it stood before the move: a Cup picked up on arrival may flip the carousel.
   const board = getBoard(previous);
+  const slideFrom = movement.slideStart ?? movement.path.length;
+  let came = movement.from;
   let from = movement.from;
-  for (const step of movement.path) {
+  for (const [stepIndex, step] of movement.path.entries()) {
     const allowed = getNeighbors(board, from, rebel && hasCard(mover, "corrupter"));
-    if (!allowed.includes(step)) {
+    // The Botte's hop crosses a barred road on purpose; so does a slide with nowhere else to go (see `drawSlide`).
+    const slideLastResort =
+      stepIndex >= slideFrom &&
+      isBlockedRoad(board, from, step) &&
+      getSlideChoices(board, came, from, new Set([movement.from, ...movement.path.slice(0, stepIndex + 1)])).length ===
+        0;
+    if (!allowed.includes(step) && !(bootHop && stepIndex === 0) && !slideLastResort) {
       found.push(violation("move-follows-roads", `${mover.name} went ${from} → ${step} against the board`));
     }
+    came = from;
     from = step;
   }
 
@@ -427,7 +444,10 @@ function checkSlide(previous: GameState, next: GameState, movement: PlayerMoveme
     const crossed = new Set(tiles.slice(0, index + 1));
     const roads = getNeighbors(board, iceTile);
     const deadEnd = roads.every((nodeId) => nodeId === cameFrom || (crossed.has(nodeId) && isIce(board, nodeId)));
-    if (!isIce(board, iceTile) || (step === cameFrom && !deadEnd) || !roads.includes(step)) {
+    // The slide's own last resort, mirrored from `drawSlide`: when nothing else is open, a barred road is taken.
+    const barredLastResort =
+      isBlockedRoad(board, iceTile, step) && getSlideChoices(board, cameFrom, iceTile, crossed).length === 0;
+    if (!isIce(board, iceTile) || (step === cameFrom && !deadEnd) || (!roads.includes(step) && !barredLastResort)) {
       found.push(violation("ice-slide", `slid ${iceTile} → ${step} after coming from ${cameFrom}`));
     }
   }
@@ -588,6 +608,9 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   const wheel = previous.pendingWheel;
   if (!wheel || next.pendingWheel?.id === wheel.id || previous.turnStage !== "wheel-result") return;
   if (newLogTexts(previous, next).some((text) => text.includes("Gomme") || text.includes("Non merci"))) return;
+  // « Va au Départ » left undecided to the clock: the engine's luck settled between the start and nothing,
+  // and the drawn outcome is not visible on either side of this step.
+  if (wheel.randomFallback && wheel.chosen === undefined) return;
   // The last wheel of a Tour de Bénédiction passes the turn: the Hell toll, skipped turns used up and
   // Bullet Bill's charge then blur what the wheel itself did.
   if (turnChanged(previous, next) || next.lastBulletFlight?.seq !== previous.lastBulletFlight?.seq) return;

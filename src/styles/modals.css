@@ -779,12 +779,14 @@
 /* Several copies in one purchase: minus, the count, plus, and straight to the most possible. */
 .quantity-picker {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 6px;
   width: 100%;
 }
 
+/* In the shop's narrow detail column the label drops to its own line. */
 .quantity-picker__label {
   margin-right: auto;
   color: var(--ink-soft);

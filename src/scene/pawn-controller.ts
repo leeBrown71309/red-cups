@@ -11,7 +11,9 @@ import {
   GHOST_SLAP_IMPACT_MS,
   GHOST_SLAP_MS,
   GLIDE_MS,
+  HELL_DROP_MS,
   HOP_MS,
+  PORTAL_SWALLOW_MS,
   SHATTER_MS,
   TUNNEL_EXTRA_MS,
   WOBBLE_MS,
@@ -50,7 +52,11 @@ type PawnAction =
   /** Luna Park: cowers, then reels from the ghost's slap; `source` is where the hand comes from. */
   | { type: "slapped"; duration: number; source?: THREE.Vector3 }
   /** Luna Park: dangling from the ghost's claws, flown high over the carousel down into Hell. */
-  | { type: "carried"; to: THREE.Vector3; duration: number };
+  | { type: "carried"; to: THREE.Vector3; duration: number }
+  /** Portail: the tile's portal widens, and the pawn whirls down into it. */
+  | { type: "portalSwallow"; nodeId: NodeId; duration: number }
+  /** Portail: the pawn drops from above through the Hell-side portal onto the Hell floor. */
+  | { type: "hellDrop"; to: THREE.Vector3; duration: number };
 
 /** Lets the scene's other actors join in a pawn's animation. */
 export interface PawnHooks {
@@ -61,6 +67,8 @@ export interface PawnHooks {
 const TUMBLE_MS = 820;
 /** How high the ghost flies its victim over the carousel. */
 const CARRY_ARC_HEIGHT = 2.4;
+/** How far above the Hell floor the portal spits a falling pawn out. */
+const HELL_DROP_HEIGHT = 2.2;
 /** How far the slap knocks the pawn back. */
 const SLAP_KNOCKBACK = 0.3;
 
@@ -269,11 +277,19 @@ export class PawnController {
       return;
     }
 
+    const fallsIntoPortal = movement.portalNodeId !== undefined && !movement.interruptedTo;
+
     if (movement.thawed) {
-      pawn.actions.push(
-        { type: "shatter", duration: SHATTER_MS },
-        { type: "glide", to: finalSlot, duration: GLIDE_MS },
-      );
+      pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
+      if (fallsIntoPortal && movement.portalNodeId !== undefined) {
+        pawn.actions.push(
+          { type: "glide", to: this.getStandingPoint(movement.portalNodeId), duration: GLIDE_MS },
+          { type: "portalSwallow", nodeId: movement.portalNodeId, duration: PORTAL_SWALLOW_MS },
+          { type: "hellDrop", to: finalSlot, duration: HELL_DROP_MS },
+        );
+      } else {
+        pawn.actions.push({ type: "glide", to: finalSlot, duration: GLIDE_MS });
+      }
       return;
     }
 
@@ -295,7 +311,8 @@ export class PawnController {
 
     let previous = from;
     path.forEach((nodeId, index) => {
-      const isLast = index === path.length - 1 && !interrupted;
+      // With a Portail at the end, the pawn stands on the tile first: it must be seen walking there.
+      const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal;
       const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
       const edge = findEdge(this.layout.board, previous, nodeId);
 
@@ -327,6 +344,13 @@ export class PawnController {
         { type: "freeze", duration: FREEZE_MS },
       );
     }
+
+    if (fallsIntoPortal && movement.portalNodeId !== undefined) {
+      pawn.actions.push(
+        { type: "portalSwallow", nodeId: movement.portalNodeId, duration: PORTAL_SWALLOW_MS },
+        { type: "hellDrop", to: finalSlot, duration: HELL_DROP_MS },
+      );
+    }
   }
 
   private advance(pawn: Pawn, deltaMs: number): void {
@@ -349,6 +373,12 @@ export class PawnController {
       pawn.actionStart.copy(root.position);
       if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
       if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
+      if (action.type === "portalSwallow") emitFeedback({ type: "portal-swallowed", nodeId: action.nodeId });
+      if (action.type === "hellDrop") {
+        emitFeedback({ type: "hell-portal-open" });
+        root.position.set(action.to.x, action.to.y + HELL_DROP_HEIGHT, action.to.z);
+        body.scale.setScalar(0.3);
+      }
       if (action.type === "bump") {
         const direction = action.to.clone().sub(root.position);
         if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
@@ -437,6 +467,21 @@ export class PawnController {
         pawn.visual.eyes.scale.y = 0.35;
         break;
       }
+      case "portalSwallow": {
+        // Whirled down the widening swirl: spin, shrink, sink.
+        root.position.y = pawn.actionStart.y - progress * progress * 0.6;
+        body.scale.setScalar(Math.max(0.001, 1 - progress));
+        body.rotation.y = progress * Math.PI * 6;
+        break;
+      }
+      case "hellDrop": {
+        // Dropped through the Hell-side portal: it falls fast and straight, then squashes on landing.
+        const drop = progress * progress;
+        root.position.set(action.to.x, pawn.actionStart.y + (action.to.y - pawn.actionStart.y) * drop, action.to.z);
+        body.scale.setScalar(Math.min(1, 0.3 + progress * 0.8));
+        body.rotation.y = (1 - progress) * Math.PI * 3;
+        break;
+      }
     }
 
     if (progress >= 1) {
@@ -452,6 +497,12 @@ export class PawnController {
         pawn.landingTimer = LANDING_MS;
         emitFeedback({ type: "pawn-hop" });
       }
+      if (action.type === "hellDrop") {
+        root.position.copy(action.to);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+      }
+      if (action.type === "portalSwallow") body.scale.setScalar(1);
       if (action.type === "appear") body.scale.setScalar(1);
       if (action.type === "bump") {
         root.position.copy(pawn.actionStart);
