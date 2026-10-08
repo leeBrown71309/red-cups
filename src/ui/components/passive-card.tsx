@@ -5,15 +5,14 @@ import type { PassiveId } from "../../game/types";
 import { PassiveIcon } from "../icons/passive-icon";
 
 /**
- * A passive drawn as a tarot card: a numeral on top, an emblem, the name on a
- * ribbon, the rule below and the suit at the bottom. The roles and the
- * passives with their own victory are the major arcana; the others are dealt
- * from the three suits by what they touch.
+ * A card drawn as a tarot card: a numeral on top, an emblem, the name on a ribbon, the rule below and the
+ * suit at the bottom. Only the actifs wear it; the passifs are talismans (see `PassiveTalisman`). The roles
+ * and the cards with their own victory are the major arcana; the others fall in the three suits by what they touch.
  */
 
-type TarotSuit = "arcana" | "coins" | "swords" | "wands";
+export type TarotSuit = "arcana" | "coins" | "swords" | "wands";
 
-const SUIT_LABELS: Record<TarotSuit, string> = {
+export const SUIT_LABELS: Record<TarotSuit, string> = {
   arcana: "Arcane majeur",
   coins: "Deniers",
   swords: "Épées",
@@ -21,14 +20,14 @@ const SUIT_LABELS: Record<TarotSuit, string> = {
 };
 
 /** The accent colour of each suit, taken from the game palette. */
-const SUIT_ACCENTS: Record<TarotSuit, string> = {
+export const SUIT_ACCENTS: Record<TarotSuit, string> = {
   arcana: "var(--gold-deep)",
   coins: "var(--orange-deep)",
   swords: "var(--sky-deep)",
   wands: "var(--mint-deep)",
 };
 
-const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
+export const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
   devil: "arcana",
   "guardian-angel": "arcana",
   greedy: "arcana",

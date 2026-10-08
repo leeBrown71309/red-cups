@@ -1,5 +1,5 @@
 import { hasCard } from "../cards";
-import { getDraftOfferSize, getDraftPool } from "../draft";
+import { getDraftPool, getStageOfferSize } from "../draft";
 import { getStartingCurrency } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState, PassiveId } from "../types";
@@ -18,11 +18,12 @@ export function checkDraftState(state: GameState): RuleViolation[] {
   const found: RuleViolation[] = [];
   const draft = state.draft;
   if (!draft) return [violation("draft-state", "a draft phase without a draft")];
-  const size = getDraftOfferSize(state.players.length);
+  const size = getStageOfferSize(draft.stage);
   const pool = getDraftPool(draft.stage, state.players.length);
   const dealt = state.players.flatMap((player) => draft.offers[player.id] ?? []);
-  // Cards are only repeated at the table once the pool ran out; a role never is.
-  if (draft.stage === "actif" && dealt.length <= pool.length && new Set(dealt).size !== dealt.length) {
+  // Cards are only repeated at the table once the pool ran out; a role never is. The passifs never are: one each, all different.
+  const mustBeUnique = draft.stage === "passif" || dealt.length <= pool.length;
+  if (mustBeUnique && new Set(dealt).size !== dealt.length) {
     found.push(violation("draft-unique", "a card was dealt twice while others were left"));
   }
   for (const role of UNIQUE_CARDS) {

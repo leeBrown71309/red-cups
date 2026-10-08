@@ -9,7 +9,7 @@ Branche `patch_0.1.5`, un commit par lot, rien n'est poussé. Les choix à valid
 | 2 | Draft en deux étages | `PassiveDraft.stage`, offres sans doublon, retardataire et exclusion suivent l'étage |
 | 3 | Vie privée | Sac et actif cachés en ligne, journal à texte public, `ui/visibility.ts` |
 | 4 | Passifs | Goblin 150 à tous, Dernier de la classe, Habitué de l'Enfer, Piégeur |
-| 5 | Roues | Main verte, Main rouge, Touché angélique, Main du diable |
+| 5 | Roues | Main verte, Main rouge, Touché angélique, Touché funeste |
 | 6 | Duel et boutique | Meneur de jeu (`duel-choice`), Brocanteur (`sellItem`) |
 | 7 | Objets | Réveil, Parachute, Miroir, Barrière (état `barrier`, 3D, choix de la route) |
 | 8 | Documents | Spec, aide, journal des modifications, README |

@@ -52,7 +52,8 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   ) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
-  if (!toStart && after.position !== before.position) {
+  // Staying on le diable's tile does not shelter from the Toucher d'Enfer: it may drop them to Hell right after.
+  if (!toStart && !touched && after.position !== before.position) {
     found.push(violation("new-cup-stay", `${before.name} moved to ${after.position} instead of staying`));
   }
   if (next.redCupNodeId !== previous.pendingCupRevealNodeId) {

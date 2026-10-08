@@ -489,13 +489,12 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "angelic-touch",
     name: "Touché angélique",
     shortName: "Angélique",
-    description:
-      "Sur la roue du bonheur et celle de l’Ange, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
+    description: "Sur la roue du bonheur, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
   },
   "devils-hand": {
     id: "devils-hand",
-    name: "Main du diable",
-    shortName: "Main diable",
+    name: "Touché funeste",
+    shortName: "Funeste",
     description:
       "Sur la roue du malheur et celle de l’Enfer, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
   },

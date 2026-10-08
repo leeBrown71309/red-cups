@@ -321,9 +321,9 @@ export interface PendingWheel {
   /** « Va au Départ » of the wheel of fortune: the player may prefer that nothing happens; a choice left
    * undecided (the clock ran out) falls on one or the other at 50/50. */
   randomFallback?: boolean;
-  /** A wheel already spun in parallel with the one before it (Touché angélique, Main du diable): it only waits to be applied. */
+  /** A wheel already spun in parallel with the one before it (Touché angélique, Touché funeste): it only waits to be applied. */
   preSpun?: boolean;
-  /** Touché angélique, Main du diable: wheels spun at the same time as this one, applied in order once it is settled. */
+  /** Touché angélique, Touché funeste: wheels spun at the same time as this one, applied in order once it is settled. */
   repeats?: QueuedWheel[];
 }
 
@@ -641,7 +641,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.0";
+export const RULES_VERSION = "0.2.1";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -811,7 +811,7 @@ export interface GameState {
    * offered once the table is at rest, then play resumes at `gambleResumeStage`.
    */
   pendingGambles: PendingGamble[];
-  /** Touché angélique, Main du diable: the second result of a pair, applied right after the first once the table is at rest. */
+  /** Touché angélique, Touché funeste: the second result of a pair, applied right after the first once the table is at rest. */
   queuedWheels: QueuedSpin[];
   gambleResumeStage: TurnStage;
   lastGambleResult: GambleResult | null;

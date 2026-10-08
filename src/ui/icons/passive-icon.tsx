@@ -11,17 +11,18 @@ const HAND_PATH =
   "M17 36 V22 C17 19 22 19 22 22 V12 C22 9 27 9 27 12 V10 C27 7 32 7 32 10 V12 C32 9 37 9 37 12 V30 L41 26 C44 24 48 27 46 31 L38 48 C35 55 31 58 25 58 C19 58 17 52 17 46 Z";
 
 const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
-  // A fist, knuckles up.
+  // A flexed arm, biceps bulging: someone built like a tank.
   "built-like-a-tank": () => (
     <>
       <path
-        d="M14 30 C14 21 21 19 25 22 C27 17 35 17 37 22 C41 19 49 22 49 30 L49 42 C49 52 41 58 31 58 C21 58 14 52 14 42 Z"
+        d="M4 62 V46 C4 36 9 30 14 28 C16 16 28 10 34 18 C37 22 37 26 37 30 V15 C37 7 43 3 50 3 C57 3 61 8 61 15 L60 44 C60 54 53 62 42 62 Z"
         fill="#f2b27a"
         {...OUTLINE}
       />
-      <path d="M25 22 V32 M37 22 V32 M49 30 V34" stroke={INK} strokeWidth="3" strokeLinecap="round" fill="none" />
-      <path d="M20 44 C24 50 38 50 44 44" stroke="#c9804a" strokeWidth="3.5" strokeLinecap="round" fill="none" />
-      <path d="M6 12 L12 18 M58 12 L52 18 M32 4 V10" stroke="#e8453c" strokeWidth="3.5" strokeLinecap="round" />
+      <path d="M38 14 H60 M38 21 H60" stroke="#c9804a" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M14 36 C17 27 26 26 30 33" stroke="#c9804a" strokeWidth="3.5" strokeLinecap="round" fill="none" />
+      <path d="M10 53 H42" stroke="#c9804a" strokeWidth="3" strokeLinecap="round" fill="none" />
+      <path d="M4 14 L9 19 M16 4 L18 10 M26 2 V7" stroke="#e8453c" strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
   // A fresh cup with sparks around it.

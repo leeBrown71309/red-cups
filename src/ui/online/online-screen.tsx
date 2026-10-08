@@ -396,7 +396,7 @@ function RoomLobby() {
       <p className="lobby__note">
         {players.length < MIN_PLAYERS
           ? "Il faut au moins deux joueurs. Partage le code ou le lien."
-          : "L’ordre du tour est celui de la liste. Chacun choisira son passif parmi ses cartes."}
+          : "L’ordre du tour est celui de la liste. Chacun choisira son actif, et les passifs seront tirés au sort."}
       </p>
       <div className="lobby__actions">
         <button

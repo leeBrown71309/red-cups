@@ -237,13 +237,10 @@ export function drawsTwiceKeepingBest(player: Player | undefined, wheelId: Wheel
 }
 
 /**
- * Touché angélique spins the wheel of fortune and the Ange's wheel twice,
- * Main du diable the wheel of misfortune and the wheel of Hell: both results
- * count, good or bad. The Ange's wheel is the wheel of misfortune of L'Ange-Gardien.
+ * Touché angélique spins the wheel of fortune twice, Touché funeste the wheel
+ * of misfortune and the wheel of Hell: both results count, good or bad.
  */
 export function spinsTwice(player: Player | undefined, wheelId: WheelId): boolean {
-  if (hasCard(player, "angelic-touch")) {
-    return wheelId === "fortune" || (wheelId === "misfortune" && hasCard(player, "guardian-angel"));
-  }
+  if (hasCard(player, "angelic-touch")) return wheelId === "fortune";
   return hasCard(player, "devils-hand") && (wheelId === "misfortune" || wheelId === "hell");
 }

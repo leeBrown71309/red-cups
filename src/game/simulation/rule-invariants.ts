@@ -521,7 +521,13 @@ function checkSnowballs(previous: GameState, next: GameState, found: RuleViolati
   if (!target || inHell || previous.snowFrozenPlayerIds.includes(target.id)) {
     found.push(violation("snowball-target", `a snowball was aimed at ${snowball.targetId}, out of reach`));
   }
-  const hitsBefore = previous.snowballHits[snowball.targetId] ?? 0;
+  // A turn change may pass several seats at once (skipped turns): then several snowballs fly in one action.
+  // Each hit that does not freeze is logged; the last throw's own line is not an earlier hit.
+  const hitLines = newLogTexts(previous, next).filter((text) =>
+    text.startsWith(`Un pingouin touche ${target?.name} avec une boule de neige`),
+  ).length;
+  const earlierHits = hitLines - (snowball.hit && !snowball.frozen ? 1 : 0);
+  const hitsBefore = (previous.snowballHits[snowball.targetId] ?? 0) + earlierHits;
   if (snowball.frozen !== (snowball.hit && hitsBefore === SNOWBALL_HITS_TO_FREEZE - 1)) {
     found.push(violation("snowball-freeze", `${snowball.targetId} froze after ${hitsBefore} hits`));
   }
@@ -780,6 +786,8 @@ function checkTurnChange(previous: GameState, next: GameState, found: RuleViolat
         text.includes(`Bullet Bill percute ${before.name}`) ||
         text.includes(`L’explosion de Bullet Bill atteint aussi ${before.name}`) ||
         text.includes(`: ${before.name} est gelé`) ||
+        // The angel who slid onto a mud tile as the turn ended loses the very next turn, which is theirs.
+        text === `${before.name} perd son prochain tour dans la Boue.` ||
         // Robbed by a Goblin as the Cup changes hands, down to −300: the lost turn comes at once.
         text.startsWith(`${before.name} tombe à −300 pièces`),
     );
@@ -1022,7 +1030,7 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   if (previous.phase === "draft") return checkDraftTransition(previous, nextState);
   if (previous.phase !== "playing") return [];
   const found: RuleViolation[] = [];
-  // The second wheel of a Touché angélique or Main du diable pair applies in the same action as the first, or as
+  // The second wheel of a Touché angélique or Touché funeste pair applies in the same action as the first, or as
   // soon as the decision that kept it waiting is settled: the single-wheel checks do not describe such an action.
   const pairResolved = previous.turnStage === "wheel-result" && (previous.pendingWheel?.repeats?.length ?? 0) > 0;
   const secondApplied = newLogTexts(previous, nextState).some((text) => text.startsWith("La deuxième roue de "));

@@ -1,0 +1,264 @@
+/* ---------- Passifs as talismans (patch 0.2.1): a thick coin floating over a dark plaque ---------- */
+.talisman {
+  --card-accent: var(--gold-deep);
+  --coin-size: 112px;
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  justify-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 350px;
+  padding: 12px 14px;
+  border: 3px solid var(--ink);
+  border-radius: 34px 34px 18px 18px;
+  background:
+    radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--card-accent) 55%, #2b1a25), transparent 62%),
+    linear-gradient(180deg, #3a2530, #2b1a25);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--cream);
+  text-align: center;
+}
+
+.talisman__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: calc(var(--coin-size) + 34px);
+  perspective: 560px;
+  touch-action: pan-y;
+}
+
+.talisman__drop,
+.talisman__float,
+.talisman__coin {
+  transform-style: preserve-3d;
+}
+
+.talisman__drop {
+  animation: talisman-drop 900ms var(--ease-bounce, cubic-bezier(0.34, 1.56, 0.64, 1)) var(--drop-delay, 0ms) backwards;
+}
+
+.talisman__float {
+  animation: talisman-float 4.2s ease-in-out infinite;
+}
+
+.talisman__coin {
+  --lean-x: 0deg;
+  --lean-y: 0deg;
+  position: relative;
+  width: var(--coin-size);
+  height: var(--coin-size);
+  transform: rotateX(var(--lean-x)) rotateY(var(--lean-y));
+  transition: transform 180ms ease-out;
+}
+
+/* The edge of the coin, one disc behind the other. */
+.talisman__slice {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card-accent) 65%, #2b1a25);
+  transform: translateZ(var(--depth));
+}
+
+.talisman__face {
+  position: absolute;
+  inset: 0;
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 34% 26%,
+    var(--white),
+    color-mix(in srgb, var(--card-accent) 38%, var(--white)) 42%,
+    var(--card-accent) 100%
+  );
+  box-shadow: inset 0 -5px 0 rgba(58, 37, 48, 0.22);
+  transform-style: preserve-3d;
+}
+
+.talisman__ring {
+  position: absolute;
+  inset: 9px;
+  border: 2px dashed color-mix(in srgb, var(--ink) 55%, transparent);
+  border-radius: 50%;
+}
+
+.talisman__stud {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border: 1.5px solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold-light);
+  transform: rotate(var(--angle)) translateY(calc(var(--coin-size) / -2 + 8px));
+}
+
+/* The emblem stands out of the face: it slides over it when the coin leans. */
+.talisman__emblem {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transform: translateZ(14px);
+  filter: drop-shadow(0 4px 0 rgba(58, 37, 48, 0.28));
+}
+
+.talisman__shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.55) 50%, transparent 62%) 160% 0 / 260%
+    100% no-repeat;
+  transform: translateZ(15px);
+  pointer-events: none;
+  animation: talisman-shine 5s ease-in-out 1.2s infinite;
+}
+
+.talisman__shadow {
+  position: absolute;
+  bottom: 2px;
+  width: calc(var(--coin-size) * 0.7);
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  filter: blur(3px);
+  animation: talisman-shadow 4.2s ease-in-out infinite;
+}
+
+.talisman__name {
+  width: 100%;
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card-accent);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-shadow: 0 2px 0 rgba(58, 37, 48, 0.4);
+}
+
+.talisman__text {
+  align-self: stretch;
+  min-height: 0;
+  padding: 2px 6px 2px 4px;
+  color: rgba(255, 248, 238, 0.88);
+  font-size: 0.82rem;
+  line-height: 1.32;
+  text-align: left;
+}
+
+.talisman__suit {
+  color: color-mix(in srgb, var(--card-accent) 45%, var(--white));
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+@keyframes talisman-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-46px) rotateY(540deg) scale(0.35);
+  }
+
+  60% {
+    opacity: 1;
+  }
+}
+
+@keyframes talisman-float {
+  0%,
+  100% {
+    transform: translateY(0) rotateY(-12deg);
+  }
+
+  50% {
+    transform: translateY(-7px) rotateY(12deg);
+  }
+}
+
+@keyframes talisman-shine {
+  0%,
+  55% {
+    background-position: 160% 0;
+  }
+
+  85%,
+  100% {
+    background-position: -60% 0;
+  }
+}
+
+@keyframes talisman-shadow {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+
+  50% {
+    opacity: 0.6;
+    transform: scaleX(0.82);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .talisman__drop,
+  .talisman__float,
+  .talisman__shine,
+  .talisman__shadow {
+    animation: none;
+  }
+}
+
+@media (max-width: 600px), (max-height: 520px) {
+  .talisman {
+    --coin-size: 88px;
+    height: 300px;
+    padding: 10px 12px;
+  }
+
+  .talisman__emblem svg {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* The draft's reveal: the passif each player was dealt, centred and larger than in the help. */
+.draft-reveal {
+  display: grid;
+  justify-items: center;
+  padding: 8px 0 4px;
+}
+
+.draft-reveal .talisman {
+  --coin-size: 128px;
+  width: clamp(220px, 60vw, 280px);
+  height: auto;
+  min-height: 330px;
+}
+
+.draft-reveal .talisman__text {
+  overflow: visible;
+}
+
+@media (max-height: 520px) {
+  .draft-reveal .talisman {
+    --coin-size: 84px;
+    width: 230px;
+    min-height: 0;
+  }
+}
+
+.draft-reveal__confirm {
+  margin-top: 16px;
+}

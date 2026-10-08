@@ -13,6 +13,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.2.1",
+    date: "2026-10-08",
+    title: "Des passifs tirés au sort, et un look bien à eux",
+    highlights: [
+      "Avant la partie, tu choisis toujours ton actif, mais ton passif est tiré au sort : plus de passif identique d’une partie à l’autre, et deux joueurs n’ont jamais le même passif.",
+      "Les passifs quittent le format carte : ce sont des talismans, de grosses pièces en 3D qui flottent, brillent et se penchent vers ton doigt ou ta souris. Les actifs gardent leurs cartes de tarot.",
+      "Touché angélique agit uniquement sur la roue du bonheur : la « roue de l’Ange » n’existait pas, la description la mentionnait à tort.",
+      "Main du diable devient Touché funeste, pour aller de pair avec Touché angélique.",
+      "Baraqué a enfin une icône qui lui ressemble : un bras de costaud qui gonfle son biceps.",
+    ],
+  },
+  {
     version: "0.2.0",
     date: "2026-10-07",
     title: "On ne joue plus qu’en ligne, et le jeu vous écoute",
@@ -48,10 +60,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Un joueur exclu peut demander à revenir : l’hôte reçoit la demande et l’accepte ou la refuse (la base de données doit être mise à jour).",
       "Deux cartes par joueur : un actif (le moteur de ta victoire) et un passif (un avantage ciblé), choisis en deux étapes. En ligne, les autres ne voient plus ton sac ni ton actif.",
       "Goblin devient un passif : il vole 150 pièces à chaque joueur à chaque nouvelle Red Cup.",
-      "Neuf nouveaux passifs : Dernier de la classe, Habitué de l’Enfer, Main verte, Main rouge, Touché angélique, Main du diable, Meneur de jeu, Brocanteur et Piégeur.",
+      "Neuf nouveaux passifs : Dernier de la classe, Habitué de l’Enfer, Main verte, Main rouge, Touché angélique, Touché funeste, Meneur de jeu, Brocanteur et Piégeur.",
       "Quatre nouveaux objets : Réveil, Parachute, Miroir et Barrière (on touche une route du plateau : elle est fermée pendant 1 tour de table).",
       "Équilibrage : Cupide gagne à 6 000 pièces, Made In Heaven coûte 1 300, l’Ange-Gardien démarre avec 800 pièces, et les cases rouges de Red light, Green light coûtent 50.",
-      "Main verte et Main rouge font tourner deux roues côte à côte : tu gardes le résultat de ton choix. Touché angélique et Main du diable lancent aussi deux roues en parallèle, et les deux résultats s’appliquent l’un après l’autre.",
+      "Main verte et Main rouge font tourner deux roues côte à côte : tu gardes le résultat de ton choix. Touché angélique et Touché funeste lancent aussi deux roues en parallèle, et les deux résultats s’appliquent l’un après l’autre.",
       "Double or nothing : le résultat du pile ou face s’affiche en grand au centre de l’écran pour toute la table, une perte qui t’assommerait peut être jouée avant l’assommoir, et le poseur d’une Boue touchée reçoit le double ou rien selon le résultat.",
       "Barrière à 400 pièces et pour un seul tour de table ; la Botte la saute d’une seule case. Parachute à 650, Doomsday à 555.",
       "Bullet Bill atteint tous les joueurs de la case où il explose. Calme-toi ne déplace plus qu’un seul joueur, au choix. Les Portails n’affectent pas le diable.",

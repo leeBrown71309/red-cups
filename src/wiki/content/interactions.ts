@@ -298,7 +298,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "item:eraser",
     b: "card:devils-hand",
-    text: "Idem : la seconde roue de Main du diable passe après l'effacement de la première.",
+    text: "Idem : la seconde roue de Touché funeste passe après l'effacement de la première.",
   },
   {
     a: "item:ndoye",
@@ -548,19 +548,14 @@ export const INTERACTIONS: Interaction[] = [
     text: "Touché angélique : les DEUX résultats du bonheur s'appliquent.",
   },
   {
-    a: "card:angelic-touch",
-    b: "wheel:misfortune",
-    text: "Version Ange-Gardien de la roue du malheur uniquement : les deux résultats s'appliquent.",
-  },
-  {
     a: "card:devils-hand",
     b: "wheel:misfortune",
-    text: "Main du diable : les deux résultats du malheur s'appliquent.",
+    text: "Touché funeste : les deux résultats du malheur s'appliquent.",
   },
   {
     a: "card:devils-hand",
     b: "wheel:hell",
-    text: "Main du diable aussi sur la roue de l'Enfer : deux résultats qui s'appliquent.",
+    text: "Touché funeste aussi sur la roue de l'Enfer : deux résultats qui s'appliquent.",
   },
   {
     a: "card:hell-regular",

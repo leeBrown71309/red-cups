@@ -166,7 +166,9 @@ export function LobbyScreen({ onStart, onPlayOnline, onBack }: LobbyScreenProps)
             </button>
           </div>
 
-          <p className="lobby__note">Chacun choisit son passif parmi ses cartes, juste avant la partie.</p>
+          <p className="lobby__note">
+            Chacun choisit son actif juste avant la partie ; les passifs sont tirés au sort.
+          </p>
           <div className="lobby__actions">
             {onBack && (
               <button

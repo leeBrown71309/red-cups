@@ -10,13 +10,17 @@ import { GUARDIAN_MIN_PLAYERS } from "./types";
 
 /**
  * The draft (patch 0.1.4, two stages since patch 0.1.6): before the game,
- * every player picks an actif among the cards dealt to them, then a passif
- * among others. Online the table has a minute per stage; a local table has
- * no clock (Q15).
+ * every player picks an actif among the cards dealt to them. Since patch
+ * 0.2.1 the passifs are not picked: each player is dealt one at random, never
+ * the same as another player's, and the second stage only shows it. Online the
+ * table has a minute to pick the actif and a short while to read the passif; a
+ * local table has no clock (Q15).
  */
 
-/** One minute for the whole table, online, at each stage. */
+/** One minute for the whole table, online, to pick the actif. */
 export const DRAFT_TIME_MS = 60_000;
+/** Online, the time to read the passif each player was dealt before the game starts. */
+export const PASSIF_REVEAL_TIME_MS = 20_000;
 /** Cards offered to each player at each stage. */
 const OFFER_SIZE = 2;
 /** Roles that exist once per table: they are never dealt a second time. */
@@ -33,6 +37,11 @@ export function getRefusedPassifs(actifId: PassiveId | null | undefined): Passiv
 
 export function getDraftOfferSize(_playerCount?: number): number {
   return OFFER_SIZE;
+}
+
+/** Cards a player is dealt at a stage: two actifs to choose from, one passif drawn for them. */
+export function getStageOfferSize(stage: PassiveDraft["stage"]): number {
+  return stage === "actif" ? OFFER_SIZE : 1;
 }
 
 /**
@@ -80,6 +89,31 @@ export function dealOffers(
   return offers;
 }
 
+/**
+ * Draws one passif for each player, none of them twice: the seats with the
+ * most refusals draw first, so a refusal never leaves a seat without a card.
+ * A card only repeats if the pool is smaller than the table, which no table is.
+ */
+export function dealUniquePassifs(
+  playerIds: PlayerId[],
+  pool: PassiveId[],
+  excluded: (playerId: PlayerId) => PassiveId[] = () => [],
+): Record<PlayerId, PassiveId[]> {
+  const deck = shuffle(pool);
+  const taken = new Set<PassiveId>();
+  const dealt: Record<PlayerId, PassiveId[]> = {};
+  const seats = [...playerIds].sort((left, right) => excluded(right).length - excluded(left).length);
+  for (const playerId of seats) {
+    const refused = excluded(playerId);
+    const card =
+      deck.find((cardId) => !taken.has(cardId) && !refused.includes(cardId)) ??
+      deck.find((cardId) => !refused.includes(cardId));
+    if (card) taken.add(card);
+    dealt[playerId] = card ? [card] : [];
+  }
+  return Object.fromEntries(playerIds.map((playerId) => [playerId, dealt[playerId]]));
+}
+
 /** Deals the actifs to open the draft. */
 export function createDraft(players: Player[], deadline: number | null): PassiveDraft {
   return {
@@ -109,7 +143,7 @@ export function hasEveryonePicked(state: GameState): boolean {
 
 /**
  * Closes the stage: whoever has not picked gets one of their cards at random.
- * The actif stage hands over to the passif stage; the passif stage starts the
+ * The actif stage hands over to the passif stage, where each passif is drawn; the passif stage starts the
  * game, with what follows from the cards at any start (coins, the first
  * gauge, L'Ange-Gardien's protégé, le diable's announcement).
  */
@@ -124,16 +158,15 @@ export function closeDraft(state: GameState, now?: number): GameState {
 
   if (draft.stage === "actif") {
     // L'Ange-Gardien may harm nobody: no passif of theft, of mud or of any other harm for them.
-    const offers = dealOffers(
+    const offers = dealUniquePassifs(
       state.players.map((player) => player.id),
       getDraftPool("passif", state.players.length),
-      OFFER_SIZE,
       (playerId) => getRefusedPassifs(picks[playerId]),
     );
-    const deadline = draft.deadline === null ? null : (now ?? draft.deadline) + DRAFT_TIME_MS;
+    const deadline = draft.deadline === null ? null : (now ?? draft.deadline) + PASSIF_REVEAL_TIME_MS;
     return addLog(
       { ...state, draft: { stage: "passif", offers, picks: {}, actifs: picks, deadline } },
-      "Les actifs sont choisis : place aux passifs.",
+      "Les actifs sont choisis : les passifs sont tirés au sort.",
       "event",
     );
   }

@@ -1,5 +1,5 @@
 import { getCards } from "./cards";
-import { dealOffers, getDraftOfferSize, getDraftPool } from "./draft";
+import { dealOffers, dealUniquePassifs, getDraftPool, getStageOfferSize } from "./draft";
 import { getStartingCurrency } from "./passive-rules";
 import { addLog, randomChoice } from "./state-utils";
 import type { GameState, PassiveDraft, PassiveId, Player, PlayerColor, PlayerId } from "./types";
@@ -36,8 +36,11 @@ function dealLateOffer(state: GameState, draft: PassiveDraft): PassiveId[] {
   const pool = getDraftPool(draft.stage, state.players.length + 1);
   const dealt = new Set(Object.values(draft.offers).flat());
   const free = pool.filter((cardId) => !dealt.has(cardId));
-  const size = getDraftOfferSize(state.players.length + 1);
-  const offer = Object.values(dealOffers(["late"], free.length >= size ? free : pool, size))[0] ?? [];
+  const size = getStageOfferSize(draft.stage);
+  const source = free.length >= size ? free : pool;
+  const lateOffers =
+    draft.stage === "passif" ? dealUniquePassifs(["late"], source) : dealOffers(["late"], source, size);
+  const offer = lateOffers["late"] ?? [];
   return offer.length > 0 ? offer : [draft.stage === "actif" ? "lambda" : (pool[0] ?? "lambda")];
 }
 

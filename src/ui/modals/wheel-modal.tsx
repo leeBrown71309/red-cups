@@ -104,7 +104,7 @@ function useWheelSpin(
   return { rotation, done, targetIndex, finalRotation };
 }
 
-/** The wheels of a spin: one, or two side by side (Main verte, Main rouge, Touché angélique, Main du diable). */
+/** The wheels of a spin: one, or two side by side (Main verte, Main rouge, Touché angélique, Touché funeste). */
 function getSpunResults(pending: PendingWheel): WheelResult[] {
   // « Va au Départ »: a single dial, and the Départ/rien choice offered under it.
   if (pending.randomFallback) return [pending.result];

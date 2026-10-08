@@ -16,7 +16,7 @@ Le MVP est conçu pour une partie locale sur un seul écran : un hôte gère l�
 | Départ | Tous les joueurs commencent sur la case 0. |
 | Déplacement | Aucun dé (sauf pour le Roller, voir 8). Le joueur choisit une case voisine autorisée par le plateau ; le déplacement prend l'énergie restante et termine le tour (patch 0.1.4). |
 | Énergie | 3 points par tour (4 avec Red Bull) ; chaque objet a son coût, le déplacement prend le reste (patch 0.1.4, voir 4). |
-| Passifs | Choisis par chaque joueur avant la partie, parmi des cartes distribuées : le draft (patch 0.1.4, voir 4.0). |
+| Passifs | Tirés au sort avant la partie, jamais deux fois le même à la table (patch 0.2.1, voir 4.0) ; les actifs sont choisis au draft. |
 | Flèches | Une case fléchée ne se quitte que par sa ou ses flèches ; on peut y entrer par n'importe quelle route. Une route sans flèche se parcourt dans les deux sens (patch 0.1.4, flèches dessinées sur les cases). |
 | Boutique | Toutes les cases bleues représentent une boutique. Il faut être dans son tour et arriver sur une case bleue (eShop : n'importe quelle case ; le diable y a un second étal). |
 | Achats | Plusieurs objets peuvent être achetés pendant cette visite, dans la limite du solde et des emplacements libres. Les achats se font avant la fin du tour. |
@@ -195,7 +195,8 @@ Le passif **Non merci** (refait au patch 0.1.4, réponses de l’auteur) annule 
 
 ### 4.0 Choix des passifs avant la partie (patch 0.1.4)
 
-- Chaque partie commence par un **draft** : chaque joueur reçoit des cartes de passif et en choisit une. Jusqu'à 6 joueurs, 3 cartes chacun ; au-delà, 2. Aucune carte n'est distribuée deux fois à la table. L'Ange-Gardien n'est distribué qu'à partir de 4 joueurs.
+- **Depuis le patch 0.2.1, seul l'actif se choisit** (2 cartes par joueur) ; le passif est tiré au sort pour chacun, jamais le même que celui d'un autre joueur, et le second étage du draft se contente de le révéler (voir 13 quinquies).
+- (Historique, patch 0.1.4) Chaque partie commence par un **draft** : chaque joueur reçoit des cartes de passif et en choisit une. Jusqu'à 6 joueurs, 3 cartes chacun ; au-delà, 2. Aucune carte n'est distribuée deux fois à la table. L'Ange-Gardien n'est distribué qu'à partir de 4 joueurs.
 - Un choix peut changer tant que la table n'a pas fini ; dès que tout le monde a choisi, le draft se termine.
 - **En ligne** : chacun voit ses cartes sur son appareil, et les autres seulement « a choisi ✓ ». La table a une minute ; à la fin, qui n'a pas choisi reçoit une de ses cartes au hasard.
 - **En local** : l'écran passe d'un joueur à l'autre (« Passe l'écran à X », puis « Je suis X »), cartes cachées, sans chrono (réponse Q15).
@@ -294,7 +295,7 @@ Les objets consommables sont retirés de l’inventaire quand ils sont utilisés
 
 ## 8. Passifs
 
-Depuis le patch 0.1.5, chaque joueur a **deux cartes** : un **actif** (moteur de victoire sur la durée) et un **passif** (avantage dans une situation précise). Le draft les propose en deux étages (2 cartes de chaque sorte, sans doublon dans l'offre d'un joueur). Les actifs sont Cupide, Le diable, L'Ange-Gardien, Red Bull, eShop, Tomato Enjoyer, Roller, Chance aveugle, Double or nothing et Lambda (carte de remplacement, jamais proposée) ; les autres cartes sont des passifs. Le texte qui suit parle de « passifs » pour toutes les cartes. En ligne, le sac et l'actif des autres joueurs sont cachés (le passif, le diable et le protégé de l'Ange restent publics). Avant ce patch, une seule carte était attribuée aléatoirement à chaque joueur. Pour le MVP, les cartes sont distribuées sans doublon tant qu’il y a assez de cartes disponibles.
+Depuis le patch 0.1.5, chaque joueur a **deux cartes** : un **actif** (moteur de victoire sur la durée) et un **passif** (avantage dans une situation précise). Le draft fait choisir l'actif parmi 2 cartes ; depuis le patch 0.2.1, le passif est tiré au sort pour chacun, sans doublon à la table. Les actifs sont Cupide, Le diable, L'Ange-Gardien, Red Bull, eShop, Tomato Enjoyer, Roller, Chance aveugle, Double or nothing et Lambda (carte de remplacement, jamais proposée) ; les autres cartes sont des passifs. Le texte qui suit parle de « passifs » pour toutes les cartes. En ligne, le sac et l'actif des autres joueurs sont cachés (le passif, le diable et le protégé de l'Ange restent publics). Avant ce patch, une seule carte était attribuée aléatoirement à chaque joueur. Pour le MVP, les cartes sont distribuées sans doublon tant qu’il y a assez de cartes disponibles.
 
 | Passif | Effet |
 | --- | --- |
@@ -307,7 +308,7 @@ Depuis le patch 0.1.5, chaque joueur a **deux cartes** : un **actif** (moteur de
 | Dernier de la classe | Patch 0.1.5. Tant qu'il a strictement moins de Red Cups que chaque autre joueur qui peut en ramasser : +1 énergie par tour et −10 % en boutique (arrondi à la dizaine). |
 | Habitué de l'Enfer | Patch 0.1.5. +150 pièces à chaque descente en Enfer ; il en sort après 3 tours au lieu de 5. |
 | Main verte / Main rouge | Patch 0.1.5. Sur la roue du bonheur (verte) ou du malheur (rouge), deux tirages : il garde le meilleur résultat. |
-| Touché angélique / Main du diable | Patch 0.1.5. Roue du bonheur et roue de l'Ange (Touché angélique), roue du malheur et roue de l'Enfer (Main du diable) : deux tours, les deux résultats s'appliquent. |
+| Touché angélique / Touché funeste | Patch 0.1.5. Roue du bonheur (Touché angélique), roue du malheur et roue de l'Enfer (Touché funeste) : deux tours, les deux résultats s'appliquent. |
 | Meneur de jeu | Patch 0.1.5. Dans un duel auquel il participe, il choisit le mini-jeu parmi deux tirés au sort. |
 | Brocanteur | Patch 0.1.5. Revend depuis la boutique un objet du sac à 60 % de son prix (arrondi à 5 pièces). |
 | Piégeur | Patch 0.1.5. Sa Boue coûte 100 pièces, mais une seule à la fois sur le plateau. |
@@ -600,7 +601,7 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 ## 13 ter. Choix à valider : actifs et passifs (patch 0.1.5)
 
 1. **À valider** — **Lambda** n'est jamais proposée au draft : elle ne remplit un actif vide que si un joueur n'en a pas (Ange sans protégé, retardataire).
-2. **À valider** — **Double tour** (Touché angélique, Main du diable) : si le premier résultat ouvre une autre décision (duel, choix), le second tour est perdu.
+2. **À valider** — **Double tour** (Touché angélique, Touché funeste) : si le premier résultat ouvre une autre décision (duel, choix), le second tour est perdu.
 3. **À valider** — **Cartes de départ** : les bonus de pièces s'additionnent (Nepo Baby +1 000, eShop −1 000, Ange −1 200).
 4. **À valider** — **« Strictement moins de Red Cups »** (Dernier de la classe) ignore le diable, l'Ange et Cupide.
 5. **À valider** — **Barrière** : elle gêne aussi son poseur ; 2 tours du poseur, une par joueur, deux sur la table ; Bullet Bill, la Corde, Calme-toi l'ignorent ; la route se choisit en la touchant sur le plateau.
@@ -608,13 +609,24 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 7. **À valider** — **Meilleur résultat** (Mains verte et rouge) : barème de `getWheelResultValue` dans `catalog.ts`.
 8. **À valider** — **Vie privée** : en ligne, l'état est répliqué sur chaque appareil, le masquage est visuel ; les lignes du journal d'un achat, d'un vol ou d'une copie n'apparaissent en clair que pour leur propriétaire.
 9. **À valider** — **Goblin** vole aussi le diable, l'Ange et Chance aveugle.
-10. **À valider** — **Main du diable** utilise la roue de l'Enfer (il n'existe pas de « roue du diable »).
+10. **À valider** — **Touché funeste** utilise la roue de l'Enfer (il n'existe pas de « roue du diable »).
 
 `supabase/schema.sql` ne change pas pour ces règles.
 
 11. **À valider** — **Retour d'un joueur exclu** : il demande à revenir depuis l'écran du salon (code ou lien) ; l'hôte voit une carte « demande à revenir » avec Accepter / Refuser. Refuser est définitif pour ce salon. Accepter lève l'exclusion et, en partie, rend sa place au joueur : il revient **dernier** dans l'ordre des tours, avec ce qu'il avait (pièces, objets, Red Cups, cartes), tour sauté remis à zéro, et seulement quand la table est au repos (sa demande est rejouée jusque-là). L'Ange-Gardien revient en Lambda. Pendant le draft, il se rassoit comme un retardataire, avec de nouvelles offres. Il faut rejouer `supabase/schema.sql` (table `room_rejoin_requests`, fonctions `request_rejoin`, `rejoin_status`, `list_rejoin_requests`, `answer_rejoin`, champ `kicked` de `get_room`).
 
 ## 14. Historique des versions
+
+### 0.2.1 — octobre 2026
+
+Retours de l'auteur sur le draft et les cartes :
+
+- **Passifs tirés au sort** : le draft ne fait plus choisir que l'actif (2 cartes). Chaque joueur reçoit ensuite un passif au hasard (`dealUniquePassifs`), jamais le même qu'un autre joueur ; l'Ange-Gardien n'en reçoit aucun de nuisible. Le second étage ne fait que le révéler : en ligne 20 secondes (`PASSIF_REVEAL_TIME_MS`) pour le lire et confirmer, en local chaque joueur confirme à son tour. Un retardataire reçoit aussi un passif encore non distribué.
+- **Talismans** : les passifs ne sont plus des cartes de tarot mais des pièces épaisses en 3D (composant `PassiveTalisman`, `talisman.css`) qui flottent et se penchent vers le pointeur, sur une plaque sombre ; les actifs gardent la carte de tarot.
+- **Touché angélique** : agit sur la roue du bonheur seulement. La « roue de l'Ange » n'existe pas : la description et la règle (qui doublait aussi la roue du malheur de l'Ange-Gardien) sont corrigées.
+- **Touché funeste** : « Main du diable » est renommée (la règle ne change pas).
+- **Baraqué** : nouvelle icône, un bras qui gonfle son biceps.
+- Version de règles : `RULES_VERSION = "0.2.1"`.
 
 ### 0.2.0 — octobre 2026
 
@@ -631,12 +643,12 @@ Jeu en ligne seul sur le site public, page de signalements bugs-et-idées (`feed
 
 ### 0.1.5 — octobre 2026
 
-**Actifs et passifs** : deux cartes par joueur (draft en deux étages), vie privée en ligne (sac et actif cachés), Goblin passif à 150 pièces, 9 nouveaux passifs (Dernier de la classe, Habitué de l'Enfer, Main verte, Main rouge, Touché angélique, Main du diable, Meneur de jeu, Brocanteur, Piégeur), 4 nouveaux objets (Réveil, Parachute, Barrière, Miroir). Choix à valider en section 13 ter.
+**Actifs et passifs** : deux cartes par joueur (draft en deux étages), vie privée en ligne (sac et actif cachés), Goblin passif à 150 pièces, 9 nouveaux passifs (Dernier de la classe, Habitué de l'Enfer, Main verte, Main rouge, Touché angélique, Touché funeste, Meneur de jeu, Brocanteur, Piégeur), 4 nouveaux objets (Réveil, Parachute, Barrière, Miroir). Choix à valider en section 13 ter.
 
 Retours de l'auteur sur la version jouée ; les choix qui restent à valider sont dans la section 13 bis.
 
 - **Menu** : une page avant la préparation de la partie (commencer, jouer en ligne, comment jouer, paramètres, journal des modifications) avec la version du jeu, et une page de journal des modifications.
-- **Cartes de tarot** : les passifs sont dessinés comme des cartes de tarot au draft et dans l'aide.
+- **Cartes de tarot** : les actifs sont dessinés comme des cartes de tarot au draft et dans l'aide (les passifs sont des talismans depuis la 0.2.1).
 - **Fiche du joueur** : bouton pour la fermer, plus de fermeture au toucher du plateau, texte du passif défilant ; l'aide sur mobile n'a plus qu'un défilement par onglet.
 - **En ligne** : un salon se rejoint jusqu'à la fin du premier tour de table (action `joinLatePlayer`) ; l'hôte peut exclure un joueur (`kick_player`, action `kickPlayer`).
 - **Tour sauté** : un joueur endormi au début de son tour ne le joue plus.
@@ -704,7 +716,7 @@ Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponse
 
 ## 13 quater. Choix à valider : seconde liste de retours (patch 0.1.5)
 
-1. **Roues doubles** : Main verte / Main rouge affichent deux roues côte à côte et le joueur touche celle qu’il garde (`pickWheelResult`) ; sans choix (horloge en ligne), le meilleur des deux est gardé. Touché angélique / Main du diable lancent leurs deux roues en parallèle : les deux résultats sont tirés d’un coup, le second s’applique juste après le premier (il reste affiché, déjà arrêté).
+1. **Roues doubles** : Main verte / Main rouge affichent deux roues côte à côte et le joueur touche celle qu’il garde (`pickWheelResult`) ; sans choix (horloge en ligne), le meilleur des deux est gardé. Touché angélique / Touché funeste lancent leurs deux roues en parallèle : les deux résultats sont tirés d’un coup, le second s’applique juste après le premier (il reste affiché, déjà arrêté).
 2. **Barrière** : 400 pièces, un seul tour de table (`BARRIER_TURNS = 1`). La Botte, posée juste devant, la saute : un pas, pas deux.
 3. **Botte** : impossible à chausser sans route libre (saut compris), et le tour ne peut plus finir une fois chaussée tant qu’un déplacement existe.
 4. **Prix** : Parachute 650, Doomsday 555.
@@ -715,3 +727,12 @@ Rework demandé par l’auteur du jeu, livré en 12 lots ; le plan, les réponse
 9. **Double or nothing** : (a) la Boue : si la perte est doublée, le poseur touche de nouveau sa récompense ; si elle est annulée, il la perd ; (b) une perte qui mènerait à −300 se joue avant l’assommoir (le solde reste sous −300 le temps du pari ; perdue ou refusée, la perte assomme ; annulée, le joueur continue) ; (c) « Double » en vert ou « Nothing » en rouge s’affiche au centre de l’écran de toute la table.
 10. **Toasts d’achat** : ni le prix ni l’objet ne figurent dans les messages d’achat, même à une table locale.
 11. **Cupide à Banquise (point 7 de la liste)** : non corrigé, en attente de précisions de l’auteur (la glace tombée sur lui puis le dégel le font arriver sur la Red Cup, comme le dit la règle de la tombée de glace).
+
+## 13 quinquies. Choix à valider : draft et cartes (patch 0.2.1)
+
+1. **À valider** — **Révélation du passif** : le second étage du draft est conservé comme une révélation (le passif tiré s'affiche en talisman, le joueur confirme « J'ai compris »). Online, 20 secondes puis confirmation automatique ; en local, chacun confirme à son tour, cartes cachées.
+2. **À valider** — **Aucun doublon de passif** à la table (même au-delà du nombre de passifs, le tirage ne répète jamais tant qu'il reste une carte autorisée). L'Ange-Gardien ne reçoit pas de passif nuisible : il tire en premier parmi les passifs permis.
+3. **À valider** — **Touché angélique** : la règle suit la description corrigée — il ne double plus la roue du malheur de l'Ange-Gardien, seulement la roue du bonheur.
+4. **À valider** — **Nom** : « Main du diable » devient « Touché funeste » (écrit « Toucher funeste » dans la demande, aligné sur « Touché angélique »).
+5. **À valider** — **Talismans** : les passifs sont des pièces 3D sur une plaque sombre, la couleur suit la famille (Deniers, Épées, Bâtons) ; le numéro romain disparaît pour les passifs.
+
