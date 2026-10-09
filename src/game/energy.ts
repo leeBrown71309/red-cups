@@ -1,10 +1,19 @@
+import { getNodeKindOf } from "./board";
 import { getCards } from "./cards";
+import { getBoardMap } from "./maps/map-registry";
 import { ITEM_CATALOG } from "./catalog";
 import { isHermitPrimeActive, isLastInClass } from "./passive-rules";
 import { canUseCorrupter, hasTurnMove } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, ItemId, PassiveId, Player } from "./types";
-import { BASE_ENERGY, HELL_NODE_ID, HERMIT_ENERGY_BONUS, MOVE_MINIMUM_ENERGY } from "./types";
+import {
+  BASE_ENERGY,
+  HELL_NODE_ID,
+  HERMIT_ENERGY_BONUS,
+  MOVE_MINIMUM_ENERGY,
+  OASIS_ENERGY,
+  THIRST_ENERGY,
+} from "./types";
 
 /**
  * Energy (patch 0.1.4): every turn opens with a full gauge. Items are used
@@ -18,13 +27,22 @@ const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
 /** Energy a player's turn opens with. */
 export function getEnergyCapacity(
   player: Player,
-  state?: Pick<GameState, "players" | "round" | "mapId" | "carouselReversed" | "iceTileNodeId">,
+  state?: Pick<GameState, "players" | "round" | "mapId" | "carouselReversed" | "iceTileNodeId"> &
+    Partial<Pick<GameState, "thirstyIds">>,
 ): number {
   const cards = getCards(player).reduce((sum, card) => sum + (ENERGY_BONUSES[card] ?? 0), BASE_ENERGY);
   if (!state) return cards;
+  // Désert: a night's rest on an oasis gives a point; having chased a mirage takes one away (the gauge keeps its minimum).
+  const rested = getNodeKindOf(getBoardMap(state.mapId), player.position) === "oasis" ? OASIS_ENERGY : 0;
+  const thirst = state.thirstyIds?.includes(player.id) ? THIRST_ENERGY : 0;
   // Dernier de la classe: one more point while they trail the table in Red Cups; L'Ermite while they are alone.
-  return (
-    cards + (isLastInClass(state, player) ? 1 : 0) + (isHermitPrimeActive(state, player) ? HERMIT_ENERGY_BONUS : 0)
+  return Math.max(
+    MOVE_MINIMUM_ENERGY,
+    cards +
+      (isLastInClass(state, player) ? 1 : 0) +
+      (isHermitPrimeActive(state, player) ? HERMIT_ENERGY_BONUS : 0) +
+      rested -
+      thirst,
   );
 }
 

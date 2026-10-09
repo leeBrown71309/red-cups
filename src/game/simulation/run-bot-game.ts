@@ -3,7 +3,7 @@ import { getActionActorIds } from "../action-permissions";
 import { CARD_KINDS, getCards, withCard } from "../cards";
 import { PASSIVE_ORDER } from "../catalog";
 import { getRefusedPassifs } from "../draft";
-import { MAP_ORDER } from "../maps/map-registry";
+import { getBoardMap, getPlayableMapIds } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
 import { runWithSeededSource } from "../engine-random";
 import { assignGuardian } from "../guardian";
@@ -81,6 +81,8 @@ export interface BotGameReport {
 }
 
 const DEFAULT_MAX_STEPS = 4_000;
+/** A large map takes longer to cross: its games get this many times more steps. */
+const LARGE_MAP_STEPS_FACTOR = 3;
 /** Clock games: how often a bot lets the clock run out rather than play. */
 const IDLE_CHANCE = 0.12;
 /** Clock games: the most a bot thinks before an action. */
@@ -148,15 +150,17 @@ function cloneThroughJson(state: GameState): GameState {
   return JSON.parse(JSON.stringify(state)) as GameState;
 }
 
-/** Seeds alternate between the maps, so every campaign plays all of them. */
-function mapForSeed(seed: number): MapId {
-  return MAP_ORDER[Math.abs(seed) % MAP_ORDER.length];
+/** Seeds alternate between the maps a table of that size may play, so every campaign plays all of them. */
+function mapForSeed(seed: number, playerCount: number): MapId {
+  const playable = getPlayableMapIds(playerCount);
+  return playable[Math.abs(seed) % playable.length];
 }
 
 export function runBotGame(options: BotGameOptions): BotGameReport {
   const botRandom = createSeededRandom(options.seed * 7_919 + 17);
-  const maxSteps = options.maxSteps ?? DEFAULT_MAX_STEPS;
-  const mapId = options.mapId ?? mapForSeed(options.seed);
+  const mapId = options.mapId ?? mapForSeed(options.seed, options.playerCount);
+  const maxSteps =
+    options.maxSteps ?? DEFAULT_MAX_STEPS * (getBoardMap(mapId).nodes.length > 20 ? LARGE_MAP_STEPS_FACTOR : 1);
   const report: BotGameReport = {
     seed: options.seed,
     playerCount: options.playerCount,
@@ -365,8 +369,9 @@ export type TableSetup = Pick<BotGameOptions, "playerCount" | "passives" | "star
  * tables go through the draft (which deals the passives itself), and now and
  * then a table starts broke (Tour de Bénédiction) or rich (Cupide's goal).
  */
-export function getTableSetup(index: number): TableSetup {
-  const playerCount = 2 + (index % 7);
+export function getTableSetup(index: number, minPlayers = 2): TableSetup {
+  // A large map only seats full tables: 6 to 8 players.
+  const playerCount = minPlayers + (index % (9 - minPlayers));
   // Shifted by one every time the list of cards has gone round, so that a card is not tied to one kind of table
   // (the list is not a multiple of 3 or 4 long, but close enough for the pairing to stick without this).
   const mix = index + Math.floor(index / PASSIVE_ORDER.length);
@@ -393,7 +398,7 @@ export function runMapCampaign(options: MapCampaignOptions): BotGameReport[] {
       seed: firstSeed + index,
       mapId: options.mapId,
       maxSteps: options.maxSteps,
-      ...getTableSetup(firstSeed + index),
+      ...getTableSetup(firstSeed + index, getBoardMap(options.mapId).minPlayers),
     }),
   );
 }

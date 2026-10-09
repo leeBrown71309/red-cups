@@ -50,6 +50,8 @@ const PALETTES: Record<MapThemeId, Palette> = {
   "toy-box": { ground: "#b5e29a", haze: "#ffe3cc" },
   "night-fair": { ground: "#1d2147", haze: "#3b3f86" },
   polar: { ground: "#e9f2fb", haze: "#d7e8f7" },
+  lagoon: { ground: "#7fd0dc", haze: "#cdeff5" },
+  dunes: { ground: "#e6bd82", haze: "#f9deb0" },
 };
 
 export function createSurroundings(kit: SceneKit, layout: BoardLayout, themeId: MapThemeId): AnimatedProp {
@@ -65,6 +67,12 @@ export function createSurroundings(kit: SceneKit, layout: BoardLayout, themeId: 
       break;
     case "polar":
       parts.push(buildPolar(kit, world));
+      break;
+    case "lagoon":
+      parts.push(buildLagoon(kit, world));
+      break;
+    case "dunes":
+      parts.push(buildDunes(kit, world));
       break;
     default:
       parts.push(buildToyBox(kit, world));
@@ -381,6 +389,136 @@ function buildToyBox(kit: SceneKit, world: Placer): Surroundings {
   group.add(clouds.group);
 
   return { group, tick: (elapsed, delta) => [...tickers, clouds.tick].forEach((tick) => tick(elapsed, delta)) };
+}
+
+// ------------------------------------------------------------------ dunes
+
+/** Beyond the Désert: great dunes and sandstone buttes on the horizon, far cacti, a few thin clouds. */
+function buildDunes(kit: SceneKit, world: Placer): Surroundings {
+  const group = new THREE.Group();
+  group.add(
+    createHills(kit, world, {
+      count: 14,
+      colors: ["#ecc888", "#e0b47a", "#f3d9a2"],
+      minGap: 16,
+      maxGap: 34,
+      minSize: 3.4,
+      maxSize: 6.4,
+    }),
+  );
+  // Flat-topped buttes of red sandstone, very far.
+  const butte = kit.geometry("desert-butte", () =>
+    jitterGeometry(new THREE.CylinderGeometry(0.8, 1.2, 1.6, 7), 0.12, 29),
+  );
+  const buttes: Parameters<typeof instance>[2] = [];
+  for (let index = 0; index < 7; index += 1) {
+    const spot = world.spot(20, 36);
+    const size = world.between(3.4, 6.2);
+    buttes.push({
+      position: new THREE.Vector3(spot.x, GROUND_Y + size * 0.7, spot.z),
+      scale: scale(size, size * world.between(0.9, 1.5), size),
+      rotation: world.rand() * 3,
+      color: world.tint(index % 2 === 0 ? "#c9794f" : "#b9683f", spot.gap, 38, 0.6),
+    });
+  }
+  group.add(instance(butte, tintable(), buttes));
+  const clouds = createClouds(world, { count: 4, color: "#fff7ea", opacity: 0.6, minHeight: 14, maxHeight: 22 });
+  group.add(clouds.group);
+  return { group, tick: (elapsed, delta) => clouds.tick(elapsed, delta) };
+}
+
+// ------------------------------------------------------------------ lagoon
+
+/** Beyond the tray of the Archipel: sand islets with palms, sailboats on the open sea, a balloon and clouds. */
+function buildLagoon(kit: SceneKit, world: Placer): Surroundings {
+  const group = new THREE.Group();
+  const tickers: ((elapsed: number, delta: number) => void)[] = [];
+
+  group.add(
+    createHills(kit, world, {
+      count: 10,
+      colors: ["#f2e0a4", "#e8cf8e", "#f6e8b9"],
+      minGap: 13,
+      maxGap: 30,
+      minSize: 2,
+      maxSize: 3.8,
+    }),
+  );
+
+  const trunk = kit.geometry("lagoon-far-trunk", () => new THREE.CylinderGeometry(0.1, 0.15, 1.6, 5));
+  const crown = kit.geometry("lagoon-far-crown", () => jitterGeometry(new THREE.IcosahedronGeometry(1, 0), 0.2, 63));
+  const trunks: Parameters<typeof instance>[2] = [];
+  const crowns: Parameters<typeof instance>[2] = [];
+  for (let index = 0; index < 26; index += 1) {
+    const spot = world.spot(4, 22);
+    const size = world.between(0.9, 1.5);
+    trunks.push({
+      position: new THREE.Vector3(spot.x, GROUND_Y + 0.8 * size, spot.z),
+      scale: scale(size),
+      rotation: world.rand() * 3,
+      color: world.tint("#a8784f", spot.gap),
+    });
+    crowns.push({
+      position: new THREE.Vector3(spot.x, GROUND_Y + 1.75 * size, spot.z),
+      scale: scale(size * 0.95, size * 0.45, size * 0.95),
+      rotation: world.rand() * 3,
+      color: world.tint(index % 2 === 0 ? "#4fb86a" : "#6bd07f", spot.gap),
+    });
+  }
+  group.add(instance(trunk, tintable(), trunks), instance(crown, tintable(), crowns));
+
+  for (let index = 0; index < 3; index += 1) {
+    const boat = createSailboat(kit, index);
+    const spot = world.spot(8, 20);
+    boat.group.position.set(spot.x, GROUND_Y + 0.15, spot.z);
+    boat.group.rotation.y = world.rand() * Math.PI * 2;
+    group.add(boat.group);
+    tickers.push(boat.update);
+  }
+
+  const balloon = createHotAirBalloon(kit);
+  balloon.group.position.set(-world.outerWidth - 8, 10, -world.outerDepth * 0.3);
+  group.add(balloon.group);
+  tickers.push(balloon.update);
+
+  const clouds = createClouds(world, { count: 9, color: "#ffffff", opacity: 0.94, minHeight: 12, maxHeight: 21 });
+  group.add(clouds.group);
+  return { group, tick: (elapsed, delta) => [...tickers, clouds.tick].forEach((tick) => tick(elapsed, delta)) };
+}
+
+/** A small sailboat that bobs where it floats. */
+function createSailboat(kit: SceneKit, seed: number): AnimatedProp {
+  const group = new THREE.Group();
+  const hull = new THREE.Mesh(
+    kit.geometry("sailboat-hull", () => new THREE.BoxGeometry(2.2, 0.5, 0.8)),
+    kit.flat(seed % 2 === 0 ? "#e8453c" : "#3a7ca5"),
+  );
+  hull.position.y = 0.2;
+  const mast = new THREE.Mesh(
+    kit.geometry("sailboat-mast", () => new THREE.CylinderGeometry(0.04, 0.05, 2.4, 5)),
+    kit.flat("#6b4a2f"),
+  );
+  mast.position.set(0, 1.4, 0);
+  const sail = new THREE.Mesh(
+    kit.geometry("sailboat-sail", () => {
+      const shape = new THREE.Shape();
+      shape.moveTo(0, 0);
+      shape.lineTo(1.2, 0);
+      shape.lineTo(0, 2.1);
+      shape.closePath();
+      return new THREE.ShapeGeometry(shape);
+    }),
+    new THREE.MeshStandardMaterial({ color: "#fffaf0", side: THREE.DoubleSide, flatShading: true }),
+  );
+  sail.position.set(0.05, 0.5, 0);
+  group.add(hull, mast, sail);
+  return {
+    group,
+    update: (elapsed) => {
+      group.position.y = GROUND_Y + 0.15 + Math.sin(elapsed * 1.3 + seed * 2) * 0.08;
+      group.rotation.z = Math.sin(elapsed * 1 + seed) * 0.05;
+    },
+  };
 }
 
 function createWindmill(kit: SceneKit): AnimatedProp {

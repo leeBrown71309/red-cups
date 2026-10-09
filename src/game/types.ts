@@ -46,6 +46,21 @@ export const THEFT_RISK_PER_TEN_COINS = 0.01;
 export const THEFT_PENALTY_RATE = 1.5;
 /** L'Ange-Gardien only joins tables of at least this many players. */
 export const GUARDIAN_MIN_PLAYERS = 4;
+/** Désert des Mirages: the Cups, the wells, the caravan and the sandstorms. */
+export const WELL_PRICE = 300;
+/** The player who reached a mirage starts their next turn with this many points less. */
+export const THIRST_ENERGY = 1;
+/** An oasis gives its single occupant this many points of energy at the start of their next turn. */
+export const OASIS_ENERGY = 1;
+/** The caravan walks this many tiles of the outer loop at every new round, and carries a rider this many. */
+export const CARAVAN_STEP = 2;
+export const CARAVAN_RIDE = 4;
+/** A sandstorm changes which passes are open every this many rounds. */
+export const STORM_ROUNDS = 4;
+/** Archipel des Marées: the tide turns every this many rounds. */
+export const TIDE_ROUNDS = 2;
+/** Archipel des Marées: coins paid to whoever holds a quay when a second player is pushed back from it. */
+export const QUAY_HOLDER_REWARD = 50;
 /** L'Ange-Gardien: turns given up to free the protégé from Hell. */
 export const RESCUE_SKIPPED_TURNS = 2;
 /** Le diable's Portails stay open this many rounds, unless somebody stops on one of them first. */
@@ -161,7 +176,7 @@ export const PLAYER_COLORS = [
 export type PlayerColor = (typeof PLAYER_COLORS)[number];
 export type NodeId = number;
 export type PlayerId = string;
-export type MapId = "classic" | "luna-park" | "banquise";
+export type MapId = "classic" | "luna-park" | "banquise" | "archipel" | "desert";
 
 export type ItemId =
   | "ndoye"
@@ -300,7 +315,19 @@ export interface BoardNode {
   id: NodeId;
   x: number;
   z: number;
-  kind: "start" | "shop" | "red" | "green" | "neutral" | "hell";
+  kind:
+    | "start"
+    | "shop"
+    | "red"
+    | "green"
+    | "neutral"
+    | "hell"
+    | "quay"
+    | "causeway"
+    | "whirlpool"
+    | "well"
+    | "oasis"
+    | "pass";
   label: string;
   /** Banquise: a walk that ends on ice slides on, at random, along one of the tile's other roads. */
   ice?: boolean;
@@ -670,6 +697,8 @@ export interface HellPortal extends DevilSpell {
 /** Le diable's Black Cup: the Red Cup waits in Hell, then goes back to its tile. */
 export interface BlackCup extends DevilSpell {
   returnNodeId: NodeId;
+  /** Désert: where the mirage stood, brought back with the real Cup. */
+  returnMirageNodeId?: NodeId | null;
   /** Already in Hell when it was cast: only a player who arrives there afterwards picks it up. */
   bystanderIds: PlayerId[];
 }
@@ -718,7 +747,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.3";
+export const RULES_VERSION = "0.2.4";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -748,6 +777,16 @@ export interface PlayerMovement {
   slippedInMud?: boolean;
   /** Taupe: the walk is a dive into a tunnel, from `from` to the only tile of the path. */
   tunnel?: { id: string; dug: boolean };
+  /**
+   * Archipel des Marées and Désert des Mirages: what happened to the walk's last tile. A whirlpool drew the player
+   * away from it (their final tile is another island's quay); a taken quay or oasis pushed them back to where the walk
+   * began.
+   */
+  water?: "whirlpool" | "bumped";
+  /** Désert des Mirages: the walk is a ride on the caravan, four tiles along the outer loop with no road to follow. */
+  caravan?: boolean;
+  /** Archipel des Marées: the walk is the ferry crossing from one quay to the next. */
+  ferry?: boolean;
   /** Sœur Fantôme: where the little ghost went while the player walked, one step for each of theirs (or none). */
   sister?: { playerId: PlayerId; from: NodeId; path: NodeId[] };
 }
@@ -829,6 +868,47 @@ export interface FrozenSlide {
   playerId: PlayerId;
   from: NodeId;
   to: NodeId;
+}
+
+/**
+ * Archipel des Marées: what the tide, the ferry, the whirlpools and the quays did during one action, kept so the
+ * scene, the sounds and the toasts can replay it.
+ */
+export type ArchipelEvent =
+  | { kind: "tide"; level: "low" | "high" }
+  | { kind: "ferry-moved"; from: NodeId; to: NodeId }
+  /** The causeway was drowned under a player: the water set them down on a quay. */
+  | { kind: "flood-drop"; playerId: PlayerId; from: NodeId; to: NodeId }
+  | { kind: "whirlpool"; playerId: PlayerId; from: NodeId; to: NodeId }
+  /** A second player reached a quay: pushed back where they came from, the one who held it is paid. */
+  | { kind: "quay-bump"; playerId: PlayerId; quayId: NodeId; to: NodeId; holderId: PlayerId | null };
+
+/** An event with its place in the order of the game: the scene replays the ones newer than what it already saw. */
+export type ArchipelEventRecord = ArchipelEvent & { seq: number };
+
+/**
+ * Désert des Mirages: what the caravan, the sandstorms, the wells and the mirages did during one action, kept so the
+ * scene, the sounds and the toasts can replay it.
+ */
+export type DesertEvent =
+  | { kind: "caravan-moved"; from: NodeId; to: NodeId }
+  /** A sandstorm closes two passes and opens the two others (`closed` lists the ones now shut). */
+  | { kind: "storm"; closed: NodeId[] }
+  /** The storm shut a pass under a player: the sand set them down on the loop outside. */
+  | { kind: "storm-drop"; playerId: PlayerId; from: NodeId; to: NodeId }
+  /** Somebody drank at a well: the table sees only that, never what they learned. */
+  | { kind: "well"; playerId: PlayerId; nodeId: NodeId }
+  /** The mirage was reached: it dissipates; both Cups vanish and a new pair appears at `real` and `mirage`. */
+  | { kind: "mirage"; playerId: PlayerId; nodeId: NodeId; oldReal: NodeId }
+  /** A second player reached an oasis somebody holds: pushed back where they came from. */
+  | { kind: "oasis-bump"; playerId: PlayerId; nodeId: NodeId; to: NodeId };
+
+export type DesertEventRecord = DesertEvent & { seq: number };
+
+/** Désert des Mirages: what a player learned at a well, valid for as long as the pair of Cups it was drunk for lasts. */
+export interface WellKnowledge {
+  pair: number;
+  realNodeId: NodeId;
 }
 
 /** Banquise: the last blizzard, kept so the scene can replay it. */
@@ -944,6 +1024,8 @@ export interface GameState {
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
   pendingCupRevealNodeId: NodeId | null;
+  /** Désert: the mirage waits with the real Cup while New Cup, New Me chooses, or its absence would give the real one away. */
+  pendingMirageRevealNodeId: NodeId | null;
   pendingCupRepositionResumeStage: TurnStage | null;
   pendingCalmDown: PendingCalmDown | null;
   pendingAdvance: PendingAdvance | null;
@@ -982,6 +1064,24 @@ export interface GameState {
   frozenSlides: FrozenSlide[];
   lastBlizzard: BlizzardEvent | null;
   lastIceFall: IceFallEvent | null;
+  /** Archipel des Marées: the quay the ferry is moored at; null on the other maps. */
+  ferryQuayId: NodeId | null;
+  /**
+   * Désert des Mirages: the second Red Cup, the mirage (null on the other maps). `redCupNodeId` stays the real one,
+   * so every rule that reads the Cup keeps working; the table never learns which of the two is which, except the
+   * players who drank at a well (`wellKnowledge`).
+   */
+  mirageNodeId: NodeId | null;
+  /** Désert: counts the pairs of Cups placed so far; a well only tells what it knew for the pair in play. */
+  cupPairId: number;
+  wellKnowledge: Partial<Record<PlayerId, WellKnowledge>>;
+  /** Désert: players who reached a mirage and start their next turn with one point of energy less. */
+  thirstyIds: PlayerId[];
+  /** Désert: the tile of the outer loop the caravan stands on. */
+  caravanNodeId: NodeId | null;
+  lastDesertEvents: DesertEventRecord[];
+  /** The last few events, oldest first, each with an increasing `seq`. */
+  lastArchipelEvents: ArchipelEventRecord[];
   /** Luna Park: the ghost of the carousel; null on the other maps. */
   ghost: GhostState | null;
   lastGhostEvent: GhostEvent | null;
@@ -1058,6 +1158,7 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,
   pendingCupRevealNodeId: null,
+  pendingMirageRevealNodeId: null,
   pendingCupRepositionResumeStage: null,
   pendingCalmDown: null,
   pendingAdvance: null,
@@ -1081,6 +1182,14 @@ export const EMPTY_GAME_STATE: GameState = {
   frozenSlides: [],
   lastBlizzard: null,
   lastIceFall: null,
+  ferryQuayId: null,
+  mirageNodeId: null,
+  cupPairId: 0,
+  wellKnowledge: {},
+  thirstyIds: [],
+  caravanNodeId: null,
+  lastDesertEvents: [],
+  lastArchipelEvents: [],
   ghost: null,
   lastGhostEvent: null,
   lastCupRoll: null,

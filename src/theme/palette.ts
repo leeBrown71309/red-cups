@@ -11,6 +11,14 @@ export const TILE_COLORS: Record<BoardNode["kind"], { top: string; side: string 
   green: { top: "#5cc46a", side: "#3a9a4a" },
   neutral: { top: "#c9c1b6", side: "#9d948a" },
   hell: { top: "#8e5bd9", side: "#5e3a99" },
+  // Archipel des Marées: a wooden quay, a stone causeway, the blue of a whirlpool.
+  quay: { top: "#d9a066", side: "#8a5a3c" },
+  causeway: { top: "#e9dcc2", side: "#a89a80" },
+  whirlpool: { top: "#35b6d3", side: "#1d7894" },
+  // Désert des Mirages: a well of blue stone, an oasis (the shop) of palm green, a pass of pale sandstone.
+  well: { top: "#8fb0d6", side: "#5b7aa6" },
+  oasis: { top: "#3fc3a0", side: "#238a72" },
+  pass: { top: "#ecd29b", side: "#b9955b" },
 };
 
 export const SCENE_COLORS = {

@@ -10,7 +10,7 @@ const TOAST_LIFETIME_MS = 4_200;
 
 /** Turn announcements get the splash, big table events the banner; plain moves are visible on the board. */
 const TOASTLESS_LOG =
-  /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens|Blizzard|La glace tombe|Un fantôme surgit|Le fantôme attaque)|se déplace en case/;
+  /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens|Blizzard|Marée |Tempête de sable|La glace tombe|Un fantôme surgit|Le fantôme attaque)|se déplace en case/;
 
 /** A player's name, unless the fog of Mi-vu, Mi-vue hides them from this device. */
 function playerName(playerId: string | null): string {
@@ -118,6 +118,36 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: `${playerName(event.playerId)} doit l’affronter !`,
         detail: `Duel sur la case ${event.nodeId}, mini-jeu tiré au sort. Perdu, il vole ; gagné, il rend un butin.`,
       };
+    case "storm":
+      return {
+        tone: "storm",
+        eyebrow: "Tempête de sable",
+        title: `Les passes ${event.closed.join(" et ")} se ferment !`,
+        detail:
+          "Les deux autres s’ouvrent jusqu’à la prochaine tempête, dans quatre tours. Qui s’y trouve est déposé sur la grande boucle.",
+      };
+    case "mirage":
+      return {
+        tone: "storm",
+        eyebrow: "Un mirage !",
+        title: `${playerName(event.playerId)} n’a trouvé que du sable`,
+        detail:
+          "Les deux Red Cups se dissipent et deux nouvelles apparaissent ailleurs. Le pauvre a soif : un point d’énergie de moins à son prochain tour.",
+      };
+    case "tide-turned":
+      return event.level === "high"
+        ? {
+            tone: "tide",
+            eyebrow: "Marée haute",
+            title: "La mer monte !",
+            detail: "Les chaussées basses se noient, les hautes émergent. Qui s’y trouve est déposé sur un Quai.",
+          }
+        : {
+            tone: "tide",
+            eyebrow: "Marée basse",
+            title: "La mer se retire !",
+            detail: "Les chaussées basses émergent, les hautes se noient. Qui s’y trouve est déposé sur un Quai.",
+          };
     case "carousel-flipped":
       return {
         tone: "carousel",

@@ -45,6 +45,9 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "mimeCopy":
     case "digTunnel":
     case "crossTunnel":
+    case "boardFerry":
+    case "boardCaravan":
+    case "drinkAtWell":
     case "placeMark":
     case "teleportToMark":
     case "swapWithSister":

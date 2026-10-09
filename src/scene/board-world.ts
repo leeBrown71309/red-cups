@@ -9,12 +9,18 @@ import { SCENE_COLORS } from "../theme/palette";
 import { BoardLayout } from "./board-layout";
 import { BulletBillActor, type BulletCarry, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
+import { CaravanActor } from "./caravan-actor";
+import { FerryActor } from "./ferry-actor";
 import { EffectsLayer, SISTER_MIST_COLORS } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
 import { createSurroundings } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
+import { LAGOON_TRAY, WATER_Y, createLagoonScenery } from "./models/lagoon-scenery-model";
+import { createDesertScenery } from "./models/desert-scenery-model";
+import { createMaelstrom } from "./models/maelstrom-model";
+import { createQuicksand } from "./models/quicksand-model";
 import { createIceCrevasse } from "./models/polar-landmarks-model";
 import { POLAR_TRAY, createPolarScenery } from "./models/polar-scenery-model";
 import {
@@ -35,6 +41,7 @@ import { RoadNetwork } from "./road-network";
 import { SisterController, type SisterView } from "./sister-actor";
 import { SceneKit, clamp01, easeInOutCubic, easeOutBack, prefersReducedMotion } from "./scene-kit";
 import {
+  FERRY_RIDE_MS,
   HELL_DROP_MS,
   MAGE_CRUMBLE_MS,
   MARK_SUCK_MS,
@@ -76,6 +83,13 @@ export interface BoardView {
   carouselReversed: boolean;
   /** Banquise: the blizzard's temporary ice tile. */
   iceTileNodeId: NodeId | null;
+  /** Archipel: the causeway tiles the tide has drowned, and the quay the ferry is moored at. */
+  floodedNodeIds: NodeId[];
+  ferryQuayId: NodeId | null;
+  /** Désert: the mirage (it looks like the real Cup), the tile the caravan stands on, and the real Cup a well taught. */
+  mirageNodeId: NodeId | null;
+  caravanNodeId: NodeId | null;
+  knownRealNodeId: NodeId | null;
   /** Doomsday: le diable's spell is on the table, every tile turns red. */
   doomed: boolean;
   pawns: PawnInput[];
@@ -143,9 +157,13 @@ export interface BoardWorldCallbacks {
 const STALL_AWNINGS: Partial<Record<MapThemeId, string>> = {
   "night-fair": "#ff4fa3",
   polar: "#35c6f4",
+  lagoon: "#ff7a59",
+  dunes: "#2fbf9f",
 };
 
 const TAP_DISTANCE_PX = 9;
+/** Désert: seconds of amber haze while a sandstorm sweeps over. */
+const SAND_FOG_SECONDS = 2.8;
 const BLIZZARD_FOG_SECONDS = 2.6;
 const TAP_DURATION_MS = 650;
 /** Where mud sits on a tile, from its centre. */
@@ -209,9 +227,19 @@ export class BoardWorld {
   private carouselHell: CarouselHell | null = null;
   /** Banquise: seconds of blizzard fog left, thickening then clearing. */
   private blizzardFog = 0;
+  /** Désert: seconds of sandstorm haze left. */
+  private sandFog = 0;
   private readonly tiles = new Map<NodeId, TileVisual>();
   private readonly roads: RoadNetwork;
   private readonly pawns: PawnController;
+  /** Archipel: the ferry boat; null on the other maps. */
+  private ferry: FerryActor | null = null;
+  /** Désert: the caravan, the second Cup and the marker of the one a well showed. */
+  private caravan: CaravanActor | null = null;
+  private mirageCup: AnimatedProp | null = null;
+  private mirageNodeId: NodeId | null = null;
+  private miragePopProgress = 1;
+  private knownMarker: THREE.Group | null = null;
   private readonly sisters: SisterController;
   private readonly effects = new EffectsLayer();
   private readonly animated: AnimatedProp[] = [];
@@ -289,9 +317,22 @@ export class BoardWorld {
     this.roads = new RoadNetwork(this.kit, this.layout, this.theme.roads);
     this.scene.add(this.roads.group);
 
+    if (this.layout.map.tidal) {
+      this.ferry = new FerryActor(this.kit, this.layout);
+      this.scene.add(this.ferry.group);
+    }
+    if (this.layout.map.desert) {
+      this.caravan = new CaravanActor(this.kit, this.layout);
+      this.scene.add(this.caravan.group);
+    }
+
     this.pawns = new PawnController(this.kit, this.layout, {
       onGhostSlap: (pawnId) => this.ghost?.fling(pawnId) ?? null,
       onPhase: (info) => this.handlePawnPhase(info),
+      getFerryDeck: () => {
+        const vehicle = this.ferry?.group.visible ? this.ferry : this.caravan?.group.visible ? this.caravan : null;
+        return vehicle ? { position: vehicle.getDeckPosition(), heading: vehicle.getDeckHeading() } : null;
+      },
     });
     this.scene.add(this.pawns.group);
 
@@ -301,6 +342,15 @@ export class BoardWorld {
     this.redCup = createRedCup(this.kit);
     this.redCup.group.visible = false;
     this.scene.add(this.redCup.group);
+    if (this.layout.map.desert) {
+      // The mirage is a Cup like the other: nothing in the scene tells them apart.
+      this.mirageCup = createRedCup(this.kit);
+      this.mirageCup.group.visible = false;
+      this.scene.add(this.mirageCup.group);
+      this.knownMarker = createKnownMarker(this.kit);
+      this.knownMarker.visible = false;
+      this.scene.add(this.knownMarker);
+    }
 
     this.bullet = new BulletBillActor(this.kit, this.effects, this.layout);
     this.scene.add(this.bullet.group);
@@ -343,10 +393,16 @@ export class BoardWorld {
     this.rig.setMode(view.mode);
     this.doomTarget = view.doomed ? 1 : 0;
     this.roads.setCarouselReversed(view.carouselReversed);
+    const flooded = new Set(view.floodedNodeIds);
     for (const [nodeId, tile] of this.tiles) {
       tile.setIce(this.layout.getNode(nodeId)?.ice === true || nodeId === view.iceTileNodeId);
       tile.setDoomed(view.doomed);
+      tile.setSunk(flooded.has(nodeId));
     }
+    this.roads.setFlooded(view.floodedNodeIds);
+    this.ferry?.sync(view.ferryQuayId);
+    this.caravan?.sync(view.caravanNodeId);
+    this.syncMirage(view);
     this.carouselHell?.setReversed(view.carouselReversed);
     this.pawns.sync(view.pawns, view.lastMovement, this.pendingPower);
     this.sisters.sync(view.sisters, view.lastMovement, this.pendingPower);
@@ -446,7 +502,7 @@ export class BoardWorld {
     sun.shadow.camera.top = halfDepth + 4.4;
     sun.shadow.camera.bottom = -halfDepth - 4.4;
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 60;
+    sun.shadow.camera.far = 90;
     sun.shadow.radius = 4;
     sun.shadow.bias = -0.0006;
     sun.shadow.normalBias = 0.03;
@@ -489,6 +545,15 @@ export class BoardWorld {
         this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
         this.addAnimated(createNightFairScenery(this.kit, layout));
         return;
+      case "dunes":
+        // The desert has no tray either: sand as far as the eye sees, and the horizon's haze.
+        this.addAnimated(createDesertScenery(this.kit, layout));
+        return;
+      case "lagoon":
+        // The lagoon has no tray: the sea goes on past the islands, as far as the eye sees.
+        if (!layout.config.openWorld) this.scene.add(createTray(this.kit, layout, LAGOON_TRAY));
+        this.addAnimated(createLagoonScenery(this.kit, layout));
+        return;
       case "polar":
         this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
         {
@@ -513,6 +578,10 @@ export class BoardWorld {
       }
       case "polar":
         return createIceCrevasse(this.kit);
+      case "lagoon":
+        return createMaelstrom(this.kit);
+      case "dunes":
+        return createQuicksand(this.kit);
       default:
         return createHellPit(this.kit);
     }
@@ -537,7 +606,7 @@ export class BoardWorld {
       this.addTileArrows(node, tile);
 
       const stallPlacement = layout.config.shopStalls[node.id];
-      if (node.kind === "shop" && stallPlacement) {
+      if ((node.kind === "shop" || node.kind === "oasis") && stallPlacement) {
         const stall = createShopStall(this.kit, STALL_AWNINGS[layout.map.themeId]);
         stall.position.set(node.x + stallPlacement.x, 0, node.z + stallPlacement.z);
         stall.rotation.y = stallPlacement.rotation;
@@ -737,6 +806,7 @@ export class BoardWorld {
       ...view.blackMarks.map((mark) => mark.nodeId),
     ]);
     if (view.redCupNodeId !== null) covered.add(view.redCupNodeId);
+    if (view.mirageNodeId !== null) covered.add(view.mirageNodeId);
     for (const [nodeId, tile] of this.tiles) tile.setCovered(covered.has(nodeId));
   }
 
@@ -766,7 +836,10 @@ export class BoardWorld {
     this.rig.update(delta);
     this.updateBlizzardFog(delta);
     this.updateDoomMood(delta, elapsed);
-    this.roads.update(elapsed);
+    this.roads.update(elapsed, delta);
+    this.ferry?.update(elapsed, delta);
+    this.caravan?.update(elapsed, delta);
+    this.updateMirage(elapsed, delta);
     this.pawns.update(elapsed, delta);
     this.sisters.update(elapsed, delta);
     this.effects.update(delta);
@@ -1055,6 +1128,75 @@ export class BoardWorld {
         if (position) this.effects.spawnIceBurst(position, 16);
         return;
       }
+      case "storm": {
+        // A wall of sand sweeps over the dunes and the sky turns amber for a moment.
+        this.effects.spawnSandstorm(this.layout.halfWidth, this.layout.halfDepth);
+        this.sandFog = SAND_FOG_SECONDS;
+        for (const passId of event.closed) {
+          this.effects.spawnDust(this.layout.getNodePosition(passId).setY(TILE_HEIGHT), 14, 1.6);
+        }
+        this.rig.shakeFor(0.12, 700);
+        return;
+      }
+      case "storm-drop": {
+        if (this.isUnseen(fog, event.playerId)) return;
+        this.effects.spawnDust(this.layout.getNodePosition(event.from).setY(TILE_HEIGHT), 12, 1.2);
+        this.later(380, () => this.effects.spawnDust(this.layout.getNodePosition(event.to).setY(TILE_HEIGHT), 12, 1.2));
+        return;
+      }
+      case "well-drunk": {
+        if (this.isUnseen(fog, event.playerId)) return;
+        const mouth = this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT + 0.5);
+        this.effects.spawnSparkles(mouth, ["#9be4ff", "#ffffff", "#5fc8f0"], 12, 0.5, 0.9);
+        this.effects.spawnShockRing(mouth.clone().setY(TILE_HEIGHT), "#7fe3ff", 2.2, 0.6);
+        return;
+      }
+      case "mirage": {
+        // Both Cups shiver and fade in a shimmer of heat; the pair that follows pops up elsewhere.
+        const spot = this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT + 0.5);
+        this.effects.spawnGhostMist(spot, 14, ["#f7d9a0", "#ffe9c0", "#e8c48a"], true);
+        this.effects.spawnSparkleRing(spot, "#ffe9c0", 1.4, 14, 0.9);
+        this.effects.spawnFloatingText(spot.clone().setY(TILE_HEIGHT + 1.8), "Mirage !", "#ffd166");
+        const old = this.layout.getNodePosition(event.oldReal).setY(TILE_HEIGHT + 0.5);
+        this.effects.spawnGhostMist(old, 10, ["#f7d9a0", "#ffe9c0", "#e8c48a"], true);
+        return;
+      }
+      case "oasis-bump": {
+        if (this.isUnseen(fog, event.playerId)) return;
+        const oasis = this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT);
+        this.effects.spawnShockRing(oasis, "#7ff0d0", 2.4, 0.55);
+        this.effects.spawnFloatingText(oasis.clone().setY(TILE_HEIGHT + 1.3), "Oasis prise !", "#7ff0d0");
+        return;
+      }
+      case "tide-turned": {
+        // A great ring of foam runs out from the Maelström across the whole lagoon.
+        const centre = this.layout.getNodePosition(HELL_NODE_ID).setY(WATER_Y + 0.05);
+        this.effects.spawnShockRing(centre, event.level === "high" ? "#bfeaff" : "#ffffff", 18, 1.6);
+        this.later(450, () => this.effects.spawnShockRing(centre, "#ffffff", 14, 1.4));
+        this.rig.shakeFor(0.12, 700);
+        return;
+      }
+      case "flood-drop": {
+        if (this.isUnseen(fog, event.playerId)) return;
+        this.spawnSplash(this.layout.getNodePosition(event.from));
+        this.later(380, () => this.spawnSplash(this.layout.getNodePosition(event.to)));
+        return;
+      }
+      case "whirlpool": {
+        // A walk onto the whirlpool plays its own whirl and surfacing; any other way of landing there is told here.
+        if (this.isUnseen(fog, event.playerId) || this.isWalkedWater(event.playerId)) return;
+        this.effects.spawnVortex(this.layout.getNodePosition(event.from).setY(WATER_Y + 0.1), 1);
+        this.later(500, () => this.spawnSplash(this.layout.getNodePosition(event.to)));
+        return;
+      }
+      case "quay-bump": {
+        if (this.isUnseen(fog, event.playerId)) return;
+        const quay = this.layout.getNodePosition(event.quayId).setY(TILE_HEIGHT);
+        this.effects.spawnShockRing(quay, "#ffd166", 2.2, 0.55);
+        this.effects.spawnFloatingText(quay.clone().setY(TILE_HEIGHT + 1.3), "Quai pris !", "#ffd166");
+        this.rig.shakeFor(0.08, 220);
+        return;
+      }
       case "carousel-flipped": {
         const hell = this.layout.getNodePosition(HELL_NODE_ID).setY(TILE_HEIGHT + 2.4);
         this.effects.spawnConfetti(hell);
@@ -1296,6 +1438,25 @@ export class BoardWorld {
         this.rig.shakeFor(0.22, 380);
         return;
       }
+      case "sail": {
+        // The pawn climbs aboard first; the boat casts off once it is on deck and brings it to the next quay.
+        const crossing = info.ferry;
+        if (!crossing) return;
+        this.later(FERRY_RIDE_MS * 0.14, () => {
+          if (this.caravan) this.caravan.carry(crossing.from, crossing.to, FERRY_RIDE_MS * 0.72);
+          else this.ferry?.carry(crossing.from, crossing.to, FERRY_RIDE_MS * 0.72);
+        });
+        return;
+      }
+      case "whirl":
+        if (hidden) return;
+        this.effects.spawnVortex(ground.clone().setY(WATER_Y + 0.1), 1.1);
+        this.rig.shakeFor(0.1, 320);
+        return;
+      case "surface":
+        if (hidden) return;
+        this.spawnSplash(ground);
+        return;
       case "burn": {
         const teleport = this.teleport;
         if (hidden || !teleport || this.flameSeq === teleport.seq) return;
@@ -1331,6 +1492,62 @@ export class BoardWorld {
         this.effects.spawnSparkles(ground, INVISIBILITY_SPARKLES, 8, 0.5, 0.7);
         return;
     }
+  }
+
+  /** Désert: both Cups stand on the sand, the second one's pop-up and sway follow its tile; a well marks the real one. */
+  private syncMirage(view: BoardView): void {
+    const cup = this.mirageCup;
+    if (!cup) return;
+    if (view.mirageNodeId !== this.mirageNodeId) {
+      this.mirageNodeId = view.mirageNodeId;
+      cup.group.visible = view.mirageNodeId !== null;
+      if (view.mirageNodeId !== null) {
+        cup.group.position.copy(this.layout.getNodePosition(view.mirageNodeId)).setY(TILE_HEIGHT);
+        this.miragePopProgress = 0;
+      }
+    }
+    const marker = this.knownMarker;
+    if (marker) {
+      marker.visible = view.knownRealNodeId !== null && view.redCupNodeId === view.knownRealNodeId;
+      if (view.knownRealNodeId !== null) {
+        marker.position.copy(this.layout.getNodePosition(view.knownRealNodeId)).setY(TILE_HEIGHT + 2.6);
+      }
+    }
+  }
+
+  private updateMirage(elapsed: number, delta: number): void {
+    const cup = this.mirageCup;
+    if (cup?.group.visible) {
+      cup.update(elapsed, delta);
+      this.miragePopProgress = Math.min(1, this.miragePopProgress + delta * 1.6);
+      cup.group.scale.setScalar(Math.max(0.001, easeOutBack(this.miragePopProgress)));
+    }
+    if (this.knownMarker?.visible) {
+      this.knownMarker.rotation.y = elapsed * 1.8;
+      this.knownMarker.position.y += Math.sin(elapsed * 3) * 0.002;
+    }
+    // The amber haze of a sandstorm thickens and clears like the blizzard's white-out.
+    if (this.sandFog > 0) {
+      this.sandFog = Math.max(0, this.sandFog - delta);
+      const progress = 1 - this.sandFog / SAND_FOG_SECONDS;
+      const density = Math.sin(progress * Math.PI) * 0.032;
+      if (this.sandFog === 0) this.scene.fog = null;
+      else if (this.scene.fog instanceof THREE.FogExp2) this.scene.fog.density = density;
+      else this.scene.fog = new THREE.FogExp2("#e8c48a", density);
+    }
+  }
+
+  /** Archipel: a spray of drops and a ring on the water. */
+  private spawnSplash(position: THREE.Vector3): void {
+    const surface = position.clone().setY(WATER_Y + 0.1);
+    this.effects.spawnShockRing(surface, "#ffffff", 1.8, 0.55);
+    this.effects.spawnSparkles(surface, ["#ffffff", "#bfeaff", "#7fe3ff"], 14, 0.5, 0.9);
+  }
+
+  /** Whether the walk the board is playing is the one that took this player into the water: its own animation tells it. */
+  private isWalkedWater(playerId: string): boolean {
+    const movement = this.view?.lastMovement;
+    return movement?.playerId === playerId && movement.water !== undefined;
   }
 
   private updatePendingPower(delta: number): void {
@@ -1559,4 +1776,26 @@ function disposeObject(object: THREE.Object3D): void {
 
 function preventDefault(event: Event): void {
   event.preventDefault();
+}
+
+/** Désert: a golden ring and a star turning above the Red Cup that a well showed to the one who drank. */
+function createKnownMarker(kit: SceneKit): THREE.Group {
+  const marker = new THREE.Group();
+  const ring = new THREE.Mesh(
+    new THREE.TorusGeometry(0.6, 0.07, 6, 20),
+    new THREE.MeshBasicMaterial({ color: "#ffd24a", transparent: true, opacity: 0.95 }),
+  );
+  ring.rotation.x = Math.PI / 2;
+  const star = new THREE.Mesh(
+    kit.geometry("known-star", () => new THREE.OctahedronGeometry(0.3, 0)),
+    new THREE.MeshStandardMaterial({
+      color: "#fff3b0",
+      emissive: "#ffb000",
+      emissiveIntensity: 0.9,
+      flatShading: true,
+    }),
+  );
+  star.scale.y = 1.4;
+  marker.add(ring, star);
+  return marker;
 }

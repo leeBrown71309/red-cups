@@ -941,6 +941,54 @@
   letter-spacing: 0;
 }
 
+.legend-road--causeway {
+  background: #e9dcc2;
+  color: #6d5d3c;
+  letter-spacing: 0;
+}
+
+.legend-road--quay {
+  background: #d9a066;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
+.legend-road--whirlpool {
+  background: #35b6d3;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
+.legend-road--ferry {
+  background: #ffffff;
+  color: #1d7894;
+  letter-spacing: 0;
+}
+
+.legend-road--pass {
+  background: #ecd29b;
+  color: #6d5530;
+  letter-spacing: 0;
+}
+
+.legend-road--well {
+  background: #8fb0d6;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
+.legend-road--oasis {
+  background: #3fc3a0;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
+.legend-road--caravan {
+  background: #d9a066;
+  color: #ffffff;
+  letter-spacing: 0;
+}
+
 .legend-road--carousel {
   background: #ff9fcd;
   color: #ffffff;
@@ -1108,6 +1156,14 @@
 
 .help-mechanic--night {
   --mechanic-color: #6038a8;
+}
+
+.help-mechanic--sea {
+  --mechanic-color: #1d9dbd;
+}
+
+.help-mechanic--sand {
+  --mechanic-color: #c9842f;
 }
 
 .help-mechanic__icon {

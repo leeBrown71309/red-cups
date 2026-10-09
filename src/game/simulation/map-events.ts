@@ -36,6 +36,14 @@ export function countMapEvents(
       from = step;
     }
   }
+  if (movement && movement.seq !== previous.lastMovement?.seq && movement.ferry) add("ferry-ride");
+  if (movement && movement.seq !== previous.lastMovement?.seq && movement.caravan) add("caravan-ride");
+  const seenSand = previous.lastDesertEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  for (const record of next.lastDesertEvents.filter((entry) => entry.seq > seenSand)) add(record.kind);
+  const seenArchipel = previous.lastArchipelEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  for (const record of next.lastArchipelEvents.filter((entry) => entry.seq > seenArchipel)) {
+    add(record.kind === "tide" ? `tide:${record.level}` : record.kind);
+  }
   if (next.lastIceFall && next.lastIceFall.seq !== previous.lastIceFall?.seq) {
     add(next.lastIceFall.hit ? "ice-fall:hit" : "ice-fall:miss");
   }

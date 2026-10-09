@@ -76,6 +76,140 @@ export const soundEffects = {
     audioEngine.tone({ type: "sine", frequency: 320, frequencyEnd: 520, duration: 1.6, gain: 0.03 });
   },
 
+  /** Désert: a sandstorm sweeps across, a rising hiss of grit under a low drone. */
+  sandstorm(): void {
+    audioEngine.noise({ duration: 2.6, gain: 0.1, filterFrequency: 900, filterFrequencyEnd: 3_200, q: 1.2 });
+    audioEngine.noise({ start: at(0.5), duration: 1.8, gain: 0.05, filterType: "highpass", filterFrequency: 2_800 });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 70,
+      frequencyEnd: 110,
+      duration: 2.2,
+      gain: 0.05,
+      filterFrequency: 300,
+    });
+  },
+
+  /** Désert: the caravan's bells and a wooden creak as it moves on. */
+  caravanBells(): void {
+    arpeggio([NOTE.E5, NOTE.G5, NOTE.E5, NOTE.C6], 0.11, { type: "sine", gain: 0.06, length: 0.35 });
+    audioEngine.tone({
+      type: "triangle",
+      frequency: 110,
+      frequencyEnd: 90,
+      start: at(0.05),
+      duration: 0.4,
+      gain: 0.05,
+    });
+  },
+
+  /** Désert: a drop of water falls into the well. */
+  wellDrink(): void {
+    audioEngine.tone({ type: "sine", frequency: 1_400, frequencyEnd: 520, duration: 0.18, gain: 0.09 });
+    audioEngine.tone({ type: "sine", frequency: 980, frequencyEnd: 380, start: at(0.2), duration: 0.22, gain: 0.07 });
+    audioEngine.noise({
+      start: at(0.35),
+      duration: 0.3,
+      gain: 0.04,
+      filterFrequency: 1_800,
+      filterFrequencyEnd: 800,
+      q: 2,
+    });
+  },
+
+  /** Désert: the mirage shivers and is gone, a downward shimmer then a dry puff. */
+  mirageFade(): void {
+    arpeggio([NOTE.G6, NOTE.E6, NOTE.C6, NOTE.G5, NOTE.E5], 0.09, { type: "sine", gain: 0.05, length: 0.35 });
+    audioEngine.noise({
+      start: at(0.4),
+      duration: 0.5,
+      gain: 0.07,
+      filterFrequency: 1_600,
+      filterFrequencyEnd: 500,
+      q: 1.4,
+    });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 190,
+      frequencyEnd: 90,
+      start: at(0.45),
+      duration: 0.5,
+      gain: 0.05,
+      filterFrequency: 500,
+    });
+  },
+
+  /** Archipel: the tide turns, a long swell that rises (high tide) or drains away (low tide). */
+  tideTurn(high: boolean): void {
+    audioEngine.noise({
+      duration: 2.2,
+      gain: 0.08,
+      filterFrequency: high ? 380 : 1_300,
+      filterFrequencyEnd: high ? 1_300 : 380,
+      q: 1.4,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: high ? 196 : 294,
+      frequencyEnd: high ? 294 : 196,
+      duration: 1.8,
+      gain: 0.07,
+    });
+    arpeggio(high ? [NOTE.C5, NOTE.E5, NOTE.G5] : [NOTE.G5, NOTE.E5, NOTE.C5], 0.16, {
+      type: "sine",
+      gain: 0.05,
+      length: 0.5,
+    });
+  },
+
+  /** Archipel: the ferry blows its horn as it casts off. */
+  ferryHorn(): void {
+    audioEngine.tone({ type: "sawtooth", frequency: 196, duration: 0.55, gain: 0.06, filterFrequency: 700 });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 147,
+      start: at(0.05),
+      duration: 0.6,
+      gain: 0.05,
+      filterFrequency: 600,
+    });
+    audioEngine.noise({ start: at(0.5), duration: 0.8, gain: 0.04, filterFrequency: 900, filterFrequencyEnd: 400 });
+  },
+
+  /** Archipel: a splash, when the water takes somebody or sets them down. */
+  splash(): void {
+    audioEngine.noise({ duration: 0.45, gain: 0.12, filterType: "bandpass", filterFrequency: 1_800, q: 0.9 });
+    audioEngine.tone({ type: "sine", frequency: 520, frequencyEnd: 180, duration: 0.3, gain: 0.07 });
+    audioEngine.noise({ start: at(0.18), duration: 0.35, gain: 0.05, filterType: "highpass", filterFrequency: 3_000 });
+  },
+
+  /** Archipel: the whirlpool sucks a pawn down and spits it out far away. */
+  whirlpoolSuck(): void {
+    audioEngine.noise({ duration: 0.9, gain: 0.1, filterFrequency: 2_400, filterFrequencyEnd: 300, q: 3 });
+    audioEngine.tone({ type: "sine", frequency: 760, frequencyEnd: 120, duration: 0.8, gain: 0.08 });
+    audioEngine.tone({
+      type: "triangle",
+      frequency: 180,
+      frequencyEnd: 640,
+      start: at(0.9),
+      duration: 0.35,
+      gain: 0.07,
+    });
+  },
+
+  /** Archipel: a taken quay pushes a second player back. */
+  quayBump(): void {
+    audioEngine.tone({
+      type: "square",
+      frequency: 190,
+      frequencyEnd: 110,
+      duration: 0.16,
+      gain: 0.08,
+      filterFrequency: 900,
+    });
+    audioEngine.noise({ duration: 0.12, gain: 0.07, filterFrequency: 700 });
+  },
+
   /** Banquise: chunks of ice crash down. */
   iceFall(): void {
     audioEngine.tone({ type: "sine", frequency: 1_600, frequencyEnd: 400, duration: 0.4, gain: 0.05 });

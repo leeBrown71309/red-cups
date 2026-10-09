@@ -1,6 +1,12 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import { MAP_CHOICES, MAP_ORDER, getBoardMap, type MapChoice } from "../../game/maps/map-registry";
+import {
+  MAP_CHOICES,
+  getBoardMap,
+  getPlayableMapIds,
+  isChoicePlayable,
+  type MapChoice,
+} from "../../game/maps/map-registry";
 import { BoardMap } from "../components/board-map";
 import { FlowFooter } from "../components/flow-shell";
 import { UiIcon } from "../icons/ui-icon";
@@ -15,16 +21,21 @@ interface MapStepProps {
   onLaunch: (mapId: ReturnType<typeof drawChosenMap>) => void;
 }
 
-function describeChoice(choice: MapChoice): { name: string; tagline: string; highlights: string[] } {
+function describeChoice(
+  choice: MapChoice,
+  playerCount: number,
+): { name: string; tagline: string; highlights: string[]; minPlayers: number } {
   if (choice === "random") {
+    const playable = getPlayableMapIds(playerCount);
     return {
       name: "Aléatoire",
-      tagline: `Le jeu tire la carte au sort au lancement de la partie, parmi ${MAP_ORDER.length} plateaux.`,
-      highlights: MAP_ORDER.map((mapId) => getBoardMap(mapId).name),
+      tagline: `Le jeu tire la carte au sort au lancement de la partie, parmi ${playable.length} plateaux.`,
+      highlights: playable.map((mapId) => getBoardMap(mapId).name),
+      minPlayers: 2,
     };
   }
   const map = getBoardMap(choice);
-  return { name: map.name, tagline: map.tagline, highlights: map.highlights };
+  return { name: map.name, tagline: map.tagline, highlights: map.highlights, minPlayers: map.minPlayers ?? 2 };
 }
 
 /**
@@ -38,6 +49,9 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
   const swipeStartX = useRef<number | null>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const currentIndex = Math.max(0, MAP_CHOICES.indexOf(choice));
+  // A large map can be looked at with any table, but only starts once enough players are seated.
+  const launchable = isChoicePlayable(choice, playerCount);
+  const missingPlayers = choice === "random" || launchable ? 0 : (getBoardMap(choice).minPlayers ?? 2) - playerCount;
 
   // The music follows the option on show, and hands back to the game's once the page closes.
   useEffect(() => useMapAuditionStore.setState({ choice }), [choice]);
@@ -96,8 +110,9 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
       >
         <span className="mapstep__marker" aria-hidden="true" />
         {MAP_CHOICES.map((option, index) => {
-          const info = describeChoice(option);
+          const info = describeChoice(option, playerCount);
           const isCurrent = index === currentIndex;
+          const locked = !isChoicePlayable(option, playerCount);
           return (
             <button
               key={option}
@@ -108,7 +123,7 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               role="radio"
               aria-checked={isCurrent}
               tabIndex={isCurrent ? 0 : -1}
-              className={`mapopt${isCurrent ? " is-current" : ""}`}
+              className={`mapopt${isCurrent ? " is-current" : ""}${locked ? " is-locked" : ""}`}
               style={{ "--order": index } as CSSProperties}
               onClick={() => setChoice(option)}
             >
@@ -120,7 +135,10 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               </span>
               <span className="mapopt__text">
                 <strong>{info.name}</strong>
-                <small>{option === "random" ? `${MAP_ORDER.length} plateaux` : info.tagline}</small>
+                <small>
+                  {option === "random" ? `${getPlayableMapIds(playerCount).length} plateaux` : info.tagline}
+                </small>
+                {locked && <em className="mapopt__lock">{info.minPlayers} joueurs minimum</em>}
               </span>
             </button>
           );
@@ -136,7 +154,7 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
       >
         {/* Every option stays mounted in the same cell: the one in focus rises, the others sink away. */}
         {MAP_CHOICES.map((option, index) => {
-          const info = describeChoice(option);
+          const info = describeChoice(option, playerCount);
           const isCurrent = index === currentIndex;
           return (
             <article
@@ -147,11 +165,11 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               <div className="mapshow__plan">
                 {option === "random" ? (
                   <span className="mapshow__fan">
-                    {MAP_ORDER.map((mapId, fanIndex) => (
+                    {getPlayableMapIds(playerCount).map((mapId, fanIndex) => (
                       <span
                         key={mapId}
                         className="mapshow__fan-card"
-                        style={{ "--f": fanIndex - (MAP_ORDER.length - 1) / 2 } as CSSProperties}
+                        style={{ "--f": fanIndex - (getPlayableMapIds(playerCount).length - 1) / 2 } as CSSProperties}
                       >
                         <BoardMap mapId={mapId} />
                       </span>
@@ -167,6 +185,11 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               <div className="mapshow__text">
                 <h2>{info.name}</h2>
                 <p>{info.tagline}</p>
+                {info.minPlayers > 2 && (
+                  <p className="mapshow__min">
+                    <UiIcon name="users" size={16} /> De {info.minPlayers} à 8 joueurs
+                  </p>
+                )}
                 <ul className="mapshow__chips">
                   {info.highlights.map((highlight, chip) => (
                     <li key={highlight} style={{ "--c": chip } as CSSProperties}>
@@ -194,11 +217,12 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
         <button
           type="button"
           className="btn btn--cup btn--large flow-foot__next"
-          onClick={() => onLaunch(drawChosenMap())}
+          onClick={() => onLaunch(drawChosenMap(playerCount))}
+          disabled={!launchable}
           data-autofocus
         >
           <UiIcon name="hand" size={22} />
-          Distribuer les cartes
+          {launchable ? "Distribuer les cartes" : `Encore ${missingPlayers} joueur${missingPlayers > 1 ? "s" : ""}`}
         </button>
       </FlowFooter>
     </section>

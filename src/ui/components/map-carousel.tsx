@@ -1,6 +1,12 @@
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import { MAP_CHOICES, MAP_ORDER, getBoardMap, type MapChoice } from "../../game/maps/map-registry";
+import {
+  MAP_CHOICES,
+  getBoardMap,
+  getPlayableMapIds,
+  isChoicePlayable,
+  type MapChoice,
+} from "../../game/maps/map-registry";
 import { UiIcon } from "../icons/ui-icon";
 import { BoardMap } from "./board-map";
 
@@ -13,6 +19,8 @@ interface MapCarouselProps {
   onChange: (choice: MapChoice) => void;
   /** Tighter slide for a modal, where the flat plan shares the card with other content. */
   compact?: boolean;
+  /** How many players will play: a map that needs more is marked as such (the caller keeps it from starting). */
+  playerCount?: number;
 }
 
 /**
@@ -21,7 +29,7 @@ interface MapCarouselProps {
  * or the arrow keys move to the next option, and the option on show is the
  * one picked, so there is nothing else to confirm. Its music plays meanwhile.
  */
-export function MapCarousel({ value, onChange, compact = false }: MapCarouselProps) {
+export function MapCarousel({ value, onChange, compact = false, playerCount }: MapCarouselProps) {
   const swipeStartX = useRef<number | null>(null);
   const currentIndex = Math.max(0, MAP_CHOICES.indexOf(value));
   const current = MAP_CHOICES[currentIndex];
@@ -71,7 +79,7 @@ export function MapCarousel({ value, onChange, compact = false }: MapCarouselPro
       >
         {/* Every option stays stacked in the same cell, so the carousel keeps the height of the tallest. */}
         {MAP_CHOICES.map((choice) => (
-          <MapSlide key={choice} choice={choice} current={choice === current} />
+          <MapSlide key={choice} choice={choice} current={choice === current} playerCount={playerCount} />
         ))}
       </div>
       <button type="button" className="map-carousel__arrow" onClick={() => go(1)} aria-label="Carte suivante">
@@ -95,7 +103,7 @@ export function MapCarousel({ value, onChange, compact = false }: MapCarouselPro
 }
 
 /** One option of the carousel: the flat plan (or the dice) beside the name and the specialities. */
-function MapSlide({ choice, current }: { choice: MapChoice; current: boolean }) {
+function MapSlide({ choice, current, playerCount }: { choice: MapChoice; current: boolean; playerCount?: number }) {
   const className = `map-slide ${current ? "is-current" : ""}`;
   if (choice === "random") {
     return (
@@ -105,9 +113,12 @@ function MapSlide({ choice, current }: { choice: MapChoice; current: boolean }) 
         </span>
         <span className="map-slide__text">
           <strong>Aléatoire</strong>
-          <small>Le jeu tire la carte au sort au lancement de la partie, parmi {MAP_ORDER.length} plateaux.</small>
+          <small>
+            Le jeu tire la carte au sort au lancement de la partie, parmi {getPlayableMapIds(playerCount ?? 8).length}{" "}
+            plateaux.
+          </small>
           <span className="map-slide__highlights">
-            {MAP_ORDER.map((mapId) => (
+            {getPlayableMapIds(playerCount ?? 8).map((mapId) => (
               <span key={mapId}>{getBoardMap(mapId).name}</span>
             ))}
           </span>
@@ -125,6 +136,11 @@ function MapSlide({ choice, current }: { choice: MapChoice; current: boolean }) 
       <span className="map-slide__text">
         <strong>{map.name}</strong>
         <small>{map.tagline}</small>
+        {playerCount !== undefined && !isChoicePlayable(choice, playerCount) && (
+          <small className="map-slide__lock">
+            Il faut {map.minPlayers} joueurs au moins ({playerCount} à table).
+          </small>
+        )}
         <span className="map-slide__highlights">
           {map.highlights.map((highlight) => (
             <span key={highlight}>{highlight}</span>

@@ -1,7 +1,21 @@
 import { endCopies } from "./mime";
+import { openArchipelRound } from "./archipel";
+import { drawCupPair, isCupNode, openDesertRound, recordDesertEvents } from "./desert";
+import { canHoldRedCup } from "./quay";
+import { getBoardMap } from "./maps/map-registry";
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isBlockedRoad, isIce, type Board } from "./board";
+import {
+  getBoard,
+  getNodeKindOf,
+  getOpenBoard,
+  getShortestPath,
+  hasCarousel,
+  isBlockedRoad,
+  isIce,
+  resolveBoard,
+  type Board,
+} from "./board";
 import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
@@ -335,17 +349,50 @@ function collectBlackCup(state: GameState, stage: TurnStage): GameState | null {
 /** Any tile but Hell (and `excludeNodeId`); with `standOnly`, never on ice, where nobody stays. */
 export function randomNormalNode(board: Board, excludeNodeId?: NodeId, standOnly = false): NodeId {
   const nodes = board.normalNodeIds.filter(
-    (nodeId) => nodeId !== excludeNodeId && !(standOnly && isIce(board, nodeId)),
+    (nodeId) => nodeId !== excludeNodeId && !(standOnly && (isIce(board, nodeId) || !canStandOn(board, nodeId))),
   );
   return randomChoice(nodes) ?? START_NODE_ID;
 }
 
-/** Never on the start, the previous Cup's tile or ice: a Cup there could not be stood on. */
-function createCupNode(board: Board, previousNodeId: NodeId): NodeId {
+/** Archipel: nobody stays on a whirlpool, and the tide takes players off the causeways it drowns. */
+function canStandOn(board: Board, nodeId: NodeId): boolean {
+  return getNodeKindOf(board.map, nodeId) !== "whirlpool" && !board.flooded.includes(nodeId);
+}
+
+/** Archipel: the Red Cup comes back this many steps (at least, at most) from the player nearest to it. */
+const CUP_RESPAWN_DISTANCE = { min: 5, max: 8 };
+
+/**
+ * Never on the start, the previous Cup's tile or ice: a Cup there could not be stood on. On the Archipel, never on a
+ * quay, a causeway or a whirlpool either, on another island than the last Cup's, and far enough that it does not
+ * fall into somebody's lap: five to eight steps from the nearest player, counted on the roads without the tide.
+ */
+function createCupNode(state: GameState, previousNodeId: NodeId): NodeId {
+  const board = getBoard(state);
   const candidates = board.normalNodeIds.filter(
-    (nodeId) => nodeId !== START_NODE_ID && nodeId !== previousNodeId && !isIce(board, nodeId),
+    (nodeId) =>
+      nodeId !== START_NODE_ID &&
+      nodeId !== previousNodeId &&
+      !isIce(board, nodeId) &&
+      canHoldRedCup(board.map, nodeId),
   );
-  return randomChoice(candidates) ?? START_NODE_ID;
+  const tidal = board.map.tidal;
+  if (!tidal) return randomChoice(candidates) ?? START_NODE_ID;
+
+  const islandOf = (nodeId: NodeId) => tidal.islands.findIndex((tiles) => tiles.includes(nodeId));
+  const otherIsland = candidates.filter((nodeId) => islandOf(nodeId) !== islandOf(previousNodeId));
+  const roads = resolveBoard(state.mapId);
+  const distanceToNearestPlayer = (nodeId: NodeId) =>
+    Math.min(
+      ...state.players
+        .filter((player) => player.position !== HELL_NODE_ID)
+        .map((player) => getShortestPath(roads, player.position, nodeId, true)?.length ?? Infinity),
+    );
+  const wellPlaced = otherIsland.filter((nodeId) => {
+    const distance = distanceToNearestPlayer(nodeId);
+    return distance >= CUP_RESPAWN_DISTANCE.min && distance <= CUP_RESPAWN_DISTANCE.max;
+  });
+  return randomChoice(wellPlaced) ?? randomChoice(otherIsland) ?? randomChoice(candidates) ?? START_NODE_ID;
 }
 
 /** Luna Park: every new Red Cup turns the carousel the other way. */
@@ -381,7 +428,11 @@ export function getCalmDownTiles(state: GameState): NodeId[] {
   if (cupNodeId === null) return [];
   const board = getOpenBoard(state);
   return board.normalNodeIds.filter(
-    (nodeId) => !isIce(board, nodeId) && getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE,
+    (nodeId) =>
+      !isIce(board, nodeId) &&
+      canHoldRedCup(board.map, nodeId) &&
+      canStandOn(board, nodeId) &&
+      getDistanceToCup(board, cupNodeId, nodeId) === CALM_DOWN_DISTANCE,
   );
 }
 
@@ -427,6 +478,9 @@ export function addCupCycleEffects(state: GameState): GameState {
 export function finishCupCollection(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
+  // Désert: what they reached was the mirage.
+  if (state.mirageNodeId !== null && state.mirageNodeId === cupNodeId)
+    return dissipateMirage(state, playerId, cupNodeId);
 
   let nextState = updatePlayer(state, playerId, (currentPlayer) => ({
     ...currentPlayer,
@@ -439,25 +493,66 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
     nextState = { ...endGame(nextState, playerId, "red-cups"), redCupNodeId: null };
     return addLog(nextState, `${player.name} remporte la partie !`, "good");
   }
-  return placeNextCup(nextState, cupNodeId, state.turnStage);
+  return placeNextCup(nextState, cupNodeId, state.turnStage, playerId);
 }
 
 /** Cupide: a Red Cup pays coins instead of taking a bag slot, and the next one appears as usual. */
 function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
+  if (state.mirageNodeId !== null && state.mirageNodeId === cupNodeId)
+    return dissipateMirage(state, playerId, cupNodeId);
   let nextState = addLog(state, `${player.name} encaisse la Red Cup : +${GREEDY_CUP_REWARD} pièces.`, "good");
   nextState = applyCurrencyChange(nextState, playerId, GREEDY_CUP_REWARD);
-  return placeNextCup(nextState, cupNodeId, state.turnStage);
+  return placeNextCup(nextState, cupNodeId, state.turnStage, playerId);
+}
+
+/**
+ * Désert: the player reached the mirage. It dissipates, and so does the real Cup: both vanish and a new pair appears,
+ * on two tiles neither of which held a Cup before, so that the Cup that did not move would not be the real one. The
+ * player goes thirsty: their next turn starts a point short. Nothing else is lost, and the passif of a new Cup (New
+ * Cup, New Me, Calme-toi, Gobelin) does not wake: nothing was picked up.
+ */
+function dissipateMirage(state: GameState, playerId: PlayerId, mirageNodeId: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player) return state;
+  let nextState = addLog(state, "Ce n’était qu’un mirage !", "bad");
+  nextState = addLog(nextState, `${player.name} a soif : un point d’énergie de moins à son prochain tour.`, "bad");
+  nextState = {
+    ...nextState,
+    thirstyIds: nextState.thirstyIds.includes(playerId) ? nextState.thirstyIds : [...nextState.thirstyIds, playerId],
+  };
+  nextState = recordDesertEvents(nextState, [
+    { kind: "mirage", playerId, nodeId: mirageNodeId, oldReal: state.redCupNodeId ?? mirageNodeId },
+  ]);
+  const pair = drawCupPair(nextState, [state.redCupNodeId ?? mirageNodeId, mirageNodeId], playerId);
+  nextState = {
+    ...nextState,
+    previousRedCupNodeId: state.redCupNodeId ?? state.previousRedCupNodeId,
+    redCupNodeId: pair.real,
+    mirageNodeId: pair.mirage,
+    cupPairId: nextState.cupPairId + 1,
+    wellKnowledge: {},
+  };
+  return addLog(nextState, "Deux nouvelles Red Cups apparaissent sur le sable.", "event");
 }
 
 /**
  * The Red Cup on `cupNodeId` was taken: the next one is drawn elsewhere, and
  * the passives of a new Cup wake up. `stageBefore` is where play stood.
  */
-function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStage): GameState {
+function placeNextCup(
+  state: GameState,
+  cupNodeId: NodeId,
+  stageBefore: TurnStage,
+  collectorId: PlayerId | null = null,
+): GameState {
   let nextState = state;
-  const nextCupNodeId = createCupNode(getBoard(state), cupNodeId);
+  // Désert: a new pair, neither of its tiles one of the old pair's.
+  const pair = getBoardMap(state.mapId).desert
+    ? drawCupPair(state, [cupNodeId, ...(state.mirageNodeId === null ? [] : [state.mirageNodeId])], collectorId)
+    : null;
+  const nextCupNodeId = pair ? pair.real : createCupNode(state, cupNodeId);
   const repositioner = nextState.players.find((candidate) => hasCard(candidate, "new-cup-new-me"));
   const resumeStage = stageBefore === "discard" ? "turn-end" : stageBefore;
 
@@ -466,6 +561,10 @@ function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStag
     previousRedCupNodeId: cupNodeId,
     redCupCycle: nextState.redCupCycle + 1,
     blackCup: null,
+    mirageNodeId: pair && !repositioner ? pair.mirage : null,
+    pendingMirageRevealNodeId: pair && repositioner ? pair.mirage : null,
+    cupPairId: pair ? nextState.cupPairId + 1 : nextState.cupPairId,
+    wellKnowledge: pair ? {} : nextState.wellKnowledge,
     redCupNodeId: repositioner ? null : nextCupNodeId,
     pendingCupRepositionPlayerId: repositioner?.id ?? null,
     pendingCupRevealNodeId: repositioner ? nextCupNodeId : null,
@@ -475,7 +574,11 @@ function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStag
   };
 
   nextState = applyGoblinEffects(nextState);
-  nextState = addLog(nextState, "Une nouvelle Red Cup apparaît sur le plateau.", "event");
+  nextState = addLog(
+    nextState,
+    pair ? "Deux nouvelles Red Cups apparaissent sur le sable." : "Une nouvelle Red Cup apparaît sur le plateau.",
+    "event",
+  );
   nextState = flipCarousel(nextState);
   // New Cup, New Me decides before the Cup is shown; Calme-toi then looks around it.
   if (!repositioner) nextState = addCupCycleEffects(nextState);
@@ -484,8 +587,9 @@ function placeNextCup(state: GameState, cupNodeId: NodeId, stageBefore: TurnStag
 
 export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
-  // Le diable and L'Ange-Gardien walk past it.
-  if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
+  // Le diable and L'Ange-Gardien walk past it. In the desert, the mirage is treated exactly like the real Cup until
+  // the last moment: the same die, the same question about a full bag, the same line in the journal.
+  if (!player || !isCupNode(state, nodeId) || !canCollectRedCup(player)) return state;
   if (hasCard(player, "greedy")) return cashInCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
@@ -506,7 +610,7 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
  */
 export function rollForRedCup(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
+  if (!player || !isCupNode(state, nodeId) || !canCollectRedCup(player)) return state;
 
   const rolls: number[] = [];
   while (rolls.length < ROLLER_CUP_ATTEMPTS) {
@@ -639,7 +743,7 @@ export function arriveOnTile(state: GameState, playerId: PlayerId, cameFrom: Nod
   nextState = triggerMud(nextState, playerId, player.position, cameFrom);
   // Chance aveugle may have stepped back out of the mud.
   if (findPlayer(nextState, playerId)?.position !== player.position) return nextState;
-  const cupAhead = nextState.redCupNodeId === player.position;
+  const cupAhead = isCupNode(nextState, player.position);
   // A Portail swallows first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
   nextState = triggerPortal(nextState, playerId);
   if (cupAhead && nextState.phase === "playing") {
@@ -875,6 +979,10 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
       // Mage noir: a chance comes back every fifteen rounds.
       nextState = regainMageLuck(nextState, nextRound);
       if (isBlizzardRound(nextState, nextRound)) nextState = blowBlizzard(nextState);
+      // Archipel: the ferry moors at the next quay and, every second round, the tide turns.
+      nextState = openArchipelRound(nextState, nextRound);
+      // Désert: the caravan walks on, and every few rounds the sandstorm turns.
+      nextState = openDesertRound(nextState, nextRound);
       if (nextState.bootFirstPurchased && nextRound > state.bootLastPriceRound) {
         nextState = {
           ...nextState,
@@ -920,6 +1028,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     round: nextRound,
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
     energyLeft: getEnergyCapacity(activePlayer, { ...nextState, round: nextRound }),
+    // Désert: the thirst of a mirage lasts exactly one turn.
+    thirstyIds: nextState.thirstyIds.filter((id) => id !== activePlayer.id),
     turnActionTaken: false,
     moveDistance: 1,
     mudPlacedThisTurn: false,
@@ -934,6 +1044,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     pendingTileWheels: [],
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
+    pendingMirageRevealNodeId: null,
     pendingCupRepositionResumeStage: null,
     pendingCalmDown: null,
     pendingAdvance: null,
@@ -1047,7 +1158,7 @@ function thawFrozenSlide(state: GameState): GameState {
   nextState = addRedGreenBonuses(nextState, active.id, path);
   nextState = queueTileWheel(nextState, active.id);
   nextState = triggerMud(nextState, active.id, end, path[path.length - 2] ?? frozen.from);
-  const cupAhead = findPlayer(nextState, active.id)?.position === end && nextState.redCupNodeId === end;
+  const cupAhead = findPlayer(nextState, active.id)?.position === end && isCupNode(nextState, end);
   // A Portail swallows first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
   nextState = triggerPortal(nextState, active.id);
   if (cupAhead && nextState.phase === "playing") {

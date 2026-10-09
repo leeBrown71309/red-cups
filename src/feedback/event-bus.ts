@@ -50,6 +50,24 @@ export type FeedbackEvent =
   | { type: "ice-shatter"; playerId: PlayerId }
   | { type: "ice-fall"; playerId: PlayerId; from: NodeId; to: NodeId; hit: boolean }
   | { type: "blizzard"; from: NodeId | null; to: NodeId | null }
+  /** Archipel des Marées: the tide turned (`level` is the new one), and the ferry moved on to the next quay. */
+  | { type: "tide-turned"; level: "low" | "high" }
+  | { type: "ferry-moved"; from: NodeId; to: NodeId }
+  /** Désert des Mirages: the caravan walked on, a sandstorm shut two passes, the sand set a player down, a well was drunk. */
+  | { type: "caravan-moved"; from: NodeId; to: NodeId }
+  | { type: "caravan-ride"; playerId: PlayerId; from: NodeId; to: NodeId }
+  | { type: "storm"; closed: NodeId[] }
+  | { type: "storm-drop"; playerId: PlayerId; from: NodeId; to: NodeId }
+  | { type: "well-drunk"; playerId: PlayerId; nodeId: NodeId }
+  /** The mirage dissipated at `nodeId`; the real Cup (`oldReal`) vanished with it, and a new pair appeared. */
+  | { type: "mirage"; playerId: PlayerId; nodeId: NodeId; oldReal: NodeId }
+  | { type: "oasis-bump"; playerId: PlayerId; nodeId: NodeId; to: NodeId }
+  /** Archipel: a player rode the ferry from one quay to the next. */
+  | { type: "ferry-ride"; playerId: PlayerId; from: NodeId; to: NodeId }
+  /** Archipel: the rising water set a player down on a quay, a whirlpool drew them away, a taken quay pushed them back. */
+  | { type: "flood-drop"; playerId: PlayerId; from: NodeId; to: NodeId }
+  | { type: "whirlpool"; playerId: PlayerId; from: NodeId; to: NodeId }
+  | { type: "quay-bump"; playerId: PlayerId; quayId: NodeId; to: NodeId; holderId: PlayerId | null }
   /** Luna Park: the ghost shows up on a carousel tile. */
   | { type: "ghost-appeared"; nodeId: NodeId }
   /** Luna Park: the ghost drifts one to three tiles along the roads, whichever way they run. */

@@ -71,7 +71,7 @@ export class CameraRig {
     const hudMargin = height < 520 ? 1.2 : 1.08;
     this.fitDistance = Math.max(verticalDistance, horizontalDistance) * hudMargin;
     this.controls.minDistance = this.fitDistance * 0.32;
-    this.controls.maxDistance = this.fitDistance * 1.3;
+    this.controls.maxDistance = this.fitDistance * 1.3 * this.bounds.zoomOutFactor;
     if (this.mode === "attract") this.placeAtHome(1.12);
   }
 

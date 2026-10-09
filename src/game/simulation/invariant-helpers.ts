@@ -108,6 +108,28 @@ export function carriedByIce(previous: GameState, next: GameState, playerId: str
   return name !== undefined && newLogTexts(previous, next).some((text) => text.startsWith(`La glace emporte ${name} `));
 }
 
+/**
+ * Archipel: the water set `playerId` down elsewhere than where their action led: the rising tide dropped them on a
+ * quay, a whirlpool drew them away, a second player was pushed back from a taken quay. No arrival at the new tile.
+ */
+export function carriedByWater(previous: GameState, next: GameState, playerId: string): boolean {
+  const seen = previous.lastArchipelEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  const seenSand = previous.lastDesertEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  return (
+    next.lastArchipelEvents.some(
+      (record) =>
+        record.seq > seen && record.kind !== "tide" && record.kind !== "ferry-moved" && record.playerId === playerId,
+    ) ||
+    // Désert: a sandstorm dropped them off a pass, a taken oasis pushed them back.
+    next.lastDesertEvents.some(
+      (record) =>
+        record.seq > seenSand &&
+        (record.kind === "storm-drop" || record.kind === "oasis-bump") &&
+        record.playerId === playerId,
+    )
+  );
+}
+
 /** Knocked out on le diable's tile, `playerId` went straight to Hell through their Toucher d'Enfer. */
 export function touchedByHell(previous: GameState, next: GameState, playerId: string): boolean {
   const player = next.players.find((candidate) => candidate.id === playerId);

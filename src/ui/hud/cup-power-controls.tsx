@@ -8,7 +8,11 @@ import { canDig, getCrossingEnergy, getCrossings, getDigTargets } from "../../ga
 import { canSwap, getSisterNode } from "../../game/sister";
 import { useGameStore } from "../../game/store";
 import type { GameState, Player } from "../../game/types";
-import { MAGE_MAX_LUCK, MOLE_DIG_ENERGY, SISTER_SWAP_ENERGY } from "../../game/types";
+import { MAGE_MAX_LUCK, MOLE_DIG_ENERGY, SISTER_SWAP_ENERGY, WELL_PRICE } from "../../game/types";
+import { planFerryRide } from "../../game/archipel";
+import { canDrinkAtWell, planCaravanRide } from "../../game/desert";
+import { getBoardMap } from "../../game/maps/map-registry";
+import { getNodeKindOf } from "../../game/board";
 import { useUiStore } from "../../feedback/ui-store";
 import { UiIcon } from "../icons/ui-icon";
 
@@ -232,6 +236,90 @@ function SisterControl({ game, player }: { game: GameState; player: Player }) {
   );
 }
 
+/**
+ * Archipel des Marées: the ferry, for whoever stands on a quay. On the quay it is moored at, the button takes it to the
+ * next one in place of walking; on any other quay it says where the ferry is.
+ */
+function FerryControl({ game, player }: { game: GameState; player: Player }) {
+  const boardFerry = useGameStore((state) => state.boardFerry);
+  const map = getBoardMap(game.mapId);
+  if (!map.tidal || getNodeKindOf(map, player.position) !== "quay") return null;
+  const destination = planFerryRide(game, player);
+  const moored = game.ferryQuayId === player.position;
+  const reason = !moored
+    ? `Le bac est amarré au Quai ${game.ferryQuayId}. Il passe d’un Quai au suivant à chaque tour de table.`
+    : "Le Quai suivant est occupé, ou il ne te reste pas d’énergie pour le déplacement.";
+  return (
+    <button
+      type="button"
+      className="btn btn--small btn--sky"
+      onClick={boardFerry}
+      disabled={destination === null}
+      title={
+        destination !== null
+          ? `Prends le bac jusqu’au Quai ${destination} : il remplace ta marche et finit ton tour`
+          : reason
+      }
+    >
+      <UiIcon name="ferry" size={16} />{" "}
+      {destination !== null
+        ? `Prendre le bac → Quai ${destination}`
+        : moored
+          ? "Bac : Quai suivant pris"
+          : `Bac au Quai ${game.ferryQuayId}`}
+    </button>
+  );
+}
+
+/** Désert des Mirages: on the caravan's tile, the ride that takes the player four tiles along the loop. */
+function CaravanControl({ game, player }: { game: GameState; player: Player }) {
+  const boardCaravan = useGameStore((state) => state.boardCaravan);
+  if (!getBoardMap(game.mapId).desert || game.caravanNodeId !== player.position) return null;
+  const destination = planCaravanRide(game, player);
+  return (
+    <button
+      type="button"
+      className="btn btn--small btn--sky"
+      onClick={boardCaravan}
+      disabled={destination === null}
+      title={
+        destination !== null
+          ? `Monte dans la caravane : elle te dépose en case ${destination}, à la place de ta marche, sans bonus du Départ`
+          : "La caravane est trop loin, ou la case où elle te déposerait est une oasis occupée"
+      }
+    >
+      <UiIcon name="ferry" size={16} />{" "}
+      {destination !== null ? `Monter dans la caravane → case ${destination}` : "Caravane : arrivée occupée"}
+    </button>
+  );
+}
+
+/** Désert des Mirages: on a well, pay to learn in secret which Red Cup is the real one. */
+function WellControl({ game, player }: { game: GameState; player: Player }) {
+  const drink = useGameStore((state) => state.drinkAtWell);
+  const desert = getBoardMap(game.mapId).desert;
+  if (!desert || !desert.wells.includes(player.position)) return null;
+  const possible = canDrinkAtWell(game, player);
+  const already = game.wellKnowledge[player.id]?.pair === game.cupPairId;
+  return (
+    <button
+      type="button"
+      className="btn btn--small btn--gold"
+      onClick={drink}
+      disabled={!possible}
+      title={
+        possible
+          ? `Puise ${WELL_PRICE} pièces : tu sauras, toi seul, laquelle des deux Red Cups est la vraie`
+          : already
+            ? "Tu as déjà puisé pour cette paire de Red Cups"
+            : `Il faut ${WELL_PRICE} pièces`
+      }
+    >
+      <UiIcon name="eye" size={16} /> {already ? "Tu sais déjà" : `Puiser · ${WELL_PRICE}`}
+    </button>
+  );
+}
+
 /** Every Cups Power button the active player's cards give them, for the stage they are in. */
 export function CupPowerControls({
   player,
@@ -251,6 +339,9 @@ export function CupPowerControls({
       {beforeMove && ownsCard(player, "mime") && <MimeControl game={game} player={player} />}
       {stage === "move" && hasCard(player, "mole") && <DigControl game={game} player={player} />}
       {stage === "move" && <TunnelControls player={player} />}
+      {stage === "move" && <FerryControl game={game} player={player} />}
+      {stage === "move" && <CaravanControl game={game} player={player} />}
+      {stage !== "hell" && <WellControl game={game} player={player} />}
       {ownsCard(player, "black-mage") && <MageControl game={game} player={player} />}
       {stage === "move" && ownsCard(player, "ghost-sister") && <SisterControl game={game} player={player} />}
       {children}

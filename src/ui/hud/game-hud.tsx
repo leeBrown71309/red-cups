@@ -24,6 +24,8 @@ import { LeftTableBanner } from "./left-table-banner";
 import { RoadPickBanner } from "./road-pick-banner";
 import { PlayersPanel } from "./players-panel";
 import { TopBar } from "./top-bar";
+import { DesertPanel } from "./desert-panel";
+import { TidePanel } from "./tide-panel";
 import { TurnSplash } from "./turn-splash";
 import { useClockBeeps } from "./use-clock-beeps";
 
@@ -105,6 +107,8 @@ export function GameHud() {
         onOpenHelp={() => setOverlay("help")}
       />
       <EventToasts />
+      <TidePanel />
+      <DesertPanel />
       <CameraControls />
       <PlayersPanel />
       <PlayerDock onRequestTarget={requestTarget} onOpenShop={() => setShopClosed(false)} />

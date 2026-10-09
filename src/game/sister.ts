@@ -1,5 +1,8 @@
 import { getBoard, getBoardNode, getNeighbors, type Board } from "./board";
 import { ownsCard } from "./cards";
+import { getBoardMap } from "./maps/map-registry";
+import { isCupNode } from "./desert";
+import { canHoldRedCup } from "./quay";
 import { spendEnergy } from "./energy";
 import { settleBoard } from "./game-effects";
 import { withPowerEvent } from "./power-event";
@@ -138,7 +141,9 @@ export function canSwap(state: GameState, player: Player | undefined): player is
     player.position !== HELL_NODE_ID &&
     getSisterNode(player) !== player.position &&
     state.round >= (player.swapReadyRound ?? 0) &&
-    canAffordSwap(state)
+    canAffordSwap(state) &&
+    // Archipel: the Red Cup she carries lands on the tile the player leaves, which must be one it may lie on.
+    (!isCupNode(state, getSisterNode(player)) || canHoldRedCup(getBoardMap(state.mapId), player.position))
   );
 }
 
@@ -157,6 +162,7 @@ export function swapWithSister(state: GameState): GameState {
   const carriesMud = state.mudTraps.filter((trap) => trap.nodeId === sisterFrom).length;
   const carriesPortals = state.hellPortals.filter((portal) => portal.nodeId === sisterFrom).length;
   const carriesCup = state.redCupNodeId === sisterFrom;
+  const carriesMirage = state.mirageNodeId === sisterFrom;
   const carriesBill = state.bulletBill?.position === sisterFrom;
 
   let nextState: GameState = spendEnergy(state, SISTER_SWAP_ENERGY);
@@ -167,6 +173,7 @@ export function swapWithSister(state: GameState): GameState {
       portal.nodeId === sisterFrom ? { ...portal, nodeId: playerFrom } : portal,
     ),
     redCupNodeId: carriesCup ? playerFrom : nextState.redCupNodeId,
+    mirageNodeId: carriesMirage ? playerFrom : nextState.mirageNodeId,
     bulletBill:
       carriesBill && nextState.bulletBill ? { ...nextState.bulletBill, position: playerFrom } : nextState.bulletBill,
   };

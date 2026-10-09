@@ -10,7 +10,8 @@ import { MIST_CUP_DISTANCE, MIST_CYCLE_TURNS } from "./types";
  * It is never stored: it follows from the turn count and from where the Red Cup stands.
  */
 
-type MistState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId" | "redCupNodeId">;
+type MistState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId" | "redCupNodeId"> &
+  Partial<Pick<GameState, "mirageNodeId">>;
 
 /** Whether the cycle puts the player in an invisible turn: none before their first, then visible, hidden, hidden. */
 export function isInMistPhase(player: Pick<Player, "mistTurns">): boolean {
@@ -18,13 +19,17 @@ export function isInMistPhase(player: Pick<Player, "mistTurns">): boolean {
   return turns > 0 && (turns - 1) % MIST_CYCLE_TURNS !== 0;
 }
 
-/** Whether the player stands on the Red Cup's tile or on a tile next to it: they cannot hide there. */
+/**
+ * Whether the player stands on a Red Cup's tile or on a tile next to it: they cannot hide there. In the desert either
+ * Cup counts, the mirage as much as the real one, or hiding would tell them apart.
+ */
 export function isNearRedCup(state: MistState, player: Pick<Player, "position">): boolean {
-  const cupNodeId = state.redCupNodeId;
-  if (cupNodeId === null) return false;
-  if (player.position === cupNodeId) return true;
-  const path = getShortestPath(getOpenBoard(state), cupNodeId, player.position, true);
-  return path !== null && path.length <= MIST_CUP_DISTANCE;
+  const cups = [state.redCupNodeId, state.mirageNodeId ?? null].filter((nodeId): nodeId is number => nodeId !== null);
+  return cups.some((cupNodeId) => {
+    if (player.position === cupNodeId) return true;
+    const path = getShortestPath(getOpenBoard(state), cupNodeId, player.position, true);
+    return path !== null && path.length <= MIST_CUP_DISTANCE;
+  });
 }
 
 /** Whether nobody sees the player right now: Mi-vu, Mi-vue in a hidden turn, and far enough from the Red Cup. */

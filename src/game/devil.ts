@@ -1,5 +1,6 @@
 import { hasCard } from "./cards";
 import { getBoard, isIce } from "./board";
+import { canHoldRedCup } from "./quay";
 import { spendEnergy } from "./energy";
 import { createEngineId } from "./engine-random";
 import { isKnockedOut } from "./rules";
@@ -129,8 +130,17 @@ export function isPortalVisible(state: Pick<GameState, "round">, portal: HellPor
 export function openPortals(state: GameState, casterId: PlayerId): GameState {
   // Never on ice: nobody stops there, so a Portail would wait for nothing.
   const board = getBoard(state);
-  const taken = new Set([START_NODE_ID, HELL_NODE_ID, state.redCupNodeId, ...state.hellPortals.map((p) => p.nodeId)]);
-  let free = board.normalNodeIds.filter((candidate) => !taken.has(candidate) && !isIce(board, candidate));
+  const taken = new Set([
+    START_NODE_ID,
+    HELL_NODE_ID,
+    state.redCupNodeId,
+    state.mirageNodeId,
+    ...state.hellPortals.map((p) => p.nodeId),
+  ]);
+  // Nor on a quay, a causeway or a whirlpool (Archipel): nobody lasts there.
+  let free = board.normalNodeIds.filter(
+    (candidate) => !taken.has(candidate) && !isIce(board, candidate) && canHoldRedCup(board.map, candidate),
+  );
   const nodeIds: number[] = [];
   while (nodeIds.length < 2) {
     const nodeId = randomChoice(free);
@@ -193,8 +203,11 @@ export function castBlackCup(state: GameState, casterId: PlayerId): GameState {
   const nextState: GameState = {
     ...state,
     redCupNodeId: HELL_NODE_ID,
+    // Désert: the mirage goes with it, or its staying behind would tell which Cup went down.
+    mirageNodeId: null,
     blackCup: {
       returnNodeId: state.redCupNodeId,
+      returnMirageNodeId: state.mirageNodeId,
       bystanderIds: state.players.filter((player) => player.position === HELL_NODE_ID).map((player) => player.id),
       ...castSpell(state, casterId, BLACK_CUP_ROUNDS),
     },
@@ -271,6 +284,7 @@ function returnBlackCup(state: GameState): GameState {
     ...state,
     blackCup: null,
     redCupNodeId: nodeId,
+    mirageNodeId: state.blackCup?.returnMirageNodeId ?? null,
     iceTileNodeId: meltsIce ? null : state.iceTileNodeId,
   };
   return addLog(nextState, `La Red Cup remonte de l’Enfer et retrouve la case ${nodeId}.`, "event");

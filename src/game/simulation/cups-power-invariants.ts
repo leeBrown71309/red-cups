@@ -257,7 +257,9 @@ function checkInvisibility(previous: GameState, next: GameState, found: RuleViol
       target &&
       where !== undefined &&
       isInvisible(previous, target) &&
-      isInvisible(next, { ...target, position: where })
+      isInvisible(next, { ...target, position: where }) &&
+      // A turn they skip in the same action moves their cycle on first, which may show them again to the charge.
+      !(previous.players.find((player) => player.id === target.id)?.skippedTurns ?? 0)
     ) {
       found.push(violation("invisible-chased", `Bullet Bill chased ${target.name}, who was invisible`));
     }
