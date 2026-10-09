@@ -10,7 +10,7 @@ import type { DevilSpell, GameState, HellPortal, Player, PlayerId } from "./type
 import { BLACK_CUP_ROUNDS, DOOMSDAY_ROUNDS, HELL_NODE_ID, PORTAL_ROUNDS, START_NODE_ID } from "./types";
 
 /**
- * Le diable (patch 0.1.4): announced to the whole table, they win once the
+ * Le diable (patch 0.1.4): they win once the
  * others entered Hell often enough, and their shop sells five items of their
  * own. Every function is pure: state in, state out.
  */
@@ -24,17 +24,6 @@ export const DEVIL_HELL_REWARD = 100;
 
 /** Coins le diable earns each time another player goes to Hell (patch 0.1.5). */
 export const DEVIL_OTHERS_HELL_REWARD = 50;
-
-/** At the start, the whole table learns who le diable is and what they need. */
-export function announceDevil(state: GameState): GameState {
-  const devil = findDevil(state);
-  if (!devil) return state;
-  return addLog(
-    state,
-    `${devil.name} est le diable ! Il gagne dès que les autres auront passé ${getDevilGoalFor(state)} tours en Enfer.`,
-    "bad",
-  );
-}
 
 /**
  * A player other than le diable begins one more of their turns in Hell,
@@ -165,7 +154,9 @@ export function openPortals(state: GameState, casterId: PlayerId): GameState {
 
 /**
  * Stopping on a Portail drops the player into Hell, le diable excepted, and
- * closes both Portails of its pair; Chance aveugle is spared.
+ * closes both Portails of its pair; Chance aveugle is spared. The swallowed
+ * tile never activates: its wheel and its shop go with the player (report
+ * 2026-10-08).
  */
 export function triggerPortal(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
@@ -184,7 +175,16 @@ export function triggerPortal(state: GameState, playerId: PlayerId): GameState {
     walked && walked.playerId === playerId && walked.path[walked.path.length - 1] === portal.nodeId
       ? { ...swallowed, lastMovement: { ...walked, portalNodeId: portal.nodeId } }
       : swallowed;
-  return sendPlayerToHell(marked, playerId);
+  const fell = sendPlayerToHell(marked, playerId);
+  // A Parachute or L'Ange-Gardien's turn kept them on the tile: it activates as any other.
+  if (findPlayer(fell, playerId)?.position !== HELL_NODE_ID) return fell;
+  // The tile they fall through never activates: no wheel is owed for it, no shop stays open (report 2026-10-08).
+  return {
+    ...fell,
+    pendingTileWheels: fell.pendingTileWheels.filter((entry) => entry.playerId !== playerId),
+    turnStage:
+      fell.turnStage === "shop" && fell.players[fell.activePlayerIndex]?.id === playerId ? "turn-end" : fell.turnStage,
+  };
 }
 
 /** Black Cup: the Red Cup waits in Hell; whoever already stood there does not pick it up. */

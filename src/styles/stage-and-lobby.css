@@ -13,24 +13,35 @@
 }
 
 /*
- * Depth of field, cheaply: a frame of blur around the view, clear in the
- * middle where the tray is. A phone redraws the board every frame, and a
- * live blur over it costs too much there, so only fine pointers get it.
+ * A soft vignette frames the view. It is a plain gradient: a live blur over the WebGL canvas would
+ * be repainted every frame, which made the whole page slow down on long sessions.
  */
 .board-stage__focus {
-  display: none;
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 85% 80% at 50% 54%, transparent 60%, rgba(58, 37, 48, 0.2) 100%);
+  pointer-events: none;
 }
 
-@media (pointer: fine) {
-  .board-stage__focus {
-    position: absolute;
-    inset: 0;
-    display: block;
-    -webkit-backdrop-filter: blur(3px);
-    backdrop-filter: blur(3px);
-    -webkit-mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
-    mask-image: radial-gradient(ellipse 80% 78% at 50% 56%, transparent 62%, #000 100%);
-    pointer-events: none;
+.board-stage__doom {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(70% 50% at 50% 0%, rgba(255, 96, 40, 0.55), transparent 75%),
+    radial-gradient(120% 90% at 50% 110%, #2a0610 0%, transparent 65%),
+    linear-gradient(180deg, #5a0d1c 0%, #2e0714 100%);
+  opacity: 0;
+  transition: opacity 1400ms ease;
+  pointer-events: none;
+}
+
+.board-stage[data-doomed="true"] .board-stage__doom {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .board-stage__doom {
+    transition-duration: 1ms;
   }
 }
 
@@ -339,6 +350,11 @@
   }
 
   .lobby__rules {
+    display: none;
+  }
+
+  /* On short screens the menu keeps its buttons; the facts row would crowd them. */
+  .menu-screen .lobby__facts {
     display: none;
   }
 

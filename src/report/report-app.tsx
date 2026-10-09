@@ -450,21 +450,24 @@ const FILTER_LABEL: Record<StatusFilter, string> = {
 };
 const KIND_TAG: Record<ReportKind, string> = { bug: "BUG", idea: "IDÉE", other: "AUTRE" };
 
+/** One report as a paste-ready block: type, elements touched, title, description. */
+function formatReportForCopy(report: Report): string {
+  const target = report.element || "Général";
+  const note = report.adminNote ? `\n   Note de l’équipe : ${report.adminNote}` : "";
+  return (
+    `[${KIND_TAG[report.kind]}] ${target} — ${report.title}\n` +
+    `   Signalé le ${formatDate(report.createdAt)} · statut : ${STATUS_LABEL[report.status]}\n` +
+    `   ${report.message}${note}`
+  );
+}
+
 /**
  * The admin's « Copier » text: the whole filtered list as one paste-ready
  * brief, one block per report (type, elements touched, title, description),
  * meant to be pasted straight into a chat to drive the corrections.
  */
 function formatReportsForCopy(reports: Report[], filter: StatusFilter): string {
-  const blocks = reports.map((report, index) => {
-    const target = report.element || "Général";
-    const note = report.adminNote ? `\n   Note de l’équipe : ${report.adminNote}` : "";
-    return (
-      `${index + 1}. [${KIND_TAG[report.kind]}] ${target} — ${report.title}\n` +
-      `   Signalé le ${formatDate(report.createdAt)} · statut : ${STATUS_LABEL[report.status]}\n` +
-      `   ${report.message}${note}`
-    );
-  });
+  const blocks = reports.map((report, index) => `${index + 1}. ${formatReportForCopy(report)}`);
   return [
     `Red Cups — signalements (${FILTER_LABEL[filter]}), ${reports.length} au total, du plus récent au plus ancien.`,
     ...blocks,
@@ -579,6 +582,7 @@ function AdminReportCard({ report, onSaved }: { report: Report; onSaved: () => P
   const [note, setNote] = useState(report.adminNote);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
   const dirty = status !== report.status || note !== report.adminNote;
 
   const save = async () => {
@@ -594,12 +598,30 @@ function AdminReportCard({ report, onSaved }: { report: Report; onSaved: () => P
     }
   };
 
+  const copyOne = async () => {
+    try {
+      await navigator.clipboard.writeText(formatReportForCopy(report));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // A browser refusing clipboard access leaves the button silent; the text is on screen anyway.
+    }
+  };
+
   return (
     <article className={`admin-report admin-report--${report.status}`}>
       <header className="admin-report__head">
         <span className={`badge badge--${report.kind}`}>{KIND_LABEL[report.kind]}</span>
         {report.element && <span className="badge badge--element">{report.element}</span>}
         <time className="admin-report__date">{formatDate(report.createdAt)}</time>
+        <button
+          type="button"
+          className="btn btn--cream btn--small admin-report__copy"
+          onClick={() => void copyOne()}
+          title="Copier ce signalement, formaté pour un chat"
+        >
+          <UiIcon name={copied ? "check" : "copy"} size={16} /> {copied ? "Copié !" : "Copier"}
+        </button>
       </header>
       <h3 className="admin-report__title">{report.title}</h3>
       <p className="admin-report__message">{report.message}</p>

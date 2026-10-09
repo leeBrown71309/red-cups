@@ -10,6 +10,8 @@ export type FeedbackEvent =
   | { type: "currency"; playerId: PlayerId; delta: number; purchase: boolean }
   | { type: "cup-collected"; playerId: PlayerId; nodeId: NodeId }
   | { type: "cup-spawned"; nodeId: NodeId }
+  /** Roller: the throws made for the Red Cup, shown to the whole table, then announced on the banner. */
+  | { type: "cup-roll"; playerId: PlayerId; rolls: number[]; success: boolean }
   | { type: "shop-opened"; playerId: PlayerId }
   | { type: "purchase"; playerId: PlayerId }
   | { type: "hell-entered"; playerId: PlayerId }
@@ -24,8 +26,6 @@ export type FeedbackEvent =
   | { type: "bullet-flight"; flight: BulletFlight }
   | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
   | { type: "blessing-started" }
-  /** Le diable is announced to the whole table as the game starts. */
-  | { type: "devil-announced"; playerId: PlayerId; goal: number }
   | { type: "doomsday-started" }
   /** Online: the player whose turn starts has one chance left before a forfeit. */
   | { type: "last-chance"; playerId: PlayerId }

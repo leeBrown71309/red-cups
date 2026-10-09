@@ -37,7 +37,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Hollow Purple",
     price: 600,
     symbol: "✦",
-    description: "Envoie un joueur en Enfer. Peut te cibler.",
+    description: "Envoie un joueur en Enfer — jamais un joueur qui y est déjà. Peut te cibler.",
     target: "player",
     energyCost: 3,
     canTargetSelf: true,
@@ -170,7 +170,8 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     description:
       "Le diable : ouvre deux portails vers l’Enfer sur des cases au hasard, ni l’Enfer, ni le Départ, ni la Red " +
       "Cup. Invisibles le premier tour, l’un se montre au deuxième, les deux au troisième. Qui s’arrête sur l’un " +
-      "tombe en Enfer et les referme tous deux, sauf toi, immunisé ; sinon ils se ferment après 3 tours de table.",
+      "tombe en Enfer et les referme tous deux, sauf toi, immunisé : la case ne s’active pas, mais une Red Cup qui " +
+      "la couvre est ramassée avant la chute. Sinon ils se ferment après 3 tours de table.",
     target: "none",
     energyCost: 2,
   },
@@ -408,7 +409,9 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Roller",
     shortName: "Roller",
     description:
-      "Tu lances un dé à 6 faces pour chaque déplacement, sans repasser par une case. Pas de Botte pour toi.",
+      "Tu lances un dé à 6 faces pour chaque déplacement, sans repasser par une case. Pas de Botte pour toi. " +
+      "Pour ramasser la Red Cup, il te faut un 6 : deux essais, visibles de toute la table. Raté deux fois, " +
+      "elle t’attend à ton prochain tour, sans déplacement.",
   },
   greedy: {
     id: "greedy",

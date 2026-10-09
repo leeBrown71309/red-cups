@@ -12,7 +12,7 @@ export interface Toast {
 export interface AlertBanner {
   key: number;
   /** Picks the banner's colours and icon: Bullet Bill for "danger", le diable's face for "devil"… */
-  tone: "danger" | "devil" | "chances" | "blessing" | "carousel" | "blizzard" | "ghost";
+  tone: "danger" | "devil" | "chances" | "blessing" | "carousel" | "blizzard" | "ghost" | "roller";
   eyebrow: string;
   title: string;
   detail: string;

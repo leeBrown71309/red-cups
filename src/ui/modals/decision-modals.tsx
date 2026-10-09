@@ -133,7 +133,13 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
       {/* Chance aveugle is out of every item's reach; L'Ange-Gardien only aims at their protégé. */}
       <PlayerPickList
         players={players.filter((player) => canTargetPlayer({ guardian }, activePlayer, player))}
-        isDisabled={(player) => (player.id === activePlayer.id && !item.canTargetSelf ? "Pas sur toi" : null)}
+        isDisabled={(player) =>
+          entry.itemId === "hollow-purple" && player.position === HELL_NODE_ID
+            ? "Déjà en Enfer"
+            : player.id === activePlayer.id && !item.canTargetSelf
+              ? "Pas sur toi"
+              : null
+        }
         onPick={(playerId) => {
           // A single Tomate needs no count: it flies at once.
           if (item.stackLimit && units > 1) {

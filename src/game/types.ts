@@ -34,6 +34,10 @@ export const GREEDY_CUP_REWARD = 1_000;
 export const GREEDY_STUN_THEFT = 50;
 /** Roller: faces of the die thrown for every move. */
 export const ROLLER_DIE_FACES = 6;
+/** Roller: the face a throw needs to show to pick the Red Cup up (patch 0.2.2). */
+export const ROLLER_CUP_FACE = 6;
+/** Roller: throws allowed in one go; failing them all, the Cup waits for their next turn. */
+export const ROLLER_CUP_ATTEMPTS = 2;
 /** Made In Heaven sets the Red Cup down on this tile, and is only sold while the Cup stands elsewhere. */
 export const MADE_IN_HEAVEN_CUP_NODE_ID = 8;
 /** Voleur: chance of being caught for every 10 coins of the stolen item's price. */
@@ -641,7 +645,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.1";
+export const RULES_VERSION = "0.2.2";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -667,6 +671,8 @@ export interface PlayerMovement {
   flungByGhost?: boolean;
   /** Portail: the walk ends on this tile, whose portal then swallows the player whole. */
   portalNodeId?: NodeId;
+  /** Chance aveugle: the walk ends on a tile of Boue, where they slip and are thrown back to the tile they came from. */
+  slippedInMud?: boolean;
 }
 
 /** Banquise: the last snowball thrown by the penguins, kept so the scene can replay it. */
@@ -728,6 +734,15 @@ export interface GhostState {
   loot: GhostLoot;
   /** Players it already duelled on this tile; it meets them again once it moved on. */
   metPlayerIds: PlayerId[];
+}
+
+/** Roller: the throws made to pick the Red Cup up, kept so the whole table can watch them and read the banner. */
+export interface CupRoll {
+  seq: number;
+  playerId: PlayerId;
+  /** Every throw in order: a six ends the series, which is then a success. */
+  rolls: number[];
+  success: boolean;
 }
 
 /** Luna Park: the ghost's last deed, kept so the scene can replay it. */
@@ -828,6 +843,8 @@ export interface GameState {
   /** Luna Park: the ghost of the carousel; null on the other maps. */
   ghost: GhostState | null;
   lastGhostEvent: GhostEvent | null;
+  /** Roller: the last series of throws for the Red Cup. */
+  lastCupRoll: CupRoll | null;
   lastTomatoThrow: TomatoThrow | null;
   /** Banquise: snowballs each player took since they last froze. */
   snowballHits: Partial<Record<PlayerId, number>>;
@@ -921,6 +938,7 @@ export const EMPTY_GAME_STATE: GameState = {
   lastIceFall: null,
   ghost: null,
   lastGhostEvent: null,
+  lastCupRoll: null,
   lastTomatoThrow: null,
   snowballHits: {},
   snowFrozenPlayerIds: [],

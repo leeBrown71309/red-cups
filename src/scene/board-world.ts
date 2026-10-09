@@ -38,12 +38,35 @@ import {
   TOMATO_VOLLEY_GAP_MS,
 } from "../theme/timing";
 
+const DOOM_SKY = new THREE.Color("#ff5a3a");
+const DOOM_GROUND = new THREE.Color("#3a0a14");
+const DOOM_SUN = new THREE.Color("#ff5a38");
+const DOOM_FILL = new THREE.Color("#ff6a3c");
+const DOOM_FOG = "#4a0b17";
+
+interface DoomMood {
+  hemisphere: THREE.HemisphereLight;
+  sun: THREE.DirectionalLight;
+  fill: THREE.DirectionalLight;
+  rest: {
+    sky: THREE.Color;
+    ground: THREE.Color;
+    sun: THREE.Color;
+    fill: THREE.Color;
+    ambient: number;
+    sunIntensity: number;
+    fillIntensity: number;
+  };
+}
+
 export interface BoardView {
   mode: CameraMode;
   /** Luna Park: which way the carousel turns right now. */
   carouselReversed: boolean;
   /** Banquise: the blizzard's temporary ice tile. */
   iceTileNodeId: NodeId | null;
+  /** Doomsday: le diable's spell is on the table, every tile turns red. */
+  doomed: boolean;
   pawns: PawnInput[];
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
@@ -140,6 +163,11 @@ export class BoardWorld {
   private pointerStart: { x: number; y: number; time: number; id: number } | null = null;
   private cupNodeId: NodeId | null = null;
   private cupPopProgress = 1;
+  private paused = false;
+  /** Doomsday: 0 = the map's own light, 1 = the blood-red dusk; it eases from one to the other. */
+  private doomLevel = 0;
+  private doomTarget = 0;
+  private mood: DoomMood | null = null;
 
   constructor(
     private readonly container: HTMLElement,
@@ -150,7 +178,7 @@ export class BoardWorld {
     this.theme = getSceneTheme(this.layout.map.themeId);
     const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarsePointer ? 1.75 : 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, coarsePointer ? 1.5 : 1.75));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -206,9 +234,11 @@ export class BoardWorld {
     if (firstView) this.pawns.acknowledgeMovement(view.lastMovement);
 
     this.rig.setMode(view.mode);
+    this.doomTarget = view.doomed ? 1 : 0;
     this.roads.setCarouselReversed(view.carouselReversed);
     for (const [nodeId, tile] of this.tiles) {
       tile.setIce(this.layout.getNode(nodeId)?.ice === true || nodeId === view.iceTileNodeId);
+      tile.setDoomed(view.doomed);
     }
     this.carouselHell?.setReversed(view.carouselReversed);
     this.pawns.sync(view.pawns, view.lastMovement);
@@ -244,6 +274,16 @@ export class BoardWorld {
     this.rig.focusOn(this.layout.getNodePosition(nodeId));
   }
 
+  /**
+   * A page that fully covers the board (the setup, the draft, the online lobby) has no use for it: stopping
+   * the render loop frees the GPU for the page's own animations. The frame delta is clamped, so resuming is safe.
+   */
+  setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    this.renderer.setAnimationLoop(paused ? null : this.renderFrame);
+  }
+
   dispose(): void {
     this.renderer.setAnimationLoop(null);
     this.unsubscribeFeedback();
@@ -274,7 +314,8 @@ export class BoardWorld {
   /** Sunlight over the toy box, moonlight over the night fair; both keep soft shadows. */
   private addLights(shadowMapSize: number): void {
     const lights = this.theme.lights;
-    this.scene.add(new THREE.HemisphereLight(lights.sky, lights.ground, lights.ambient));
+    const hemisphere = new THREE.HemisphereLight(lights.sky, lights.ground, lights.ambient);
+    this.scene.add(hemisphere);
 
     const sun = new THREE.DirectionalLight(lights.sun, lights.sunIntensity);
     sun.position.set(...lights.sunPosition);
@@ -295,6 +336,20 @@ export class BoardWorld {
     const fill = new THREE.DirectionalLight(lights.fill, lights.fillIntensity);
     fill.position.set(12, 8, -8);
     this.scene.add(fill);
+    this.mood = {
+      hemisphere,
+      sun,
+      fill,
+      rest: {
+        sky: new THREE.Color(lights.sky),
+        ground: new THREE.Color(lights.ground),
+        sun: new THREE.Color(lights.sun),
+        fill: new THREE.Color(lights.fill),
+        ambient: lights.ambient,
+        sunIntensity: lights.sunIntensity,
+        fillIntensity: lights.fillIntensity,
+      },
+    };
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(140, 140),
@@ -585,6 +640,7 @@ export class BoardWorld {
 
     this.rig.update(delta);
     this.updateBlizzardFog(delta);
+    this.updateDoomMood(delta, elapsed);
     this.roads.update(elapsed);
     this.pawns.update(elapsed, delta);
     this.effects.update(delta);
@@ -625,6 +681,35 @@ export class BoardWorld {
 
     this.renderer.render(this.scene, this.rig.camera);
   };
+
+  /**
+   * Doomsday changes the whole mood, not just the tiles: the sun and the sky turn blood red, the far decor
+   * sinks into a crimson haze and the light throbs like a slow heartbeat. It eases in and out.
+   */
+  private updateDoomMood(delta: number, elapsed: number): void {
+    const mood = this.mood;
+    if (!mood || (this.doomLevel === this.doomTarget && this.doomTarget === 0)) return;
+    this.doomLevel += (this.doomTarget - this.doomLevel) * Math.min(1, delta * 1.6);
+    if (Math.abs(this.doomTarget - this.doomLevel) < 0.004) this.doomLevel = this.doomTarget;
+    const level = this.doomLevel;
+    const beat = 1 + Math.sin(elapsed * 2.2) * 0.07 * level;
+    const { rest } = mood;
+    mood.hemisphere.color.copy(rest.sky).lerp(DOOM_SKY, level);
+    mood.hemisphere.groundColor.copy(rest.ground).lerp(DOOM_GROUND, level);
+    mood.hemisphere.intensity = rest.ambient * (1 - level * 0.5) * beat;
+    mood.sun.color.copy(rest.sun).lerp(DOOM_SUN, level);
+    mood.sun.intensity = rest.sunIntensity * (1 - level * 0.3) * beat;
+    mood.fill.color.copy(rest.fill).lerp(DOOM_FILL, level);
+    // The blizzard owns the fog while it lasts; otherwise a crimson haze rises with the dusk.
+    if (this.blizzardFog > 0) return;
+    if (level === 0) {
+      this.scene.fog = null;
+    } else if (this.scene.fog instanceof THREE.FogExp2) {
+      this.scene.fog.density = level * 0.017;
+    } else {
+      this.scene.fog = new THREE.FogExp2(DOOM_FOG, level * 0.017);
+    }
+  }
 
   /** The blizzard's white-out: fog thickens over the board, then lifts as the gust passes. */
   private updateBlizzardFog(delta: number): void {

@@ -15,9 +15,9 @@ import { GameHud } from "./ui/hud/game-hud";
 import { ChangelogScreen } from "./ui/home/changelog-screen";
 import { useHomeStore } from "./ui/home/home-store";
 import { MenuScreen } from "./ui/home/menu-screen";
-import { LobbyScreen } from "./ui/lobby/lobby-screen";
 import { OnlineScreen } from "./ui/online/online-screen";
 import { RejoinRequests } from "./ui/online/rejoin-requests";
+import { SetupScreen } from "./ui/setup/setup-screen";
 
 /** Read once at startup: a game in progress at this point came back from the browser save. */
 const RESTORED_ON_LOAD = useGameStore.getState().phase === "playing";
@@ -74,9 +74,12 @@ export default function App() {
     };
   }, []);
 
+  // The setup, the draft and the online lobby are full pages: the 3D board behind them would only burn the GPU.
+  const boardCovered = phase === "draft" || (phase === "setup" && (roomView !== "closed" || homeView === "setup"));
+
   return (
     <div className={`app app--${phase}`}>
-      <BoardStage mode={phase === "setup" || phase === "draft" ? "attract" : "play"} />
+      <BoardStage mode={phase === "setup" || phase === "draft" ? "attract" : "play"} paused={boardCovered} />
       {phase === "draft" ? (
         <DraftScreen />
       ) : phase !== "setup" ? (
@@ -89,7 +92,7 @@ export default function App() {
         ) : homeView === "changelog" ? (
           <ChangelogScreen />
         ) : (
-          <LobbyScreen
+          <SetupScreen
             // Every game opens on the passive draft (patch 0.1.4).
             onStart={(names, mapId) => startGame(names, undefined, mapId, true)}
             onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}

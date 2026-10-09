@@ -54,7 +54,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Ce qu'une case fait à l'ARRIVÉE",
       body: [
         "• Verte : roue du [[wheel:fortune|bonheur]]. Rouge : roue du [[wheel:misfortune|malheur]]. Bleue : la boutique s'ouvre à la fin de ton déplacement. Neutre : rien. Départ : +200 si tu y entres PAR LA FLÈCHE qui y mène (8→0 à [[map:classic|Coffre à jouets]] et [[map:luna-park|Luna Park]], 4→0 à [[map:banquise|Banquise]]).",
-        "• « Arriver » = finir un déplacement, ou être posé là par une roue (« Avance d'une case », « Va au Départ », « Retourne d'où tu viens ») : la roue de la case, la Boue, le Portail et le bonus s'appliquent. Une boutique ne s'ouvre sur une pose de roue que si c'est ton tour et que tu finissais. La [[item:water-bottle|Bouteille d'eau]] échappe à la règle : sa téléportation donne la roue et la Cup, pas la Boue ni les Portails.",
+        "• « Arriver » = finir un déplacement, ou être posé là par une roue (« Avance d'une case », « Va au Départ », « Retourne d'où tu viens ») : la roue de la case, la Boue, le Portail et le bonus s'appliquent. Seul le Portail qui AVALE la case éteint tout le reste : pas de roue, pas de boutique (une Red Cup posée là se ramasse quand même avant la chute). Une boutique ne s'ouvre sur une pose de roue que si c'est ton tour et que tu finissais. La [[item:water-bottle|Bouteille d'eau]] échappe à la règle : sa téléportation donne la roue et la Cup, pas la Boue ni les Portails.",
         "• « Arrivé » ≠ « déplacé » : la [[item:rope|Corde]] qui tire, le [[item:monopoly-man|Monopoly Man]] qui échange, [[card:new-cup-new-me|New Cup, New Me]] et [[card:calm-down|Calme-toi]] POSENT sans déclencher la case.",
         "• Glace ([[map:banquise|Banquise]]) : personne n'y stationne — on glisse ailleurs; seule la case finale compte.",
       ],
@@ -124,7 +124,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• En ligne : 1 minute pour l'actif (qui n'a pas choisi tire au sort une de ses deux offres), puis 20 secondes pour lire son passif et confirmer. En local : l'écran passe de main en main.",
         "• L'[[card:guardian-angel|Ange]] (4+ joueurs) ne reçoit jamais de passif nuisible (Voleur, Goblin, Corrupteur, Piégeur) et ne protège aucun de ces criminels; [[card:greedy|Cupide]] n'aura jamais [[card:nepo-baby|Nepo Baby]].",
         "• [[card:lambda|Lambda]] : le remplissage quand le vivier est épuisé ou l'Ange sans protégé.",
-        "• Fin de draft : le diable et l'Ange (+ son protégé) sont ANNONCÉS à toute la table, les pièces de départ et la jauge se règlent, compte à rebours de 5 s avant le premier tour.",
+        "• Fin de draft : l’Ange (+ son protégé) est ANNONCÉ à toute la table (le diable ne l’est pas), les pièces de départ et la jauge se règlent, compte à rebours de 5 s avant le premier tour.",
       ],
     },
   ],

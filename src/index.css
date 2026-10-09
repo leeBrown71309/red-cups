@@ -2,6 +2,10 @@
 @import "./styles/base.css";
 @import "./styles/buttons.css";
 @import "./styles/stage-and-lobby.css";
+@import "./styles/flow-shell.css";
+@import "./styles/setup-flow.css";
+@import "./styles/draft-page.css";
+@import "./styles/online-flow.css";
 @import "./styles/hud.css";
 @import "./styles/players-panel.css";
 @import "./styles/modals.css";

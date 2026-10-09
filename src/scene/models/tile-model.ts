@@ -28,6 +28,8 @@ export interface TileVisual {
   setCovered: (covered: boolean) => void;
   /** Banquise: shows or melts the ice (glassy cap, frosty rim and spikes) on this tile. */
   setIce: (active: boolean) => void;
+  /** Doomsday: the tile turns blood red while every tile spins the wheel of misfortune. */
+  setDoomed: (active: boolean) => void;
   update: (elapsed: number, delta: number) => void;
   repaintDecal: () => void;
 }
@@ -39,6 +41,11 @@ export interface TileStyle {
   neon?: boolean;
 }
 
+/** Doomsday palette: every tile (the Hell tile excepted) turns the same blood red, with an ember glow on top. */
+const DOOM_TOP = new THREE.Color("#ec3a30");
+const DOOM_SIDE = new THREE.Color("#7a1520");
+const DOOM_GLOW = new THREE.Color("#ff2a12");
+
 export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyle = {}): TileVisual {
   const radius = node.kind === "start" ? START_TILE_RADIUS : TILE_RADIUS;
   const colors = TILE_COLORS[node.kind];
@@ -48,9 +55,22 @@ export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyl
   const lift = new THREE.Group();
   group.add(lift);
 
+  // Doomsday recolours the tile itself, so each tile owns its materials (the kit's are shared by colour).
+  const baseMaterial = kit.flat(colors.side).clone();
+  const topMaterial = (
+    style.neon ? kit.flat(colors.top, { emissive: colors.top, emissiveIntensity: 0.35 }) : kit.flat(colors.top)
+  ).clone();
+  const restTop = new THREE.Color(colors.top);
+  const restSide = new THREE.Color(colors.side);
+  const restEmissive = topMaterial.emissive.clone();
+  const restEmissiveIntensity = topMaterial.emissiveIntensity;
+  const canBeDoomed = node.kind !== "hell";
+  let doomTarget = 0;
+  let doomMix = 0;
+
   const base = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.97, radius * 1.04, TILE_HEIGHT * 0.72, SEGMENTS),
-    kit.flat(colors.side),
+    baseMaterial,
   );
   base.position.y = TILE_HEIGHT * 0.36;
   base.castShadow = true;
@@ -59,7 +79,7 @@ export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyl
 
   const top = new THREE.Mesh(
     new THREE.CylinderGeometry(radius * 0.9, radius * 0.97, TILE_HEIGHT * 0.28, SEGMENTS),
-    style.neon ? kit.flat(colors.top, { emissive: colors.top, emissiveIntensity: 0.35 }) : kit.flat(colors.top),
+    topMaterial,
   );
   top.position.y = TILE_HEIGHT * 0.86;
   top.receiveShadow = true;
@@ -163,11 +183,23 @@ export function createTileVisual(node: BoardNode, kit: SceneKit, style: TileStyl
       iceTarget = active ? 1 : 0;
       if (active) ice.visible = true;
     },
+    setDoomed: (active) => {
+      doomTarget = active && canBeDoomed ? 1 : 0;
+    },
     update: (elapsed, delta) => {
       if (ice.visible) {
         const scale = ice.scale.x + (iceTarget - ice.scale.x) * Math.min(1, delta * 4);
         ice.scale.setScalar(Math.max(0.001, scale));
         if (iceTarget === 0 && scale < 0.02) ice.visible = false;
+      }
+      if (canBeDoomed && (doomMix !== doomTarget || doomMix > 0)) {
+        doomMix += (doomTarget - doomMix) * Math.min(1, delta * 2.5);
+        if (Math.abs(doomTarget - doomMix) < 0.005) doomMix = doomTarget;
+        const throb = 0.5 + Math.sin(elapsed * 2.2 + node.id * 0.7) * 0.5;
+        topMaterial.color.copy(restTop).lerp(DOOM_TOP, doomMix);
+        baseMaterial.color.copy(restSide).lerp(DOOM_SIDE, doomMix);
+        topMaterial.emissive.copy(restEmissive).lerp(DOOM_GLOW, doomMix);
+        topMaterial.emissiveIntensity = restEmissiveIntensity + doomMix * (0.22 + throb * 0.24);
       }
       const badgeOpacity = covered ? 1 : 0;
       badgeMaterial.opacity += (badgeOpacity - badgeMaterial.opacity) * Math.min(1, delta * 8);

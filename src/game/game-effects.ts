@@ -70,6 +70,9 @@ import {
   MUD_PENALTY,
   RED_CUP_GOAL,
   RED_GREEN_TRIGGERS_PER_CUP,
+  ROLLER_CUP_ATTEMPTS,
+  ROLLER_CUP_FACE,
+  ROLLER_DIE_FACES,
   START_BONUS,
   START_NODE_ID,
 } from "./types";
@@ -482,6 +485,43 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
 }
 
 /**
+ * Roller (patch 0.2.2): the Red Cup is not simply picked up. The Roller throws the die up to twice and needs
+ * a six; the whole table sees the throws. Two misses leave the Cup where it is and the Roller on its tile: their
+ * next turn asks nothing but another try (after their items, if they have any).
+ */
+export function rollForRedCup(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player || state.redCupNodeId !== nodeId || !canCollectRedCup(player)) return state;
+
+  const rolls: number[] = [];
+  while (rolls.length < ROLLER_CUP_ATTEMPTS) {
+    rolls.push(1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES));
+    if (rolls[rolls.length - 1] === ROLLER_CUP_FACE) break;
+  }
+  const success = rolls[rolls.length - 1] === ROLLER_CUP_FACE;
+  const summary = rolls.join(", ");
+  const logged = addLog(
+    {
+      ...state,
+      lastCupRoll: { seq: (state.lastCupRoll?.seq ?? 0) + 1, playerId, rolls, success },
+    },
+    success
+      ? `${player.name} lance le dé pour la Red Cup (${summary}) : un ${ROLLER_CUP_FACE}, elle est à lui !`
+      : `${player.name} lance le dé pour la Red Cup (${summary}) : raté. La Cup l’attend à son prochain tour.`,
+    success ? "good" : "bad",
+  );
+  return success ? collectCupOrRequestDiscard(logged, playerId, nodeId) : logged;
+}
+
+/** Whoever reaches the Red Cup picks it up, but the Roller must first throw a six for it. */
+export function collectCupOrRoll(state: GameState, playerId: PlayerId, nodeId: NodeId): GameState {
+  const player = findPlayer(state, playerId);
+  return player && hasCard(player, "roller")
+    ? rollForRedCup(state, playerId, nodeId)
+    : collectCupOrRequestDiscard(state, playerId, nodeId);
+}
+
+/**
  * Je note: a single-target item used against its holder has one chance in
  * three of leaving them a copy, sacrificing another item if needed. `userId`
  * is whoever used the item.
@@ -576,11 +616,15 @@ export function arriveOnTile(state: GameState, playerId: PlayerId, cameFrom: Nod
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   let nextState = queueTileWheel(state, playerId);
   nextState = triggerMud(nextState, playerId, player.position, cameFrom);
-  nextState = triggerPortal(nextState, playerId);
-  // Chance aveugle may have stepped back out of the mud, and a Portail drops into Hell.
+  // Chance aveugle may have stepped back out of the mud.
   if (findPlayer(nextState, playerId)?.position !== player.position) return nextState;
-  if (nextState.redCupNodeId !== player.position) return nextState;
-  return collectCupOrRequestDiscard(nextState, playerId, player.position);
+  const cupAhead = nextState.redCupNodeId === player.position;
+  // A Portail swallows first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
+  nextState = triggerPortal(nextState, playerId);
+  if (cupAhead && nextState.phase === "playing") {
+    nextState = collectCupOrRoll(nextState, playerId, player.position);
+  }
+  return nextState;
 }
 
 /**
@@ -664,7 +708,13 @@ function stepBackFromMud(state: GameState, player: Player, cameFrom: NodeId | nu
   if (cameFrom === null || cameFrom === HELL_NODE_ID || cameFrom === player.position) {
     return addLog(state, `${player.name} glisse dans la Boue, sans rien perdre.`, "event");
   }
-  const nextState = updatePlayer(state, player.id, (current) => ({ ...current, position: cameFrom }));
+  const slipped = updatePlayer(state, player.id, (current) => ({ ...current, position: cameFrom }));
+  // The walk that brought them here is replayed on the board up to the mud, then the slip (patch 0.2.2).
+  const walked = state.lastMovement;
+  const nextState =
+    walked && walked.playerId === player.id && walked.path[walked.path.length - 1] === player.position
+      ? { ...slipped, lastMovement: { ...walked, slippedInMud: true } }
+      : slipped;
   const logged = addLog(
     nextState,
     `${player.name} glisse dans la Boue et recule en case ${cameFrom}, sans rien perdre.`,
@@ -970,10 +1020,11 @@ function thawFrozenSlide(state: GameState): GameState {
   nextState = addRedGreenBonuses(nextState, active.id, path);
   nextState = queueTileWheel(nextState, active.id);
   nextState = triggerMud(nextState, active.id, end, path[path.length - 2] ?? frozen.from);
+  const cupAhead = findPlayer(nextState, active.id)?.position === end && nextState.redCupNodeId === end;
+  // A Portail swallows first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
   nextState = triggerPortal(nextState, active.id);
-  const landed = findPlayer(nextState, active.id)?.position === end;
-  if (landed && nextState.redCupNodeId === end) {
-    nextState = collectCupOrRequestDiscard(nextState, active.id, end);
+  if (cupAhead && nextState.phase === "playing") {
+    nextState = collectCupOrRoll(nextState, active.id, end);
   }
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);

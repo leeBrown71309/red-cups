@@ -33,6 +33,8 @@ export function AlertBannerView() {
             <CloverIcon size={44} />
           ) : alert.tone === "ghost" ? (
             <GhostAvatar size={50} />
+          ) : alert.tone === "roller" ? (
+            <UiIcon name="dice" size={38} />
           ) : (
             <UiIcon name={alert.tone === "blizzard" ? "flag" : "sparkle"} size={34} />
           )}

@@ -1,6 +1,5 @@
 import { CARD_KINDS, type CardKind } from "./cards";
 import { PASSIVE_ORDER } from "./catalog";
-import { announceDevil } from "./devil";
 import { getEnergyCapacity } from "./energy";
 import { assignGuardian } from "./guardian";
 import { getStartingCurrency } from "./passive-rules";
@@ -186,7 +185,7 @@ export function closeDraft(state: GameState, now?: number): GameState {
     energyLeft: active ? getEnergyCapacity(active) : state.energyLeft,
   };
   nextState = addLog(nextState, "Les cartes sont choisies : la partie commence !", "event");
-  return announceDevil(assignGuardian(nextState));
+  return assignGuardian(nextState);
 }
 
 /** Players still to pick at this stage, in seat order: the local table hands the screen to them one after the other. */

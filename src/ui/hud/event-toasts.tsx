@@ -48,13 +48,6 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: "BOUM !",
         detail: `Bullet Bill percute ${playerName(event.playerId)} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,
       };
-    case "devil-announced":
-      return {
-        tone: "devil",
-        eyebrow: "Le diable est à table",
-        title: `${playerName(event.playerId)} est le diable !`,
-        detail: `Il gagne quand les autres auront passé ${event.goal} tours en Enfer. Méfiez-vous de sa boutique.`,
-      };
     case "last-chance":
       return {
         tone: "chances",

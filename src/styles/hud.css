@@ -823,6 +823,13 @@
   background: #27305f;
 }
 
+/* Roller: the throws for the Red Cup. */
+.alert-banner--roller {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 255, 255, 0.4), transparent 45%),
+    linear-gradient(135deg, #4fa5f2, #2d4fa3);
+}
+
 /* Luna Park: the carousel changes direction. */
 .alert-banner--carousel {
   background:
@@ -1190,6 +1197,38 @@
   to {
     transform: scale(1);
   }
+}
+
+/* Roller: the Red Cup throws are for the whole table, so the die gets a caption and a verdict. */
+.dice-roll__stage {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.dice-roll__caption {
+  display: grid;
+  gap: 2px;
+  padding: 8px 18px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--cream);
+  box-shadow: 0 4px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.dice-roll__caption small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.dice-roll__die.is-six {
+  background: var(--gold);
+  box-shadow:
+    0 0 0 6px var(--gold-light),
+    0 8px 0 rgba(0, 0, 0, 0.25);
 }
 
 @media (prefers-reduced-motion: reduce) {

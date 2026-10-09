@@ -1,6 +1,5 @@
 import { getBoard } from "../game/board";
 import { ITEM_ORDER } from "../game/catalog";
-import { findDevil, getDevilGoalFor } from "../game/devil";
 import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
 import { countBagUnits, countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
@@ -11,6 +10,7 @@ import {
   BULLET_IMPACT_PAUSE_MS,
   BULLET_LANDING_PAUSE_MS,
   CUP_CELEBRATION_MS,
+  CUP_ROLL_THROW_MS,
   estimateBulletFlightMs,
   estimateMovementMs,
 } from "../theme/timing";
@@ -85,26 +85,33 @@ export function startGameFeedback(): () => void {
         "ice-fall",
         "ghost-appeared",
         "ghost-attack",
-        "devil-announced",
         "doomsday-started",
         "black-cup-cast",
       ].includes(event.type),
     );
 
+    // Roller: the throws for the Red Cup play first, and what follows (the pickup, the next turn) waits for them.
+    const cupRoll = state.lastCupRoll && state.lastCupRoll.seq !== previous.lastCupRoll?.seq ? state.lastCupRoll : null;
+    const cupRollMs = cupRoll ? cupRoll.rolls.length * CUP_ROLL_THROW_MS : 0;
+    if (cupRoll) {
+      const { playerId, rolls, success } = cupRoll;
+      schedule([{ type: "cup-roll", playerId, rolls, success }], impactAt - now);
+    }
+
     if (flight) schedule([{ type: "bullet-flight", flight }], startsAt - now);
     schedule(
       events.filter((event) => event.type !== "turn-start"),
-      impactAt - now,
+      impactAt + cupRollMs - now,
     );
     schedule(
       events.filter((event) => event.type === "turn-start"),
-      nextTurnAt - now,
+      nextTurnAt + cupRollMs - now,
     );
 
     // Only real animations hold modals back: moving the deadline to "now" would unmount an open
     // modal for a frame (the shop used to blink after every purchase).
     const settlesAt = Math.max(
-      nextTurnAt + (celebrates ? CUP_CELEBRATION_MS : 0),
+      nextTurnAt + cupRollMs + (cupRoll ? ALERT_BANNER_MS : 0) + (celebrates ? CUP_CELEBRATION_MS : 0),
       announcesMapEvent ? impactAt + ALERT_BANNER_MS : 0,
     );
     if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
@@ -253,10 +260,6 @@ function collectEvents(
   }
 
   if (state.turnStage === "blessing" && previous.blessingQueue.length === 0) events.push({ type: "blessing-started" });
-  const devil = findDevil(state);
-  if (devil && previous.phase !== "playing" && state.phase === "playing") {
-    events.push({ type: "devil-announced", playerId: devil.id, goal: getDevilGoalFor(state) });
-  }
   if (state.doomsday && !previous.doomsday) events.push({ type: "doomsday-started" });
   const opening = state.players[state.activePlayerIndex];
   const newTurn =
