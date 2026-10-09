@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import { PASSIVE_CATALOG } from "../../game/catalog";
+import { getCopyableCard, getCopyableKinds, getMimeTargets } from "../../game/mime";
+import { PentagramIcon } from "../icons/pentagram-icon";
 import { hasCard, ownsCard } from "../../game/cards";
-import { getLuck } from "../../game/mage-luck";
 import { canPlaceMark, canTeleportInTurn, findMark } from "../../game/mage-queries";
-import { getMimeTargets } from "../../game/mime";
 import { canDig, getCrossingEnergy, getCrossings, getDigTargets } from "../../game/mole";
 import { canSwap, getSisterNode } from "../../game/sister";
 import { useGameStore } from "../../game/store";
@@ -32,20 +33,30 @@ function MimeControl({ game, player }: { game: GameState; player: Player }) {
 
   if (open && targets.length > 0) {
     return (
-      <div className="power-picker" role="group" aria-label="Copier le Cups Power de…">
-        <span className="power-picker__title">Copier le Cups Power de…</span>
+      <div className="power-picker" role="group" aria-label="Copier un joueur">
+        <span className="power-picker__title">Copier pour ce tour…</span>
         {targets.map((target) => (
-          <button
-            key={target.id}
-            type="button"
-            className="destination-chip"
-            onClick={() => {
-              setOpen(false);
-              copy(target.id);
-            }}
-          >
-            <span className="power-picker__dot" style={{ background: target.color }} /> {target.name}
-          </button>
+          <div key={target.id} className="power-picker__row">
+            <span className="power-picker__who">
+              <span className="power-picker__dot" style={{ background: target.color }} /> {target.name}
+            </span>
+            {getCopyableKinds(target).map((kind) => {
+              const passifId = getCopyableCard(target, "passif");
+              return (
+                <button
+                  key={kind}
+                  type="button"
+                  className="destination-chip"
+                  onClick={() => {
+                    setOpen(false);
+                    copy(target.id, kind);
+                  }}
+                >
+                  {kind === "actif" ? "Cups Power" : `Passif · ${passifId ? PASSIVE_CATALOG[passifId].name : ""}`}
+                </button>
+              );
+            })}
+          </div>
         ))}
         <button type="button" className="btn btn--small btn--cream" onClick={() => setOpen(false)}>
           Annuler
@@ -64,8 +75,8 @@ function MimeControl({ game, player }: { game: GameState; player: Player }) {
         waiting
           ? `Mime : ${waiting}`
           : disabled
-            ? "Personne dont le Cups Power puisse être copié pour l’instant"
-            : "Copie le Cups Power d’un autre joueur jusqu’à la fin de ton tour, sans énergie"
+            ? "Personne dont le Cups Power ou le passif puisse être copié pour l’instant"
+            : "Copie le Cups Power ou le passif d’un autre joueur jusqu’à la fin de ton tour, sans énergie"
       }
     >
       <UiIcon name="sparkle" size={16} /> Copier un joueur{waiting ? ` · ${waiting}` : ""}
@@ -139,18 +150,14 @@ export function TunnelControls({ player }: { player: Player }) {
   );
 }
 
-/** Mage noir: lay the pentagram, teleport to it, and know how many chances are left. */
+/** Mage noir: lay the pentagram and teleport to it (the reserve shows under the energy). */
 function MageControl({ game, player }: { game: GameState; player: Player }) {
   const placeMark = useGameStore((state) => state.placeMark);
   const teleport = useGameStore((state) => state.teleportToMark);
-  const [sure, setSure] = useState(false);
   const mark = findMark(game, player.id);
-  const luck = getLuck(player);
   const canTeleport = canTeleportInTurn(game, player);
-  const lastChance = luck <= 1;
   return (
     <>
-      <MageLuck luck={luck} />
       {canPlaceMark(game, player) && (
         <button
           type="button"
@@ -164,37 +171,35 @@ function MageControl({ game, player }: { game: GameState; player: Player }) {
       {mark && (
         <button
           type="button"
-          className={`btn btn--small ${sure ? "btn--cup" : "btn--grape"}`}
+          className="btn btn--small btn--grape"
           disabled={!canTeleport}
           onClick={() => {
-            if (lastChance && !sure) {
-              setSure(true);
-              return;
-            }
-            setSure(false);
             teleport();
           }}
-          onBlur={() => setSure(false)}
           title={
             canTeleport
-              ? `Téléporte-toi sur ton pentagramme (case ${mark.nodeId}) : il te coûte une chance`
+              ? `Téléporte-toi sur ton pentagramme (case ${mark.nodeId}) : il te coûte un pentagramme`
               : `Ton pentagramme est sur ta case (${mark.nodeId}), ou la téléportation n’est pas possible maintenant`
           }
         >
-          <UiIcon name="flag" size={16} />{" "}
-          {sure ? "Dernière chance : tu seras éliminé ! Confirmer" : `Se téléporter · case ${mark.nodeId}`}
+          <UiIcon name="flag" size={16} /> Se téléporter · case ${mark.nodeId}
         </button>
       )}
     </>
   );
 }
 
-/** The mage's chances as pips; at zero, the game is over for them. */
+/** The mage's reserve as mini pentagrams, one lit for each left; at zero, the game is over for them. */
 export function MageLuck({ luck }: { luck: number }) {
   return (
-    <span className="mage-luck" role="img" aria-label={`Chances du Mage noir : ${luck} sur ${MAGE_MAX_LUCK}`}>
+    <span
+      className="mage-luck"
+      role="img"
+      aria-label={`Pentagrammes du Mage noir : ${luck} sur ${MAGE_MAX_LUCK}`}
+      title={`Pentagrammes en réserve : ${luck}/${MAGE_MAX_LUCK}. Chaque téléportation en dépense un ; à zéro, il ne peut plus se téléporter avant d’en retrouver un.`}
+    >
       {Array.from({ length: MAGE_MAX_LUCK }, (_, index) => (
-        <span key={index} className={`mage-luck__pip ${index < luck ? "is-full" : ""}`} />
+        <PentagramIcon key={index} size={20} lit={index < luck} />
       ))}
     </span>
   );
@@ -205,6 +210,7 @@ function SisterControl({ game, player }: { game: GameState; player: Player }) {
   const swap = useGameStore((state) => state.swapWithSister);
   const possible: boolean = canSwap(game, player);
   const sister = getSisterNode(player);
+  const waiting = formatReturn(player.swapReadyRound ?? 0, game.round);
   return (
     <button
       type="button"
@@ -214,9 +220,11 @@ function SisterControl({ game, player }: { game: GameState; player: Player }) {
       title={
         possible
           ? `Échange ta place avec ta sœur (case ${sister}) : ${SISTER_SWAP_ENERGY} points d’énergie. Elle emporte ce qui était sur sa case`
-          : sister === player.position
-            ? "Ta sœur est sur ta case"
-            : `Swap demande ${SISTER_SWAP_ENERGY} points d’énergie, avant le déplacement, hors de l’Enfer`
+          : waiting
+            ? `Swap ${waiting}`
+            : sister === player.position
+              ? "Ta sœur est sur ta case"
+              : `Swap demande ${SISTER_SWAP_ENERGY} points d’énergie, avant le déplacement, hors de l’Enfer`
       }
     >
       <UiIcon name="sparkle" size={16} /> Swap · {SISTER_SWAP_ENERGY}
@@ -225,16 +233,27 @@ function SisterControl({ game, player }: { game: GameState; player: Player }) {
 }
 
 /** Every Cups Power button the active player's cards give them, for the stage they are in. */
-export function CupPowerControls({ player, stage }: { player: Player; stage: "move" | "hell" | "after" }) {
+export function CupPowerControls({
+  player,
+  stage,
+  children,
+}: {
+  player: Player;
+  stage: "move" | "hell" | "after";
+  /** Other buttons of the turn that belong with the powers (rescue, ignore arrows). */
+  children?: ReactNode;
+}) {
   const game = useGameStore();
   const beforeMove = stage !== "after";
+  // One tidy zone of its own under the main actions; empty, it takes no room.
   return (
-    <>
+    <div className="dock-powers">
       {beforeMove && ownsCard(player, "mime") && <MimeControl game={game} player={player} />}
       {stage === "move" && hasCard(player, "mole") && <DigControl game={game} player={player} />}
       {stage === "move" && <TunnelControls player={player} />}
       {ownsCard(player, "black-mage") && <MageControl game={game} player={player} />}
       {stage === "move" && ownsCard(player, "ghost-sister") && <SisterControl game={game} player={player} />}
-    </>
+      {children}
+    </div>
   );
 }

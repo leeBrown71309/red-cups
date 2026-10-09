@@ -510,48 +510,180 @@
   }
 }
 
-/* A player's own two cards, side by side: one shows, the arrows slide to the other. */
-.card-pager {
-  display: flex;
-  align-items: center;
+/* A player's two cards: two small tiles, one under the other; the rules open in the slide-over. */
+.card-tiles {
+  display: grid;
   gap: 6px;
 }
 
-.card-pager__window {
+.card-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--grape-light);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease-out;
+}
+
+.card-tile:active {
+  transform: scale(0.98);
+}
+
+.card-tile.is-open {
+  background: var(--cream, #fff4ec);
+  box-shadow: var(--shadow-chunky);
+}
+
+.card-tile__text {
+  display: grid;
   flex: 1;
   min-width: 0;
+}
+
+.card-tile__text strong {
   overflow: hidden;
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.card-pager__track {
+/* The rules of the opened card: a dark veil on the right of the screen that fades out to the left. */
+.card-slide-over {
+  position: fixed;
+  inset: 0 0 auto auto;
+  z-index: 60;
+  isolation: isolate;
   display: flex;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: min(760px, 100vw);
+  color: #fff4ec;
+  animation: card-slide-in 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.card-pager__slide {
-  flex: 0 0 100%;
+/* The veil is its own layer, so that it can fade out at the bottom (above the dock) without fading the text. */
+.card-slide-over::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  /* Eased stops: the veil dies out slowly, so no edge shows where it ends. */
+  background: linear-gradient(
+    to left,
+    rgb(12 7 14 / 0.96) 0%,
+    rgb(12 7 14 / 0.93) 30%,
+    rgb(12 7 14 / 0.82) 45%,
+    rgb(12 7 14 / 0.6) 60%,
+    rgb(12 7 14 / 0.34) 74%,
+    rgb(12 7 14 / 0.14) 86%,
+    rgb(12 7 14 / 0.04) 94%,
+    rgb(12 7 14 / 0) 100%
+  );
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 48px), transparent);
+}
+
+.card-slide-over__body {
+  display: flex;
+  width: min(470px, 100%);
+  margin-left: auto;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 24px 22px 20px 16px;
+  animation: card-slide-swap 220ms ease-out;
+}
+
+.card-slide-over__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.card-slide-over__head > div {
+  flex: 1;
   min-width: 0;
 }
 
-.card-pager__arrow {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border: 2px solid var(--ink, #2a1d22);
-  border-radius: 50%;
-  background: var(--cream, #fff4ec);
+.card-slide-over__head .eyebrow {
+  color: #ffd166;
+}
+
+.card-slide-over__head h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+
+.card-slide-over__text {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.card-slide-over__text p + p {
+  margin-top: 10px;
+}
+
+.card-slide-over__note {
+  color: #ffd166;
+  font-weight: 800;
+}
+
+.card-slide-over__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.card-slide-over__nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 2px solid rgb(255 244 236 / 0.7);
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
   cursor: pointer;
 }
 
-.card-pager__arrow:disabled {
-  opacity: 0.35;
-  cursor: default;
+.card-slide-over__nav button:disabled {
+  visibility: hidden;
+}
+
+@keyframes card-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+}
+
+@keyframes card-slide-swap {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card-pager__track {
-    transition: none;
+  .card-slide-over,
+  .card-slide-over__body {
+    animation: none;
   }
+}
+
+.card-slide-over__close {
+  flex: none;
+  color: var(--ink);
 }

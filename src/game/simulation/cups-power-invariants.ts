@@ -206,18 +206,13 @@ function checkPowerEvent(
         event.playerFrom !== before.position ||
         event.sisterFrom !== sister ||
         previous.energyLeft < SISTER_SWAP_ENERGY ||
+        previous.round < (before.swapReadyRound ?? 0) ||
         before.position === HELL_NODE_ID
       ) {
         found.push(violation("sister-swap", `${before.name} swapped out of the rules`));
       }
       if (after && getSisterNode(after) !== event.playerFrom) {
         found.push(violation("sister-swap-place", `the sister of ${before.name} did not take their old tile`));
-      }
-      break;
-    }
-    case "mage-fallen": {
-      if (findPlayer(next, event.playerId) !== undefined) {
-        found.push(violation("mage-fallen", `${before.name} fell but stays at the table`));
       }
       break;
     }
@@ -237,7 +232,7 @@ function checkSisterWalk(previous: GameState, next: GameState, found: RuleViolat
         : null;
     const event = newPowerEvent(previous, next);
     // A mage leaving in the same action overwrites the record of the swap: only the position is then checked.
-    const swapped = (event?.kind === "sister-swap" && event.playerId === player.id) || event?.kind === "mage-fallen";
+    const swapped = event?.kind === "sister-swap" && event.playerId === player.id;
     const fell = player.position === HELL_NODE_ID && before.position !== HELL_NODE_ID;
     if (swapped) continue;
     const expected = fell ? 0 : (mirrored ?? getSisterNode(before));

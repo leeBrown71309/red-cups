@@ -5,7 +5,13 @@ import { settleBoard } from "./game-effects";
 import { withPowerEvent } from "./power-event";
 import { addLog, findPlayer, getActivePlayer, updatePlayer } from "./state-utils";
 import type { GameState, NodeId, Player } from "./types";
-import { HELL_NODE_ID, MOVE_MINIMUM_ENERGY, SISTER_SWAP_ENERGY, START_NODE_ID } from "./types";
+import {
+  HELL_NODE_ID,
+  MOVE_MINIMUM_ENERGY,
+  SISTER_SWAP_COOLDOWN_ROUNDS,
+  SISTER_SWAP_ENERGY,
+  START_NODE_ID,
+} from "./types";
 
 /**
  * Sœur Fantôme (patch 0.2.3): a little ghost floats with the player. She starts on the start with them, and for every
@@ -118,7 +124,10 @@ function canAffordSwap(state: GameState): boolean {
   return state.energyLeft - SISTER_SWAP_ENERGY >= kept;
 }
 
-/** Whether the active player may swap with their sister now: before their move, out of Hell, on another tile. */
+/**
+ * Whether the active player may swap with their sister now: before their move, out of Hell, on another tile, and
+ * once every `SISTER_SWAP_COOLDOWN_ROUNDS` rounds.
+ */
 export function canSwap(state: GameState, player: Player | undefined): player is Player {
   return (
     hasSister(player) &&
@@ -128,6 +137,7 @@ export function canSwap(state: GameState, player: Player | undefined): player is
     state.diceRoll === null &&
     player.position !== HELL_NODE_ID &&
     getSisterNode(player) !== player.position &&
+    state.round >= (player.swapReadyRound ?? 0) &&
     canAffordSwap(state)
   );
 }
@@ -164,6 +174,7 @@ export function swapWithSister(state: GameState): GameState {
     ...current,
     position: sisterFrom,
     sisterNodeId: playerFrom,
+    swapReadyRound: state.round + SISTER_SWAP_COOLDOWN_ROUNDS,
   }));
   nextState = withPowerEvent(nextState, {
     kind: "sister-swap",

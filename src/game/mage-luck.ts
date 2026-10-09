@@ -36,7 +36,7 @@ export function regainMageLuck(state: GameState, round: number): GameState {
         ? { ...rest, luck }
         : { ...rest, luck, luckReturnRound: round + MAGE_LUCK_RETURN_ROUNDS };
     });
-    nextState = addOpenLog(nextState, `${mage.name} regagne une chance (${luck}/${MAGE_MAX_LUCK}).`, "good");
+    nextState = addOpenLog(nextState, `${mage.name} regagne un pentagramme (${luck}/${MAGE_MAX_LUCK}).`, "good");
   }
   return nextState;
 }

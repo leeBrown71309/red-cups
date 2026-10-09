@@ -180,13 +180,13 @@ function getRuleSections(mapId: MapId): RuleSection[] {
       paragraphs: [
         "Chaque joueur a un Cups Power (choisi au draft : le pouvoir qui le porte toute la partie) et un passif (un " +
           "talisman tiré au sort). Leur détail est dans l’onglet Cups Power & passifs ; voici les nouveaux.",
-        `Mime : une fois tous les ${MIME_COOLDOWN_ROUNDS} tours, copie le Cups Power d’un autre joueur jusqu’à la fin ` +
+        `Mime : une fois tous les ${MIME_COOLDOWN_ROUNDS} tours, copie le Cups Power ou le passif d’un autre joueur jusqu’à la fin ` +
           "de ton tour, avantages et défauts compris.",
         `Taupe : une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours, creuse un tunnel vers une case déjà visitée ; les ` +
           "autres le traversent une fois, puis il se referme.",
         `Mage noir : pose un pentagramme et téléporte-toi dessus, à ton tour, contre un objet ou Bullet Bill, ou à ` +
-          `la place d’une roue qui te déplace. ${MAGE_MAX_LUCK} chances, une de moins à chaque téléportation : à zéro, ` +
-          "tu es éliminé.",
+          `la place d’une roue qui te déplace. ${MAGE_MAX_LUCK} pentagrammes, un de moins à chaque téléportation : à zéro, ` +
+          "plus de téléportation, mais tu continues de jouer, et un pentagramme revient tous les 15 tours.",
         "Mi-vu, Mi-vue : invisible deux de tes tours sur trois, tu ne peux plus être ciblé et tu ne vois plus la table ; " +
           "à une case de la Red Cup, tu redeviens visible.",
         "Sœur Fantôme : une petite sœur fait en miroir chacun de tes pas, et le Swap te fait changer de place avec elle, " +
@@ -384,6 +384,8 @@ const CARD_FILTERS: { id: CardFilter; label: string }[] = [
 function CardsCatalog() {
   const [filter, setFilter] = useState<CardFilter>("all");
   const [selectedId, setSelectedId] = useState<PassiveId>(PASSIVE_ORDER[0]);
+  // The card turned over to show its back; another card always shows its face first.
+  const [flippedId, setFlippedId] = useState<PassiveId | null>(null);
   const shownIds = PASSIVE_ORDER.filter((passiveId) => filter === "all" || CARD_KINDS[passiveId] === filter);
   const entries = shownIds.map((passiveId) => ({
     id: passiveId,
@@ -425,9 +427,23 @@ function CardsCatalog() {
       )}
       detail={
         CARD_KINDS[passiveId] === "actif" ? (
-          <TiltCard key={passiveId}>
-            <PassiveCard passiveId={passiveId} />
-          </TiltCard>
+          <div className="card-detail">
+            <TiltCard
+              key={passiveId}
+              backOf={passiveId}
+              flipped={flippedId === passiveId}
+              onFlip={() => setFlippedId(flippedId === passiveId ? null : passiveId)}
+            >
+              <PassiveCard passiveId={passiveId} />
+            </TiltCard>
+            <button
+              type="button"
+              className="btn btn--cream btn--small"
+              onClick={() => setFlippedId(flippedId === passiveId ? null : passiveId)}
+            >
+              <UiIcon name="rotate" size={18} /> {flippedId === passiveId ? "Voir la face" : "Voir le dos"}
+            </button>
+          </div>
         ) : (
           <PassiveTalisman key={passiveId} passiveId={passiveId} />
         )

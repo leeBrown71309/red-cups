@@ -66,7 +66,6 @@ function getMapEvents(mapId: MapId): string[] {
     "power:tunnel-dig",
     "power:tunnel-cross",
     "power:mark-teleport",
-    "power:mage-fallen",
     "power:sister-swap",
     "power:mime-copy",
     "sister-mirror",

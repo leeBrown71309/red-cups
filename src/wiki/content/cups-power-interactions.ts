@@ -87,7 +87,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:mime",
     b: "card:black-mage",
-    text: "Refusé : le pentagramme et les chances du Mage noir vivent d'un tour à l'autre chez leur titulaire, pas le temps d'un seul tour.",
+    text: "Refusé : le pentagramme et la réserve de pentagrammes du Mage noir vivent d'un tour à l'autre chez leur titulaire, pas le temps d'un seul tour.",
   },
   {
     a: "card:mime",
@@ -100,6 +100,31 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
     text: "Refusé : le cycle d'invisibilité est celui de son titulaire. Un joueur invisible ne peut d'ailleurs pas être copié, et un Mime invisible ne copie personne.",
   },
   { a: "card:mime", b: "card:lambda", text: "Refusé : il n'y a rien à copier." },
+  {
+    a: "card:mime",
+    b: "card:no-thanks",
+    text: "Refusé : le délai de recharge de Non merci appartient à son titulaire.",
+  },
+  {
+    a: "card:mime",
+    b: "card:hell-regular",
+    text: "Refusé : L'Habitué de l'Enfer fixe la durée de la peine en cours, qu'un seul tour ne peut pas changer.",
+  },
+  {
+    a: "card:mime",
+    b: "card:hermit",
+    text: "Refusé : la prime de L'Ermite dépend de ce qui l'entoure d'un tour à l'autre chez son titulaire.",
+  },
+  {
+    a: "card:mime",
+    b: "card:insurer",
+    text: "Refusé : les gains de L'Assureur (plafond de 150 pièces par tour de table) se tiennent d'un tour à l'autre chez son titulaire.",
+  },
+  {
+    a: "card:mime",
+    b: "card:goblin",
+    text: "Un passif se copie aussi, au choix : le Mime qui copie Goblin vole 150 pièces à chacun à la nouvelle Cup arrivée pendant son tour. Le journal dit quel passif a été emprunté.",
+  },
   {
     a: "item:boot",
     b: "card:mime",
@@ -247,7 +272,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "item:bullet-bill",
     b: "card:black-mage",
-    text: "Quand la charge va toucher le Mage, il peut se téléporter avant l'impact, sans arriver (la case n'agit pas) : Bullet Bill choisit alors sa cible à nouveau, le joueur le plus proche, Mage compris.",
+    text: "Quand la charge va toucher le Mage, il peut se téléporter avant l'impact : il arrive sur sa marque comme sur toute case (roue, Boue, Portail, Red Cup), puis Bullet Bill choisit sa cible à nouveau, le joueur le plus proche, Mage compris.",
   },
   {
     a: "item:tomato",
@@ -257,7 +282,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "item:mirror",
     b: "card:black-mage",
-    text: "Un Miroir prêt répond avant tout : l'objet reflétable (Ndoye, Hollow Purple, Corde, Middle Finger) repart sur son lanceur, la fenêtre de réaction ne s'ouvre pas et le Mage garde sa chance.",
+    text: "Un Miroir prêt répond avant tout : l'objet reflétable (Ndoye, Hollow Purple, Corde, Middle Finger) repart sur son lanceur, la fenêtre de réaction ne s'ouvre pas et le Mage garde son pentagramme.",
   },
   {
     a: "item:parachute",
@@ -272,7 +297,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "item:portal",
     b: "card:black-mage",
-    text: "Un Portail du diable ouvert sur la marque avale le Mage qui s'y téléporte, comme tout joueur qui y arrive (sauf pour esquiver Bullet Bill, où la case n'agit pas).",
+    text: "Un Portail du diable ouvert sur la marque avale le Mage qui s'y téléporte, comme tout joueur qui y arrive.",
   },
   {
     a: "item:barrier",
@@ -282,7 +307,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:no-thanks",
     b: "card:black-mage",
-    text: "Deux réponses à un objet ou à Bullet Bill : Non merci (rechargé en 5 tours de table) ou la téléportation (1 chance) ; la fenêtre s'ouvre dès que l'une des deux est possible. Sur une roue, Non merci l'efface, la téléportation déplace le Mage.",
+    text: "Deux réponses à un objet ou à Bullet Bill : Non merci (rechargé en 5 tours de table) ou la téléportation (1 pentagramme) ; la fenêtre s'ouvre dès que l'une des deux est possible. Sur une roue, Non merci l'efface, la téléportation déplace le Mage.",
   },
   {
     a: "card:angelic-touch",
@@ -302,7 +327,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:black-mage",
     b: "wheel:misfortune",
-    text: "« Direction l'Enfer » et « Retourne d'où tu viens » peuvent être remplacés par la téléportation sur la marque (1 chance) : la roue est écartée comme par la Gomme.",
+    text: "« Direction l'Enfer » et « Retourne d'où tu viens » peuvent être remplacés par la téléportation sur la marque (1 pentagramme) : la roue est écartée comme par la Gomme.",
   },
   {
     a: "card:black-mage",
@@ -327,7 +352,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:black-mage",
     b: "system:tiles",
-    text: "Se téléporter EST une arrivée (roue de la case, Boue, Portail, Red Cup) — sauf pour esquiver Bullet Bill, ou quand la marque est déjà sous ses pieds.",
+    text: "Se téléporter EST une arrivée (roue de la case, Boue, Portail, Red Cup) — toujours, quelle que soit la raison (son tour, une roue, un objet, Bullet Bill), sauf quand la marque est déjà sous ses pieds.",
   },
   {
     a: "card:black-mage",
@@ -342,7 +367,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:black-mage",
     b: "system:victory",
-    text: `Sans chance (il en a ${MAGE_MAX_LUCK} au départ), le Mage est éliminé comme s'il abandonnait : s'il ne reste qu'un joueur, celui-ci gagne par abandon.`,
+    text: `Sans pentagramme (il en a ${MAGE_MAX_LUCK} au départ), le Mage n'est pas éliminé : il ne peut plus se téléporter, mais il joue et peut gagner comme les autres.`,
   },
 
   // ————— Mi-vu, Mi-vue —————
@@ -439,7 +464,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:half-seen",
     b: "system:online",
-    text: "En ligne, le brouillard est visuel : l'invisible ne voit plus les autres (pions, actions, sacs, pièces, pièges, Red Cup, Bullet Bill) et les autres ne voient plus son pion, ses actions, son sac ni ses pièces. Le jeu, lui, reste partagé.",
+    text: "En ligne, le brouillard est visuel : l'invisible, pendant son tour, ne voit plus les autres (pions, actions, sacs, pièces, pièges, Red Cup, Bullet Bill) et les autres ne voient plus son pion, ses actions, son sac ni ses pièces. Le jeu, lui, reste partagé.",
   },
 
   // ————— Sœur Fantôme —————
@@ -606,6 +631,16 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
     a: "card:insurer",
     b: "card:thief",
     text: "L'amende du Voleur pris est une dépense forcée que Double or nothing ne mise pas non plus : rien pour l'Assureur.",
+  },
+  {
+    a: "card:guardian-angel",
+    b: "card:black-mage",
+    text: "Le Mage noir est un malfaisant pour l'Ange-Gardien : il n'est jamais tiré comme protégé.",
+  },
+  {
+    a: "card:ghost-sister",
+    b: "card:mime",
+    text: "Le Mime ne copie pas la Sœur Fantôme : le Swap, son délai de 4 tours et sa sœur restent à leur titulaire.",
   },
   {
     a: "card:insurer",

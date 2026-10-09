@@ -1,6 +1,7 @@
 import { hasCard } from "./cards";
 import { addLog, findPlayer, updatePlayer } from "./state-utils";
 import type { GameState, Player } from "./types";
+import { HELL_NODE_ID } from "./types";
 
 /**
  * L'Ermite (patch 0.2.3): somebody who arrives on the hermit's tile takes their prime away up to the end of the
@@ -11,7 +12,7 @@ export function markHermitIntrusions(before: GameState, after: GameState): GameS
   for (const hermit of after.players.filter((player) => hasCard(player, "hermit"))) {
     const previous = findPlayer(before, hermit.id);
     // The hermit who walks onto somebody is not disturbed: they arrived, nobody arrived on them.
-    if (!previous || previous.position !== hermit.position) continue;
+    if (!previous || previous.position !== hermit.position || hermit.position === HELL_NODE_ID) continue;
     const intruder = after.players.find((other) => {
       const was = findPlayer(before, other.id);
       return (

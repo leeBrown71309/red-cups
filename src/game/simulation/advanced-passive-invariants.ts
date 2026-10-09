@@ -2,7 +2,7 @@ import { hasCard, ownsCard } from "../cards";
 import { ITEM_ORDER } from "../catalog";
 import { isImmuneToItems } from "../passive-rules";
 import { countItemUnits } from "../rules";
-import { findPlayer, getActivePlayer } from "../state-utils";
+import { dropCopies, findPlayer, getActivePlayer } from "../state-utils";
 import type { GameState, TurnStage } from "../types";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
 import {
@@ -172,7 +172,8 @@ export function checkMadeInHeaven(previous: GameState, next: GameState, userId: 
 function checkBlindLuckBullet(previous: GameState, next: GameState, found: RuleViolation[]): void {
   const flight = next.lastBulletFlight;
   if (!flight || flight.seq === previous.lastBulletFlight?.seq) return;
-  const victim = findPlayer(previous, flight.victimId);
+  // The Mime's copy ended with the turn, before Bullet Bill looked for its target.
+  const victim = findPlayer(dropCopies(previous), flight.victimId);
   if (victim && isImmuneToItems(victim)) found.push(violation("blind-luck-bullet", "Bullet Bill hit Chance aveugle"));
 }
 

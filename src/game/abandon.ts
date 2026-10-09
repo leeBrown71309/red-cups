@@ -22,7 +22,7 @@ export function canAbandon(state: GameState): boolean {
 export function abandonPlayer(
   state: GameState,
   playerId: PlayerId,
-  reason: "abandon" | "forfeit" | "kick" | "luck" = "abandon",
+  reason: "abandon" | "forfeit" | "kick" = "abandon",
 ): GameState {
   const index = state.players.findIndex((player) => player.id === playerId);
   if (!canAbandon(state) || index < 0) return state;
@@ -46,9 +46,7 @@ export function abandonPlayer(
       ? `${leaver.name} déclare forfait : trois tours sans jouer.`
       : reason === "kick"
         ? `${leaver.name} est exclu de la partie par l’hôte.`
-        : reason === "luck"
-          ? `${leaver.name} n’a plus aucune chance : le Mage noir est éliminé.`
-          : `${leaver.name} abandonne la partie.`,
+        : `${leaver.name} abandonne la partie.`,
     "bad",
   );
   const heirInHell = state.guardian?.protegeId === leaver.id && players.length > 1;

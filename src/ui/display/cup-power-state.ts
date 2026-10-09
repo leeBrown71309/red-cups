@@ -25,13 +25,13 @@ export function describeCupPowerState(game: GameState, player: Player, cardId: P
       return formatCooldown(player.moleReadyRound, game.round, "Prête à creuser.");
     case "black-mage": {
       const mark = findMark(game, player.id);
-      const chances = `${getLuck(player)}/${MAGE_MAX_LUCK} chances.`;
-      return mark ? `${chances} Pentagramme en case ${mark.nodeId}.` : `${chances} Pas de pentagramme.`;
+      const reserve = `${getLuck(player)}/${MAGE_MAX_LUCK} pentagrammes en réserve.`;
+      return mark ? `${reserve} Pentagramme posé en case ${mark.nodeId}.` : `${reserve} Aucun pentagramme posé.`;
     }
     case "half-seen":
       return isInvisible(game, player) ? "Invisible en ce moment." : "Visible en ce moment.";
     case "ghost-sister":
-      return `Sa sœur flotte en case ${getSisterNode(player)}.`;
+      return `Sa sœur flotte en case ${getSisterNode(player)}. ${formatCooldown(player.swapReadyRound, game.round, "Swap prêt.")}`;
     default:
       return null;
   }

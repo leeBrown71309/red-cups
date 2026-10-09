@@ -172,7 +172,12 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
   if (!pending || !cancelled || pending.action.type !== "item") return;
   const actorBefore = findPlayer(previous, pending.actorId);
   const actorAfter = findPlayer(next, pending.actorId);
-  const reactor = next.players.find((player) => pending.reactorIds.includes(player.id));
+  // Several players may have been offered a reaction (a Mage noir may teleport): the one who spent Non merci answers.
+  const spent = newLogTexts(previous, next);
+  const reactor = next.players.find(
+    (player) =>
+      pending.reactorIds.includes(player.id) && spent.includes(`${player.name} utilise Non merci : Draven l’épargne.`),
+  );
   if (pending.action.itemId === "draven") {
     const reactorBefore = findPlayer(previous, reactor?.id);
     if (reactor && reactorBefore && reactor.position !== reactorBefore.position) {

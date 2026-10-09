@@ -1,4 +1,4 @@
-import { hasCard } from "./cards";
+import { hasCard, ownsCard } from "./cards";
 import { getOpenBoard, getShortestPath } from "./board";
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
 import { isInvisible } from "./mist";
@@ -189,10 +189,10 @@ export function canBeChallenged(
 }
 
 /** Players L'Ange-Gardien may not protect. */
-const MALEFACTORS: PassiveId[] = ["devil", "thief", "goblin", "corrupter"];
+const MALEFACTORS: PassiveId[] = ["devil", "thief", "goblin", "corrupter", "black-mage"];
 
 export function isMalefactor(player: Player): boolean {
-  return MALEFACTORS.some((cardId) => hasCard(player, cardId));
+  return MALEFACTORS.some((cardId) => ownsCard(player, cardId));
 }
 
 /** Le diable wins once the others entered Hell ⌊4N − N/2⌋ times, N players at the start (2 → 7, 4 → 14). */

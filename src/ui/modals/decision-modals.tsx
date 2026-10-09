@@ -327,9 +327,9 @@ export function ReactionModal() {
                     type="button"
                     className="btn btn--grape btn--small"
                     onClick={() => resolveReaction(reactor.id, true)}
-                    title="Tu perds une chance et tu atterris sur ton pentagramme : l’objet est annulé"
+                    title="Tu perds un pentagramme et tu atterris sur ton pentagramme : l’objet est annulé"
                   >
-                    <UiIcon name="flag" size={18} /> Te téléporter (−1 chance)
+                    <UiIcon name="flag" size={18} /> Te téléporter (−1 pentagramme)
                   </button>
                 )}
               </li>

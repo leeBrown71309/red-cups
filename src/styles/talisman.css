@@ -155,7 +155,7 @@
   text-align: left;
 }
 
-.talisman__suit {
+.talisman__kind {
   color: color-mix(in srgb, var(--card-accent) 45%, var(--white));
   font-family: var(--font-display);
   font-size: 0.72rem;
@@ -261,4 +261,26 @@
 
 .draft-reveal__confirm {
   margin-top: 16px;
+}
+
+/* The plaque's texture: the card's own, faint behind the coin. */
+.talisman {
+  overflow: hidden;
+}
+
+.talisman__texture {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  pointer-events: none;
+}
+
+.talisman__texture svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.talisman > :not(.talisman__texture) {
+  position: relative;
 }

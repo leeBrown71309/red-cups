@@ -53,8 +53,7 @@ function isMovedByPower(playerId: PlayerId, heardSeq: number): boolean {
   const power = useGameStore.getState().lastPowerEvent;
   if (!power || power.seq <= heardSeq) return false;
   if (power.kind === "mark-teleport") return power.playerId === playerId || power.victimIds.includes(playerId);
-  if (power.kind === "sister-swap") return power.playerId === playerId;
-  return power.kind === "mage-fallen" && power.playerId === playerId;
+  return power.kind === "sister-swap" && power.playerId === playerId;
 }
 
 /**
@@ -82,9 +81,6 @@ export function startAudioFeedback(): () => void {
         if (fire) soundEffects.hellfire((MARK_SUCK_MS + MARK_TRANSIT_MS) / 1_000);
         break;
       }
-      case "mage-fallen":
-        if (isSeen(event.playerId)) soundEffects.mageFallen();
-        break;
       case "sister-swap":
         if (isSeen(event.playerId)) soundEffects.sisterSwap();
         break;

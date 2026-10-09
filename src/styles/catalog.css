@@ -833,7 +833,7 @@
     height: 52px;
   }
 
-  .draft-cards .tarot-card__art svg {
+  .draft-cards .tarot-card__art svg:not(.card-shape) {
     width: 36px;
     height: 36px;
   }
@@ -874,4 +874,11 @@
   .catalog__search {
     height: 38px;
   }
+}
+
+/* The help's card: the card held in 3D, and under it the button that turns it over. */
+.card-detail {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
 }

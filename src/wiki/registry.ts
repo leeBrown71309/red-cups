@@ -22,6 +22,7 @@ import {
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
   RULES_VERSION,
+  SISTER_SWAP_COOLDOWN_ROUNDS,
   SISTER_SWAP_ENERGY,
   STARTING_CURRENCY,
 } from "../game/types";
@@ -98,7 +99,12 @@ const PATCH_FACTS: Partial<Record<PassiveId, Fact[]>> = {
     { label: `Une chance rendue tous les ${MAGE_LUCK_RETURN_ROUNDS} tours`, tone: "grape" },
   ],
   "half-seen": [{ label: `Invisible ${MIST_CYCLE_TURNS - 1} tours sur ${MIST_CYCLE_TURNS}`, tone: "grape" }],
-  "ghost-sister": [{ label: `Swap : ${SISTER_SWAP_ENERGY} points d'énergie`, tone: "sky" }],
+  "ghost-sister": [
+    {
+      label: `Swap : ${SISTER_SWAP_ENERGY} points d'énergie, tous les ${SISTER_SWAP_COOLDOWN_ROUNDS} tours`,
+      tone: "sky",
+    },
+  ],
   hermit: [
     { label: `Seul à plus de ${HERMIT_DISTANCE} cases`, tone: "grape" },
     { label: `+${HERMIT_ENERGY_BONUS} énergie`, tone: "sky" },

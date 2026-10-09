@@ -208,6 +208,7 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
     !["move", "hell"].includes(next.turnStage) &&
     !next.lastMovement?.thawed &&
     !next.pendingDuel?.ghost &&
+    !next.pendingDuelChoice?.ghost &&
     !heirDuel &&
     next.pendingReaction?.action.type !== "bullet-bill"
   ) {
