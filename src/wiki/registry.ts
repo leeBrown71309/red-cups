@@ -96,8 +96,8 @@ const PATCH_FACTS: Partial<Record<PassiveId, Fact[]>> = {
     { label: `Tous les ${MOLE_COOLDOWN_ROUNDS} tours`, tone: "grape" },
   ],
   "black-mage": [
-    { label: `${MAGE_MAX_LUCK} chances`, tone: "mint" },
-    { label: `Une chance rendue tous les ${MAGE_LUCK_RETURN_ROUNDS} tours`, tone: "grape" },
+    { label: `${MAGE_MAX_LUCK} pentagrammes`, tone: "mint" },
+    { label: `Un pentagramme rendu tous les ${MAGE_LUCK_RETURN_ROUNDS} tours`, tone: "grape" },
   ],
   "half-seen": [{ label: `Invisible ${MIST_CYCLE_TURNS - 1} tours sur ${MIST_CYCLE_TURNS}`, tone: "grape" }],
   "ghost-sister": [
