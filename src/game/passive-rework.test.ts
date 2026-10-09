@@ -231,9 +231,9 @@ describe("Red light, Green light", () => {
     let state = addRedGreenBonuses(store(), holder, [1, 5, 7]);
     expect(state.players[0].currency).toBe(STARTING_CURRENCY + 200);
     state = addRedGreenBonuses(state, holder, [4, 6, 10]);
-    expect(state.players[0].currency).toBe(STARTING_CURRENCY);
+    expect(state.players[0].currency).toBe(STARTING_CURRENCY + 100);
     expect(state.redGreenTriggers).toEqual({ green: 2, red: 2 });
-    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY);
+    expect(addRedGreenBonuses(state, holder, [1, 4]).players[0].currency).toBe(STARTING_CURRENCY + 100);
   });
 
   it("counts afresh with every new Red Cup", () => {
@@ -292,12 +292,17 @@ describe("New Cup, New Me", () => {
     expect(store().turnStage).toBe("turn-end");
   });
 
-  it("takes its holder out of Hell", () => {
+  it("refuses to free its holder from Hell, and lets them stay instead", () => {
     collectCup(1);
     useGameStore.setState({ redCupNodeId: null });
     editPlayer(1, { position: HELL_NODE_ID, hellTurns: 2 });
+    const before = store();
     store().resolveNewCup(true);
-    expect(store().players[1].position).toBe(0);
+    expect(store()).toBe(before);
+
+    store().resolveNewCup(false);
+    expect(store().players[1].position).toBe(HELL_NODE_ID);
+    expect(store().redCupNodeId).not.toBeNull();
   });
 });
 
@@ -325,18 +330,16 @@ describe("Calme-toi", () => {
     expect(getCalmDownTiles(store())).toEqual([3, 5, 6, 7, 9]);
   });
 
-  it("sets them down three steps from the Cup, one after the other, without a wheel", () => {
+  it("sets one chosen player down three steps from the Cup, without a wheel, and leaves the others be", () => {
     newCupOnEight();
     const before = store();
     store().resolveCalmDown(4);
     expect(store()).toBe(before);
 
-    store().resolveCalmDown(5);
-    expect(store().players[0].position).toBe(5);
-    expect(store().pendingCalmDown?.targetIds).toEqual([playerId(2)]);
-
-    store().resolveCalmDown(null);
-    expect(store().players[2].position).toBe(10);
+    // Both are offered; the holder picks the second one.
+    store().resolveCalmDown(5, playerId(2));
+    expect(store().players[2].position).toBe(5);
+    expect(store().players[0].position).toBe(before.players[0].position);
     expect(store()).toMatchObject({ turnStage: "turn-end", pendingCalmDown: null, pendingTileWheels: [] });
   });
 
@@ -362,7 +365,9 @@ describe("saves from before the passive rework", () => {
       })),
     };
     const upgraded = migrateGameSave(legacy, 13);
-    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "goblin", "corrupter", "lambda"]);
+    // Goblin and Corrupteur are passifs now: they move to the passif slot and the player keeps no actif.
+    expect(upgraded.players.map((player) => player.passiveId)).toEqual(["lambda", "lambda", "lambda", "lambda"]);
+    expect(upgraded.players.map((player) => player.passifId)).toEqual([null, "goblin", "corrupter", null]);
     expect(upgraded.redGreenTriggers).toEqual({ green: 0, red: 0 });
   });
 });

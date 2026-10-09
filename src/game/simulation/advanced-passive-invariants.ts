@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { ITEM_ORDER } from "../catalog";
 import { isImmuneToItems } from "../passive-rules";
 import { countItemUnits } from "../rules";
@@ -36,12 +37,12 @@ export function checkAdvancedPassiveState(state: GameState, found: RuleViolation
   }
   for (const gamble of state.pendingGambles) {
     const holder = findPlayer(state, gamble.playerId);
-    if (holder?.passiveId !== "double-or-nothing" || gamble.amount === 0) {
+    if (!hasCard(holder, "double-or-nothing") || gamble.amount === 0) {
       found.push(violation("gamble-holder", `${holder?.name ?? gamble.playerId} may stake ${gamble.amount} coins`));
     }
   }
   const active = getActivePlayer(state);
-  if (state.theftAttempted && active?.passiveId !== "thief") {
+  if (state.theftAttempted && !hasCard(active, "thief")) {
     found.push(violation("theft-passive", `${active?.name ?? "nobody"} has a theft this turn`));
   }
 }
@@ -53,21 +54,38 @@ function checkGamble(previous: GameState, next: GameState, found: RuleViolation[
     const before = findPlayer(previous, gamble?.playerId);
     const after = findPlayer(next, gamble?.playerId);
     if (!gamble || !before || !after) return;
-    const outcomes = [before.currency, expectedBalance(before, gamble.amount), expectedBalance(before, -gamble.amount)];
+    // A loss that waited to knock the holder out ends at 0 (lost or refused) or back where it was (wiped out).
+    const outcomes = [
+      before.currency,
+      expectedBalance(before, gamble.amount),
+      expectedBalance(before, -gamble.amount),
+      0,
+      before.currency - gamble.amount,
+    ];
     if (!outcomes.includes(after.currency)) {
       found.push(violation("gamble-outcome", `${before.name} staked ${gamble.amount} and went to ${after.currency}`));
     }
-    if (withoutGamblePause(next).turnStage !== previous.gambleResumeStage && next.phase === "playing") {
+    // A knock-out that waited for the gamble passes the holder's turn at once, and play moves on with it.
+    const knockedOut = newLogTexts(previous, next).some((text) =>
+      text.startsWith(`${before.name} tombe à −300 pièces`),
+    );
+    if (!knockedOut && withoutGamblePause(next).turnStage !== previous.gambleResumeStage && next.phase === "playing") {
       found.push(violation("gamble-resumes", `play went back to ${next.turnStage}, not ${previous.gambleResumeStage}`));
     }
     return;
   }
 
   // Voluntary spending is never staked: purchases (and Corrupteur, for another passive).
-  const bought = newLogTexts(previous, next).some((text) => text.includes(" achète "));
-  for (const holder of previous.players.filter((player) => player.passiveId === "double-or-nothing")) {
+  const logs = newLogTexts(previous, next);
+  const bought = logs.some((text) => text.includes(" achète ") || text.includes(" revend "));
+  for (const holder of previous.players.filter((player) => hasCard(player, "double-or-nothing"))) {
     const after = findPlayer(next, holder.id);
-    if (!after || after.currency === holder.currency || bought || next.phase !== "playing") continue;
+    // The price of a theft that went wrong is not staked either.
+    const caught = logs.some((text) => text.startsWith(`${holder.name} se fait prendre`));
+    // Nor is the Corrupteur's toll, which can now sit with Double or nothing on the same player.
+    const bribed = logs.some((text) => text.startsWith(`${holder.name} ignore les flèches`));
+    if (!after || after.currency === holder.currency || bought || caught || bribed || next.phase !== "playing")
+      continue;
     const queued = (state: GameState) => state.pendingGambles.filter((gamble) => gamble.playerId === holder.id).length;
     if (queued(next) <= queued(previous)) {
       found.push(violation("gamble-queued", `${holder.name}'s coins changed without a gamble on offer`));
@@ -81,7 +99,7 @@ function checkTheft(previous: GameState, next: GameState, found: RuleViolation[]
   const thief = getActivePlayer(previous);
   const after = findPlayer(next, thief?.id);
   if (!thief || !after) return;
-  if (previous.turnStage !== "shop" || thief.passiveId !== "thief") {
+  if (previous.turnStage !== "shop" || !hasCard(thief, "thief")) {
     found.push(violation("theft-shop", `${thief.name} stole outside the shop`));
   }
   const caught = newLogTexts(previous, next).some((text) => text.startsWith(`${thief.name} se fait prendre`));
@@ -92,7 +110,9 @@ function checkTheft(previous: GameState, next: GameState, found: RuleViolation[]
     }
     return;
   }
-  if (after.position !== HELL_NODE_ID)
+  // A Parachute spent on the way down keeps the caught thief out of Hell.
+  const parachuted = countItemUnits(after, "parachute") < countItemUnits(thief, "parachute");
+  if (after.position !== HELL_NODE_ID && !parachuted)
     found.push(violation("theft-caught", `${thief.name} was caught but not in Hell`));
   const hadItems = thief.inventory.some((entry) => entry.kind === "item");
   const lostItem = thief.inventory.some(

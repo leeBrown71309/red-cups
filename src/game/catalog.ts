@@ -1,3 +1,4 @@
+import { hasCard } from "./cards";
 import type { ItemId, PassiveId, Player, WheelId, WheelResult } from "./types";
 
 export interface ItemDefinition {
@@ -7,7 +8,8 @@ export interface ItemDefinition {
   symbol: string;
   /** A general description, for the shop, the bag, How to play and the target picker. */
   description: string;
-  target: "self" | "player" | "none" | "special";
+  /** `road`: the player picks a road beside their tile (the Barrière). */
+  target: "self" | "player" | "none" | "special" | "road";
   /** Energy spent to use it on your turn; nothing for the items that trigger on their own. */
   energyCost: number;
   /**
@@ -35,7 +37,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     name: "Hollow Purple",
     price: 600,
     symbol: "✦",
-    description: "Envoie un joueur en Enfer. Peut te cibler.",
+    description: "Envoie un joueur en Enfer — jamais un joueur qui y est déjà. Peut te cibler.",
     target: "player",
     energyCost: 3,
     canTargetSelf: true,
@@ -85,7 +87,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "➤",
     description:
       "Lance-le depuis ton sac : il attend au départ, puis fonce sur le joueur le plus proche à chaque tour de " +
-      "table. Sa victime perd 200 pièces et un tour.",
+      "table. Sa victime perd 200 pièces et un tour, tout comme les autres joueurs sur sa case au moment de l’explosion.",
     target: "none",
     energyCost: 2,
   },
@@ -152,7 +154,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   "made-in-heaven": {
     id: "made-in-heaven",
     name: "Made In Heaven",
-    price: 1_200,
+    price: 1_300,
     symbol: "✧",
     description:
       "Chance aveugle seulement : renvoie tous les autres joueurs au Départ, Enfer compris, sans bonus, et pose " +
@@ -162,12 +164,14 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   },
   portal: {
     id: "portal",
-    name: "Portail",
-    price: 300,
+    name: "Portails",
+    price: 400,
     symbol: "◎",
     description:
-      "Le diable : ouvre un portail vers l’Enfer sur une case au hasard, ni l’Enfer, ni le Départ, ni la Red Cup. " +
-      "Qui s’y arrête, toi compris, tombe en Enfer. Il se referme après 2 tours de table.",
+      "Le diable : ouvre deux portails vers l’Enfer sur des cases au hasard, ni l’Enfer, ni le Départ, ni la Red " +
+      "Cup. Invisibles le premier tour, l’un se montre au deuxième, les deux au troisième. Qui s’arrête sur l’un " +
+      "tombe en Enfer et les referme tous deux, sauf toi, immunisé : la case ne s’active pas, mais une Red Cup qui " +
+      "la couvre est ramassée avant la chute. Sinon ils se ferment après 3 tours de table.",
     target: "none",
     energyCost: 2,
   },
@@ -204,7 +208,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
   doomsday: {
     id: "doomsday",
     name: "Doomsday",
-    price: 666,
+    price: 555,
     symbol: "☄",
     description:
       "Le diable : jusqu’à ton prochain tour, toutes les cases font tourner la roue du malheur, Départ et " +
@@ -219,6 +223,46 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "⛨",
     description:
       "L’Ange-Gardien : quand un objet ou Bullet Bill vise ton protégé, tu peux le bloquer, même hors de ton tour.",
+    target: "special",
+    energyCost: 0,
+  },
+  "wake-up": {
+    id: "wake-up",
+    name: "Réveil",
+    price: 250,
+    symbol: "⏰",
+    description:
+      "S’active tout seul : annule ton prochain tour sauté (Middle Finger, Bullet Bill, boule de neige, roue…). Un seul usage.",
+    target: "special",
+    energyCost: 0,
+  },
+  parachute: {
+    id: "parachute",
+    name: "Parachute",
+    price: 650,
+    symbol: "☂",
+    description:
+      "S’active tout seul : annule ta prochaine descente en Enfer, quelle qu’en soit la cause. Un seul usage.",
+    target: "special",
+    energyCost: 0,
+  },
+  barrier: {
+    id: "barrier",
+    name: "Barrière",
+    price: 400,
+    symbol: "⛔",
+    description:
+      "Touche n’importe quelle route du plateau : elle est fermée pendant 1 tour de table, personne n’y passe à pied, sauf une Botte posée juste devant (un saut d’une seule case). Une seule Barrière à la fois par joueur, deux sur le plateau au plus. À Banquise, une glissade qui s’y heurte rebondit.",
+    target: "road",
+    energyCost: 2,
+  },
+  mirror: {
+    id: "mirror",
+    name: "Miroir",
+    price: 700,
+    symbol: "◈",
+    description:
+      "S’active tout seul : renvoie à son lanceur le prochain objet qui te vise (Ndoye, Hollow Purple, Middle Finger, Corde). Un seul par partie et par joueur.",
     target: "special",
     energyCost: 0,
   },
@@ -237,6 +281,10 @@ export const ITEM_ORDER: ItemId[] = [
   "monopoly-man",
   "water-bottle",
   "helmet",
+  "wake-up",
+  "parachute",
+  "barrier",
+  "mirror",
   "draven",
   "made-in-heaven",
   "shield",
@@ -278,7 +326,9 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "new-cup-new-me",
     name: "New Cup, New Me",
     shortName: "New Cup",
-    description: "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es.",
+    description:
+      "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es. " +
+      "La carte ne sort pas de l’Enfer.",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
@@ -286,7 +336,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Red / Green",
     description:
       "Par Red Cup, tes deux premières cases vertes traversées rapportent 100 pièces, tes deux premières rouges en " +
-      "coûtent 100.",
+      "coûtent 50.",
   },
   "no-thanks": {
     id: "no-thanks",
@@ -306,7 +356,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "goblin",
     name: "Goblin",
     shortName: "Goblin",
-    description: "À chaque nouvelle Cup, vole 100 pièces à deux adversaires au hasard.",
+    description: "À chaque nouvelle Cup, vole 150 pièces à chacun des autres joueurs.",
   },
   "i-take-notes": {
     id: "i-take-notes",
@@ -332,7 +382,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "nepo-baby",
     name: "Nepo Baby",
     shortName: "Nepo Baby",
-    description: "Tu commences la partie avec 3 000 pièces.",
+    description: "Tu commences la partie avec 1 000 pièces de plus que les autres.",
   },
   "red-bull": {
     id: "red-bull",
@@ -359,14 +409,16 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Roller",
     shortName: "Roller",
     description:
-      "Tu lances un dé à 6 faces pour chaque déplacement, sans repasser par une case. Pas de Botte pour toi.",
+      "Tu lances un dé à 6 faces pour chaque déplacement, sans repasser par une case. Pas de Botte pour toi. " +
+      "Pour ramasser la Red Cup, il te faut un 6 : deux essais, visibles de toute la table. Raté deux fois, " +
+      "elle t’attend à ton prochain tour, sans déplacement.",
   },
   greedy: {
     id: "greedy",
     name: "Cupide",
     shortName: "Cupide",
     description:
-      "Tu gagnes à 5 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
+      "Tu gagnes à 6 000 pièces. Une Red Cup te rapporte 1 000 pièces au lieu d’une place, marcher sur un joueur " +
       "assommé lui vole 50 pièces, ta Boue coûte 100 et rapporte 200, et ce que ton Ndoye fait perdre te revient.",
   },
   "double-or-nothing": {
@@ -391,8 +443,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Diable",
     description:
       "Toute la table le sait. Tu gagnes quand les autres ont passé assez de tours en Enfer (4 par joueur, moins " +
-      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais chaque descente en Enfer te rapporte 100 " +
-      "pièces, tu en sors quand tu veux (1 point d’énergie) et tu as ta boutique. Jamais deux fois le même objet.",
+      "la moitié du nombre de joueurs). Pas de Red Cup pour toi, mais ta descente en Enfer te rapporte 100 " +
+      "pièces et celle d’un autre 50 et un point, tu en sors quand tu veux (1 point d’énergie) et tu as ta boutique. Jamais deux fois le même objet.",
   },
   "guardian-angel": {
     id: "guardian-angel",
@@ -400,7 +452,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Ange",
     description:
       "Tu protèges un joueur tiré au sort et tu gagnes avec lui. Ni Red Cup ni Enfer pour toi (tu passes ton tour " +
-      "à la place), 600 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer : ton tour " +
+      "à la place), 800 pièces et 2 places. Tu ne vises que ton protégé et peux le tirer de l’Enfer : ton tour " +
       "s’arrête et tu perds tes 2 prochains tours.",
   },
   thief: {
@@ -410,6 +462,62 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     description:
       "Une fois par visite à la boutique, tente de voler un objet : 1 % de risque par tranche de 10 pièces de son " +
       "prix. Pris, tu files en Enfer et perds des objets valant 1,5 fois son prix, sinon des pièces.",
+  },
+  "last-in-class": {
+    id: "last-in-class",
+    name: "Dernier de la classe",
+    shortName: "Dernier",
+    description:
+      "Tant que tu as moins de Red Cups que chaque autre joueur qui peut en ramasser : 1 point d’énergie de plus par tour et 10 % de réduction en boutique.",
+  },
+  "hell-regular": {
+    id: "hell-regular",
+    name: "Habitué de l’Enfer",
+    shortName: "Habitué",
+    description: "Chaque descente en Enfer te rapporte 150 pièces, et tu en sors après 3 tours au lieu de 5.",
+  },
+  "green-hand": {
+    id: "green-hand",
+    name: "Main verte",
+    shortName: "Main verte",
+    description: "Sur la roue du bonheur, tu tires deux fois et gardes le meilleur résultat.",
+  },
+  "red-hand": {
+    id: "red-hand",
+    name: "Main rouge",
+    shortName: "Main rouge",
+    description: "Sur la roue du malheur, tu tires deux fois et gardes le meilleur résultat.",
+  },
+  "angelic-touch": {
+    id: "angelic-touch",
+    name: "Touché angélique",
+    shortName: "Angélique",
+    description: "Sur la roue du bonheur, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
+  },
+  "devils-hand": {
+    id: "devils-hand",
+    name: "Touché funeste",
+    shortName: "Funeste",
+    description:
+      "Sur la roue du malheur et celle de l’Enfer, tu tournes deux fois : les deux résultats s’appliquent, bons ou mauvais.",
+  },
+  "game-master": {
+    id: "game-master",
+    name: "Meneur de jeu",
+    shortName: "Meneur",
+    description: "Dans un duel, tu choisis le mini-jeu parmi deux tirés au sort.",
+  },
+  "junk-dealer": {
+    id: "junk-dealer",
+    name: "Brocanteur",
+    shortName: "Brocanteur",
+    description: "Depuis la boutique, tu revends un objet de ton sac à 60 % de son prix.",
+  },
+  trapper: {
+    id: "trapper",
+    name: "Piégeur",
+    shortName: "Piégeur",
+    description: "Ta Boue coûte 100 pièces au lieu de 200, mais tu n’en peux poser qu’une à la fois.",
   },
 };
 
@@ -434,6 +542,15 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "thief",
   "devil",
   "guardian-angel",
+  "last-in-class",
+  "hell-regular",
+  "green-hand",
+  "red-hand",
+  "angelic-touch",
+  "devils-hand",
+  "game-master",
+  "junk-dealer",
+  "trapper",
 ];
 
 export interface WeightedWheelResult {
@@ -492,8 +609,36 @@ const GUARDIAN_MISFORTUNE_RESULTS: WeightedWheelResult[] = [
 
 /** The wedges of a wheel as `player` spins it. */
 export function getWheelResults(wheelId: WheelId, player?: Pick<Player, "passiveId">): WeightedWheelResult[] {
-  if (wheelId === "misfortune" && player?.passiveId === "guardian-angel") return GUARDIAN_MISFORTUNE_RESULTS;
+  if (wheelId === "misfortune" && hasCard(player, "guardian-angel")) return GUARDIAN_MISFORTUNE_RESULTS;
   return WHEEL_RESULTS[wheelId];
+}
+
+/**
+ * How good a wedge is for whoever spins, from 1 (the worst of its wheel) to 9.
+ * Main verte and Main rouge draw twice and keep the higher; a tie keeps the first.
+ */
+const WHEEL_RESULT_VALUES: Partial<Record<WheelResult["id"], number>> = {
+  "gain-400": 9,
+  "free-item": 8,
+  "go-to-start": 7,
+  "gain-300": 6,
+  "gain-200": 5,
+  "advance-one": 4,
+  "gain-100": 3,
+  "spin-misfortune": 1,
+  "spin-fortune": 9,
+  nothing: 8,
+  "go-back": 7,
+  "lose-200": 6,
+  "lose-item": 5,
+  "lose-300": 4,
+  "skip-turn": 3,
+  "lose-400": 2,
+  "go-to-hell": 1,
+};
+
+export function getWheelResultValue(result: Pick<WheelResult, "id">): number {
+  return WHEEL_RESULT_VALUES[result.id] ?? 0;
 }
 
 export function chooseWheelResult(

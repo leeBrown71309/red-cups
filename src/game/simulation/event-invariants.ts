@@ -1,11 +1,12 @@
 import { isTableBroke } from "../blessing";
-import { getBoard, getNeighbors } from "../board";
+import { getNeighbors, getOpenBoard } from "../board";
 import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
 import {
-  expectedBalance,
+  balanceMatches,
+  hellRewardCoins,
   newLogTexts,
   slidOnIce,
   turnChanged,
@@ -46,7 +47,7 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (flight.path.length > BULLET_BILL_CHARGE_STEPS) {
     found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
   }
-  const board = getBoard(previous);
+  const board = getOpenBoard(previous);
   let landing = flight.from;
   for (const step of flight.path) {
     if (!getNeighbors(board, landing, true).includes(step)) {
@@ -106,7 +107,8 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
     !thawed &&
     !wheelPaidToo &&
     !cupFound &&
-    after.currency !== expectedBalance(before, -BULLET_BILL_DAMAGE)
+    // Le diable, hit by the blast, may send a bystander of it to Hell: the 50 coins of that fall are his.
+    !balanceMatches(before, -BULLET_BILL_DAMAGE, after.currency, hellRewardCoins(logs, before.name))
   ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
   }
@@ -191,6 +193,7 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));
     }
   } else if (
+    next.phase !== "finished" &&
     !["move", "hell"].includes(next.turnStage) &&
     !next.lastMovement?.thawed &&
     !next.pendingDuel?.ghost &&

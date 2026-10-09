@@ -1,4 +1,6 @@
+import { getCards } from "./cards";
 import { ITEM_CATALOG } from "./catalog";
+import { isLastInClass } from "./passive-rules";
 import { canUseCorrupter, hasTurnMove } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, ItemId, PassiveId, Player } from "./types";
@@ -14,8 +16,10 @@ import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
 const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
 
 /** Energy a player's turn opens with. */
-export function getEnergyCapacity(player: Player): number {
-  return BASE_ENERGY + (ENERGY_BONUSES[player.passiveId] ?? 0);
+export function getEnergyCapacity(player: Player, state?: Pick<GameState, "players">): number {
+  const cards = getCards(player).reduce((sum, card) => sum + (ENERGY_BONUSES[card] ?? 0), BASE_ENERGY);
+  // Dernier de la classe: one more point while they trail the table in Red Cups.
+  return state && isLastInClass(state, player) ? cards + 1 : cards;
 }
 
 export function getItemEnergyCost(itemId: ItemId): number {
@@ -68,6 +72,9 @@ export function canEndTurn(state: GameState): boolean {
   if (state.turnStage === "shop" || state.turnStage === "turn-end") return true;
   const player = getActivePlayer(state);
   if (!player || (state.turnStage !== "move" && state.turnStage !== "hell")) return false;
+  // The Botte is put on to be walked: with a road to take, the turn cannot end before the walk.
+  const bootOn = state.turnStage === "move" && state.moveDistance > 1 && hasLegalMove(state, player);
+  if (bootOn && canAffordMove(state)) return false;
   if (state.turnActionTaken || !canAffordMove(state)) return true;
   return state.turnStage === "move" && player.position !== HELL_NODE_ID && !hasLegalMove(state, player);
 }

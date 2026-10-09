@@ -1,6 +1,6 @@
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { createBlackjack } from "./blackjack";
-import { randomChoice } from "./state-utils";
+import { randomChoice, shuffle } from "./state-utils";
 import type { BasketShot, DuelMode, PendingDuel, PlayerId, TurnStage } from "./types";
 import { BASKET_DURATION_MS } from "./types";
 
@@ -17,6 +17,20 @@ export function getDuelModes(hasVoters: boolean): DuelMode[] {
   if (hasVoters) modes.push("player-vote");
   return modes;
 }
+
+/** Two different mini-games, for the Meneur de jeu to pick from. */
+export function drawTwoDuelModes(hasVoters: boolean): [DuelMode, DuelMode] {
+  const [first, second] = shuffle(getDuelModes(hasVoters));
+  return [first, second];
+}
+
+export const DUEL_MODE_LOG_NAMES: Record<DuelMode, string> = {
+  "coin-flip": "pile ou face",
+  "rock-paper-scissors": "pierre-feuille-ciseaux",
+  "player-vote": "vote",
+  basket: "Basket",
+  blackjack: "Blackjack",
+};
 
 export function createDuel(
   playerOneId: PlayerId,

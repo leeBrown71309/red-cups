@@ -48,13 +48,6 @@ function describeAlert(event: FeedbackEvent): Omit<AlertBanner, "key"> | null {
         title: "BOUM !",
         detail: `Bullet Bill percute ${playerName(event.playerId)} : −${BULLET_BILL_DAMAGE} pièces et un tour sauté.`,
       };
-    case "devil-announced":
-      return {
-        tone: "devil",
-        eyebrow: "Le diable est à table",
-        title: `${playerName(event.playerId)} est le diable !`,
-        detail: `Il gagne quand les autres auront passé ${event.goal} tours en Enfer. Méfiez-vous de sa boutique.`,
-      };
     case "last-chance":
       return {
         tone: "chances",
@@ -148,7 +141,12 @@ export function useHudFeedback(): void {
         const alert = describeAlert(event);
         if (alert) showAlert(alert);
         if (event.type === "log" && !TOASTLESS_LOG.test(event.entry.text)) {
-          pushToast({ id: event.entry.id, text: event.entry.text, tone: event.entry.tone });
+          // A toast is read by the whole table: a purchase or a theft never gives its price or its item away.
+          pushToast({
+            id: event.entry.id,
+            text: event.entry.secret?.publicText ?? event.entry.text,
+            tone: event.entry.tone,
+          });
         }
       }),
     [pushToast, showSplash, showAlert],

@@ -1,0 +1,190 @@
+/* ---------- Passives as tarot cards (patch 0.1.5) ---------- */
+.tarot-card {
+  --card-accent: var(--gold-deep);
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 350px;
+  padding: 12px 14px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: radial-gradient(
+    circle at 50% 0%,
+    color-mix(in srgb, var(--card-accent) 14%, var(--white)),
+    var(--cream) 70%
+  );
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+  text-align: center;
+  font: inherit;
+}
+
+/* The thin inner frame of a printed card. */
+.tarot-card::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 2px solid var(--card-accent);
+  border-radius: 10px;
+  pointer-events: none;
+}
+
+.tarot-card--arcana {
+  background: radial-gradient(circle at 50% 0%, var(--gold-light), var(--cream-2) 75%);
+}
+
+.tarot-card--arcana::before {
+  border-style: double;
+  border-width: 4px;
+}
+
+.tarot-card.is-pickable {
+  cursor: pointer;
+  transition:
+    transform 140ms var(--ease-out),
+    box-shadow 140ms ease;
+}
+
+.tarot-card.is-pickable:hover {
+  transform: translateY(-4px) rotate(-0.6deg);
+}
+
+.tarot-card.is-selected {
+  box-shadow:
+    0 0 0 4px var(--card-accent),
+    0 6px 0 var(--ink);
+  transform: translateY(-4px);
+}
+
+.tarot-card__numeral {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--card-accent);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.tarot-card__numeral::before,
+.tarot-card__numeral::after {
+  content: "";
+  width: 22px;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.tarot-card__art {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border: 3px solid var(--card-accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--white), color-mix(in srgb, var(--card-accent) 22%, var(--white)));
+  box-shadow:
+    0 0 0 3px var(--cream),
+    0 0 0 5px var(--card-accent);
+}
+
+.tarot-card__name {
+  width: calc(100% + 12px);
+  margin: 4px -6px 0;
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  background: var(--card-accent);
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-shadow: 0 2px 0 rgba(58, 37, 48, 0.4);
+}
+
+.tarot-card__text {
+  align-self: stretch;
+  min-height: 0;
+  padding: 4px 6px 4px 4px;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.tarot-card__suit {
+  color: var(--card-accent);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tarot-card__picked {
+  position: absolute;
+  top: -10px;
+  right: 12px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card-accent);
+  color: var(--white);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* The deck laid out: the Passifs tab of the help. Every card of a row is as tall as the tallest. */
+.tarot-deck > li {
+  display: grid;
+}
+
+.tarot-deck {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 14px;
+  padding-top: 4px;
+}
+
+@media (max-width: 600px), (max-height: 520px) {
+  .tarot-card {
+    height: 300px;
+    padding: 10px 12px 8px;
+  }
+
+  .tarot-card__art {
+    width: 64px;
+    height: 64px;
+  }
+
+  .tarot-card__art svg {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* The Cartes tab of the help: a short intro, then the actifs and the passifs. */
+.cards-tab {
+  display: grid;
+  gap: 14px;
+}
+
+.cards-tab__intro {
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.cards-tab section {
+  display: grid;
+  gap: 8px;
+}

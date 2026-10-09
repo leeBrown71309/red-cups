@@ -1,6 +1,15 @@
+import { hasCard } from "./cards";
 import { getStartingCurrency, isMalefactor } from "./passive-rules";
 import { spendAllEnergy } from "./energy";
-import { addLog, findPlayer, getActivePlayer, placeInHell, randomChoice, updatePlayer } from "./state-utils";
+import {
+  addLog,
+  findPlayer,
+  getActivePlayer,
+  placeInHell,
+  randomChoice,
+  settleKnockout,
+  updatePlayer,
+} from "./state-utils";
 import type { GameState, Player } from "./types";
 import { HELL_NODE_ID, RESCUE_SKIPPED_TURNS } from "./types";
 
@@ -10,7 +19,7 @@ import { HELL_NODE_ID, RESCUE_SKIPPED_TURNS } from "./types";
  */
 
 export function findAngel(state: GameState): Player | undefined {
-  return state.players.find((player) => player.passiveId === "guardian-angel");
+  return state.players.find((player) => hasCard(player, "guardian-angel"));
 }
 
 /**
@@ -26,7 +35,7 @@ export function assignGuardian(state: GameState): GameState {
     const lambda = updatePlayer(state, angel.id, (player) => ({
       ...player,
       passiveId: "lambda",
-      currency: getStartingCurrency("lambda"),
+      currency: getStartingCurrency("lambda", player.passifId),
     }));
     return addLog({ ...lambda, guardian: null }, `${angel.name} n’a personne à protéger : il sera Lambda.`, "event");
   }
@@ -60,6 +69,7 @@ export function rescueProtege(state: GameState): GameState {
   nextState = updatePlayer(nextState, angel.id, (player) => ({
     ...player,
     skippedTurns: player.skippedTurns + RESCUE_SKIPPED_TURNS,
+    knockedOut: true,
   }));
   return addLog(
     { ...spendAllEnergy(nextState), turnStage: "turn-end" },
@@ -83,6 +93,7 @@ export function replaceLeavingProtege(state: GameState, leaver: Player): GameSta
   const heir: Player = placeInHell({
     ...angel,
     passiveId: leaver.passiveId,
+    passifId: leaver.passifId ?? null,
     inventory: leaver.inventory,
     currency: leaver.currency,
     noThanksReadyRound: leaver.noThanksReadyRound,
@@ -92,5 +103,9 @@ export function replaceLeavingProtege(state: GameState, leaver: Player): GameSta
     guardian: null,
     players: state.players.map((player) => (player.id === angel.id ? heir : player)),
   };
-  return addLog(nextState, `${angel.name} reprend la place de ${leaver.name}, mais depuis l’Enfer.`, "event");
+  // A leaver left below −300 with a gamble still pending was never knocked out: the heir is, now.
+  return settleKnockout(
+    addLog(nextState, `${angel.name} reprend la place de ${leaver.name}, mais depuis l’Enfer.`, "event"),
+    angel.id,
+  );
 }

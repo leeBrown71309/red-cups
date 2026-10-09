@@ -1,5 +1,8 @@
 import { getDuelVoterIds, getHumanDuellistIds } from "./duel";
 import type { GameAction } from "./game-actions";
+import { canKickPlayer } from "./kick";
+import { canReinstatePlayer } from "./reinstate";
+import { canJoinLate } from "./late-join";
 import { getDecidingPlayer } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, PlayerId } from "./types";
@@ -12,6 +15,11 @@ import type { GameState, PlayerId } from "./types";
  * A local game skips this: one device plays every seat.
  */
 export function getActionActorIds(state: GameState, action: GameAction): PlayerId[] {
+  // A newcomer sits at the next seat of the room, which the engine does not know yet.
+  if (action.type === "joinLatePlayer") return canJoinLate(state) ? [action.playerId] : [];
+  if (action.type === "reinstatePlayer") return canReinstatePlayer(state, action.playerId) ? [action.playerId] : [];
+  // The host sends somebody away, whatever the stage allows.
+  if (action.type === "kickPlayer") return canKickPlayer(state, action.hostId, action.playerId) ? [action.hostId] : [];
   // The draft: each player picks for themselves; anybody may close it once its minute is over.
   if (state.phase === "draft") {
     if (action.type === "pickPassive") return state.draft?.offers[action.playerId] ? [action.playerId] : [];
@@ -36,6 +44,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "rollDice":
     case "leaveHell":
     case "rescueProtege":
+    case "sellItem":
     case "buyItem":
     case "stealItem":
     case "useItem":
@@ -56,11 +65,15 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
 
     // The Gomme belongs to whoever the wheel was spun for.
     case "resolveWheel":
+    case "pickWheelResult":
     case "cancelWheel":
       return only(state.pendingWheel?.playerId);
 
     case "challengePlayer":
       return only(state.pendingChallenge?.playerId);
+
+    case "chooseDuelMode":
+      return only(state.pendingDuelChoice?.chooserId);
 
     case "flipDuelCoin":
     case "resolveDuel":

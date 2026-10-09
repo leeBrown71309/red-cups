@@ -86,7 +86,7 @@ beforeAll(async () => {
   await db.exec(`
     create role anon; create role authenticated;
     create schema auth;
-    create table auth.users (id uuid primary key, is_anonymous boolean not null default false);
+    create table auth.users (id uuid primary key, is_anonymous boolean not null default false, email text);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
     create schema realtime;
@@ -222,8 +222,62 @@ describe("kickoff", () => {
     const outsider = await person();
     const peek = await room(code, outsider);
     expect(peek?.state).toBeNull();
-    expect(peek?.players).toEqual([]);
-    expect(await refusal(outsider, `select claim_seat($1, 'Tom', 5::smallint)`, [code])).toMatch(/déjà commencé/);
+    expect(peek?.seatOrder).toEqual([]);
+  });
+
+  it("lets a newcomer sit down until the first round is over, at the end of the order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik"]);
+    const state = await kickoff(code, ids[0]);
+    const late = await person();
+    const peek = await room(code, late);
+    expect(peek?.joinable).toBe(true);
+    expect(peek?.players.map((player) => player.name)).toEqual(["Léa", "Malik"]);
+
+    await as(late, `select claim_seat($1, 'Tom', 5::smallint)`, [code]);
+    const seated = await room(code, late);
+    expect(seated?.isPlayer).toBe(true);
+    expect(seated?.seatOrder).toEqual([...ids, late]);
+    expect(getPlayerIdOfUser(seated!.seatOrder, late)).toBe("p3");
+    // Somebody already seated cannot change their avatar once the game runs.
+    expect(await refusal(ids[1], `select claim_seat($1, 'Malik', 6::smallint)`, [code])).toMatch(/déjà commencé/);
+
+    // The newcomer's device tells the engine, like any action.
+    const action: GameAction = { type: "joinLatePlayer", playerId: "p3", name: "Tom", color: "#fff" as never };
+    const joined = prepareLocalAction(state, action, "p3");
+    expect(joined?.players.map((player) => player.id)).toEqual(["p1", "p2", "p3"]);
+    await as(late, `select advance_room($1, $2::jsonb, 1)`, [code, JSON.stringify(joined)]);
+
+    // From the second round on, the doors close.
+    const second = { ...joined!, phase: "playing", round: 2 };
+    await as(ids[0], `select advance_room($1, $2::jsonb, 2)`, [code, JSON.stringify(second)]);
+    const tooLate = await person();
+    expect((await room(code, tooLate))?.joinable).toBe(false);
+    expect(await refusal(tooLate, `select claim_seat($1, 'Zoé', 7::smallint)`, [code])).toMatch(/déjà commencé/);
+  });
+});
+
+describe("kick_player", () => {
+  it("is the host's alone, empties the seat and keeps the player out", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès"]);
+    expect(await refusal(ids[1], `select kick_player($1, $2::uuid)`, [code, ids[2]])).toMatch(/hôte/);
+    expect(await refusal(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[0]])).toMatch(/toi-même/);
+
+    await as(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[2]]);
+    expect((await room(code, ids[0]))?.players.map((player) => player.name)).toEqual(["Léa", "Malik"]);
+    expect(await refusal(ids[2], `select claim_seat($1, 'Inès', 2::smallint)`, [code])).toMatch(/exclu/);
+    // The kicked device learns it on its next heartbeat.
+    const [beat] = await as<{ v: number }>(ids[2], `select touch_seat($1) v`, [code]);
+    expect(beat.v).toBe(-1);
+  });
+
+  it("also sends away a player of a game under way, whose seat stays in the frozen order", async () => {
+    const { code, ids } = await lobby("Léa", ["Malik", "Inès"]);
+    await kickoff(code, ids[0]);
+    await as(ids[0], `select kick_player($1, $2::uuid)`, [code, ids[1]]);
+    const seen = await room(code, ids[0]);
+    expect(seen?.seatOrder).toEqual(ids);
+    expect(seen?.players.map((player) => player.name)).toEqual(["Léa", "Inès"]);
+    expect((await room(code, ids[1]))?.isPlayer).toBe(false);
   });
 });
 
@@ -554,4 +608,80 @@ describe("history of simulated accounts, with bots playing whole games", () => {
     const { rows } = await db.query<{ n: number }>(`select count(*)::int n from games where room_code = $1`, [code]);
     return rows[0].n;
   }
+});
+
+describe("reports", () => {
+  async function makeAdmin(email: string): Promise<string> {
+    const id = await person("google");
+    await db.query(`update auth.users set email = $1 where id = $2`, [email, id]);
+    await db.query(`insert into report_admins (email) values ($1)`, [email]);
+    return id;
+  }
+
+  it("accepts a report from anybody, but shows it only to the admin", async () => {
+    const visitor = await person();
+    await as(
+      visitor,
+      `select submit_report('bug', 'Barrière', 'La Botte saute la Barrière deux fois', 'Achetée au tour 3, la Botte a passé la Barrière puis le tour a continué normalement.', null)`,
+    );
+    const { rows } = await db.query<{ n: number }>(`select count(*)::int n from reports where reporter_id = $1`, [
+      visitor,
+    ]);
+    expect(rows[0].n).toBe(1);
+
+    const outsider = await person();
+    expect(await refusal(outsider, `select list_reports()`)).toMatch(/administrateur/);
+
+    const admin = await makeAdmin("chief@example.com");
+    const [first] = await as<{ r: { title: string; element: string; status: string; kind: string }[] }>(
+      admin,
+      `select list_reports() r`,
+    );
+    expect(first.r.at(-1)).toMatchObject({ kind: "bug", element: "Barrière", status: "new" });
+
+    // Newest arrivals head the list.
+    await as(
+      visitor,
+      `select submit_report('idea', '', 'Le doigt d''honneur coûte moins cher', 'Il rendrait la boutique plus vivante.', null)`,
+    );
+    const [second] = await as<{ r: { title: string }[] }>(admin, `select list_reports() r`);
+    expect(second.r[0].title).toBe("Le doigt d'honneur coûte moins cher");
+  });
+
+  it("is sorted and annotated by the admin only", async () => {
+    const reporter = await person();
+    await as(
+      reporter,
+      `select submit_report('idea', '', 'Offrir le premier Red Cup', 'Pour débloquer les parties, le premier Red Cup coûterait moins cher au tour 1.', 'joueur@example.com')`,
+    );
+    const { rows: idRows } = await db.query<{ id: string }>(
+      `select id from reports where contact_email = 'joueur@example.com'`,
+    );
+    const id = idRows[0].id;
+
+    const random = await person("google");
+    expect(await refusal(random, `select set_report_status($1, 'fixed', '')`, [id])).toMatch(/administrateur/);
+
+    const admin = await makeAdmin("chief2@example.com");
+    await as(admin, `select set_report_status($1, 'fixed', 'idée retenue pour plus tard')`, [id]);
+    const [list] = await as<{ r: { id: string; status: string; admin_note: string }[] }>(
+      admin,
+      `select list_reports() r`,
+    );
+    expect(list.r.find((report) => report.id === id)).toMatchObject({
+      status: "fixed",
+      admin_note: "idée retenue pour plus tard",
+    });
+  });
+
+  it("refuses a report with nothing to read", async () => {
+    const visitor = await person();
+    expect(await refusal(visitor, `select submit_report('bug', '', 'Court', 'Trop !', null)`)).toMatch(/titre|texte/);
+    expect(
+      await refusal(
+        visitor,
+        `select submit_report('nimporte', '', 'Un titre correct', 'Et un texte suffisant.', null)`,
+      ),
+    ).toMatch(/Type/);
+  });
 });

@@ -2,8 +2,15 @@
 @import "./styles/base.css";
 @import "./styles/buttons.css";
 @import "./styles/stage-and-lobby.css";
+@import "./styles/flow-shell.css";
+@import "./styles/setup-flow.css";
+@import "./styles/draft-page.css";
+@import "./styles/online-flow.css";
 @import "./styles/hud.css";
 @import "./styles/players-panel.css";
 @import "./styles/modals.css";
+@import "./styles/tarot-cards.css";
+@import "./styles/talisman.css";
+@import "./styles/catalog.css";
 @import "./styles/ghost-and-basket.css";
 @import "./styles/online.css";

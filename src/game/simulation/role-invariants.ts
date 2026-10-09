@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { DEVIL_HELL_REWARD, findDevil, getDevilGoalFor } from "../devil";
 import { avoidsHell, isImmuneToItems, isMalefactor } from "../passive-rules";
 import { countRedCups } from "../rules";
@@ -10,7 +11,7 @@ import { newLogTexts, violation, type RuleViolation } from "./invariant-helpers"
 
 export function checkRoleState(state: GameState, found: RuleViolation[]): void {
   for (const player of state.players) {
-    if ((player.passiveId === "devil" || player.passiveId === "guardian-angel") && countRedCups(player) > 0) {
+    if ((hasCard(player, "devil") || hasCard(player, "guardian-angel")) && countRedCups(player) > 0) {
       found.push(violation("role-no-cup", `${player.name} holds a Red Cup`));
     }
     if (avoidsHell(player) && player.position === HELL_NODE_ID) {
@@ -38,7 +39,7 @@ export function checkRoleState(state: GameState, found: RuleViolation[]): void {
   if (guardian) {
     const angel = findPlayer(state, guardian.angelId);
     const protege = findPlayer(state, guardian.protegeId);
-    if (angel?.passiveId !== "guardian-angel" || !protege || isMalefactor(protege) || protege.id === angel.id) {
+    if (!angel || !hasCard(angel, "guardian-angel") || !protege || isMalefactor(protege) || protege.id === angel.id) {
       found.push(violation("guardian-pair", `${angel?.name ?? "nobody"} protects ${protege?.name ?? "nobody"}`));
     }
   }
@@ -66,7 +67,7 @@ export function checkDevilHellTurns(previous: GameState, next: GameState, found:
   // An earlier seat leaving shifts the index of the same player: only another player, or a new round, is a new turn.
   const previousActive = previous.players[previous.activePlayerIndex];
   const newTurn = active?.id !== previousActive?.id || next.round !== previous.round;
-  if (newTurn && active?.passiveId !== "devil" && active?.position === HELL_NODE_ID && before && added < 1) {
+  if (newTurn && !hasCard(active, "devil") && active?.position === HELL_NODE_ID && before && added < 1) {
     found.push(violation("devil-count", `${active.name} began a turn in Hell without it being counted`));
   }
 
@@ -98,8 +99,8 @@ export function checkDevilItem(
       }
       break;
     case "portal":
-      if (next.hellPortals.length !== previous.hellPortals.length + 1) {
-        found.push(violation("portal-open", "the Portail did not open"));
+      if (next.hellPortals.length !== previous.hellPortals.length + 2) {
+        found.push(violation("portal-open", "the two Portails did not open"));
       }
       break;
     case "black-cup": {

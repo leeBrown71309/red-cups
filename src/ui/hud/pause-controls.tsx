@@ -70,12 +70,14 @@ export function PauseButton() {
  */
 export function PauseOverlay({ onOpenMenu }: { onOpenMenu: () => void }) {
   const pause = useGameStore((state) => state.pause);
+  const phase = useGameStore((state) => state.phase);
   const players = useGameStore((state) => state.players);
   const resumeGame = useGameStore((state) => state.resumeGame);
   const localPlayerId = useLocalPlayerId();
   const now = useServerClock(pause !== null);
   const game = useGameStore();
-  if (!pause) return null;
+  // The game is over (an abandonment ended it): the final table takes the screen, nothing is paused any more.
+  if (!pause || phase !== "playing") return null;
 
   const pausedBy = players.find((player) => player.id === pause.byPlayerId);
   const hostId = getHostPlayerId(game);

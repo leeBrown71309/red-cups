@@ -823,6 +823,13 @@
   background: #27305f;
 }
 
+/* Roller: the throws for the Red Cup. */
+.alert-banner--roller {
+  background:
+    radial-gradient(circle at 14% 50%, rgba(255, 255, 255, 0.4), transparent 45%),
+    linear-gradient(135deg, #4fa5f2, #2d4fa3);
+}
+
 /* Luna Park: the carousel changes direction. */
 .alert-banner--carousel {
   background:
@@ -1111,5 +1118,185 @@
 @media (max-width: 980px) {
   .top-bar__right .audio-toggles {
     display: none;
+  }
+}
+
+/* A ribbon under the top bar: setting down a Barrière, or waiting for a rematch after abandoning. */
+.hud-ribbon {
+  position: absolute;
+  top: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--cream, #fff4ec);
+  border: 3px solid var(--ink, #2a1d22);
+  box-shadow: 0 4px 0 var(--ink, #2a1d22);
+  font-weight: 800;
+  pointer-events: auto;
+}
+
+.hud-ribbon > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ---------- Roller's die ---------- */
+.dice-roll {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.dice-roll__die {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border: 4px solid var(--ink);
+  border-radius: 20px;
+  background: #fffaf2;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.25);
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 700;
+}
+
+.dice-roll__die.is-tumbling {
+  animation: dice-tumble 0.45s linear infinite;
+}
+
+.dice-roll__die.is-landed {
+  animation: dice-land 0.35s ease-out;
+}
+
+@keyframes dice-tumble {
+  from {
+    transform: translateY(-14px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(8px) rotate(180deg);
+  }
+  to {
+    transform: translateY(-14px) rotate(360deg);
+  }
+}
+
+@keyframes dice-land {
+  from {
+    transform: scale(1.35);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+/* Roller: the Red Cup throws are for the whole table, so the die gets a caption and a verdict. */
+.dice-roll__stage {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.dice-roll__caption {
+  display: grid;
+  gap: 2px;
+  padding: 8px 18px;
+  border: 3px solid var(--ink);
+  border-radius: 16px;
+  background: var(--cream);
+  box-shadow: 0 4px 0 var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.dice-roll__caption small {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.dice-roll__die.is-six {
+  background: var(--gold);
+  box-shadow:
+    0 0 0 6px var(--gold-light),
+    0 8px 0 rgba(0, 0, 0, 0.25);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dice-roll__die.is-tumbling,
+  .dice-roll__die.is-landed {
+    animation: none;
+  }
+}
+
+.destination-chip.is-selected {
+  background: var(--cream, #fffaf2);
+  outline: 3px solid var(--cup);
+  outline-offset: 2px;
+}
+
+/* ---------- Double or nothing result ---------- */
+.gamble-splash {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.gamble-splash__word {
+  font-family: var(--font-display);
+  font-size: clamp(3.4rem, 16vw, 9rem);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: var(--ink);
+  -webkit-text-stroke: 8px var(--ink);
+  text-shadow: 0 8px 0 rgba(58, 37, 48, 0.35);
+  animation: gamble-pop 2s var(--ease-out, ease-out) both;
+}
+
+.gamble-splash__word.is-double {
+  color: #5fd35a;
+}
+
+.gamble-splash__word.is-nothing {
+  color: #ff5a4d;
+}
+
+@keyframes gamble-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-6deg);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.12) rotate(2deg);
+  }
+  25% {
+    transform: scale(1) rotate(0deg);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gamble-splash__word {
+    animation: none;
   }
 }

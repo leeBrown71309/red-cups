@@ -108,6 +108,7 @@ describe("Roller", () => {
         { from: 0, to: 1 },
         { from: 1, to: 2 },
       ],
+      blocked: [],
     } as unknown as Board;
     expect(getSimplePaths(deadEnd, 0, 6)).toEqual([[1, 2]]);
   });

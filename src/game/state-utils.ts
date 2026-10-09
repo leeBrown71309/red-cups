@@ -6,14 +6,34 @@ import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
 /** Small immutable helpers shared by every rule of the engine. */
 
-const MAX_LOG_ENTRIES = 60;
+const MAX_LOG_ENTRIES = 120;
 
-export function makeLog(text: string, tone: GameLogEntry["tone"] = "neutral"): GameLogEntry {
-  return { id: createEngineId(), text, tone };
+export function makeLog(
+  text: string,
+  tone: GameLogEntry["tone"] = "neutral",
+  secret?: GameLogEntry["secret"],
+): GameLogEntry {
+  return { id: createEngineId(), text, tone, ...(secret ? { secret } : {}) };
 }
 
-export function addLog(state: GameState, text: string, tone: GameLogEntry["tone"] = "neutral"): GameState {
-  return { ...state, log: [makeLog(text, tone), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+export function addLog(
+  state: GameState,
+  text: string,
+  tone: GameLogEntry["tone"] = "neutral",
+  secret?: GameLogEntry["secret"],
+): GameState {
+  return { ...state, log: [makeLog(text, tone, secret), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+}
+
+/** A line about what is in somebody's bag: the others online read `publicText` instead. */
+export function addBagLog(
+  state: GameState,
+  ownerId: PlayerId,
+  text: string,
+  publicText: string,
+  tone: GameLogEntry["tone"] = "neutral",
+): GameState {
+  return addLog(state, text, tone, { ownerId, publicText });
 }
 
 /** Draws from the engine source, so a local game and an online game share one code path. */
@@ -51,8 +71,56 @@ export function updatePlayer(state: GameState, playerId: PlayerId, updater: (pla
  * theirs. L'Ange-Gardien never goes: they lose their next turn instead.
  */
 export function placeInHell(player: Player): Player {
-  if (avoidsHell(player)) return { ...player, skippedTurns: player.skippedTurns + 1 };
-  return player.position === HELL_NODE_ID ? player : { ...player, position: HELL_NODE_ID, hellTurns: 0 };
+  if (avoidsHell(player)) return loseTurns(player);
+  if (player.position === HELL_NODE_ID) return player;
+  // A Parachute opens instead: whatever sent them there, they stay where they are.
+  const parachute = findItemEntry(player, "parachute");
+  if (parachute) return withSpent(spendItemEntry(player, parachute.id), "parachute");
+  return { ...player, position: HELL_NODE_ID, hellTurns: 0 };
+}
+
+/** The first entry of the bag holding `itemId`, if any. */
+export function findItemEntry(player: Player, itemId: ItemId): (InventoryEntry & { kind: "item" }) | undefined {
+  return player.inventory.find(
+    (entry): entry is InventoryEntry & { kind: "item" } => entry.kind === "item" && entry.itemId === itemId,
+  );
+}
+
+/**
+ * The player loses `amount` of their next turns and carries the knocked-out status until they can
+ * play again (patch 0.2.0). A Réveil in the bag cancels the first of them and is used up (patch 0.1.6).
+ */
+export function loseTurns(player: Player, amount = 1): Player {
+  const alarm = amount > 0 ? findItemEntry(player, "wake-up") : undefined;
+  if (!alarm) return { ...player, skippedTurns: player.skippedTurns + amount, knockedOut: true };
+  const woken = withSpent(spendItemEntry(player, alarm.id), "wake-up");
+  const skipped = woken.skippedTurns + amount - 1;
+  return { ...woken, skippedTurns: skipped, knockedOut: skipped > 0 || woken.knockedOut };
+}
+
+function withSpent(player: Player, itemId: ItemId): Player {
+  return { ...player, spentItems: [...(player.spentItems ?? []), itemId] };
+}
+
+const SPENT_ITEM_LOGS: Partial<Record<ItemId, string>> = {
+  "wake-up": "active son Réveil : le tour sauté est annulé.",
+  parachute: "ouvre son Parachute : il évite l’Enfer.",
+};
+
+/** Says in the journal which items acted on their own during the action, and clears the marks. */
+export function announceSpentItems(state: GameState): GameState {
+  if (!state.players.some((player) => player.spentItems?.length)) return state;
+  let nextState = state;
+  for (const player of state.players) {
+    for (const itemId of player.spentItems ?? []) {
+      const text = SPENT_ITEM_LOGS[itemId];
+      if (text) nextState = addLog(nextState, `${player.name} ${text}`, "good");
+    }
+  }
+  return {
+    ...nextState,
+    players: nextState.players.map(({ spentItems: _spent, ...player }) => player),
+  };
 }
 
 /** Sends a player to Hell; L'Ange-Gardien loses their next turn instead. */
@@ -63,6 +131,8 @@ export function sendPlayerToHell(state: GameState, playerId: PlayerId): GameStat
   if (avoidsHell(player)) {
     return addLog(nextState, `${player.name} ne va jamais en Enfer : il perd son prochain tour à la place.`, "bad");
   }
+  // A Parachute kept them out: the journal says so with the item that opened.
+  if (findPlayer(nextState, playerId)?.position !== HELL_NODE_ID) return nextState;
   return addLog(nextState, `${player.name} est envoyé en Enfer.`, "bad");
 }
 
@@ -124,6 +194,20 @@ export interface CurrencyChangeOptions {
    * purchase, Corrupteur, a theft gone wrong) and the coin flip's own outcome.
    */
   gamble?: boolean;
+  /** No journal line, so a toast never gives away what the coins were spent on (a purchase). */
+  silent?: boolean;
+}
+
+/** A holder left below −300 while their gamble was pending is knocked out now: balance back to 0, next turn lost. */
+export function settleKnockout(state: GameState, playerId: PlayerId): GameState {
+  const player = findPlayer(state, playerId);
+  if (!player || player.currency > CURRENCY_RESET_THRESHOLD) return state;
+  const nextState = updatePlayer(state, playerId, (current) => loseTurns({ ...current, currency: 0 }));
+  return addLog(
+    nextState,
+    `${player.name} tombe à −300 pièces : son solde revient à 0 et son prochain tour sera sauté.`,
+    "bad",
+  );
 }
 
 /**
@@ -141,9 +225,8 @@ export function applyCurrencyChange(
   if (!player || amount === 0) return state;
 
   let nextState = state;
-  if (options.gamble !== false && offersGamble(player) && state.phase === "playing") {
-    nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
-  }
+  const staked = options.gamble !== false && offersGamble(player) && state.phase === "playing";
+  if (staked) nextState = { ...nextState, pendingGambles: [...nextState.pendingGambles, { playerId, amount }] };
   let nextCurrency = player.currency + amount;
   let nextInventory = player.inventory;
 
@@ -156,15 +239,25 @@ export function applyCurrencyChange(
     }
   }
 
-  const reachedResetThreshold = nextCurrency <= CURRENCY_RESET_THRESHOLD;
+  // A loss the holder may stake does not knock them out yet: wiping it out lets them play on.
+  const knockedOut = nextCurrency <= CURRENCY_RESET_THRESHOLD;
+  const awaitsGamble = staked && amount < 0 && knockedOut;
+  if (awaitsGamble) {
+    const queued = nextState.pendingGambles;
+    nextState = {
+      ...nextState,
+      pendingGambles: queued.map((gamble, index) =>
+        index === queued.length - 1 ? { ...gamble, knockout: true } : gamble,
+      ),
+    };
+  }
+  const reachedResetThreshold = knockedOut && !awaitsGamble;
   if (reachedResetThreshold) nextCurrency = 0;
 
-  nextState = updatePlayer(nextState, playerId, (currentPlayer) => ({
-    ...currentPlayer,
-    currency: nextCurrency,
-    inventory: nextInventory,
-    skippedTurns: currentPlayer.skippedTurns + Number(reachedResetThreshold),
-  }));
+  nextState = updatePlayer(nextState, playerId, (currentPlayer) => {
+    const updated = { ...currentPlayer, currency: nextCurrency, inventory: nextInventory };
+    return reachedResetThreshold ? loseTurns(updated) : updated;
+  });
 
   if (reachedResetThreshold) {
     return addLog(
@@ -174,6 +267,7 @@ export function applyCurrencyChange(
     );
   }
 
+  if (options.silent) return nextState;
   const sign = amount > 0 ? "+" : "−";
   return addLog(nextState, `${player.name} ${sign}${Math.abs(amount)} pièces.`, amount > 0 ? "good" : "bad");
 }

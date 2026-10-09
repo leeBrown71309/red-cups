@@ -1,6 +1,8 @@
 import { applyRemoteAction, getUserIdOfPlayer } from "../../net/room-protocol";
 import { getActionActorIds } from "../action-permissions";
+import { CARD_KINDS, getCards, withCard } from "../cards";
 import { PASSIVE_ORDER } from "../catalog";
+import { getRefusedPassifs } from "../draft";
 import { MAP_ORDER } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
 import { runWithSeededSource } from "../engine-random";
@@ -92,18 +94,44 @@ function increment(counts: Record<string, number>, key: string): void {
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
-/** Puts the forced passives on the first seats and keeps every passive unique. */
+/**
+ * Puts the forced cards on the first seats, each in its own slot, and keeps
+ * every card unique: another seat that drew one of them gets a free card of
+ * the same kind instead.
+ */
 function assignPassives(players: Player[], forced: PassiveId[]): Player[] {
   const used = new Set<PassiveId>(forced);
+  const free = (kind: "actif" | "passif", current: PassiveId | null | undefined, refused: PassiveId[] = []) => {
+    if (current && !used.has(current) && !refused.includes(current)) return current;
+    return (
+      PASSIVE_ORDER.find(
+        (candidate) => CARD_KINDS[candidate] === kind && !used.has(candidate) && !refused.includes(candidate),
+      ) ??
+      current ??
+      null
+    );
+  };
   return players.map((player, index) => {
-    // The starting balance follows the passive (Nepo Baby, eShop).
-    const forcedPassive = forced[index];
-    if (forcedPassive) return { ...player, passiveId: forcedPassive, currency: getStartingCurrency(forcedPassive) };
-    const passiveId = used.has(player.passiveId)
-      ? (PASSIVE_ORDER.find((candidate) => !used.has(candidate)) ?? player.passiveId)
-      : player.passiveId;
-    used.add(passiveId);
-    return { ...player, passiveId, currency: getStartingCurrency(passiveId) };
+    let next: Player = player;
+    const forcedCard = forced[index];
+    if (forcedCard) {
+      next = withCard(next, forcedCard);
+    } else {
+      next = {
+        ...next,
+        passiveId: free("actif", next.passiveId) ?? next.passiveId,
+        passifId: free("passif", next.passifId),
+      };
+    }
+    // L'Ange-Gardien takes nothing from anybody: a harmful passif drawn before it became the angel is swapped.
+    if (next.passifId && getRefusedPassifs(next.passiveId).includes(next.passifId)) {
+      used.delete(next.passifId);
+      next = { ...next, passifId: free("passif", null, getRefusedPassifs(next.passiveId)) };
+    }
+    used.add(next.passiveId);
+    if (next.passifId) used.add(next.passifId);
+    // The starting balance follows the cards (Nepo Baby, eShop).
+    return { ...next, currency: getStartingCurrency(next.passiveId, next.passifId) };
   });
 }
 
@@ -233,7 +261,7 @@ export function runBotGame(options: BotGameOptions): BotGameReport {
       record(checkState(before), step, "state", before.turnStage);
       if (before.phase !== "playing" && before.phase !== "draft") break;
       if (before.phase === "playing" && report.passives.length === 0) {
-        report.passives = before.players.map((player) => player.passiveId);
+        report.passives = before.players.flatMap((player) => getCards(player));
       }
 
       increment(report.stageCounts, before.turnStage);

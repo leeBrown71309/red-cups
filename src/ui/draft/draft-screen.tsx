@@ -1,18 +1,20 @@
-import { useEffect, useState } from "react";
-import { PASSIVE_CATALOG } from "../../game/catalog";
+import { useEffect, useState, type ReactNode } from "react";
 import { getPlayersToPick } from "../../game/draft";
 import { useGameStore } from "../../game/store";
-import type { PassiveId, Player } from "../../game/types";
+import type { Player } from "../../game/types";
 import { getServerNow, useLocalPlayerId } from "../../net/room-store";
-import { ModalShell } from "../components/modal-shell";
+import { FlowShell } from "../components/flow-shell";
 import { PlayerAvatar } from "../components/player-avatar";
 import { UiIcon } from "../icons/ui-icon";
 import { useClockBeeps } from "../hud/use-clock-beeps";
+import { DraftInspector } from "./draft-inspector";
 
 /**
- * The passive draft before the game. Online, every device shows its own cards
- * and who has picked, under the table's minute. A local table hands the
- * screen from player to player, cards hidden, with no clock.
+ * The draft before the game, on its own page now instead of a dialog over the board.
+ * First every player picks an actif among two cards — the card in 3D on the left, its whole rule
+ * written large on the right — then each player is shown the passif drawn for them (never the same
+ * as another player's) and confirms they read it. Online, every device shows its own cards and who
+ * is ready, under the clock. A local table hands the screen from player to player, cards hidden.
  */
 export function DraftScreen() {
   const localPlayerId = useLocalPlayerId();
@@ -20,38 +22,35 @@ export function DraftScreen() {
   return localPlayerId === null ? <LocalDraft /> : <OnlineDraft playerId={localPlayerId} />;
 }
 
-function PassiveCards({
-  offers,
-  picked,
-  onPick,
-}: {
-  offers: PassiveId[];
-  picked: PassiveId | undefined;
-  onPick: (passiveId: PassiveId) => void;
-}) {
+/** The page frame shared by the local and online draft: the flow's shell, the chapter stepper above. */
+function DraftPage({ corner, children }: { corner?: ReactNode; children: ReactNode }) {
   return (
-    <ul className="draft-cards" aria-label="Passifs proposés">
-      {offers.map((passiveId) => {
-        const passive = PASSIVE_CATALOG[passiveId];
-        const selected = picked === passiveId;
+    <FlowShell step="draft" corner={corner}>
+      <div className="draft">{children}</div>
+    </FlowShell>
+  );
+}
+
+/** The table's progress, as a row of avatars: who is done, who is on, who waits. */
+function DraftRoster({ players, doneIds, currentId }: { players: Player[]; doneIds: Set<string>; currentId: string }) {
+  return (
+    <ul className="draft-strip" aria-label="Progression de la table">
+      {players.map((player) => {
+        const isDone = doneIds.has(player.id);
         return (
-          <li key={passiveId}>
-            <button
-              type="button"
-              className={`draft-card ${selected ? "is-selected" : ""}`}
-              aria-pressed={selected}
-              onClick={() => onPick(passiveId)}
-            >
-              <span className="draft-card__name">
-                <UiIcon name="sparkle" size={16} /> {passive.name}
-              </span>
-              <span className="draft-card__text">{passive.description}</span>
-              {selected && (
-                <span className="draft-card__picked">
-                  <UiIcon name="check" size={14} /> Choisi
+          <li
+            key={player.id}
+            className={`draft-strip__player${isDone ? " is-done" : ""}${player.id === currentId ? " is-current" : ""}`}
+          >
+            <span className="draft-strip__avatar">
+              <PlayerAvatar color={player.color} size={36} />
+              {isDone && (
+                <span className="draft-strip__check">
+                  <UiIcon name="check" size={12} strokeWidth={3.4} />
                 </span>
               )}
-            </button>
+            </span>
+            <span className="draft-strip__name">{player.name}</span>
           </li>
         );
       })}
@@ -59,44 +58,91 @@ function PassiveCards({
   );
 }
 
+/** Whose turn it is, read at a glance above the cards. */
+function DraftWho({ player, text, children }: { player: Player; text: string; children?: ReactNode }) {
+  return (
+    <div className="draft__top">
+      <p className="draft__who">
+        <PlayerAvatar color={player.color} size={44} />
+        <span>
+          <strong>{player.name}</strong>
+          <small>{text}</small>
+        </span>
+      </p>
+      {children}
+    </div>
+  );
+}
+
 /** One screen for the whole table: each player takes it in turn, then hands it on. */
 function LocalDraft() {
   const game = useGameStore();
   const pickPassive = useGameStore((state) => state.pickPassive);
-  const [readyId, setReadyId] = useState<string | null>(null);
+  const [readyKey, setReadyKey] = useState<string | null>(null);
   const [chooser] = getPlayersToPick(game);
   if (!game.draft || !chooser) return null;
+  const isActifStage = game.draft.stage === "actif";
+  // One hand-over per player and per stage: the second stage starts again with the first seat.
+  const key = `${game.draft.stage}:${chooser.id}`;
 
-  if (readyId !== chooser.id) {
+  const remainingIds = new Set(getPlayersToPick(game).map((player) => player.id));
+  const doneIds = new Set(game.players.filter((player) => !remainingIds.has(player.id)).map((player) => player.id));
+
+  if (readyKey !== key) {
     return (
-      <ModalShell title="Choix des passifs" eyebrow="Avant la partie" tone="grape" className="draft-modal">
-        <div className="draft-handover">
-          <PlayerAvatar color={chooser.color} size={72} />
-          <p>
-            Passe l’écran à <strong>{chooser.name}</strong> : ses cartes restent secrètes.
+      <DraftPage>
+        <div className="handover">
+          <span className="handover__pedestal" aria-hidden="true">
+            <span className="handover__ripple" />
+            <span className="handover__ripple handover__ripple--late" />
+            <span className="handover__avatar">
+              <PlayerAvatar color={chooser.color} size={132} />
+            </span>
+          </span>
+          <p className="handover__line">
+            <small>Passe l’écran à</small>
+            <strong>{chooser.name}</strong>
           </p>
-          <button type="button" className="btn btn--gold" onClick={() => setReadyId(chooser.id)} data-autofocus>
-            <UiIcon name="eye" size={20} /> Je suis {chooser.name}
+          <p className="handover__hint">
+            {isActifStage
+              ? "Ses cartes doivent rester secrètes. Tourne l’écran s’il faut."
+              : "Son passif doit rester secret."}
+          </p>
+          <button type="button" className="btn btn--cup btn--large" onClick={() => setReadyKey(key)} data-autofocus>
+            <UiIcon name="eye" size={22} /> Je suis {chooser.name}
           </button>
         </div>
-      </ModalShell>
+      </DraftPage>
     );
   }
 
   return (
-    <ModalShell
-      title={`${chooser.name}, choisis ton passif`}
-      eyebrow="Avant la partie"
-      tone="grape"
-      size="large"
-      className="draft-modal"
-    >
-      <PassiveCards
-        offers={game.draft.offers[chooser.id] ?? []}
-        picked={undefined}
-        onPick={(passiveId) => pickPassive(chooser.id, passiveId)}
-      />
-    </ModalShell>
+    <DraftPage>
+      <DraftWho player={chooser} text={isActifStage ? "choisit son actif" : "découvre son passif"}>
+        <DraftRoster players={game.players} doneIds={doneIds} currentId={chooser.id} />
+      </DraftWho>
+      {isActifStage ? (
+        <DraftInspector
+          kind="actif"
+          cards={game.draft.offers[chooser.id] ?? []}
+          onPick={(passiveId) => pickPassive(chooser.id, passiveId)}
+          confirmLabel="Choisir cette carte"
+          note="Les autres joueurs ne voient pas ta carte : garde l’écran pour toi."
+        />
+      ) : (
+        <DraftInspector
+          kind="passif"
+          cards={[game.draft.offers[chooser.id]?.[0] ?? "lambda"]}
+          onPick={(passiveId) => pickPassive(chooser.id, passiveId)}
+          confirmLabel={remainingIds.size === 1 ? "Lancer la partie" : "J’ai compris"}
+          note={
+            remainingIds.size === 1
+              ? "Tout le monde a ses cartes : la partie démarre dès que tu valides."
+              : "Personne d’autre à la table n’a le même passif que toi."
+          }
+        />
+      )}
+    </DraftPage>
   );
 }
 
@@ -105,44 +151,63 @@ function OnlineDraft({ playerId }: { playerId: string }) {
   const draft = useGameStore((state) => state.draft);
   const players = useGameStore((state) => state.players);
   const pickPassive = useGameStore((state) => state.pickPassive);
-  const seconds = useSecondsLeft(draft?.deadline ?? null);
   if (!draft) return null;
+  const me = players.find((player) => player.id === playerId);
   const picked = draft.picks[playerId];
+  const isActifStage = draft.stage === "actif";
+  const dealtPassif = draft.offers[playerId]?.[0];
 
   return (
-    <ModalShell
-      title="Choisis ton passif"
-      eyebrow={seconds === null ? "Avant la partie" : `Avant la partie · ${seconds} s`}
-      tone="grape"
-      size="large"
-      className="draft-modal"
-    >
-      <PassiveCards
-        offers={draft.offers[playerId] ?? []}
-        picked={picked}
-        onPick={(passiveId) => pickPassive(playerId, passiveId)}
-      />
-      <p className="draft-note">
-        {picked
-          ? "Tu peux encore changer d’avis tant que la table n’a pas fini."
-          : "Sans choix à la fin du temps, une de tes cartes est tirée au hasard."}
-      </p>
-      <ul className="draft-roster" aria-label="Choix de la table">
-        {players.map((player) => (
-          <DraftRosterEntry key={player.id} player={player} picked={draft.picks[player.id] !== undefined} />
-        ))}
-      </ul>
-    </ModalShell>
+    <DraftPage corner={<DraftTimer deadline={draft.deadline ?? null} />}>
+      {me && (
+        <DraftWho
+          player={me}
+          text={isActifStage ? "choisit son actif" : picked ? "a lu son passif" : "découvre son passif"}
+        >
+          <DraftRoster
+            players={players}
+            doneIds={new Set(players.filter((player) => draft.picks[player.id] !== undefined).map((p) => p.id))}
+            currentId={me.id}
+          />
+        </DraftWho>
+      )}
+      {isActifStage || !dealtPassif ? (
+        <DraftInspector
+          kind="actif"
+          cards={draft.offers[playerId] ?? []}
+          pickedId={picked}
+          onPick={(passiveId) => pickPassive(playerId, passiveId)}
+          confirmLabel={picked === undefined ? "Choisir cette carte" : "Changer pour celle-ci"}
+          note={
+            picked
+              ? "Tu peux encore changer d’avis tant que la table n’a pas fini."
+              : "Sans choix à la fin du temps, une de tes cartes est tirée au hasard."
+          }
+        />
+      ) : (
+        <DraftInspector
+          kind="passif"
+          cards={[dealtPassif]}
+          pickedId={picked}
+          onPick={(passiveId) => pickPassive(playerId, passiveId)}
+          confirmLabel={picked !== undefined ? "C’est noté" : "J’ai compris mon passif"}
+          confirmDisabled={picked !== undefined}
+          note="Personne d’autre n’a le même passif que toi. La partie démarre quand tout le monde est prêt."
+        />
+      )}
+    </DraftPage>
   );
 }
 
-function DraftRosterEntry({ player, picked }: { player: Player; picked: boolean }) {
+/** The clock owns its own ticking state, so the cards on the page do not re-render four times a second. */
+function DraftTimer({ deadline }: { deadline: number | null }) {
+  const seconds = useSecondsLeft(deadline);
+  if (seconds === null) return null;
   return (
-    <li className={picked ? "is-picked" : ""}>
-      <PlayerAvatar color={player.color} size={28} />
-      <span>{player.name}</span>
-      <small>{picked ? "a choisi ✓" : "réfléchit…"}</small>
-    </li>
+    <span className={`draft-timer${seconds <= 10 ? " is-low" : ""}`} role="timer" aria-label="Temps restant">
+      <UiIcon name="clock" size={18} /> {seconds}
+      <span className="draft-timer__unit">s</span>
+    </span>
   );
 }
 

@@ -9,6 +9,8 @@ export const TUNNEL_EXTRA_MS = 560;
 
 /** Banquise: the spin on the ice before a slide sets off, then one tile of gliding. */
 export const WOBBLE_MS = 280;
+/** A pawn sliding into a Barrière: the lunge, the knock and the rebound. */
+export const BUMP_MS = 620;
 export const GLIDE_MS = 440;
 
 /** Banquise: falling ice lands and closes around a pawn; later, the pawn bursts out of it. */
@@ -35,8 +37,19 @@ export const GHOST_SLAP_IMPACT_MS = 430;
 /** Luna Park: the ghost carries its victim through the air down into Hell. */
 export const GHOST_CARRY_MS = 1_300;
 
+/** Portail: the swirl widens across the tile and swallows the pawn standing on it. */
+export const PORTAL_SWALLOW_MS = 900;
+/** Hell: a portal opens and the pawn drops through it onto the Hell floor. */
+export const HELL_DROP_MS = 700;
+
+/** Chance aveugle: a beat standing in the mud, then the skid that throws them back a tile. */
+export const MUD_SLIP_MS = 1_000;
+
 /** Pause after a Red Cup pickup before modals open, so the celebration reads. */
 export const CUP_CELEBRATION_MS = 900;
+
+/** Roller: one throw of the die for the Red Cup, from the tumble to the end of the pause on its face. */
+export const CUP_ROLL_THROW_MS = 1_600;
 
 /** How long a table-wide banner (Bullet Bill, Bénédiction, carousel) stays on screen. */
 export const ALERT_BANNER_MS = 3_400;
@@ -66,7 +79,9 @@ export function estimateMovementMs(
   board: Board,
   movement: Pick<PlayerMovement, "from" | "path"> & Partial<PlayerMovement>,
 ): number {
-  if (movement.thawed) return SHATTER_MS + GLIDE_MS;
+  if (movement.thawed) {
+    return SHATTER_MS + GLIDE_MS + (movement.portalNodeId !== undefined ? PORTAL_SWALLOW_MS + HELL_DROP_MS : 0);
+  }
   if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
   const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
@@ -82,6 +97,11 @@ export function estimateMovementMs(
     previous = nodeId;
   });
 
+  total += (movement.bumps?.length ?? 0) * BUMP_MS;
   if (movement.interruptedTo !== undefined) total += WOBBLE_MS + GLIDE_MS / 2;
+  // A Portail at the walk's end: the pawn lands on the tile, is swallowed, then drops into Hell.
+  if (movement.portalNodeId !== undefined) total += PORTAL_SWALLOW_MS + HELL_DROP_MS;
+  // Chance aveugle: the slip in the mud, before the mud is gone.
+  if (movement.slippedInMud) total += MUD_SLIP_MS;
   return total;
 }

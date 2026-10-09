@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
+import type { PassiveId } from "../../game/types";
+import { useVisibleCards } from "../card-visibility";
 import { getBoardMap } from "../../game/maps/map-registry";
 import { useGameStore } from "../../game/store";
 import { HELL_NODE_ID } from "../../game/types";
@@ -26,6 +28,7 @@ export function TurnSplash() {
     return () => window.clearTimeout(timer);
   }, [splash, hideSplash]);
 
+  const cards = useVisibleCards(player);
   if (!splash || !player) return null;
   const inHell = player.position === HELL_NODE_ID;
 
@@ -43,7 +46,12 @@ export function TurnSplash() {
             {inHell ? "Depuis l’Enfer…" : openingTurn ? `C’est parti · ${mapName}` : "C’est parti !"}
           </span>
           <strong className="turn-splash__title">Au tour de {player.name}</strong>
-          <span className="turn-splash__passive">{PASSIVE_CATALOG[player.passiveId].name}</span>
+          <span className="turn-splash__passive">
+            {[cards.actif ?? "Actif caché", cards.passif]
+              .filter((cardId): cardId is string => cardId !== null)
+              .map((cardId) => (cardId in PASSIVE_CATALOG ? PASSIVE_CATALOG[cardId as PassiveId].name : cardId))
+              .join(" · ")}
+          </span>
         </div>
       </div>
     </div>

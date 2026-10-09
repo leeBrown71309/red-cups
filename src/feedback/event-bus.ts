@@ -10,20 +10,22 @@ export type FeedbackEvent =
   | { type: "currency"; playerId: PlayerId; delta: number; purchase: boolean }
   | { type: "cup-collected"; playerId: PlayerId; nodeId: NodeId }
   | { type: "cup-spawned"; nodeId: NodeId }
+  /** Roller: the throws made for the Red Cup, shown to the whole table, then announced on the banner. */
+  | { type: "cup-roll"; playerId: PlayerId; rolls: number[]; success: boolean }
   | { type: "shop-opened"; playerId: PlayerId }
   | { type: "purchase"; playerId: PlayerId }
   | { type: "hell-entered"; playerId: PlayerId }
   | { type: "hell-escaped"; playerId: PlayerId }
   | { type: "teleport"; playerId: PlayerId }
   | { type: "duel-started" }
+  /** Double or nothing: the coin flip of a gamble, shown to the whole table. */
+  | { type: "gamble-result"; playerId: PlayerId; doubled: boolean }
   | { type: "mud-placed"; nodeId: NodeId }
   | { type: "mud-triggered"; nodeId: NodeId }
   | { type: "bullet-launched" }
   | { type: "bullet-flight"; flight: BulletFlight }
   | { type: "bullet-hit"; playerId: PlayerId; nodeId: NodeId }
   | { type: "blessing-started" }
-  /** Le diable is announced to the whole table as the game starts. */
-  | { type: "devil-announced"; playerId: PlayerId; goal: number }
   | { type: "doomsday-started" }
   /** Online: the player whose turn starts has one chance left before a forfeit. */
   | { type: "last-chance"; playerId: PlayerId }
@@ -39,6 +41,12 @@ export type FeedbackEvent =
   | { type: "pawn-hop" }
   | { type: "pawn-tunnel" }
   | { type: "pawn-slide" }
+  /** Portail: the pawn landed on the tile and the portal is swallowing it whole. */
+  | { type: "portal-swallowed"; nodeId: NodeId }
+  /** Portail: a portal opens on the Hell side for the pawn to drop through. */
+  | { type: "hell-portal-open" }
+  /** Banquise: a slide ran into a Barrière on the road between two tiles and bounced back. */
+  | { type: "barrier-bump"; from: NodeId; toward: NodeId }
   | { type: "ice-shatter"; playerId: PlayerId }
   | { type: "ice-fall"; playerId: PlayerId; from: NodeId; to: NodeId; hit: boolean }
   | { type: "blizzard"; from: NodeId | null; to: NodeId | null }

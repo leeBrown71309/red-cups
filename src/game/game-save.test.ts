@@ -34,10 +34,13 @@ const KEYS_ADDED_BY_PATCH_0_1_4: (keyof GameState)[] = [
   "pause",
 ];
 
+/** Patch 0.1.6 added the Meneur de jeu's choice of mini-game. */
+const KEYS_ADDED_BY_PATCH_0_1_6: (keyof GameState)[] = ["pendingDuelChoice", "barriers"];
+
 describe("game save upgrade", () => {
   const saved = pickGameState(reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["A", "B"] }));
 
-  it.each(KEYS_ADDED_BY_PATCH_0_1_4)("restores a save from before %s", (key) => {
+  it.each([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6])("restores a save from before %s", (key) => {
     const legacy: Partial<GameState> = { ...saved };
     delete legacy[key];
     const upgraded = migrateGameSave(legacy, GAME_SAVE_VERSION - 1);
@@ -45,8 +48,15 @@ describe("game save upgrade", () => {
     expect(key in upgraded).toBe(true);
   });
 
+  it("restores a game saved before the Barrière took its final shape, with no barriers", () => {
+    const legacy = { ...saved, barrier: { ownerId: "p1", a: 0, b: 1 } } as Record<string, unknown>;
+    delete legacy.barriers;
+    const upgraded = migrateGameSave(legacy, 23);
+    expect(upgraded.barriers).toEqual([]);
+  });
+
   it("knows every key of the state", () => {
-    const tracked = new Set<string>(KEYS_ADDED_BY_PATCH_0_1_4);
+    const tracked = new Set<string>([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6]);
     // A key added later must be listed above and filled in by `upgradeSave`.
     const unknown = Object.keys(EMPTY_GAME_STATE).filter(
       (key) => !tracked.has(key) && !(key in KEYS_BEFORE_PATCH_0_1_4),
@@ -88,8 +98,11 @@ const KEYS_BEFORE_PATCH_0_1_4: Record<string, true> = Object.fromEntries(
     "frozenSlides",
     "lastBlizzard",
     "lastIceFall",
+    "lastGambleResult",
+    "queuedWheels",
     "ghost",
     "lastGhostEvent",
+    "lastCupRoll",
     "lastTomatoThrow",
     "snowballHits",
     "snowFrozenPlayerIds",

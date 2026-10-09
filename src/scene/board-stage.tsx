@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { isPortalVisible } from "../game/devil";
+import { isKnockedOut } from "../game/rules";
+import { getBarrierRoads } from "../game/turn-actions";
 import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import type { MapId, NodeId } from "../game/types";
@@ -28,6 +31,14 @@ export const boardCamera = {
 
 type StageStatus = "loading" | "ready" | "error";
 
+/** A road was tapped while a Barrière is being set down: the item is used on it. */
+function placeBarrierOnRoad(road: [NodeId, NodeId]): void {
+  const { roadPickEntryId, setRoadPickEntryId } = useUiStore.getState();
+  if (roadPickEntryId === null) return;
+  setRoadPickEntryId(null);
+  useGameStore.getState().useItem(roadPickEntryId, undefined, undefined, road);
+}
+
 function openGhostLoot(): void {
   useUiStore.getState().setGhostLootOpen(true);
 }
@@ -40,7 +51,8 @@ function useDisplayedMapId(mode: CameraMode): MapId {
   return mode === "play" && phase !== "setup" ? gameMapId : previewMapId;
 }
 
-export function BoardStage({ mode }: { mode: CameraMode }) {
+/** `paused`: a full-screen page covers the board, so it is kept alive but not drawn. */
+export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [world, setWorld] = useState<BoardWorld | null>(null);
   const [status, setStatus] = useState<StageStatus>("loading");
@@ -58,7 +70,7 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
       try {
         created = new BoardWorld(
           container,
-          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot },
+          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot, onRoadSelect: placeBarrierOnRoad },
           mapId,
         );
         boardCamera.world = created;
@@ -78,14 +90,27 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
     };
   }, [mapId]);
 
+  useEffect(() => {
+    world?.setPaused(paused);
+  }, [world, paused]);
+
   const view = useBoardView(mode, mapId);
   useEffect(() => {
     world?.update(view);
   }, [world, view]);
 
   return (
-    <div className="board-stage" data-status={status} data-map-theme={getBoardMap(mapId).themeId}>
+    <div
+      className="board-stage"
+      data-status={status}
+      data-map-theme={getBoardMap(mapId).themeId}
+      data-doomed={view.doomed}
+    >
+      {/* Doomsday's sky: it fades in behind the transparent canvas. */}
+      <div className="board-stage__doom" aria-hidden="true" />
       <div className="board-stage__canvas" ref={containerRef} aria-label="Plateau de jeu Red Cups en 3D" role="img" />
+      {/* Desktop only: the edges of the view blur, as the far decor would under a lens. */}
+      <div className="board-stage__focus" aria-hidden="true" />
       {status === "loading" && (
         <div className="board-stage__message">
           <span className="board-stage__spinner" aria-hidden="true" />
@@ -104,25 +129,38 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
 interface LaggedProps {
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
+  portalNodeIds: NodeId[];
 }
 
 /**
- * The rules move the Red Cup and remove mud the instant a move is played. The
- * board keeps showing the previous props until the pawn has landed on them.
+ * The rules move the Red Cup, remove mud and close the Portails the instant a
+ * move is played. The board keeps showing the previous props until the pawn
+ * has landed, walked into the Portail and fallen through.
  */
 function useLaggedProps(): LaggedProps {
   const redCupNodeId = useGameStore((state) => state.redCupNodeId);
   const mudTraps = useGameStore((state) => state.mudTraps);
+  const hellPortals = useGameStore((state) => state.hellPortals);
+  const round = useGameStore((state) => state.round);
   const settled = useBoardSettled();
+  const visiblePortalNodeIds = useMemo(
+    () => hellPortals.filter((portal) => isPortalVisible({ round }, portal)).map((portal) => portal.nodeId),
+    [hellPortals, round],
+  );
   const [displayed, setDisplayed] = useState<LaggedProps>(() => ({
     redCupNodeId,
     mudNodeIds: mudTraps.map((trap) => trap.nodeId),
+    portalNodeIds: visiblePortalNodeIds,
   }));
 
   useEffect(() => {
     if (!settled) return;
-    setDisplayed({ redCupNodeId, mudNodeIds: mudTraps.map((trap) => trap.nodeId) });
-  }, [settled, redCupNodeId, mudTraps]);
+    setDisplayed({
+      redCupNodeId,
+      mudNodeIds: mudTraps.map((trap) => trap.nodeId),
+      portalNodeIds: visiblePortalNodeIds,
+    });
+  }, [settled, redCupNodeId, mudTraps, visiblePortalNodeIds]);
 
   return displayed;
 }
@@ -134,6 +172,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const cupHidden = useRedCupHidden();
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
+  const roadPickEntryId = useUiStore((state) => state.roadPickEntryId);
 
   return useMemo(() => {
     const activePlayer = game.players[game.activePlayerIndex];
@@ -143,6 +182,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       mode,
       carouselReversed: playing && game.carouselReversed,
       iceTileNodeId: playing ? game.iceTileNodeId : null,
+      doomed: playing && game.doomsday !== null,
       pawns: playing
         ? game.players.map((player) => {
             // Stuck in fallen ice only while still on the tile the slide left from.
@@ -154,7 +194,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
               color: player.color,
               position: player.position,
               isActive: game.phase === "playing" && player.id === activePlayer?.id,
-              isSleeping: player.skippedTurns > 0,
+              isSleeping: isKnockedOut(player),
               ...(frozen ? { frozenTo: frozen.to } : {}),
               ...(game.snowFrozenPlayerIds.includes(player.id) ? { snowFrozen: true } : {}),
               ...(game.guardian?.protegeId === player.id ? { halo: true } : {}),
@@ -163,7 +203,10 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
         : [],
       redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
       mudNodeIds: playing ? lagged.mudNodeIds : [],
-      portalNodeIds: playing ? game.hellPortals.map((portal) => portal.nodeId) : [],
+      barrierEdges: playing ? game.barriers.map((barrier): [NodeId, NodeId] => [barrier.a, barrier.b]) : [],
+      pickableRoads: playing && roadPickEntryId !== null ? getBarrierRoads(game) : [],
+      // Lagged: the Portail stays under the pawn until it has fallen through.
+      portalNodeIds: playing ? lagged.portalNodeIds : [],
       // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
       bulletBill:
         playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,
@@ -182,5 +225,5 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       followActivePlayer,
       activePlayerId: activePlayer?.id ?? null,
     };
-  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, mode, mapId]);
+  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, roadPickEntryId, mode, mapId]);
 }

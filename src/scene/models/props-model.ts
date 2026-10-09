@@ -7,6 +7,12 @@ export interface AnimatedProp {
   update: (elapsed: number, delta: number) => void;
 }
 
+/** A Portail that can widen over its tile and swallow what stands on it. */
+export interface HellPortalProp extends AnimatedProp {
+  /** Start the swallow; it runs for `seconds`, then the prop is the world's to remove. */
+  swallow: (seconds: number) => void;
+}
+
 /** The iconic red plastic cup, floating above its tile with a light pillar. */
 export function createRedCup(kit: SceneKit): AnimatedProp {
   const group = new THREE.Group();
@@ -152,7 +158,7 @@ export function createMudPuddle(kit: SceneKit): AnimatedProp {
 }
 
 /** Le diable's Portail: a purple swirl onto Hell, laid on a tile's top and slowly turning. */
-export function createHellPortal(kit: SceneKit): AnimatedProp {
+export function createHellPortal(kit: SceneKit): HellPortalProp {
   const group = new THREE.Group();
   const swirl = new THREE.Group();
   group.add(swirl);
@@ -182,21 +188,85 @@ export function createHellPortal(kit: SceneKit): AnimatedProp {
   });
 
   let age = 0;
+  let swallowAge: number | null = null;
+  let swallowSeconds = 1;
+  let swirlAngle = 0;
   swirl.scale.setScalar(0.001);
+  return {
+    group,
+    swallow: (seconds) => {
+      if (swallowAge === null) {
+        swallowAge = 0;
+        swallowSeconds = Math.max(0.2, seconds);
+      }
+    },
+    update: (elapsed, delta) => {
+      age += delta;
+      let collapse = 0;
+      if (swallowAge === null) {
+        swirl.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
+        swirlAngle -= delta * 1.4;
+      } else {
+        // Widen across the whole tile, whirl faster, then collapse into the pit.
+        swallowAge += delta;
+        const t = Math.min(1, swallowAge / swallowSeconds);
+        const widen = Math.min(1, t / 0.45);
+        collapse = t < 0.45 ? 0 : ((t - 0.45) / 0.55) ** 2;
+        swirl.scale.setScalar(Math.max(0.001, (1 + widen * widen * 1.9) * (1 - collapse * 0.94)));
+        swirlAngle -= delta * (1.4 + t * 16);
+        group.position.y -= delta * t * 0.4;
+      }
+      swirl.rotation.y = swirlAngle;
+      sparks.forEach((spark, index) => {
+        const cycle = (elapsed * (swallowAge === null ? 0.6 : 2.4) + index * 0.33) % 1;
+        const angle = elapsed * 2 + (index / sparks.length) * Math.PI * 2;
+        spark.position.set(Math.cos(angle) * 0.22, 0.12 + cycle * 0.35, Math.sin(angle) * 0.22);
+        spark.visible = swallowAge === null || collapse < 0.6;
+      });
+    },
+  };
+}
+
+/** A Barrière stands a little larger than life, so it reads from the far camera. */
+const BARRIER_SCALE = 1.7;
+
+/**
+ * A Barrière lying across a road: two posts and a bar in red and white
+ * stripes. The road runs along the group's z axis, the bar along its x axis;
+ * it drops in with a small bounce.
+ */
+export function createBarrierProp(kit: SceneKit): AnimatedProp {
+  const group = new THREE.Group();
+  const post = kit.geometry("barrier-post", () => new THREE.CylinderGeometry(0.07, 0.09, 0.8, 6));
+  for (const side of [-1, 1]) {
+    const mesh = new THREE.Mesh(post, kit.flat("#c9c1b6"));
+    mesh.position.set(side * 0.62, 0.4, 0);
+    mesh.castShadow = true;
+    addOutline(mesh, kit, 1.1);
+    group.add(mesh);
+  }
+  const stripe = kit.geometry("barrier-stripe", () => new THREE.BoxGeometry(0.31, 0.2, 0.1));
+  for (let index = 0; index < 4; index += 1) {
+    const mesh = new THREE.Mesh(stripe, kit.flat(index % 2 === 0 ? "#e8453c" : "#fff4ec"));
+    mesh.position.set(-0.465 + index * 0.31, 0.62, 0);
+    mesh.castShadow = true;
+    group.add(mesh);
+  }
+  const lamp = new THREE.Mesh(
+    kit.geometry("barrier-lamp", () => new THREE.IcosahedronGeometry(0.09, 0)),
+    kit.flat("#ffd166", { emissive: "#ffb000", emissiveIntensity: 0.9 }),
+  );
+  lamp.position.set(0, 0.85, 0);
+  group.add(lamp);
+
+  let age = 0;
+  group.scale.setScalar(0.001);
   return {
     group,
     update: (elapsed, delta) => {
       age += delta;
-      swirl.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS))));
-      swirl.rotation.y = -elapsed * 1.4;
-      sparks.forEach((spark, index) => {
-        const angle = elapsed * 2 + (index / sparks.length) * Math.PI * 2;
-        spark.position.set(
-          Math.cos(angle) * 0.22,
-          0.12 + ((elapsed * 0.6 + index * 0.33) % 1) * 0.35,
-          Math.sin(angle) * 0.22,
-        );
-      });
+      group.scale.setScalar(Math.max(0.001, easeOutBack(Math.min(1, age / MUD_POP_SECONDS)) * BARRIER_SCALE));
+      lamp.scale.setScalar(1 + Math.sin(elapsed * 6) * 0.15);
     },
   };
 }

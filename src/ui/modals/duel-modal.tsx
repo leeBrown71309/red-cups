@@ -6,6 +6,7 @@ import { useGameStore } from "../../game/store";
 import type { GhostStakes, PendingDuel, PlayerId, RpsChoice } from "../../game/types";
 import { useCanActFor, useLocalPlayerId } from "../../net/room-store";
 import { soundEffects } from "../../audio/sound-effects";
+import { useCanSeeBagOf } from "../card-visibility";
 import { ModalShell } from "../components/modal-shell";
 import { WaitingNote } from "../components/waiting-note";
 import { DUEL_MODE_LABELS } from "../display/game-display";
@@ -44,6 +45,46 @@ export function DuelModal() {
       first={first}
       second={second}
     />
+  );
+}
+
+/** Meneur de jeu: two mini-games were drawn, their host picks the one the duel is played with. */
+export function DuelChoiceModal() {
+  const choice = useGameStore((state) => state.pendingDuelChoice);
+  const players = useGameStore((state) => state.players);
+  const chooseDuelMode = useGameStore((state) => state.chooseDuelMode);
+  const canChoose = useCanActFor([choice?.chooserId]);
+  if (!choice) return null;
+  const chooser = players.find((player) => player.id === choice.chooserId);
+  const first = findDuellist(players, choice.playerOneId);
+  const second = findDuellist(players, choice.playerTwoId);
+
+  return (
+    <ModalShell title="Duel en Enfer" eyebrow="Meneur de jeu" tone="grape" size="medium" className="duel-modal">
+      {first && second && (
+        <div className="duel-versus">
+          <Contestant duellist={first} state="idle" />
+          <span className="duel-versus__vs">VS</span>
+          <Contestant duellist={second} state="idle" />
+        </div>
+      )}
+      {canChoose ? (
+        <div className="duel-panel">
+          <p className="duel-secret">
+            <strong>{chooser?.name}</strong>, choisis le mini-jeu :
+          </p>
+          <div className="vote-options">
+            {choice.modes.map((mode) => (
+              <button key={mode} type="button" className="vote-option" onClick={() => chooseDuelMode(mode)}>
+                {DUEL_MODE_LABELS[mode]}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <WaitingNote player={chooser} text={`${chooser?.name ?? "Le meneur de jeu"} choisit le mini-jeu…`} />
+      )}
+    </ModalShell>
   );
 }
 
@@ -149,6 +190,8 @@ function GhostStakesNote() {
 }
 
 function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; player: Duellist; playerWon: boolean }) {
+  // Online, the item taken from a bag is named to its owner only.
+  const canSeeBag = useCanSeeBagOf(player.id);
   if (playerWon) {
     const { reward } = stakes;
     const text =
@@ -163,7 +206,7 @@ function GhostOutcome({ stakes, player, playerWon }: { stakes: GhostStakes; play
       ? `Il gifle ${player.name} et l’emporte en Enfer !`
       : penalty.kind === "coins"
         ? `Il vole ${penalty.amount} pièces à ${player.name}, qu’il garde dans son butin.`
-        : `Il vole ${ITEM_CATALOG[penalty.itemId].name} à ${player.name}, qu’il garde dans son butin.`;
+        : `Il vole ${canSeeBag ? ITEM_CATALOG[penalty.itemId].name : "un objet"} à ${player.name}, qu’il garde dans son butin.`;
   return <p>{text}</p>;
 }
 
@@ -231,6 +274,14 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
     if (decided || showingTie) soundEffects.reveal();
   }, [decided, showingTie]);
 
+  // Online, only a duellist presses « On rejoue »: the others watch the tie, then the table goes on by itself.
+  const canAdvanceTie = localPlayerId === null || choosers.some((duellist) => duellist.id === localPlayerId);
+  useEffect(() => {
+    if (!showingTie || canAdvanceTie) return undefined;
+    const timer = window.setTimeout(() => setSeenTies(duel.rpsTies), TIE_BREAK_REVEAL_MS);
+    return () => window.clearTimeout(timer);
+  }, [showingTie, canAdvanceTie, duel.rpsTies]);
+
   useEffect(() => {
     // A new round starts with nobody's hand picked: the local hand-over starts over too.
     if (Object.keys(duel.rpsChoices).length === 0) setHandedOver(false);
@@ -248,9 +299,13 @@ function RockPaperScissors({ duel, first, second }: DuelArenaProps) {
     return (
       <div className="duel-panel">
         <HandsReveal duel={duel} first={first} second={second} />
-        <button type="button" className="btn btn--gold" onClick={() => setSeenTies(duel.rpsTies)} data-autofocus>
-          Égalité ! On rejoue
-        </button>
+        {canAdvanceTie ? (
+          <button type="button" className="btn btn--gold" onClick={() => setSeenTies(duel.rpsTies)} data-autofocus>
+            Égalité ! On rejoue
+          </button>
+        ) : (
+          <p className="duel-secret">Égalité ! On rejoue…</p>
+        )}
       </div>
     );
   }

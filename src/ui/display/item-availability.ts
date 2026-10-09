@@ -1,16 +1,24 @@
+import { hasCard } from "../../game/cards";
 import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
-import { getCopyLimit, getTheftRisk, throwsOneStackPerTurn } from "../../game/passive-rules";
+import { canWalkWithBoot } from "../../game/game-actions";
+import {
+  getCopyLimit,
+  getTheftRisk,
+  throwsOneStackPerTurn,
+  mustWaitForMudToBeSteppedOn,
+} from "../../game/passive-rules";
 import {
   getCorrupterBlocker,
   getInventoryCapacity,
-  getItemPrice,
+  getPriceFor,
   isOnSale,
   type CorrupterBlocker,
 } from "../../game/rules";
 import { findStackWithRoom } from "../../game/state-utils";
+import { canPlaceBarrier } from "../../game/turn-actions";
 import type { GameState, ItemId, Player } from "../../game/types";
-import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID } from "../../game/types";
+import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MAX_BARRIERS } from "../../game/types";
 import { formatEnergyCost } from "../components/energy-meter";
 
 const CORRUPTER_HINTS: Record<Exclude<CorrupterBlocker, "not-corrupter">, { short: string; full: string }> = {
@@ -37,6 +45,9 @@ const AUTOMATIC_ITEM_HINTS: Partial<Record<ItemId, string>> = {
   helmet: "Se déclenche tout seul avant de passer sous zéro.",
   "hell-touch": "Se déclenche tout seul dès qu’un joueur assommé se trouve sur ta case.",
   shield: "Se propose tout seul quand ton protégé est visé ou que Bullet Bill fonce sur lui.",
+  "wake-up": "Se déclenche tout seul quand un tour sauté te menace.",
+  parachute: "Se déclenche tout seul avant une descente en Enfer.",
+  mirror: "Se déclenche tout seul quand un objet te vise.",
 };
 
 export interface ItemAvailability {
@@ -83,7 +94,7 @@ export function getItemAvailability(
   if (notYourTurn) return { usable: false, kind: "instant", actionLabel: "Utiliser", reason: "Attends ton tour." };
 
   if (itemId === "boot") {
-    if (player.passiveId === "roller") {
+    if (hasCard(player, "roller")) {
       return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Le Roller a son dé." };
     }
     if (inHell) return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Inutile en Enfer." };
@@ -95,6 +106,9 @@ export function getItemAvailability(
     if (!canAffordItem(state, itemId)) {
       return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: getEnergyReason(itemId, state) };
     }
+    if (!canWalkWithBoot(state, player)) {
+      return { usable: false, kind: "prepare-boot", actionLabel: "Chausser", reason: "Aucune route possible." };
+    }
     return { usable: true, kind: "prepare-boot", actionLabel: "Chausser" };
   }
 
@@ -103,6 +117,9 @@ export function getItemAvailability(
   }
   if (itemId === "mud" && state.mudPlacedThisTurn) {
     return { usable: false, kind: "instant", actionLabel: "Poser", reason: "Une seule Boue par tour." };
+  }
+  if (itemId === "mud" && mustWaitForMudToBeSteppedOn(state, player)) {
+    return { usable: false, kind: "instant", actionLabel: "Poser", reason: "Ta Boue attend encore sa victime." };
   }
 
   if (itemId === "water-bottle" && !inHell) {
@@ -121,7 +138,8 @@ export function getItemAvailability(
     };
   }
 
-  const kind: ItemUseKind = ITEM_CATALOG[itemId].target === "player" ? "target" : "instant";
+  const kind: ItemUseKind =
+    ITEM_CATALOG[itemId].target === "player" || ITEM_CATALOG[itemId].target === "road" ? "target" : "instant";
   const actionLabel =
     itemId === "water-bottle"
       ? "Boire"
@@ -129,7 +147,18 @@ export function getItemAvailability(
         ? "Poser"
         : itemId === "tomato" || itemId === "bullet-bill"
           ? "Lancer"
-          : "Utiliser";
+          : itemId === "barrier"
+            ? "Poser"
+            : "Utiliser";
+  if (itemId === "barrier" && !canPlaceBarrier(state, player.id)) {
+    const own = state.barriers.some((barrier) => barrier.ownerId === player.id);
+    return {
+      usable: false,
+      kind,
+      actionLabel,
+      reason: own ? "Ta Barrière tient encore." : `Déjà ${MAX_BARRIERS} Barrières sur le plateau.`,
+    };
+  }
   if (itemId === "bullet-bill" && state.bulletBill) {
     return { usable: false, kind, actionLabel, reason: "Un Bullet Bill est déjà sur le plateau." };
   }
@@ -150,7 +179,7 @@ export interface PurchaseStatus {
 
 /** Why an item cannot leave the shelf for this player, whatever they pay: their passive, the bag, the Cup. */
 function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): string | null {
-  if (itemId === "boot" && player.passiveId === "roller") return "Pas pour le Roller";
+  if (itemId === "boot" && hasCard(player, "roller")) return "Pas pour le Roller";
   // Chance aveugle is not told where the Red Cup stands.
   if (!isOnSale(state, itemId)) return "Pas en vente pour l’instant";
 
@@ -168,7 +197,7 @@ function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): stri
 
 /** Explains why an item is greyed out in the shop instead of silently disabling it. */
 export function getPurchaseStatus(itemId: ItemId, state: GameState, player: Player): PurchaseStatus {
-  const price = getItemPrice(itemId, state.bootPrice, player);
+  const price = getPriceFor(state, itemId, player);
   const blocker = getShelfBlocker(itemId, state, player);
   if (blocker) return { price, canBuy: false, reason: blocker };
   if (player.currency < price) return { price, canBuy: false, reason: "Trop cher" };
@@ -184,8 +213,8 @@ export interface TheftStatus {
 
 /** Voleur: the risk of stealing an item, or why it cannot be tried; null for everyone else. */
 export function getTheftStatus(itemId: ItemId, state: GameState, player: Player): TheftStatus | null {
-  if (player.passiveId !== "thief") return null;
-  const risk = getTheftRisk(getItemPrice(itemId, state.bootPrice, player));
+  if (!hasCard(player, "thief")) return null;
+  const risk = getTheftRisk(getPriceFor(state, itemId, player));
   if (state.theftAttempted) return { risk, canSteal: false, reason: "Un seul vol par visite" };
   const blocker = getShelfBlocker(itemId, state, player);
   return blocker ? { risk, canSteal: false, reason: blocker } : { risk, canSteal: true };

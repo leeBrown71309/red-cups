@@ -17,6 +17,7 @@ function makePlayer(overrides: Partial<Player> = {}): Player {
     inventory: [],
     passiveId: "built-like-a-tank",
     skippedTurns: 0,
+    knockedOut: false,
     hellTurns: 0,
     noThanksReadyRound: 1,
     previousNodeId: null,

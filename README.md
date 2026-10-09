@@ -13,6 +13,16 @@ Les règles, décisions confirmées et points ouverts sont dans [`red-cups-game-
 patch 0.1.4 est décrit lot par lot dans [`plans/patch-0.1.4-rework.md`](./plans/patch-0.1.4-rework.md), et ses choix
 encore à valider dans la section 13 de la spec.
 
+## Patch 0.1.5
+
+- **Menu** avant la préparation de la partie, avec la version du jeu et un journal des modifications.
+- **Passifs en cartes de tarot** au draft et dans l’aide.
+- **En ligne** : le salon se rejoint jusqu’à la fin du premier tour de table, et l’hôte peut exclure un joueur.
+  Ces deux règles demandent d’appliquer `supabase/schema.sql` à la base.
+- **Actifs et passifs** : deux cartes par joueur (draft en deux étages), sac et actif cachés en ligne, Goblin passif,
+  9 nouveaux passifs, 4 nouveaux objets (Réveil, Parachute, Barrière, Miroir). Plan : `plans/patch-actifs-passifs.md`.
+- Les choix de ce patch encore à valider sont dans les sections 13 bis et 13 ter de la spec.
+
 ## Déroulé d’une partie (patch 0.1.4)
 
 - **Draft** : chacun choisit son passif parmi 3 cartes (2 au-delà de 6 joueurs). En local, l’écran passe de main en
@@ -20,7 +30,7 @@ encore à valider dans la section 13 de la spec.
 - **Énergie** : 3 points par tour. On utilise d’abord ses objets, chacun à son coût, puis on se déplace : le
   déplacement prend le reste et termine le tour.
 - **Rôles** : le diable (annoncé à tous, sa boutique, sa victoire par les entrées en Enfer), L’Ange-Gardien (un
-  protégé public, avec un halo), Cupide (victoire à 5 000 pièces) et une vingtaine de passifs.
+  protégé public, avec un halo), Cupide (victoire à 6 000 pièces) et une vingtaine de passifs.
 - **Mini-jeux** : les duels tirent pile ou face, pierre-feuille-ciseaux, vote, Basket ou Blackjack ; Baraqué répond
   au Monopoly Man par un bras de fer.
 - **En ligne** : 45 secondes par tour, 20 pour les décisions des autres, avec un choix par défaut à l’échéance ; un

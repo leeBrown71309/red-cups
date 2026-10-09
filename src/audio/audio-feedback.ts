@@ -1,3 +1,4 @@
+import { getLocalPlayerId } from "../net/room-store";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { useGameStore } from "../game/store";
 import type { GameState } from "../game/types";
@@ -45,6 +46,9 @@ export function startAudioFeedback(): () => void {
       case "pawn-slide":
         soundEffects.iceSlide();
         break;
+      case "barrier-bump":
+        soundEffects.error();
+        break;
       case "blizzard":
         soundEffects.blizzardWind();
         break;
@@ -70,6 +74,12 @@ export function startAudioFeedback(): () => void {
       case "teleport":
         soundEffects.tunnel();
         break;
+      case "portal-swallowed":
+        soundEffects.tunnel();
+        break;
+      case "hell-portal-open":
+        soundEffects.hellRumble();
+        break;
       case "currency": {
         // The shop's price is heard as the cash register of the purchase event.
         if (event.purchase) break;
@@ -87,6 +97,8 @@ export function startAudioFeedback(): () => void {
         soundEffects.shopBell();
         break;
       case "purchase":
+        // Online, what somebody else buys is theirs to know: only their own device rings the register.
+        if (getLocalPlayerId() !== null && getLocalPlayerId() !== event.playerId) break;
         soundEffects.purchase();
         break;
       case "hell-entered":

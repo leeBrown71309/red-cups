@@ -1,3 +1,4 @@
+import { hasCard } from "../cards";
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
 import { getBoard, getShortestPath } from "../board";
@@ -9,10 +10,11 @@ import { getHandValue } from "../blackjack";
 import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
 import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
-import { canAddItem, canUseCorrupter, canUseNoThanks, getItemPrice, getTurnMoveOptions, isOnSale } from "../rules";
+import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import type { GameStore } from "../store";
-import { planItemUse } from "../turn-actions";
+import { getBarrierRoads, planItemUse } from "../turn-actions";
+import { HELL_NODE_ID } from "../types";
 import type { InventoryEntry, ItemId, NodeId, PlayerId, RpsChoice } from "../types";
 import type { AppliedItem } from "./rule-invariants";
 
@@ -45,6 +47,8 @@ function distanceToCup(store: GameStore, nodeId: NodeId): number {
 interface ItemOption {
   entry: InventoryEntry & { kind: "item" };
   targetId?: PlayerId;
+  /** The two tiles of the road a Barrière closes. */
+  road?: [NodeId, NodeId];
   /** A whole volley of Tomates, or part of the stack. */
   count?: number;
 }
@@ -53,7 +57,7 @@ function useItemAction(store: GameStore, option: ItemOption): BotAction {
   const userId = getActivePlayer(store)?.id ?? "";
   return {
     label: `use:${option.entry.itemId}`,
-    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count),
+    perform: (current) => current.useItem(option.entry.id, option.targetId, option.count, option.road),
     item: {
       itemId: option.entry.itemId,
       entryId: option.entry.id,
@@ -69,6 +73,13 @@ function listUsableItems(store: GameStore): ItemOption[] {
   if (!player) return [];
   return player.inventory.flatMap((entry): ItemOption[] => {
     if (entry.kind !== "item") return [];
+    if (ITEM_CATALOG[entry.itemId].target === "road") {
+      // The bots close roads near them, where they get in somebody's way.
+      return getBarrierRoads(store)
+        .filter((road) => road.includes(player.position))
+        .filter((road) => planItemUse(store, entry.id, undefined, 1, road) !== null)
+        .map((road) => ({ entry, road }));
+    }
     if (ITEM_CATALOG[entry.itemId].target !== "player") {
       return planItemUse(store, entry.id) ? [{ entry }] : [];
     }
@@ -93,7 +104,7 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (!player) return null;
 
   const boot = player.inventory.find((entry) => entry.kind === "item" && entry.itemId === "boot");
-  const roller = player.passiveId === "roller";
+  const roller = hasCard(player, "roller");
   if (boot && !roller && store.moveDistance === 1 && canAffordItem(store, "boot") && random() < 0.2) {
     return { label: "prepare-boot", perform: (current) => current.prepareBoot(boot.id) };
   }
@@ -149,10 +160,10 @@ function chooseShopping(store: GameStore, random: Random): BotAction {
       )
     : [];
 
-  const loot = player?.passiveId === "thief" && !store.theftAttempted ? pick(onShelf, random) : undefined;
+  const loot = hasCard(player, "thief") && !store.theftAttempted ? pick(onShelf, random) : undefined;
   if (loot && random() < THEFT_CHANCE) return { label: `steal:${loot}`, perform: (current) => current.stealItem(loot) };
 
-  const affordable = onShelf.filter((itemId) => player!.currency >= getItemPrice(itemId, store.bootPrice, player));
+  const affordable = onShelf.filter((itemId) => player!.currency >= getPriceFor(store, itemId, player));
   const roleItem = pick(
     affordable.filter((itemId) => ROLE_ITEMS.includes(itemId)),
     random,
@@ -258,6 +269,11 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       return endTurnAction("end-turn");
 
     case "wheel-result": {
+      const choices = store.pendingWheel?.choices;
+      if (choices && store.pendingWheel?.chosen === undefined && random() < 0.7) {
+        const index = random() < 0.5 ? 0 : 1;
+        return { label: "wheel-pick", perform: (current) => current.pickWheelResult(index) };
+      }
       const target = findPlayer(store, store.pendingWheel?.playerId);
       const hasEraser = target?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser");
       if (hasEraser && random() < 0.3) return { label: "cancel-wheel", perform: (current) => current.cancelWheel() };
@@ -265,6 +281,12 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
         return { label: "no-thanks:wheel", perform: (current) => current.cancelWheel(true) };
       }
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
+    }
+
+    case "duel-choice": {
+      const mode = pick(store.pendingDuelChoice?.modes ?? [], random);
+      if (!mode) return null;
+      return { label: `duel-mode:${mode}`, perform: (current) => current.chooseDuelMode(mode) };
     }
 
     case "duel":
@@ -288,7 +310,9 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     }
 
     case "reposition": {
-      const goToStart = random() < 0.5;
+      const holder = findPlayer(store, store.pendingCupRepositionPlayerId);
+      // New Cup, New Me never frees a player from Hell.
+      const goToStart = holder?.position !== HELL_NODE_ID && random() < 0.5;
       return {
         label: `new-cup:${goToStart ? "start" : "stay"}`,
         perform: (current) => current.resolveNewCup(goToStart),
@@ -318,7 +342,8 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "passive-choice": {
       const tile = random() < 0.6 ? pick(getCalmDownTiles(store), random) : undefined;
       if (tile === undefined) return { label: "calm-down:skip", perform: (current) => current.resolveCalmDown(null) };
-      return { label: "calm-down:place", perform: (current) => current.resolveCalmDown(tile) };
+      const targetId = pick(store.pendingCalmDown?.targetIds ?? [], random);
+      return { label: "calm-down:place", perform: (current) => current.resolveCalmDown(tile, targetId) };
     }
 
     case "reaction": {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getBlizzardCandidates, getBoard, isIce } from "./board";
 import { WHEEL_RESULTS } from "./catalog";
-import { openPortal } from "./devil";
+import { openPortals } from "./devil";
 import { reduceGame } from "./game-actions";
 import { getCalmDownTiles } from "./game-effects";
 import { blowBlizzard } from "./ice";
@@ -135,7 +135,7 @@ describe("Banquise: nobody stays on ice", () => {
     const board = getBoard(state);
     for (let draw = 0; draw < 1; draw += 0.05) {
       vi.spyOn(Math, "random").mockReturnValue(draw);
-      const [portal] = openPortal(state, "p1").hellPortals;
+      const [portal] = openPortals(state, "p1").hellPortals;
       expect(isIce(board, portal.nodeId)).toBe(false);
 
       const inHell: GameState = {
@@ -167,4 +167,26 @@ describe("turn changes on every map", () => {
       expect(next.players[0].inventory).toEqual([]);
     },
   );
+});
+
+describe("a player held by falling ice when a Barrière is set on their road", () => {
+  it("bounces back on the ice tile and slides another way once thawed", () => {
+    let state = startOn("banquise", [3, 5, 12]);
+    state = {
+      ...state,
+      frozenSlides: [{ playerId: state.players[0].id, from: 3, to: 8 }],
+      barriers: [{ ownerId: state.players[1].id, a: 3, b: 8, turnsLeft: 2 }],
+      activePlayerIndex: 2,
+      turnStage: "turn-end",
+    };
+    vi.spyOn(Math, "random").mockReturnValue(0);
+    const next = reduceGame(state, { type: "endTurn" });
+
+    const ana = next.players[0];
+    expect(next.frozenSlides).toEqual([]);
+    expect(ana.position).not.toBe(8);
+    expect(ana.position).not.toBe(3);
+    expect(isIce(getBoard(next), ana.position)).toBe(false);
+    expect(next.log.some((entry) => entry.text.startsWith("Ana brise la glace, se heurte à une Barrière"))).toBe(true);
+  });
 });

@@ -22,6 +22,21 @@ export function newLogTexts(previous: GameState, next: GameState): string[] {
   return texts;
 }
 
+/**
+ * Coins a player was paid for Hell in these lines: le diable's 50 for each
+ * other descent and 100 for their own, the Habitué de l'Enfer's 150. They come
+ * on top of whatever else the action did.
+ */
+export function hellRewardCoins(texts: string[], name: string): number {
+  let coins = 0;
+  for (const text of texts) {
+    if (text.includes(`${name} gagne 50 pièces et un point`)) coins += 50;
+    const own = new RegExp(String.raw`^${name} est chez lui en Enfer : \+(\d+) pièces`).exec(text);
+    if (own) coins += Number(own[1]);
+  }
+  return coins;
+}
+
 /** Expected balance after a single coin change, including the Casque and the −300 reset. */
 export function expectedBalance(player: Player, delta: number): number {
   let balance = player.currency + delta;
@@ -29,6 +44,21 @@ export function expectedBalance(player: Player, delta: number): number {
   if (delta < 0 && balance < 0 && hasHelmet) balance = 0;
   if (balance <= CURRENCY_RESET_THRESHOLD) balance = 0;
   return balance;
+}
+
+/**
+ * Whether `actual` is the balance a coin change leaves. A Double or nothing holder is knocked out only once
+ * their gamble is settled, so a loss taking them to −300 may leave the balance where it fell.
+ */
+export function balanceMatches(player: Player, delta: number, actual: number, extra = 0): boolean {
+  if (actual === expectedBalance(player, delta) + extra) return true;
+  const holdsGamble = player.passiveId === "double-or-nothing" || player.passifId === "double-or-nothing";
+  return holdsGamble && delta < 0 && actual === player.currency + delta + extra;
+}
+
+/** A holder left at −300 or less is waiting for their gamble: the knock-out comes with its result. */
+export function awaitsKnockout(state: GameState, playerId: string): boolean {
+  return state.pendingGambles.some((gamble) => gamble.playerId === playerId && gamble.knockout === true);
 }
 
 /**
