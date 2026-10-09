@@ -36,6 +36,7 @@ export function endGame(stateBeforeEnd: GameState, winnerId: PlayerId, winReason
     queuedWheels: [],
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
+    pendingMirageRevealNodeId: null,
     pendingCupRepositionResumeStage: null,
   };
 }

@@ -1,4 +1,7 @@
+import { getNodeKindOf } from "./board";
 import { ownsCard } from "./cards";
+import { getBoardMap } from "./maps/map-registry";
+import { isRestingTile } from "./quay";
 import { getLuck } from "./mage-luck";
 import { getActivePlayer } from "./state-utils";
 import type { BlackMark, GameState, Player, PlayerId, WheelOutcomeId } from "./types";
@@ -32,7 +35,10 @@ export function canPlaceMark(state: GameState, player: Player): boolean {
     MARK_STAGES.includes(state.turnStage) &&
     player.position !== HELL_NODE_ID &&
     findMark(state, player.id) === undefined &&
-    !state.mudTraps.some((trap) => trap.nodeId === player.position)
+    !state.mudTraps.some((trap) => trap.nodeId === player.position) &&
+    // Archipel: a pentagram is not laid on a causeway the tide will drown, nor on a whirlpool.
+    getNodeKindOf(getBoardMap(state.mapId), player.position) !== "causeway" &&
+    isRestingTile(state, player.position)
   );
 }
 

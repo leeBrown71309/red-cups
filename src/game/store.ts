@@ -45,6 +45,12 @@ interface GameActions {
   digTunnel: (destination: NodeId) => void;
   /** Crosses the tunnel that opens on the player's tile. */
   crossTunnel: (tunnelId: string) => void;
+  /** Archipel des Marées: rides the ferry from the quay it is moored at. */
+  boardFerry: () => void;
+  /** Désert des Mirages: climbs aboard the caravan, in place of the walk. */
+  boardCaravan: () => void;
+  /** Désert des Mirages: pays at a well to learn which Red Cup is the real one. */
+  drinkAtWell: () => void;
   /** Mage noir: lays a pentagram on their tile. */
   placeMark: () => void;
   /** Mage noir: teleports to the pentagram during their own turn. */
@@ -155,6 +161,9 @@ export const useGameStore = create<GameStore>()(
       mimeCopy: (targetPlayerId, kind) => dispatch({ type: "mimeCopy", targetPlayerId, kind }),
       digTunnel: (destination) => dispatch({ type: "digTunnel", destination }),
       crossTunnel: (tunnelId) => dispatch({ type: "crossTunnel", tunnelId }),
+      boardFerry: () => dispatch({ type: "boardFerry" }),
+      boardCaravan: () => dispatch({ type: "boardCaravan" }),
+      drinkAtWell: () => dispatch({ type: "drinkAtWell" }),
       placeMark: () => dispatch({ type: "placeMark" }),
       teleportToMark: () => dispatch({ type: "teleportToMark" }),
       swapWithSister: () => dispatch({ type: "swapWithSister" }),

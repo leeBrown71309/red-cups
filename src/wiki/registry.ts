@@ -25,6 +25,7 @@ import {
   SISTER_SWAP_COOLDOWN_ROUNDS,
   SISTER_SWAP_ENERGY,
   STARTING_CURRENCY,
+  TIDE_ROUNDS,
 } from "../game/types";
 import type { ItemId, MapId, PassiveId, WheelId } from "../game/types";
 import { percent } from "./format";
@@ -140,6 +141,15 @@ function mapFacts(mapId: MapId): Fact[] {
   if (map.haunted) facts.push({ label: "Hanté par le fantôme", tone: "cup" });
   if (map.blizzardEveryRounds) facts.push({ label: `Blizzard tous les ${map.blizzardEveryRounds} tours`, tone: "sky" });
   if (map.snowballs) facts.push({ label: "Pingouins à boules de neige", tone: "sky" });
+  if (map.tidal) {
+    facts.push({ label: `Marée tous les ${TIDE_ROUNDS} tours`, tone: "sky" });
+    facts.push({ label: "Bac entre les Quais", tone: "mint" });
+  }
+  if (map.desert) {
+    facts.push({ label: "Deux Red Cups dont un mirage", tone: "cup" });
+    facts.push({ label: "Tempête de sable tous les 4 tours", tone: "sky" });
+  }
+  if (map.minPlayers) facts.push({ label: `${map.minPlayers} à 8 joueurs`, tone: "cup" });
   return facts;
 }
 

@@ -90,6 +90,9 @@ export function startGameFeedback(): () => void {
         "carousel-flipped",
         "blizzard",
         "ice-fall",
+        "tide-turned",
+        "storm",
+        "mirage",
         "ghost-appeared",
         "ghost-attack",
         "doomsday-started",
@@ -282,6 +285,8 @@ function collectEvents(
     const { playerId, from, to, hit } = state.lastIceFall;
     events.push({ type: "ice-fall", playerId, from, to, hit });
   }
+  events.push(...collectArchipelEvents(state, previous));
+  events.push(...collectDesertEvents(state, previous));
   events.push(...collectGhostEvents(state, previous));
   const snowball = state.lastSnowball;
   if (snowball && snowball.seq !== previous.lastSnowball?.seq) {
@@ -328,5 +333,84 @@ function collectEvents(
     events.push({ type: "victory", playerId: state.winnerId });
   }
 
+  return events;
+}
+
+/** Archipel des Marées: what the tide, the ferry, the whirlpools and the quays did since the last state. */
+function collectArchipelEvents(state: GameState, previous: GameState): FeedbackEvent[] {
+  if (previous.phase !== "playing") return [];
+  const events: FeedbackEvent[] = [];
+  const seen = previous.lastArchipelEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  for (const record of state.lastArchipelEvents.filter((entry) => entry.seq > seen)) {
+    switch (record.kind) {
+      case "tide":
+        events.push({ type: "tide-turned", level: record.level });
+        break;
+      case "ferry-moved":
+        events.push({ type: "ferry-moved", from: record.from, to: record.to });
+        break;
+      case "flood-drop":
+      case "whirlpool":
+        events.push({ type: record.kind, playerId: record.playerId, from: record.from, to: record.to });
+        break;
+      case "quay-bump":
+        events.push({
+          type: "quay-bump",
+          playerId: record.playerId,
+          quayId: record.quayId,
+          to: record.to,
+          holderId: record.holderId,
+        });
+        break;
+    }
+  }
+  const movement = state.lastMovement;
+  if (movement?.ferry && movement.seq !== previous.lastMovement?.seq) {
+    events.push({
+      type: "ferry-ride",
+      playerId: movement.playerId,
+      from: movement.from,
+      to: movement.path[movement.path.length - 1] ?? movement.from,
+    });
+  }
+  return events;
+}
+
+/** Désert des Mirages: what the caravan, the sandstorms, the wells and the mirages did since the last state. */
+function collectDesertEvents(state: GameState, previous: GameState): FeedbackEvent[] {
+  if (previous.phase !== "playing") return [];
+  const events: FeedbackEvent[] = [];
+  const seen = previous.lastDesertEvents.reduce((highest, record) => Math.max(highest, record.seq), 0);
+  for (const record of state.lastDesertEvents.filter((entry) => entry.seq > seen)) {
+    switch (record.kind) {
+      case "caravan-moved":
+        events.push({ type: "caravan-moved", from: record.from, to: record.to });
+        break;
+      case "storm":
+        events.push({ type: "storm", closed: record.closed });
+        break;
+      case "storm-drop":
+        events.push({ type: "storm-drop", playerId: record.playerId, from: record.from, to: record.to });
+        break;
+      case "well":
+        events.push({ type: "well-drunk", playerId: record.playerId, nodeId: record.nodeId });
+        break;
+      case "mirage":
+        events.push({ type: "mirage", playerId: record.playerId, nodeId: record.nodeId, oldReal: record.oldReal });
+        break;
+      case "oasis-bump":
+        events.push({ type: "oasis-bump", playerId: record.playerId, nodeId: record.nodeId, to: record.to });
+        break;
+    }
+  }
+  const movement = state.lastMovement;
+  if (movement?.caravan && movement.seq !== previous.lastMovement?.seq) {
+    events.push({
+      type: "caravan-ride",
+      playerId: movement.playerId,
+      from: movement.from,
+      to: movement.path[movement.path.length - 1] ?? movement.from,
+    });
+  }
   return events;
 }

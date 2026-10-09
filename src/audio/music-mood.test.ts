@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { MAP_ORDER } from "../game/maps/map-registry";
+import { MAP_ORDER, getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
 import { HELL_NODE_ID } from "../game/types";
 import { getMusicMood } from "./music-mood";
@@ -22,7 +22,9 @@ describe("music mood", () => {
   });
 
   it.each(MAP_ORDER)("darkens on %s while the player whose turn it is sits in Hell", (mapId) => {
-    store().startGame(["Ana", "Bo"], undefined, mapId);
+    // A large map only seats a full table.
+    const seats = Array.from({ length: getBoardMap(mapId).minPlayers ?? 2 }, (_, index) => `Joueur ${index + 1}`);
+    store().startGame(seats, undefined, mapId);
     expect(getMusicMood(store())).toBe("calm");
 
     moveActivePlayer(HELL_NODE_ID);

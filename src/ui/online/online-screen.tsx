@@ -438,6 +438,23 @@ function RoomLobby() {
               </li>
             );
           })}
+          {Array.from({ length: Math.max(0, MAX_PLAYERS - players.length) }, (_, offset) => {
+            const index = players.length + offset;
+            return (
+              <li
+                key={`free-${index}`}
+                className="seat seat--free seat--waiting"
+                style={{ "--order": index } as CSSProperties}
+                aria-label="Place libre"
+              >
+                <span className="seat__rank">{index + 1}</span>
+                <span className="seat__plus">
+                  <UiIcon name="user" size={22} />
+                </span>
+                <span className="seat__free-label">En attente d’un joueur…</span>
+              </li>
+            );
+          })}
         </ol>
 
         <FlowFooter>

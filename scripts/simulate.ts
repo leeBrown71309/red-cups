@@ -31,7 +31,7 @@ function readMap(): MapId | null {
 
 const games = readArgument("games", 300);
 const firstSeed = readArgument("seed", 1);
-const maxSteps = readArgument("steps", 4_000);
+const maxSteps = process.argv.includes("--steps") ? readArgument("steps", 4_000) : undefined;
 const mapId = readMap();
 const startedAt = performance.now();
 const reports = mapId

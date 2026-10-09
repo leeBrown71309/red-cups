@@ -1,5 +1,5 @@
 import { isTableBroke } from "../blessing";
-import { getNeighbors, getOpenBoard } from "../board";
+import { getNeighbors, getOpenBoard, getShortestPath } from "../board";
 import { isInvisible } from "../mist";
 import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
@@ -34,8 +34,14 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const bullet = previous.bulletBill;
   const due = bullet !== null && (bullet.status === "active" || bullet.spawnRound <= next.round);
   // Nobody Mi-vu, Mi-vue hides is chased either.
+  // Nor anybody it has no road to: on the Archipel the tide of the new round may cut the board in two.
+  const tideBoard = getOpenBoard({ ...previous, round: next.round });
   const reachable = previous.players.some(
-    (player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !isInvisible(previous, player),
+    (player) =>
+      player.position !== HELL_NODE_ID &&
+      !isImmuneToItems(player) &&
+      !isInvisible(previous, player) &&
+      (bullet === null || getShortestPath(tideBoard, bullet.position, player.position, true) !== null),
   );
   if (next.round > previous.round && due && reachable && !flew) {
     found.push(violation("bullet-charges", `Bullet Bill stayed put at the start of round ${next.round}`));

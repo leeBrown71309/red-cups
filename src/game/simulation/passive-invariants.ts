@@ -18,6 +18,7 @@ import {
   newLogTexts,
   slidOnIce,
   touchedByHell,
+  carriedByWater,
   violation,
   type RuleViolation,
   hellRewardCoins,
@@ -103,7 +104,8 @@ export function checkCalmDown(previous: GameState, next: GameState, found: RuleV
   // Knocked out on le diable's tile, the player set down may go on to Hell through their Toucher d'Enfer.
   const touched = touchedByHell(previous, next, after.id);
   const offTarget = distanceToCup(previous, after.position) !== CALM_DOWN_DISTANCE || after.position === HELL_NODE_ID;
-  if (offTarget && !touched) {
+  // Archipel: the tide may drop the player off a causeway as the turn passes, or a taken quay push them back.
+  if (offTarget && !touched && !carriedByWater(previous, next, after.id)) {
     found.push(violation("calm-down-distance", `${before.name} was set down on ${after.position}`));
   }
   // A wheel still owed on the tile left behind is dropped once the board settles.

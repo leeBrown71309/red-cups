@@ -34,6 +34,6 @@ export const useMapChoiceStore = create<MapChoiceState>((set) => ({
 }));
 
 /** Draws the map now when the choice is random, so the start action always names one. */
-export function drawChosenMap(): MapId {
-  return resolveMapChoice(useMapChoiceStore.getState().choice);
+export function drawChosenMap(playerCount?: number): MapId {
+  return resolveMapChoice(useMapChoiceStore.getState().choice, Math.random, playerCount);
 }

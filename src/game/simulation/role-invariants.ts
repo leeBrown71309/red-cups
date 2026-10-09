@@ -4,6 +4,7 @@ import { avoidsHell, isImmuneToItems, isMalefactor } from "../passive-rules";
 import { countRedCups } from "../rules";
 import { findPlayer } from "../state-utils";
 import type { GameState, ItemId } from "../types";
+import { getBoardMap } from "../maps/map-registry";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
 import { newLogTexts, violation, type RuleViolation } from "./invariant-helpers";
 
@@ -122,7 +123,7 @@ export function checkDevilItem(
       }
       break;
     case "made-in-heaven":
-      if (next.blackCup || next.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID) {
+      if (next.blackCup || (!getBoardMap(next.mapId).desert && next.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID)) {
         found.push(violation("made-in-heaven-black-cup", "the Red Cup stayed in Hell"));
       }
       break;

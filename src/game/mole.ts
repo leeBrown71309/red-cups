@@ -1,6 +1,7 @@
 import { getBoard, isIce } from "./board";
 import { hasCard, ownsCard } from "./cards";
 import { createEngineId } from "./engine-random";
+import { isRestingTile } from "./quay";
 import type { GameState, MoleTunnel, NodeId, Player } from "./types";
 import {
   HELL_NODE_ID,
@@ -47,6 +48,9 @@ function isDiggable(state: GameState, nodeId: NodeId): boolean {
     nodeId !== HELL_NODE_ID &&
     !isIce(getBoard(state), nodeId) &&
     state.redCupNodeId !== nodeId &&
+    state.mirageNodeId !== nodeId &&
+    // Archipel: not a whirlpool, not a drowned causeway.
+    isRestingTile(state, nodeId) &&
     !hasTrap(state, nodeId) &&
     !hasTunnelEnd(state, nodeId)
   );

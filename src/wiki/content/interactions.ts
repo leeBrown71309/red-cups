@@ -740,6 +740,208 @@ export const INTERACTIONS: Interaction[] = [
     b: "map:banquise",
     text: "Un Départ gelé par le blizzard ne paie pas ses 200 pièces — et la glace emporte celui qui y arrive.",
   },
+  // ————— Patch 0.2.4 : l'Archipel des Marées —————
+  {
+    a: "item:barrier",
+    b: "map:archipel",
+    text: "Une Barrière peut fermer une route d'une chaussée ; la marée, elle, ferme la chaussée entière, et la Botte ne saute pas par-dessus (elle ne franchit qu'une Barrière).",
+  },
+  {
+    a: "item:bullet-bill",
+    b: "map:archipel",
+    text: "Bullet Bill contourne les chaussées noyées comme n'importe quelle route fermée ; il ne se jette pas à la mer.",
+  },
+  {
+    a: "item:portal",
+    b: "map:archipel",
+    text: "Les Portails ne s'ouvrent ni sur un Quai, ni sur une chaussée, ni sur un tourbillon (en plus du Départ, de l'Enfer et de la case de la Cup).",
+  },
+  {
+    a: "item:water-bottle",
+    b: "map:archipel",
+    text: "La Bouteille d'eau ne te pose jamais sur un tourbillon ni sur une chaussée noyée ; elle peut te poser sur un Quai libre.",
+  },
+  {
+    a: "item:rope",
+    b: "map:archipel",
+    text: "Tiré sur un Quai que quelqu'un tient, le tiré est repoussé d'où il venait et le tenant touche 50 pièces.",
+  },
+  {
+    a: "item:made-in-heaven",
+    b: "map:archipel",
+    text: "La Red Cup rapatriée est posée en case 8 (la sortie de l'île des Perles) : une case rouge, qui ne se noie pas.",
+  },
+  {
+    a: "card:mole",
+    b: "map:archipel",
+    text: "La Taupe ne creuse ni depuis ni vers un tourbillon ou une chaussée noyée. Un tunnel qui la pose sur un Quai tenu la repousse d'où elle vient.",
+  },
+  {
+    a: "card:black-mage",
+    b: "map:archipel",
+    text: "Pas de pentagramme sur une chaussée ni sur un tourbillon ; téléporté sur un Quai tenu, le mage est repoussé, et le tenant touche 50 pièces.",
+  },
+  {
+    a: "card:ghost-sister",
+    b: "map:archipel",
+    text: "La petite sœur marche sur l'eau : elle se tient sur n'importe quelle case, y compris une chaussée noyée. Le Swap qui t'enverrait sur un Quai tenu te repousse.",
+  },
+  {
+    a: "card:calm-down",
+    b: "map:archipel",
+    text: "Calme-toi ne pose personne sur un Quai, une chaussée ou un tourbillon : les cases à trois pas de la Cup excluent ces cases.",
+  },
+  {
+    a: "card:new-cup-new-me",
+    b: "map:archipel",
+    text: "La nouvelle Cup que New Cup, New Me cache puis révèle suit les mêmes règles que n'importe quelle Cup : autre île, 5 à 8 pas, jamais sur l'eau.",
+  },
+  {
+    a: "card:red-light-green-light",
+    b: "map:archipel",
+    text: "Les Quais, les chaussées et les tourbillons ne sont ni verts ni rouges : ils ne comptent pas pour le passif.",
+  },
+  {
+    a: "card:corrupter",
+    b: "map:archipel",
+    text: "Corrupteur lève les flèches (celle du Quai du Port), pas la mer : une chaussée noyée reste fermée.",
+  },
+  {
+    a: "card:roller",
+    b: "map:archipel",
+    text: "Le Roller ne peut pas finir son parcours sur un Quai tenu : ces marches-là ne sont pas offertes.",
+  },
+  {
+    a: "system:move",
+    b: "map:archipel",
+    text: "À l'Archipel, une marche ne peut pas finir sur un Quai tenu ; une chaussée noyée est fermée comme une route barrée.",
+  },
+  {
+    a: "system:cups",
+    b: "map:archipel",
+    text: "La Cup suivante naît sur une autre île que la précédente, à 5 à 8 pas du joueur le plus proche (marée ignorée), jamais sur l'eau.",
+  },
+  {
+    a: "system:tide",
+    b: "map:archipel",
+    text: "Marée, bac, Quais et tourbillons : toutes les règles de la carte, réunies sur une page.",
+  },
+  {
+    a: "system:online",
+    b: "map:archipel",
+    text: "En ligne, la marée est une pure fonction du tour de table et le bac avance à chaque nouveau tour : chaque appareil rejoue la même mer. Il faut six joueurs assis au lancement.",
+  },
+  {
+    a: "system:hell",
+    b: "map:archipel",
+    text: "L'Enfer de l'Archipel est le Maelström, au centre du cercle : on y est envoyé, jamais emporté par la marée ni les tourbillons.",
+  },
+  // ————— Patch 0.2.4 : le Désert des Mirages —————
+  {
+    a: "card:roller",
+    b: "map:desert",
+    text: "Le Roller lance son dé (il lui faut un 6) sur le mirage comme sur la vraie Cup : l'issue — ramassée, ou dissipée — ne vient qu'après les lancers. Raté deux fois, il reste sur la Cup et retente.",
+  },
+  {
+    a: "card:greedy",
+    b: "map:desert",
+    text: "Cupide qui atteint le mirage n'encaisse rien : le mirage se dissipe et il a soif comme les autres.",
+  },
+  {
+    a: "card:blind-luck",
+    b: "map:desert",
+    text: "Chance aveugle ne voit ni la vraie Cup ni le mirage ; elle peut tomber sur l'un ou l'autre sans le savoir.",
+  },
+  {
+    a: "card:half-seen",
+    b: "map:desert",
+    text: "Mi-vu, Mi-vue se découvre à une case de l'une ou de l'autre Cup : la visibilité ne trahit pas la vraie.",
+  },
+  {
+    a: "card:new-cup-new-me",
+    b: "map:desert",
+    text: "Ne se déclenche qu'à la prise de la vraie Cup : un mirage dissipé n'est pas une nouvelle Cup. Le couple est alors caché puis révélé après son choix.",
+  },
+  {
+    a: "card:calm-down",
+    b: "map:desert",
+    text: "Calme-toi regarde autour de la vraie Cup seulement, à sa prise ; un mirage dissipé ne le réveille pas. Un couple naît à 5 pas au moins de tout le monde : personne n'est à un ou deux pas de la nouvelle Cup, et Calme-toi n'a presque plus de cible ici.",
+  },
+  {
+    a: "card:goblin",
+    b: "map:desert",
+    text: "Le Gobelin ne vole qu'à la prise de la vraie Cup : un mirage dissipé ne lui rapporte rien.",
+  },
+  {
+    a: "card:mole",
+    b: "map:desert",
+    text: "La Taupe ne creuse ni depuis ni vers une case où repose une des deux Cups. Un tunnel qui la pose sur une oasis tenue la repousse d'où elle vient.",
+  },
+  {
+    a: "card:black-mage",
+    b: "map:desert",
+    text: "Téléporté sur une oasis tenue, le mage est repoussé là d'où il venait.",
+  },
+  {
+    a: "card:ghost-sister",
+    b: "map:desert",
+    text: "Le Swap emporte avec la sœur la Cup posée sur sa case, le mirage comme la vraie, et ne se joue pas si elle devait se poser sur une oasis, un puits ou une passe.",
+  },
+  {
+    a: "item:black-cup",
+    b: "map:desert",
+    text: "Black Cup emporte la vraie Cup en Enfer et le mirage avec elle (il se met de côté) : sinon l'absence d'une seule Cup dirait laquelle est la vraie. Les deux reviennent ensemble.",
+  },
+  {
+    a: "item:made-in-heaven",
+    b: "map:desert",
+    text: "Made In Heaven ne pose pas la Cup en case 8 : tout le monde revient au Départ et un nouveau couple de Cups est tiré.",
+  },
+  {
+    a: "item:portal",
+    b: "map:desert",
+    text: "Les Portails ne s'ouvrent jamais sur une oasis, un puits, une passe ni une case de Cup, en plus du Départ et de l'Enfer.",
+  },
+  {
+    a: "item:barrier",
+    b: "map:desert",
+    text: "Une Barrière peut fermer une route de la grande boucle ; une tempête de sable ferme une passe entière, que la Botte ne franchit pas.",
+  },
+  {
+    a: "item:bullet-bill",
+    b: "map:desert",
+    text: "Bullet Bill contourne les passes que la tempête vient de fermer ; il traque la case d'un joueur sur une oasis comme les autres (il n'est pas ciblé par un objet).",
+  },
+  {
+    a: "item:rope",
+    b: "map:desert",
+    text: "Tiré sur une oasis tenue, le tiré est repoussé d'où il venait. Aucune Corde ne peut viser quelqu'un qui se repose sur une oasis.",
+  },
+  {
+    a: "system:move",
+    b: "map:desert",
+    text: "Une marche ne peut pas finir sur une oasis tenue ; une passe fermée est une route fermée ; la caravane se prend à la place de la marche.",
+  },
+  {
+    a: "system:cups",
+    b: "map:desert",
+    text: "Deux Cups en permanence : prendre la vraie ou dissiper le mirage renouvelle le couple, sur deux cases qu'aucune ancienne Cup n'occupait.",
+  },
+  {
+    a: "system:mirage",
+    b: "map:desert",
+    text: "Mirages, puits et soif : toutes les règles de la carte, réunies sur une page.",
+  },
+  {
+    a: "system:online",
+    b: "map:desert",
+    text: "Le Désert ne se joue qu'en ligne : le secret du puits n'existe que sur l'écran de son joueur, et chaque appareil rejoue le même tirage du couple de Cups.",
+  },
+  {
+    a: "system:money",
+    b: "map:desert",
+    text: "Le puits coûte 300 pièces : une perte comme une autre (Double or Nothing peut la miser).",
+  },
   // ————— Patch 0.2.3 : Cups Power et passifs —————
   ...CUPS_POWER_INTERACTIONS,
 ];

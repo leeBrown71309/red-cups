@@ -118,6 +118,45 @@ export function startAudioFeedback(): () => void {
       case "blizzard":
         soundEffects.blizzardWind();
         break;
+      case "storm":
+        soundEffects.sandstorm();
+        break;
+      case "caravan-moved":
+        soundEffects.caravanBells();
+        break;
+      case "caravan-ride":
+        if (isSeen(event.playerId)) soundEffects.caravanBells();
+        break;
+      case "well-drunk":
+        if (isSeen(event.playerId)) soundEffects.wellDrink();
+        break;
+      case "mirage":
+        if (isSeen(event.playerId)) soundEffects.mirageFade();
+        break;
+      case "storm-drop":
+        if (isSeen(event.playerId)) soundEffects.splash();
+        break;
+      case "oasis-bump":
+        if (isSeen(event.playerId)) soundEffects.quayBump();
+        break;
+      case "tide-turned":
+        soundEffects.tideTurn(event.level === "high");
+        break;
+      case "ferry-moved":
+        soundEffects.ferryHorn();
+        break;
+      case "ferry-ride":
+        if (isSeen(event.playerId)) soundEffects.ferryHorn();
+        break;
+      case "flood-drop":
+        if (isSeen(event.playerId)) soundEffects.splash();
+        break;
+      case "whirlpool":
+        if (isSeen(event.playerId)) soundEffects.whirlpoolSuck();
+        break;
+      case "quay-bump":
+        if (isSeen(event.playerId)) soundEffects.quayBump();
+        break;
       case "ice-fall":
         if (isSeen(event.playerId)) soundEffects.iceFall();
         break;

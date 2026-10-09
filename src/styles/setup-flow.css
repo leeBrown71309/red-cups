@@ -569,6 +569,32 @@
   -webkit-line-clamp: 2;
 }
 
+/* A large map needs a full table: its tile stays visible but dimmed, with the number it asks for. */
+.mapopt.is-locked:not(.is-current) {
+  opacity: 0.62;
+}
+
+.mapopt__lock {
+  width: fit-content;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(58, 37, 48, 0.14);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.mapshow__min {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 0;
+  font-size: 0.86rem;
+  font-weight: 800;
+  opacity: 0.85;
+}
+
 /* The stage: every option sits in the same cell, the one in focus rises and the others sink aside. */
 .mapstep__stage {
   grid-area: stage;

@@ -148,6 +148,30 @@ Un lac gelé du Grand Nord. Les deux moitiés du plateau sont en miroir : aucun 
 
 **Choix de la carte** : après la liste des joueurs, une seconde étape du salon présente les cartes en carrousel (flèches, balayage ou touches ←/→) : « Aléatoire » (toujours en tête, la carte est tirée au lancement) puis chaque carte avec son plan. La carte affichée est la carte choisie. La **revanche** rouvre ce carrousel, positionné sur la carte qui vient d’être jouée : on peut rejouer au même endroit ou changer de carte. En ligne, seul l’hôte choisit la carte et lance la revanche ; les autres attendent sur l’écran de victoire et découvrent la carte au lancement. Rejouent tous ceux encore dans le salon, dans le même ordre de tour : qui l’a quitté, ou ne donne plus signe de vie depuis 75 secondes, est laissé de côté (fonction `rematch_room`, réservée à l’hôte d’un salon terminé). L’aide « Comment jouer » montre uniquement la carte jouée et sa légende. Chaque carte a sa propre musique : dans le carrousel, on entend celle de la carte affichée ; sur « Aléatoire » et dans tous les autres menus, on entend la musique de base du jeu.
 
+### 3.2 quater Quatrième carte : l’Archipel des Marées (patch 0.2.4)
+
+Première « grande carte » : **41 cases pour 6 à 8 joueurs** (`BoardMap.minPlayers`), un monde ouvert (pas de plateau-boîte). Cinq îles de six cases en cercle (Port avec le Départ en 0, Perles, Phare, Épaves, Corail), reliées par cinq chaussées de deux cases, autour du Maelström (l’Enfer, case 11). Chaque île est une boucle : Quai, case de passage, sortie, trois cases du large. Plan : `plans/carte-archipel-des-marees.md`.
+
+- **Marées** : tous les 2 tours de table (tours 1-2 bas, 3-4 haut…), fonction pure du tour. La chaussée du Port (31-32) est une digue ; 33-34 et 37-38 émergent à marée basse, 35-36 et 39-40 à marée haute. Une chaussée noyée est une route fermée pour tout le monde (marche, Botte, Corrupteur, Bullet Bill) ; qui s’y trouve quand la mer monte est déposé sur le Quai de l’île vers laquelle elle menait (la case de passage voisine si le Quai est tenu). Jamais deux chaussées voisines noyées : chaque île a toujours une sortie.
+- **Bac** : fait le tour des Quais Port → Perles → Phare → Épaves → Corail, d’un Quai au suivant à chaque nouveau tour de table (`GameState.ferryQuayId`). Sur son Quai, l’action `boardFerry` le prend à la place de la marche (le déplacement, donc toute l’énergie restante ; pas de bonus du Départ). Refusée si le Quai suivant est tenu.
+- **Quai** : une seule place. Une marche ne peut pas finir sur un Quai tenu (la route est offerte comme fermée) ; tout autre déplacement qui y amène un second joueur le repousse d’où il venait et le tenant touche 50 pièces. Pas de roue, pas de boutique.
+- **Tourbillon** (Perles 9, Épaves 23) : aspire qui y arrive vers le Quai d’une autre île tirée au hasard (de préférence libre). Personne n’y reste.
+- **Red Cup** : première Cup en 10 (boutique des Perles) ; les suivantes naissent sur une autre île que la précédente, à 5 à 8 pas du joueur le plus proche (marée ignorée), jamais sur un Quai, une chaussée ou un tourbillon.
+- Moteur : `archipel.ts` (marée, bac, filet de sécurité `settleArchipel` après chaque action), `tide.ts`, `quay.ts`. Les bots prennent le bac et planifient hors marée ; les invariants vérifient Quais, tourbillons, chaussées noyées et circuit du bac (`map-invariants.ts`).
+
+### 3.2 quinquies Cinquième carte : le Désert des Mirages (patch 0.2.4)
+
+Deuxième grande carte : **41 cases, 6 à 8 joueurs**, monde ouvert, **en ligne uniquement** (le secret du puits ne se garde pas sur un écran partagé). Plan : `plans/carte-desert-des-mirages.md`.
+
+- **Plateau** : une grande boucle de caravane de 24 cases (0 à 23, sens horaire, flèches sur les oasis et sur la dernière case avant le Départ ; le bonus du Départ se paie par cette flèche), une boucle de dunes de 12 cases, quatre passes (37 à 40) qui les relient, l’Enfer (Sable mouvant, case 11) au centre. Quatre oasis (3, 9, 16, 22) tiennent lieu de boutiques ; deux puits (27, 33).
+- **Deux Red Cups** en permanence : la vraie (`redCupNodeId`, pour que toutes les règles existantes continuent de la lire) et un mirage (`mirageNodeId`). Arriver sur le mirage le dissipe : le joueur a soif (1 point d’énergie de moins à son prochain tour) ; les DEUX Cups sont retirées et deux nouvelles tirées ailleurs, sur deux cases qu’aucune ancienne Cup n’occupait. Même relève quand la vraie est prise. Placement : vraie à 5-7 pas du joueur le plus proche, mirage à 4-8, 6 pas entre les deux et 6 pas de qui vient de ramasser ; jamais sur une oasis, un puits, une passe, le Départ, l’Enfer ou une case occupée (règles assouplies par paliers si le plateau n’a pas la place).
+- **Information cachée** : même dessin, même séquence pour les deux jusqu’à la révélation : dé du Roller, question « quel objet jeter ? » du sac plein (rien n’est jeté pour un mirage), Cupide, Chance aveugle (ne voit aucune des deux), Mi-vu Mi-vue (visible à une case de l’une ou l’autre). Le journal ne nomme jamais la Cup.
+- **Puits** : 300 pièces pour apprendre, en secret, laquelle est la vraie, une fois par paire (`wellKnowledge`) ; seul l’écran de ce joueur l’affiche.
+- **Oasis** : une place (une marche ne finit pas sur une oasis tenue ; autrement le second est repoussé), aucun objet ne peut viser son occupant, +1 énergie à son tour suivant.
+- **Caravane** : +2 cases de la grande boucle à chaque tour de table ; sur sa case, `boardCaravan` la prend à la place de la marche : 4 cases plus loin, sans bonus du Départ.
+- **Tempêtes de sable** : toutes les 4 manches deux passes se ferment (38-40, puis 37-39) et les deux autres s’ouvrent ; qui s’y trouve est déposé sur la grande boucle.
+- Moteur : `desert.ts` (couple de Cups, puits, caravane, tempêtes, oasis), `tide.ts`, `quay.ts` ; les passifs de Cup (New Cup New Me, Calme-toi, Gobelin) ne se réveillent qu’à la prise de la vraie ; Black Cup et Made In Heaven : voir 13 octies.
+
 ### 3.3 Red Cups
 
 - La première Red Cup apparaît en case 8.
@@ -630,6 +654,16 @@ Le patch 0.1.5 vient d'une liste de retours de l'auteur (« PATCH NOTE » et « 
 
 ## 14. Historique des versions
 
+### 0.2.4 — octobre 2026
+
+Les **grandes cartes** (voir 3.2 quater et 3.2 quinquies ; choix à valider en 13 octies ; plans : `plans/grandes-cartes.md`) :
+
+- **Archipel des Marées** et **Désert des Mirages** : 41 cases, 6 à 8 joueurs (`minPlayers`, grisée dans le sélecteur, refusée au lancement, jamais tirée au hasard sous six joueurs), monde ouvert sans cadre, grand zoom arrière.
+- Nouveaux types de cases : Quai, chaussée, tourbillon, puits, oasis, passe. Mécaniques : marées, bac, Quais ; mirages, puits, caravane, tempêtes, soif.
+- Moteur : `archipel.ts`, `desert.ts`, `tide.ts`, `quay.ts` ; actions `boardFerry`, `boardCaravan`, `drinkAtWell` ; `GAME_SAVE_VERSION` 28 ; `RULES_VERSION` 0.2.4.
+- Scène : mer, îles, phare, bac ; dunes, oasis, caravane de chameaux, Sable mouvant ; animations des marées, tourbillons, tempêtes, mirages.
+- Campagnes de bots sur les deux cartes (tables de 6 à 8 joueurs, local et en ligne), invariants et couverture dédiés.
+
 ### 0.2.3 — octobre 2026
 
 Les actifs deviennent des **Cups Power**, avec cinq nouveaux CP et deux nouveaux passifs (voir 8 ; choix à valider en 13 septies ; plan : `plans/patch-0.2.3.md`) :
@@ -801,3 +835,19 @@ Le patch 0.2.3 renomme les actifs en **Cups Power (CP)** et en ajoute cinq (Mime
 28. **À valider** — **Miroir et Middle Finger** (signalement du 9 oct.) : un Middle Finger renvoyé par un Miroir laisse son lanceur à la fin de son tour (stage `turn-end`) : il saute son prochain tour et ne peut ni se déplacer ni utiliser un autre objet.
 29. **À valider** — **Roue de l'Enfer obligatoire** (signalement du 9 oct.) : en Enfer, tant qu'il reste assez d'énergie pour la roue, « Fin du tour » n'est plus proposé à côté d'elle, même après un objet. Sans énergie suffisante, le tour peut finir. La roue d'une case verte ou rouge n'a jamais eu de bouton de fin de tour.
 30. **Validé** — **Sœur Fantôme, délai** (signalement du 9 oct.) : déjà en place depuis le point 22 (une fois tous les 4 tours).
+
+## 13 octies. Choix à valider : les grandes cartes (patch 0.2.4)
+
+Ce que j’ai dû lire ou trancher en réalisant les plans `plans/carte-archipel-des-marees.md` et `plans/carte-desert-des-mirages.md`.
+
+1. **À valider** — **Archipel, le raccourci** : le plan prévoyait une chaussée « basse » directe Port–Épaves ; elle aurait demandé des cases en plus et traversé le Maelström. Les tourbillons (2) et le bac tiennent lieu de raccourcis risqués. Les chaussées : une digue toujours ouverte (Port), deux basses, deux hautes, au lieu de trois et deux, pour qu’aucune marée ne ferme deux chaussées voisines.
+2. **À valider** — **Archipel, le cercle se coupe** : pendant deux tours, la mer sépare les îles en deux groupes ; le bac et les tourbillons sont les seuls passages.
+3. **À valider** — **Quai occupé** : une marche n’est pas offerte vers un Quai tenu (elle ne peut pas rater : le repoussé « garde son tour » naturellement). Les autres déplacements (roue, Corde, tunnel, téléportation, chute de la marée) repoussent et paient 50 pièces au tenant.
+4. **À valider** — **Marée et Cups Power** : la Taupe ne creuse pas vers un tourbillon ou une chaussée noyée ; le Mage noir ne pose pas de pentagramme sur une chaussée ou un tourbillon ; la Sœur Fantôme ne peut pas échanger si la Cup qu’elle porte devrait se poser sur un Quai, une chaussée, un tourbillon, une oasis, un puits ou une passe. Bullet Bill, Calme-toi et les Portails évitent l’eau.
+5. **À valider** — **Désert, un seul état pour deux Cups** : `redCupNodeId` reste la vraie ; le mirage est `mirageNodeId`. L’état partagé contient donc la vérité (comme les sacs) : un joueur qui lit l’état dans les outils de développement la lirait. Les écrans, le journal et les sons ne la donnent pas.
+6. **À valider** — **New Cup, New Me** : ne se déclenche qu’à la prise de la vraie ; pendant son choix le mirage est caché avec elle (`pendingMirageRevealNodeId`). Calme-toi et Gobelin aussi.
+7. **À valider** — **Black Cup** : emporte la vraie Cup en Enfer et le mirage avec elle (mis de côté), ramenés ensemble. **Made In Heaven** : ne pose pas la Cup en case 8 (une Cup seule sur une case connue serait la vraie) : tout le monde au Départ et un nouveau couple tiré.
+8. **À valider** — **Soif** : 1 point de moins à l’ouverture du prochain tour du joueur (jamais sous 1), une seule fois. **Oasis** : +1 énergie au tour suivant si le joueur y est encore ; aucun objet ne peut le viser (Bullet Bill, qui ne vise personne, peut l’atteindre).
+9. **À valider** — **Puits** : disponible avant la marche, après et à la boutique (stades « move », « shop », « turn-end »), pas en Enfer ; une fois par paire par joueur ; le coût est une perte de pièces comme une autre. Le panneau du haut donne la réponse à lui seul.
+10. **À valider** — **Caravane** : monter prend toute l’énergie restante et ne paie pas le Départ ; refusée si l’arrivée est une oasis tenue. Les passes qui se ferment déposent sur la grande boucle (sur la case suivante de la passe si c’est une oasis tenue).
+11. **À valider** — **Longue-vue** : l’objet optionnel du plan n’est pas réalisé (le puits fait son travail).

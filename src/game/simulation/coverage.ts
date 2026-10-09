@@ -83,6 +83,15 @@ function getMapEvents(mapId: MapId): string[] {
   // The blizzard freezing a tile somebody stands on carries them away.
   if (map.blizzardEveryRounds !== undefined) events.push("blizzard", "ice-carry:blizzard");
   if (map.snowballs) events.push("snowball:hit", "snowball:freeze");
+  // Désert: the caravan walking and carrying, both sandstorm phases, the wells, the mirages, the oases pushing back.
+  if (map.desert) {
+    events.push("caravan-moved", "caravan-ride", "storm", "storm-drop", "well", "mirage", "oasis-bump");
+  }
+  // Archipel: both tides, the ferry moving and carrying somebody, the water setting players down, the whirlpools and
+  // the quays pushing a second player back.
+  if (map.tidal) {
+    events.push("tide:low", "tide:high", "ferry-moved", "ferry-ride", "flood-drop", "whirlpool", "quay-bump");
+  }
   return events;
 }
 
@@ -108,7 +117,11 @@ export function findCoverageGaps(reports: BotGameReport[], mapId: MapId): string
     ),
     ...[...outcomes].filter((outcome) => !actions[`wheel:${outcome}`]).map((outcome) => `wheel ${outcome}`),
     ...DUEL_MODES.filter((mode) => !actions[`duel:${mode}`]).map((mode) => `duel ${mode}`),
-    ...STAGES.filter((stage) => !stages[stage]).map((stage) => `stage ${stage}`),
+    // Désert: a new pair never appears within two steps of anybody, so Calme-toi (players one or two steps from the
+    // new Cup) has nobody to offer a choice about: its stage cannot come up there.
+    ...STAGES.filter((stage) => !stages[stage] && !(stage === "passive-choice" && getBoardMap(mapId).desert)).map(
+      (stage) => `stage ${stage}`,
+    ),
     ...PASSIVE_ORDER.filter((passiveId) => !passives.has(passiveId)).map((passiveId) => `passive ${passiveId}`),
     ...SPECIAL_ACTIONS.filter((label) => !actions[label]).map((label) => `action ${label}`),
     ...(hasPrefix("steal:") ? [] : ["action steal"]),

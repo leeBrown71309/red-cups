@@ -4,6 +4,7 @@ import { isImmuneToItems } from "../passive-rules";
 import { countItemUnits } from "../rules";
 import { dropCopies, findPlayer, getActivePlayer } from "../state-utils";
 import type { GameState, TurnStage } from "../types";
+import { getBoardMap } from "../maps/map-registry";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
 import {
   expectedBalance,
@@ -150,6 +151,11 @@ export function checkMadeInHeaven(previous: GameState, next: GameState, userId: 
   const userAfter = findPlayer(next, userId);
   if (!user || !userAfter) return;
   if (userAfter.position !== user.position) found.push(violation("made-in-heaven-user", `${user.name} moved`));
+  // Désert: a fresh pair of Cups is drawn instead (a Cup alone on tile 8 would be the real one).
+  if (getBoardMap(next.mapId).desert) {
+    if (next.cupPairId !== previous.cupPairId + 1) found.push(violation("made-in-heaven-pair", "no new pair of Cups"));
+    return;
+  }
   if (next.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID && next.phase === "playing") {
     found.push(violation("made-in-heaven-cup", `the Red Cup stands on tile ${next.redCupNodeId}`));
   }

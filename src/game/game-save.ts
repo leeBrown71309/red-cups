@@ -7,7 +7,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 26;
+export const GAME_SAVE_VERSION = 28;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -117,7 +117,9 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * 22 le diable's count of turns spent in Hell instead of entries. Version 23
  * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages. Version 25
  * (patch 0.2.0) added the knocked-out mark that outlives the skipped turns it came from. Version 26 (patch 0.2.3)
- * added the tunnels of la Taupe, the pentagrams of le Mage noir and the last deed of the new Cups Power.
+ * added the tunnels of la Taupe, the pentagrams of le Mage noir and the last deed of the new Cups Power. Version 27
+ * (patch 0.2.4) added the Archipel des Marées: the quay the ferry is moored at and the events of the tide. Version 28
+ * added the Désert des Mirages: the second Cup, the wells' knowledge, the thirst, the caravan and the sandstorm events.
  */
 /** Earlier saves queued the wheels still to spin by name, and set the other draw aside: both are dropped. */
 function upgradeWheel(wheel: SaveRecord | null | undefined): SaveRecord | null {
@@ -138,6 +140,15 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     frozenSlides: save.frozenSlides ?? [],
     lastBlizzard: save.lastBlizzard ?? null,
     lastIceFall: save.lastIceFall ?? null,
+    ferryQuayId: save.ferryQuayId ?? null,
+    mirageNodeId: save.mirageNodeId ?? null,
+    pendingMirageRevealNodeId: save.pendingMirageRevealNodeId ?? null,
+    cupPairId: save.cupPairId ?? 0,
+    wellKnowledge: save.wellKnowledge ?? {},
+    thirstyIds: save.thirstyIds ?? [],
+    caravanNodeId: save.caravanNodeId ?? null,
+    lastDesertEvents: Array.isArray(save.lastDesertEvents) ? save.lastDesertEvents : [],
+    lastArchipelEvents: Array.isArray(save.lastArchipelEvents) ? save.lastArchipelEvents : [],
     ghost: save.ghost ?? (save.mapId === "luna-park" ? createAbsentGhost(Number(save.round) || FIRST_ROUND) : null),
     lastGhostEvent: save.lastGhostEvent ?? null,
     lastCupRoll: save.lastCupRoll ?? null,

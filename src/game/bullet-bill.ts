@@ -30,8 +30,9 @@ interface ChaseTarget {
  * Chance aveugle is never chased, nor whoever Mi-vu, Mi-vue hides (the blast still reaches them if it goes off on
  * their tile). Ties go to the first seat.
  */
-function findNearestTarget(state: GameState, from: NodeId): ChaseTarget | undefined {
-  const board = getOpenBoard(state);
+function findNearestTarget(state: GameState, from: NodeId, round: number): ChaseTarget | undefined {
+  // The charge happens as `round` begins: the Archipel's tide of that round shuts the roads it cannot cross.
+  const board = getOpenBoard({ ...state, round });
   return state.players
     .filter((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !isInvisible(state, player))
     .map((player) => ({ player, path: getShortestPath(board, from, player.position, true) }))
@@ -51,8 +52,8 @@ interface Charge {
   hit: boolean;
 }
 
-function planCharge(state: GameState, from: NodeId): Charge | null {
-  const target = findNearestTarget(state, from);
+function planCharge(state: GameState, from: NodeId, round: number): Charge | null {
+  const target = findNearestTarget(state, from, round);
   if (!target) return null;
   const path = target.path.slice(0, BULLET_BILL_CHARGE_STEPS);
   const landing = path[path.length - 1] ?? from;
@@ -74,7 +75,7 @@ export function findBulletReactors(
 ): { victimId: PlayerId; reactorIds: PlayerId[] } | null {
   const bullet = state.bulletBill;
   if (!bullet || !isDue(state, round)) return null;
-  const charge = planCharge(state, bullet.position);
+  const charge = planCharge(state, bullet.position, round);
   if (!charge?.hit) return null;
   const victim = charge.target.player;
   // The victim answers with Non merci, or, for a Mage noir with a mark, by teleporting out of the way.
@@ -99,16 +100,16 @@ export function findBulletReactors(
 export function advanceBulletBill(state: GameState, round: number, dodged = false): GameState {
   const bullet = state.bulletBill;
   if (!bullet || !isDue(state, round)) return state;
-  if (bullet.status === "active") return chargeNearestPlayer(state, dodged);
+  if (bullet.status === "active") return chargeNearestPlayer(state, dodged, round);
 
   const awake = addLog({ ...state, bulletBill: { ...bullet, status: "active" } }, "Bullet Bill s’active !", "event");
-  return chargeNearestPlayer(awake, dodged);
+  return chargeNearestPlayer(awake, dodged, round);
 }
 
-function chargeNearestPlayer(state: GameState, dodged: boolean): GameState {
+function chargeNearestPlayer(state: GameState, dodged: boolean, round: number): GameState {
   const bullet = state.bulletBill;
   if (!bullet) return state;
-  const charge = planCharge(state, bullet.position);
+  const charge = planCharge(state, bullet.position, round);
   if (!charge) return state;
   const { target, path, hit } = charge;
   const position = path[path.length - 1] ?? bullet.position;

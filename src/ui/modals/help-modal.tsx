@@ -51,6 +51,14 @@ const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, st
   tunnel: "legend-road legend-road--tunnel",
   carousel: "legend-road legend-road--carousel",
   ice: "legend-road legend-road--ice",
+  causeway: "legend-road legend-road--causeway",
+  quay: "legend-road legend-road--quay",
+  whirlpool: "legend-road legend-road--whirlpool",
+  ferry: "legend-road legend-road--ferry",
+  pass: "legend-road legend-road--pass",
+  well: "legend-road legend-road--well",
+  oasis: "legend-road legend-road--oasis",
+  caravan: "legend-road legend-road--caravan",
 };
 
 interface RuleSection {
