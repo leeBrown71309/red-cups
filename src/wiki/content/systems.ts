@@ -167,7 +167,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Chaque joueur : 45 s par tour (uniquement ses décisions), les décisions des autres : 20 s (45 s au bras de fer). Le chrono des duels et des roues est remplacé par une sécurité de 120 s.",
         "• Temps écoulé : le choix par défaut s'applique (finir le tour, laisser passer, garder ses pièces… ou un tirage au sort quand il faut choisir : case d'avance, objet à jeter, main, vote).",
-        "• 3 tours écoulés sans RIEN faire = forfait (abandon automatique).",
+        "• Chances : chaque joueur en a 3 (un trèfle à quatre feuilles chacune, affiché sous son nom). Un tour écoulé sans RIEN faire en coûte une ; à la dernière, une alerte prévient au début de son tour ; quand elles sont toutes perdues, c'est le forfait (abandon automatique). Rien ne les rend : jouer simplement ne coûte rien.",
         "• Tout le monde réduit le même jeu d'actions avec la même chance (tire du moteur) : chaque device voit la même roue, le même fantôme, la même explosion.",
         "• L'hôte peut mettre en pause (les horloges se figent et se décalent d'autant) et exclure; un joueur exclu peut demander son retour — il revient avec ce qu'il avait (l'Ange revient en Lambda), en fin d'ordre de passage.",
         "• Rejoindre en retard : possible jusqu'à la fin du 1er tour de table, jamais pour un rôle (diable/Ange).",

@@ -178,7 +178,7 @@ function getRuleSections(mapId: MapId): RuleSection[] {
         "Un joueur assommé garde ce statut tant qu’il n’a pas pu rejouer : son tour sauté passé, il reste la proie " +
           "du Toucher d’Enfer et des vols du Cupide jusqu’à son tour suivant.",
         "Le Mage noir peut aussi esquiver un objet qui le vise, Draven ou Bullet Bill en se téléportant sur son " +
-          "pentagramme, au prix d’une de ses chances.",
+          "pentagramme, au prix d’un de ses pentagrammes.",
       ],
     },
     {

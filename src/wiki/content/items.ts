@@ -205,7 +205,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• Chaque victime y va par un vrai voyage : Parachute possible pour chacune, l'Ange perd un tour à la place, Chance aveugle et tout joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) sont épargnés.",
-        "• Non merci ne protège QUE son détenteur : épargné, lui, les autres y vont quand même. Un [[card:black-mage|Mage noir]] peut de même se téléporter sur sa marque (1 chance) et rester seul épargné.",
+        "• Non merci ne protège QUE son détenteur : épargné, lui, les autres y vont quand même. Un [[card:black-mage|Mage noir]] peut de même se téléporter sur sa marque (1 pentagramme) et rester seul épargné.",
         "• À l'arrivée de tout ce beau monde, la table se règle : duels en Enfer s'il y a de la place, point du diable, récompense de l'Habitué, Toucher d'Enfer…",
       ],
     },
