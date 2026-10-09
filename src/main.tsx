@@ -12,6 +12,8 @@ if (import.meta.env.DEV) {
 
 if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "history") {
   void import("./dev/history-preview").then(({ HistoryPreview }) => root.render(<HistoryPreview />));
+} else if (import.meta.env.DEV && new URLSearchParams(window.location.search).get("preview") === "cards") {
+  void import("./dev/card-gallery").then(({ CardGallery }) => root.render(<CardGallery />));
 } else {
   root.render(
     <React.StrictMode>

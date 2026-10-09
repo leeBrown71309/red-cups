@@ -38,7 +38,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• Tu peux aussi finir sur place sans marcher : après avoir dépensé de l'énergie en objet, s'il ne reste pas assez pour bouger, ou si aucune route ne mène nulle part.",
         "• La Tomate seule et les objets gratuits ne comptent pas comme « avoir agi » : ils ne te permettent pas de passer ton tour sans bouger.",
         "• La [[card:roller|Roller]] lance son dé avant toute chose; une fois le dé lancé, plus d'objets.",
-        `• Les Cups Power à bouton se jouent comme des objets, avant le déplacement : la copie du [[card:mime|Mime]] (aucune énergie), le tunnel de la [[card:mole|Taupe]] (${MOLE_DIG_ENERGY} points, il tient lieu de marche) et le Swap de la [[card:ghost-sister|Sœur Fantôme]] (${SISTER_SWAP_ENERGY} points). Le pentagramme et la téléportation du [[card:black-mage|Mage noir]] ne coûtent aucune énergie (une chance par téléportation, ${MAGE_MAX_LUCK} au départ).`,
+        `• Les Cups Power à bouton se jouent comme des objets, avant le déplacement : la copie du [[card:mime|Mime]] (aucune énergie), le tunnel de la [[card:mole|Taupe]] (${MOLE_DIG_ENERGY} points, il tient lieu de marche) et le Swap de la [[card:ghost-sister|Sœur Fantôme]] (${SISTER_SWAP_ENERGY} points). Le pentagramme et la téléportation du [[card:black-mage|Mage noir]] ne coûtent aucune énergie (un pentagramme de la réserve par téléportation, ${MAGE_MAX_LUCK} au départ).`,
         "• En Enfer, la roue remplace la marche (et prend le reste de l'énergie).",
       ],
     },
@@ -81,7 +81,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Verte : roue du [[wheel:fortune|bonheur]]. Rouge : roue du [[wheel:misfortune|malheur]]. Bleue : la boutique s'ouvre à la fin de ton déplacement. Neutre : rien. Départ : +200 si tu y entres PAR LA FLÈCHE qui y mène (8→0 à [[map:classic|Coffre à jouets]] et [[map:luna-park|Luna Park]], 4→0 à [[map:banquise|Banquise]]).",
         "• « Arriver » = finir un déplacement, ou être posé là par une roue (« Avance d'une case », « Va au Départ », « Retourne d'où tu viens ») : la roue de la case, la Boue, le Portail et le bonus s'appliquent. Seul le Portail qui AVALE la case éteint tout le reste : pas de roue, pas de boutique (une Red Cup posée là se ramasse quand même avant la chute). Une boutique ne s'ouvre sur une pose de roue que si c'est ton tour et que tu finissais. La [[item:water-bottle|Bouteille d'eau]] échappe à la règle : sa téléportation donne la roue et la Cup, pas la Boue ni les Portails.",
-        "• « Arrivé » ≠ « déplacé » : la [[item:rope|Corde]] qui tire, le [[item:monopoly-man|Monopoly Man]] qui échange, [[card:new-cup-new-me|New Cup, New Me]] et [[card:calm-down|Calme-toi]] POSENT sans déclencher la case, comme le Swap de la [[card:ghost-sister|Sœur Fantôme]]. En revanche, un tunnel de la [[card:mole|Taupe]] et la téléportation du [[card:black-mage|Mage noir]] SONT des arrivées (sauf celle qui esquive Bullet Bill).",
+        "• « Arrivé » ≠ « déplacé » : la [[item:rope|Corde]] qui tire, le [[item:monopoly-man|Monopoly Man]] qui échange, [[card:new-cup-new-me|New Cup, New Me]] et [[card:calm-down|Calme-toi]] POSENT sans déclencher la case, comme le Swap de la [[card:ghost-sister|Sœur Fantôme]]. En revanche, un tunnel de la [[card:mole|Taupe]] et la téléportation du [[card:black-mage|Mage noir]] SONT des arrivées.",
         "• Glace ([[map:banquise|Banquise]]) : personne n'y stationne — on glisse ailleurs; seule la case finale compte.",
       ],
     },
@@ -100,7 +100,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Y vivre",
       body: [
-        "• Ton tour en Enfer = roue de l'Enfer (elle prend ton énergie restante) ou objets avant; pas de marche, pas de boutique, pas de cases.",
+        "• Ton tour en Enfer = objets d'abord si tu veux, puis la roue de l'Enfer (elle prend ton énergie restante) : la roue n'est pas un choix, tu ne peux pas finir ton tour à côté d'elle tant qu'il te reste l'énergie pour la tourner. Pas de marche, pas de boutique, pas de cases.",
         "• Deux joueurs en Enfer au repos de la table : DUEL (le premier en liste des sièges avec le suivant) — pas trois : un seul duel à la fois.",
         "• Sorties : la Libération de la roue (+200, case 0), [[item:water-bottle|Bouteille d'eau]] (case au hasard), le vainqueur d'un duel (Départ + 200), la fin de peine, la téléportation d'un [[card:black-mage|Mage noir]] sur son pentagramme (à son tour, sans bonus ni péage). [[card:new-cup-new-me|New Cup, New Me]] ne libère plus (patch 0.2.0).",
         "• Peine : 5 de TES tours commencés là-bas (3 pour l'[[card:hell-regular|Habitué de l'Enfer]]) → sortie d'office en case 0 avec le bonus du Départ, contre 500 pièces de péage (le bonus d'abord, le péage ensuite : le Casque peut jouer).",
@@ -175,7 +175,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Le sac et le Cups Power des autres restent cachés ; les passifs et le protégé de l'Ange sont publics. Les lignes du journal d'un achat, d'un vol ou d'une copie n'apparaissent en clair que pour leur propriétaire.",
         "• [[card:mime|Mime]] : la table lit « X copie le Cups Power de Y jusqu'à la fin de son tour », sans savoir lequel ; seul le Mime le sait.",
-        "• [[card:half-seen|Mi-vu, Mi-vue]] : tant que quelqu'un est invisible, chaque écran cache ce qu'il ne doit pas voir. L'invisible ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill ; son propre pion est dessiné translucide, pour lui seul. Les autres ne voient plus son pion, ses actions, son sac ni ses pièces. Le journal garde « Tour de X » et les annonces d'invisibilité pour tout le monde.",
+        "• [[card:half-seen|Mi-vu, Mi-vue]] : tant que quelqu'un est invisible, chaque écran cache ce qu'il ne doit pas voir. L'invisible, pendant son tour, ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill ; son propre pion est dessiné translucide, pour lui seul. Les autres ne voient plus son pion, ses actions, son sac ni ses pièces. Le journal garde « Tour de X » et les annonces d'invisibilité pour tout le monde.",
         "• Ces voiles sont visuels : chaque appareil rejoue le même jeu, l'état est partagé — comme pour la Red Cup de [[card:blind-luck|Chance aveugle]]. Sur un écran partagé (local), le brouillard suit le joueur qui doit décider.",
       ],
     },
@@ -198,7 +198,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• 6 000 pièces pour [[card:greedy|Cupide]] — vérifié après CHAQUE action, même hors de son tour.",
         "• Le quota d'Enfer pour le [[card:devil|diable]] (⌊4N − N/2⌋).",
         "• L'[[card:guardian-angel|Ange-Gardien]] gagne avec son protégé (peu importe comment le protégé gagne).",
-        "• Un [[card:black-mage|Mage noir]] sans aucune chance est éliminé comme un joueur qui abandonne : s'il ne reste alors qu'un joueur, il gagne par abandon.",
+        "• Un [[card:black-mage|Mage noir]] sans aucun pentagramme n'est pas éliminé : il ne peut simplement plus se téléporter, et en retrouve un tous les 15 tours.",
         "• Par abandon : le dernier joueur assis l'emporte si la table se vide.",
         "• Classement final : vainqueur(s) en tête, puis aux Cups, puis aux pièces; les partis après sont listés à part.",
       ],

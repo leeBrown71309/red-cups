@@ -14,7 +14,6 @@ import {
   HELL_DROP_MS,
   INVISIBILITY_FADE_MS,
   INVISIBILITY_POP_MS,
-  MAGE_CRUMBLE_MS,
   MARK_BURN_MS,
   MARK_EMERGE_MS,
   MARK_SUCK_MS,
@@ -243,8 +242,7 @@ export class PawnController {
     const inputIds = new Set(inputs.map((input) => input.id));
     for (const [id, pawn] of this.pawns) {
       if (inputIds.has(id)) continue;
-      // A mage with no chance left crumbles to ash on their tile before they leave the table.
-      if (pawn.dying || (pendingPower?.kind === "mage-fallen" && pendingPower.playerId === id)) {
+      if (pawn.dying) {
         pawn.dying = true;
         pawn.choreographed = true;
         pawn.held ??= 0;
@@ -377,13 +375,6 @@ export class PawnController {
       case "mime-copy": {
         const copier = this.pawns.get(event.playerId);
         if (copier && copier.actions.length === 0) copier.actions.push({ type: "mimic", duration: 620 });
-        return;
-      }
-      case "mage-fallen": {
-        const mage = this.pawns.get(event.playerId);
-        if (!mage || mage.actions.some((action) => action.type === "crumble")) return;
-        mage.dying = true;
-        this.choreograph(mage, [{ type: "crumble", duration: MAGE_CRUMBLE_MS }]);
         return;
       }
       default:

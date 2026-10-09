@@ -133,8 +133,6 @@ export function estimatePowerEventMs(event: PowerEvent): number {
       return MARK_DRAW_MS;
     case "mark-teleport":
       return MARK_TELEPORT_MS + (event.victimIds.length > 0 || event.mudHell ? MARK_VICTIM_MS : 0);
-    case "mage-fallen":
-      return MAGE_FALL_MS;
     case "sister-swap":
       return SISTER_SWAP_MS;
     case "tunnel-dig":

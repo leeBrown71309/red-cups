@@ -1,3 +1,4 @@
+import { endCopies } from "./mime";
 import { hasCard } from "./cards";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { getBoard, getOpenBoard, getShortestPath, hasCarousel, isBlockedRoad, isIce, type Board } from "./board";
@@ -40,7 +41,6 @@ import {
   addOpenLog,
   appendItem,
   applyCurrencyChange,
-  dropCopies,
   findPlayer,
   getActivePlayer,
   randomChoice,
@@ -853,7 +853,8 @@ export function resumeAfterBulletReaction(state: GameState, dodged: boolean): Ga
  * Non merci holder's answer to the first round start, once they gave it.
  */
 function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit" | "dodged" | null): GameState {
-  let nextState = state;
+  // The Mime's copy lasted the turn that ended, before Bullet Bill or anything of the new round looks at it.
+  let nextState = endCopies(state);
   const seatCount = nextState.players.length;
   let nextIndex = fromIndex;
   let nextRound = state.round;
@@ -912,15 +913,13 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   }
   nextState = advanceMist(nextState, nextState.players[nextIndex].id);
   nextState = serveHellTurn(nextState, nextState.players[nextIndex].id);
-  // The Mime's copy lasted the turn that ended.
-  nextState = dropCopies(nextState);
   const activePlayer = nextState.players[nextIndex];
   nextState = {
     ...nextState,
     activePlayerIndex: nextIndex,
     round: nextRound,
     turnStage: activePlayer.position === HELL_NODE_ID ? "hell" : "move",
-    energyLeft: getEnergyCapacity(activePlayer, nextState),
+    energyLeft: getEnergyCapacity(activePlayer, { ...nextState, round: nextRound }),
     turnActionTaken: false,
     moveDistance: 1,
     mudPlacedThisTurn: false,

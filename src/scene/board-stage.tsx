@@ -219,7 +219,10 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const game = useGameStore();
   const legalMoves = useLegalMoves();
   const lagged = useLaggedProps();
-  const cupHidden = useRedCupHidden() || lagged.fog.viewerHidden;
+  // The live fog, not the lagged one: the Red Cup comes back the moment the viewer's own hidden turn is over.
+  const liveFog = useFog();
+  const redCupBlind = useRedCupHidden();
+  const cupHidden = redCupBlind || liveFog.viewerHidden;
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
   const roadPickEntryId = useUiStore((state) => state.roadPickEntryId);

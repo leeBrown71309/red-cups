@@ -372,6 +372,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• Le prochain de ces objets qui te vise revient sur SON lanceur : Ndoye, Hollow Purple, Corde, Middle Finger. La Corde reflectée attire le lanceur sur TA case; Hollow Purple reflecté l'envoie en Enfer.",
+        "• Un Middle Finger renvoyé ne laisse à son lanceur que la fin de son tour : il passe son prochain tour, et ne peut ni se déplacer ni utiliser un autre objet avant de la finir.",
         "• Le Miroir répond AVANT Non merci et le Bouclier : si Miroir il y a, la réaction ne se propose même pas.",
         "• Consommé à l'usage, Miroir comme objet lancé. Je note ne copie pas un objet renvoyé.",
         "• Échappe au renvoi : Monopoly Man, Draven, Boue, Bullet Bill, Tomate, Barrière.",

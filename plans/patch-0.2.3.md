@@ -25,7 +25,7 @@ document (« À valider »).
 ### Mime
 
 - Une fois tous les 3 tours de table (`MIME_COOLDOWN_ROUNDS`), avant son déplacement, le Mime choisit un joueur et
-  copie **son CP** jusqu'à la fin de son tour. `Player.mimicId` ; `hasCard` le lit comme une carte à lui, donc tous les
+  copie **son CP ou son passif, au choix** jusqu'à la fin de son tour. `Player.mimicId` ; `hasCard` le lit comme une carte à lui, donc tous les
   avantages **et** les défauts s'appliquent (Chance aveugle : immunité ; Cupide : pas de place de sac pour la Red Cup ;
   Red Bull : +1 énergie immédiate ; eShop : la boutique s'ouvre partout…).
 - Copier ne coûte aucune énergie et ne compte pas comme une action du tour.
@@ -47,7 +47,7 @@ document (« À valider »).
 
 ### Mage noir
 
-- Commence avec **3 chances** (`luck`), en regagne une tous les 15 tours (`luckReturnRound`), jamais plus de 3.
+- Commence avec **3 pentagrammes** (`luck`, la réserve), en regagne un tous les 15 tours (`luckReturnRound`), jamais plus de 3.
 - **Poser une marque** (pentagramme) : sur sa case, un seul à la fois, pas sur une Boue, pas en Enfer, pendant son tour
   (avant ou après son déplacement). Visible de tous. Aucune énergie.
 - **Se téléporter** sur sa marque coûte 1 chance : pendant son tour (même depuis l'Enfer), quand un objet le vise
@@ -56,7 +56,7 @@ document (« À valider »).
 - À l'arrivée : chaque autre joueur sur la marque a 20 % de tomber en Enfer ; une Boue sur la marque fait tomber le
   mage lui-même en Enfer avec 20 % de chances (et la Boue disparaît). La marque disparaît après usage, **sauf** si elle a
   envoyé quelqu'un en Enfer.
-- À 0 chance, le mage est éliminé (dès que la table est au repos).
+- À 0 pentagramme, le mage ne peut plus se téléporter mais continue de jouer (pas d'élimination, réponse de l'auteur) ; un pentagramme revient tous les 15 tours.
 
 ### Mi-vu, Mi-vue
 
@@ -65,7 +65,7 @@ document (« À valider »).
   défi de la roue de l'Enfer, copie du Mime) ; Draven l'épargne ; Bullet Bill ne le traque plus (mais l'assomme s'il
   explose sur sa case).
 - À une case ou moins de la Red Cup, il est visible (calcul dérivé, jamais stocké).
-- Côté écran (en ligne) : l'invisible ne voit plus les pions, les actions, l'inventaire, les pièces, les pièges, la Red
+- Côté écran (en ligne) : pendant son propre tour seulement, l'invisible ne voit plus les pions, les actions, l'inventaire, les pièces, les pièges, la Red
   Cup ni Bullet Bill ; les autres ne voient plus son pion (il devient transparent pour lui), ses actions (le journal
   garde « tour de X »), son sac, ses pièces.
 
@@ -76,7 +76,7 @@ document (« À valider »).
   respectant flèches et Barrières ; sinon elle reste.
 - Elle ne peut être ciblée, n'active ni piège ni case. Déplacé par autre chose qu'un pas (téléportation, échange, corde…),
   le joueur la laisse où elle est. Joueur en Enfer : elle retourne au Départ.
-- **Swap** (3 énergie, hors Enfer, pas sur la même case) : le joueur et la sœur échangent leur place ; la sœur emporte
+- **Swap** (3 énergie, une fois tous les 4 tours — `SISTER_SWAP_COOLDOWN_ROUNDS`, `swapReadyRound` —, hors Enfer, pas sur la même case) : le joueur et la sœur échangent leur place ; la sœur emporte
   avec elle, sur la case que le joueur quitte, ce qui était sur sa case : Boue, Portail, Red Cup, Bullet Bill (pas les
   joueurs). Rien n'est déclenché, ramassé ni touché, ni sur l'arrivée du joueur, ni sur le départ de la sœur.
 
@@ -117,8 +117,8 @@ document (« À valider »).
    envoyé en Enfer via cette marque… ») : lue comme « elle reste ». À confirmer.
 7. **Mage noir, la Boue sur la marque** : le texte dit « il peut se retrouver en Enfer » sans chiffre : 20 %, comme pour
    les joueurs. La Boue disparaît.
-8. **Mage noir, 3 chances et 15 tours** : 15 tours de table, c'est plus long qu'une partie classique ; l'élimination à
-   0 chance est radicale, surtout contre Draven ou un Hollow Purple.
+8. **Mage noir, 3 pentagrammes et 15 tours** : 15 tours de table, c'est plus long qu'une partie classique ; il n'y a plus d'élimination à 0 pentagramme
+   (réponse de l'auteur) : le Mage ne peut juste plus se téléporter.
 9. **Mi-vu, Mi-vue** : cycle « visible, invisible, invisible » ; les cartes de la roue et les pièges de la carte restent
    tels quels (les pingouins de Banquise et le fantôme de Luna Park ne sont pas des « ciblages » : ils l'atteignent).
 10. **Sœur Fantôme, le miroir** : direction à 40° près sur les coordonnées du plan ; elle obéit aux flèches. Sur le

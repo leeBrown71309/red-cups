@@ -5,7 +5,7 @@ import { launchBulletBill } from "./bullet-bill";
 import { carryOffIce, drawSlide, recordSlide, toPathBumps } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
 import { teleportToMark } from "./black-mage";
-import { canTeleport } from "./mage-queries";
+import { canTeleport, findMark } from "./mage-queries";
 import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
 import { isInvisible } from "./mist";
 import { startArmWrestle } from "./arm-wrestle";
@@ -380,6 +380,8 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       nextState = updatePlayer(nextState, victim.id, (currentPlayer) => loseTurns(currentPlayer));
       nextState = addLog(nextState, `${victim.name} devra passer son prochain tour.`, "bad");
       if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
+      // Sent back by a Miroir, it leaves its user nothing but the end of their turn: no other item, no move.
+      if (plan.reflected) nextState = { ...nextState, turnStage: "turn-end", turnActionTaken: true };
       break;
 
     case "monopoly-man":
@@ -585,7 +587,12 @@ export function getNoThanksReactors(state: GameState, victimIds: PlayerId[]): Pl
 /** Mage noir: the victims who hold a mark and a chance, and may teleport out of the item's way. */
 export function getTeleportReactors(state: GameState, victimIds: PlayerId[]): PlayerId[] {
   return state.players
-    .filter((player) => victimIds.includes(player.id) && canTeleport(state, player))
+    .filter(
+      (player) =>
+        victimIds.includes(player.id) &&
+        canTeleport(state, player) &&
+        findMark(state, player.id)?.nodeId !== player.position,
+    )
     .map((player) => player.id);
 }
 
@@ -648,7 +655,8 @@ export function cancelDeclaredAction(
   const actor = findPlayer(state, pending.actorId);
   const { action } = pending;
   if (!reactor || !actor || action.type !== "item") return state;
-  if (teleport && !canTeleport(state, reactor)) return state;
+  if (teleport && (!canTeleport(state, reactor) || findMark(state, reactor.id)?.nodeId === reactor.position))
+    return state;
 
   // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci, and the mage
   // with a teleport, which costs a chance and no cooldown.
@@ -677,7 +685,10 @@ export function cancelDeclaredAction(
         : `${reactor.name} utilise Non merci : Draven l’épargne.`,
       "event",
     );
-    return teleportAfter(applyItemUse(spared, action.entryId, { ...plan, sparedIds: [reactor.id] }));
+    // The mage slips away first and arrives on their mark; Draven then strikes the others. One settling at the end, so
+    // that what the arrival opened (a Red Cup to place, a wheel) and the duels in Hell wait for each other.
+    const dodged = teleport && spared.phase === "playing" ? teleportToMark(spared, reactor.id, "reaction") : spared;
+    return applyItemUse(dodged, action.entryId, { ...plan, sparedIds: [reactor.id] });
   }
 
   nextState = base;

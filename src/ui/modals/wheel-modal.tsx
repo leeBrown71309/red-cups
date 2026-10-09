@@ -270,9 +270,9 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
                           type="button"
                           className="btn btn--grape btn--block"
                           onClick={() => cancelWheel(false, true)}
-                          title="Tu perds une chance : la roue est mise de côté et tu atterris sur ton pentagramme"
+                          title="Tu perds un pentagramme : la roue est mise de côté et tu atterris sur ton pentagramme"
                         >
-                          <UiIcon name="flag" size={20} /> Te téléporter sur ton pentagramme (−1 chance)
+                          <UiIcon name="flag" size={20} /> Te téléporter sur ton pentagramme (−1 pentagramme)
                         </button>
                       )}
                     </>

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { withPassives } from "./forced-passives";
 import { reduceGame } from "./game-actions";
+import { canEndTurn } from "./energy";
 import { drawSlide } from "./ice";
 import { getBarrierRoads } from "./turn-actions";
 import { getBoard, isBlockedRoad } from "./board";
@@ -93,6 +94,21 @@ describe("Miroir", () => {
     expect(countItemUnits(store().players[1], "mirror")).toBe(0);
     expect(store().players[1].mirrorUsed).toBe(true);
     expect(store().log.some((entry) => entry.text.includes("Miroir"))).toBe(true);
+  });
+
+  it("sends Middle Finger back: its user skips a turn and can only end this one", () => {
+    startTable();
+    giveItem(0, "middle-finger");
+    giveItem(1, "mirror");
+    const entryId = store().players[0].inventory.find((entry) => entry.kind === "item")!.id;
+    store().useItem(entryId, store().players[1].id);
+    expect(store().turnStage).toBe("turn-end");
+    expect(store().players[0].skippedTurns).toBe(1);
+    // No move and no other item are left: only the end of the turn.
+    const before = store().players;
+    store().movePlayer(store().players[0].position === 0 ? 2 : 0);
+    expect(store().players).toBe(before);
+    expect(canEndTurn(store())).toBe(true);
   });
 });
 

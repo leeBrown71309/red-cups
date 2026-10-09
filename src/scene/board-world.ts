@@ -1177,16 +1177,6 @@ export class BoardWorld {
         }
         return;
       }
-      case "mage-fallen": {
-        // Only a pawn the table can no longer find is given its ash here: otherwise its own crumbling is.
-        if (seen(event.playerId) && !this.pawns.has(event.playerId)) {
-          this.effects.spawnAshCrumble(
-            this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT),
-            MAGE_CRUMBLE_MS / 1000,
-          );
-        }
-        return;
-      }
       case "sister-swap":
         this.playSisterSwap(event, fog);
         return;

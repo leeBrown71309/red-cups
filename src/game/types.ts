@@ -110,6 +110,8 @@ export const ARM_WRESTLE_MAX_TAPS = 150;
 export const TANK_ARM_STRENGTH = 1.2;
 /** Mime: rounds to wait after a copy before copying again (patch 0.2.3). */
 export const MIME_COOLDOWN_ROUNDS = 3;
+/** Sœur Fantôme: rounds to wait after a Swap before swapping again. */
+export const SISTER_SWAP_COOLDOWN_ROUNDS = 4;
 /** Taupe: energy that digging a tunnel costs. */
 export const MOLE_DIG_ENERGY = 3;
 /** Taupe: energy the digger pays to cross a tunnel they dug; anybody else pays the dig's price. */
@@ -274,6 +276,8 @@ export interface Player {
   mimicId?: PassiveId | null;
   /** Mime: first round in which they may copy again. */
   mimeReadyRound?: number;
+  /** Sœur Fantôme: first round in which they may swap again. */
+  swapReadyRound?: number;
   /** Taupe: every tile the player stood on or walked through, which is where they may dig a tunnel to. */
   visitedNodeIds?: NodeId[];
   /** Taupe: first round in which they may dig again. */
@@ -789,7 +793,6 @@ export type PowerEvent = { seq: number } & (
       kept: boolean;
       luckLeft: number;
     }
-  | { kind: "mage-fallen"; playerId: PlayerId; nodeId: NodeId }
   | {
       kind: "sister-swap";
       playerId: PlayerId;

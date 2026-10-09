@@ -1,5 +1,3 @@
-import { abandonPlayer, canAbandon } from "./abandon";
-import { ownsCard } from "./cards";
 import { drawEngineRandom } from "./engine-random";
 import { arriveOnTile } from "./game-effects";
 import { slideOnArrival } from "./ice";
@@ -7,7 +5,7 @@ import { getLuck, spendLuck } from "./mage-luck";
 import { canPlaceMark, canTeleport, findMark, type TeleportReason } from "./mage-queries";
 import { withPowerEvent } from "./power-event";
 import { addLog, findPlayer, getActivePlayer, sendPlayerToHell, updatePlayer } from "./state-utils";
-import type { BlackMark, GameState, PlayerId } from "./types";
+import type { BlackMark, GameState, NodeId, PlayerId } from "./types";
 import { HELL_NODE_ID, MAGE_MAX_LUCK, MARK_HELL_CHANCE, MARK_MUD_HELL_CHANCE } from "./types";
 
 /**
@@ -45,8 +43,6 @@ export function teleportToMark(
   if (!canTeleport(state, mage) || !mark) return state;
   const from = mage.position;
   const to = mark.nodeId;
-  const mudOnMark = state.mudTraps.find((trap) => trap.nodeId === to);
-  const mudFall = mudOnMark !== undefined && drawEngineRandom() < MARK_MUD_HELL_CHANCE;
   // Everybody standing on the mark is rolled for, in seat order, before anybody moves.
   const doomedIds = state.players
     .filter((other) => other.id !== playerId && other.position === to)
@@ -61,7 +57,7 @@ export function teleportToMark(
   const luckLeft = getLuck(findPlayer(nextState, playerId) ?? mage);
   nextState = addLog(
     nextState,
-    `${mage.name} se téléporte sur son pentagramme, case ${to} (${luckLeft}/${MAGE_MAX_LUCK} chances).`,
+    `${mage.name} se téléporte sur son pentagramme, case ${to} (${luckLeft}/${MAGE_MAX_LUCK} pentagrammes).`,
     "event",
   );
 
@@ -73,19 +69,14 @@ export function teleportToMark(
   if (victimIds.length > 0) {
     nextState = addLog(nextState, "Le pentagramme réclame son dû : l’Enfer s’ouvre sous eux.", "bad");
   }
-  // Standing still (a mark on their own tile, used to dodge) is no arrival: the tile does not act twice. Nor is a
-  // teleport that answers an item or Bullet Bill: it lands in the middle of somebody else's action, and the tile
-  // must not open a wheel, a shop or a pick-up over it.
-  const arrives = arrive && from !== to && reason !== "reaction";
-  // Banquise: a mark that froze over slides the mage on, and they arrive where the slide stops.
-  if (arrives) nextState = arriveOnTile(slideOnArrival(nextState, playerId, from), playerId);
-  // The mud under the mark may swallow the mage on top of what it costs them: they fall through it into Hell.
+  // Standing still (a mark on their own tile) is no arrival: the tile does not act twice. Any real teleport arrives,
+  // whatever made the mage leave (their turn, a wheel, an item or Bullet Bill aimed at them). `arrive: false` leaves
+  // it to the caller, through `arriveOnMark`, once the table is ready for the tile to act.
   let mudHell = false;
-  if (arrives && mudFall && mudOnMark && findPlayer(nextState, playerId)?.position === to) {
-    nextState = { ...nextState, mudTraps: nextState.mudTraps.filter((trap) => trap.id !== mudOnMark.id) };
-    nextState = addLog(nextState, `${mage.name} plonge de la Boue de son pentagramme jusqu’en Enfer.`, "bad");
-    nextState = sendPlayerToHell(nextState, playerId);
-    mudHell = findPlayer(nextState, playerId)?.position === HELL_NODE_ID;
+  if (arrive && from !== to) {
+    const arrived = arriveOnMark(nextState, playerId, from);
+    nextState = arrived.state;
+    mudHell = arrived.mudHell;
   }
 
   const kept = victimIds.length > 0;
@@ -99,20 +90,37 @@ export function teleportToMark(
 }
 
 /**
- * Run after every action. A mage out of chances is out of the game, as soon as the table is at rest (a decision
- * left hanging holds the departure back); the mark of a player who left the table is wiped away.
+ * The arrival of a mage set down on their mark: Banquise's ice, the tile's effects, and the mud under the mark, which
+ * may swallow them on top of what it costs them (they fall through it into Hell).
  */
-export function eliminateFallenMages(state: GameState): GameState {
-  let nextState = state;
-  const orphaned = nextState.blackMarks.filter((mark) => findPlayer(nextState, mark.ownerId) === undefined);
-  if (orphaned.length > 0) {
-    nextState = { ...nextState, blackMarks: nextState.blackMarks.filter((mark) => !orphaned.includes(mark)) };
+export function arriveOnMark(
+  state: GameState,
+  playerId: PlayerId,
+  from: NodeId,
+): { state: GameState; mudHell: boolean } {
+  const mage = findPlayer(state, playerId);
+  if (!mage || mage.position === from) return { state, mudHell: false };
+  const to = mage.position;
+  const mudOnMark = state.mudTraps.find((trap) => trap.nodeId === to);
+  const mudFall = mudOnMark !== undefined && drawEngineRandom() < MARK_MUD_HELL_CHANCE;
+  let nextState = arriveOnTile(slideOnArrival(state, playerId, from), playerId);
+  let mudHell = false;
+  if (mudFall && mudOnMark && findPlayer(nextState, playerId)?.position === to) {
+    nextState = { ...nextState, mudTraps: nextState.mudTraps.filter((trap) => trap.id !== mudOnMark.id) };
+    nextState = addLog(nextState, `${mage.name} plonge de la Boue de son pentagramme jusqu’en Enfer.`, "bad");
+    nextState = sendPlayerToHell(nextState, playerId);
+    mudHell = findPlayer(nextState, playerId)?.position === HELL_NODE_ID;
   }
-  for (const mage of state.players) {
-    if (!ownsCard(mage, "black-mage") || getLuck(mage) > 0 || !canAbandon(nextState)) continue;
-    const fallen = withPowerEvent(nextState, { kind: "mage-fallen", playerId: mage.id, nodeId: mage.position });
-    nextState = abandonPlayer(fallen, mage.id, "luck");
-    nextState = { ...nextState, blackMarks: nextState.blackMarks.filter((mark) => mark.ownerId !== mage.id) };
-  }
-  return nextState;
+  return { state: nextState, mudHell };
+}
+
+/**
+ * Run after every action: the mark of a player who left the table is wiped away. A mage with no pentagram left is
+ * not out of the game: they simply cannot teleport until one comes back (every fifteen rounds).
+ */
+export function clearOrphanedMarks(state: GameState): GameState {
+  const orphaned = state.blackMarks.filter((mark) => findPlayer(state, mark.ownerId) === undefined);
+  return orphaned.length === 0
+    ? state
+    : { ...state, blackMarks: state.blackMarks.filter((mark) => !orphaned.includes(mark)) };
 }

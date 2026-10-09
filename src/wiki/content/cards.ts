@@ -17,6 +17,7 @@ import {
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
   MOLE_OWN_CROSSING_ENERGY,
+  SISTER_SWAP_COOLDOWN_ROUNDS,
   SISTER_SWAP_ENERGY,
 } from "../../game/types";
 import { formatCoins, percent } from "../format";
@@ -253,7 +254,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• Seulement à 4 joueurs et plus. Le protégé est tiré au début et ANNONCÉ à toute la table — jamais un joueur portant le Diable, le Voleur, le Goblin ou le Corrupteur. S'il n'y a personne à protéger, l'ange devient Lambda.",
+        "• Seulement à 4 joueurs et plus. Le protégé est tiré au début et ANNONCÉ à toute la table — jamais un joueur portant le Diable, le Voleur, le Goblin, le Corrupteur ou le Mage noir. S'il n'y a personne à protéger, l'ange devient Lambda.",
         "• Ils gagnent ENSEMBLE : le protégé lève les 3 Cups, l'ange est co-vainqueur avec lui.",
         "• Départ à 800 pièces, sac de 2 places seulement.",
         "• Ni Cup, ni Enfer pour l'ange : toute descente en Enfer lui coûte UN tour (un Réveil peut l'annuler).",
@@ -271,18 +272,19 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        `• Une copie tous les ${MIME_COOLDOWN_ROUNDS} tours de table (copie au tour 1, prête à nouveau au tour ${1 + MIME_COOLDOWN_ROUNDS}), AVANT de te déplacer : tu désignes un joueur et tu tiens SON Cups Power jusqu'à la fin de ton tour. Seul le Cups Power se copie, jamais le passif.`,
+        `• Une copie tous les ${MIME_COOLDOWN_ROUNDS} tours de table (copie au tour 1, prête à nouveau au tour ${1 + MIME_COOLDOWN_ROUNDS}), AVANT de te déplacer : tu désignes un joueur et tu choisis SON Cups Power ou SON passif : tu le tiens jusqu'à la fin de ton tour (un seul des deux par copie).`,
         "• La copie est entière, avantages ET défauts : l'immunité de [[card:blind-luck|Chance aveugle]] (et sa Red Cup invisible à l'écran), la Red Cup à 1 000 pièces de [[card:greedy|Cupide]] (et plus de place de sac pour elle), le point d'énergie de [[card:red-bull|Red Bull]] (versé aussitôt), la boutique partout d'[[card:eshop|eShop]], le dé du [[card:roller|Roller]], les piles de [[card:tomato-enjoyer|Tomato Enjoyer]], le 50/50 de [[card:double-or-nothing|Double or nothing]], les tunnels de la [[card:mole|Taupe]].",
         "• Copier ne coûte aucune énergie et n'est pas une action du tour : seule, une copie ne te permet pas de finir ton tour sur place (et, en ligne, un tour où tu n'as fait que copier compte comme un tour sans jouer).",
         "• La copie tombe à la fin de ton tour, quoi qu'il arrive : jamais gardée d'un tour à l'autre.",
-        "• Ce que tu copies reste TON secret : la table lit « X copie le Cups Power de Y jusqu'à la fin de son tour », sans savoir lequel (en ligne, comme le contenu d'un sac).",
+        "• Un Cups Power copié reste TON secret : la table lit « X copie le Cups Power de Y jusqu'à la fin de son tour », sans savoir lequel (en ligne, comme le contenu d'un sac). Un passif, lui, est public : le journal dit lequel tu as copié.",
       ],
     },
     {
       title: "Qui peut être copié",
       body: [
         "• Refusés : [[card:devil|le diable]] et [[card:guardian-angel|L'Ange-Gardien]] (des rôles posés au départ, avec leur victoire, leur boutique ou leur protégé), [[card:black-mage|Mage noir]], [[card:ghost-sister|Sœur Fantôme]] et [[card:half-seen|Mi-vu, Mi-vue]] (des états qui vivent d'un tour à l'autre chez leur titulaire), [[card:lambda|Lambda]] (rien à copier) et un autre Mime.",
-        "• Ta liste ne propose que les joueurs copiables : celui qui n'y figure pas tient l'un de ces Cups Power — ou est invisible.",
+        "• Passifs refusés : [[card:no-thanks|Non merci]] (son délai appartient à son titulaire), [[card:hermit|L'Ermite]] et [[card:insurer|L'Assureur]] (leur prime et leurs gains se gardent d'un tour à l'autre), et [[card:hell-regular|L'Habitué de l'Enfer]] (il fixe la durée de la peine en cours). Un joueur sans passif n'en offre pas.",
+        "• Ta liste ne propose que les joueurs copiables, et pour chacun ce qui peut l'être : celui qui n'y figure pas ne tient que des cartes refusées — ou est invisible.",
         "• Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) ne se copie pas, et un Mime invisible ne copie personne.",
         "• Il faut être à son tour, avant tout déplacement : ni dé lancé par le [[card:roller|Roller]], ni [[item:boot|Botte]] chaussée, et une seule copie à la fois. C'est aussi possible depuis l'Enfer, avant la roue.",
       ],
@@ -323,10 +325,10 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        `• Commence avec ${MAGE_MAX_LUCK} chances, jamais plus. Une chance revient tous les ${MAGE_LUCK_RETURN_ROUNDS} tours de table : l'horloge démarre à la première chance dépensée et court tant qu'il lui en manque.`,
+        `• Commence avec ${MAGE_MAX_LUCK} pentagrammes en réserve, jamais plus. Un pentagramme revient tous les ${MAGE_LUCK_RETURN_ROUNDS} tours de table : l'horloge démarre au premier dépensé et court tant qu'il lui en manque.`,
         "• Poser le pentagramme : sur sa case, pendant son tour (avant ou après son déplacement), sans énergie. Un seul à la fois, jamais sur une case de Boue ni en Enfer. Visible de tous.",
         "• Poser ou se téléporter compte comme avoir joué : le Mage peut finir son tour sans marcher.",
-        "• Se téléporter sur le pentagramme coûte 1 chance et ignore routes, Barrières et flèches.",
+        "• Se téléporter sur le pentagramme coûte 1 pentagramme de la réserve et ignore routes, Barrières et flèches.",
       ],
     },
     {
@@ -334,7 +336,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• À son tour, avant de bouger — même depuis l'Enfer, dont il sort (sans bonus ni péage). Aucune énergie : le tour continue, il peut encore se déplacer. Impossible s'il se tient déjà sur la marque.",
         "• Contre un objet : quand un objet à cible joueur ([[item:ndoye|Ndoye]], [[item:hollow-purple|Hollow Purple]], [[item:rope|Corde]], [[item:middle-finger|Middle Finger]], [[item:monopoly-man|Monopoly Man]]) le vise, il peut se téléporter : l'objet est annulé (consommé, énergie perdue) et le tour du lanceur continue. Contre [[item:draven|Draven]], il est seul épargné. Aucune réaction contre une Tomate.",
-        "• Contre [[item:bullet-bill|Bullet Bill]] : quand la fusée va le toucher, il quitte sa case avant l'impact — sans arriver sur la marque : la case n'agit pas — et Bullet Bill charge alors le joueur le plus proche.",
+        "• Contre [[item:bullet-bill|Bullet Bill]] : quand la fusée va le toucher, il quitte sa case avant l'impact et arrive sur la marque comme sur toute case, puis Bullet Bill charge alors le joueur le plus proche.",
         "• À la place d'une roue qui le déplace : « Direction l'Enfer », « Retourne d'où tu viens », « Avance d'une case » ou « Va au Départ ». La roue est écartée comme par la Gomme ; la seconde roue d'un Touché (angélique ou funeste) s'appliquera ensuite.",
       ],
     },
@@ -349,7 +351,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Élimination",
       body: [
-        "• À 0 chance, le Mage est éliminé dès que la table est au repos : il quitte la partie comme un joueur qui abandonne (ses Red Cups et ses objets avec lui), son pentagramme s'efface et il figure en bas du classement. La téléportation qui dépense la dernière chance est jouée avant son élimination.",
+        "• À 0 pentagramme, le Mage ne peut plus se téléporter (ni en tour, ni contre un objet ou Bullet Bill, ni à la place d'une roue), mais il continue de jouer normalement : ce n'est pas une défaite. Un pentagramme revient tous les 15 tours de table.",
         "• S'il ne reste alors qu'un joueur, celui-ci gagne par abandon.",
       ],
     },
@@ -375,7 +377,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "À l'écran",
       body: [
-        "• Invisible, il ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill. Son propre pion est dessiné translucide, pour lui seul.",
+        "• Invisible, pendant SON tour seulement, il ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill. Son propre pion est dessiné translucide, pour lui seul. Pendant le tour des autres, il suit la partie normalement : seule sa propre vue est coupée quand il joue.",
         "• Les autres ne voient plus son pion, ses actions (le journal garde « Tour de X » et les annonces d'invisibilité), son sac ni ses pièces.",
         "• Le brouillard est visuel : le jeu reste partagé entre les appareils, comme pour la Red Cup de [[card:blind-luck|Chance aveugle]]. Sur un écran partagé, il suit celui qui doit décider.",
       ],
@@ -395,7 +397,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Swap",
       body: [
-        `• ${SISTER_SWAP_ENERGY} points d'énergie, avant ton déplacement (ni dé lancé), hors de l'Enfer, depuis une case autre que la sienne : toi et ta sœur échangez vos places. Avec une jauge de ${BASE_ENERGY}, le Swap prend toute la marche : il ne te reste qu'à finir ton tour ; avec la Botte chaussée, il faut garder 1 point pour le déplacement.`,
+        `• ${SISTER_SWAP_ENERGY} points d'énergie, une fois tous les ${SISTER_SWAP_COOLDOWN_ROUNDS} tours de table (Swap au tour 1, prêt à nouveau au tour ${1 + SISTER_SWAP_COOLDOWN_ROUNDS}), avant ton déplacement (ni dé lancé), hors de l'Enfer, depuis une case autre que la sienne : toi et ta sœur échangez vos places. Avec une jauge de ${BASE_ENERGY}, le Swap prend toute la marche : il ne te reste qu'à finir ton tour ; avec la Botte chaussée, il faut garder 1 point pour le déplacement.`,
         "• Elle emporte avec elle, sur la case que tu quittes, TOUT ce qui était sur la sienne : [[item:mud|Boue]], Portails du [[card:devil|diable]], [[system:cups|Red Cup]], [[item:bullet-bill|Bullet Bill]] — jamais les joueurs.",
         "• Rien ne se déclenche : ni ce qui est déposé sur ta case (pas de ramassage de la Cup, pas de coup de Bullet Bill, pas de Boue), ni ton arrivée sur la sienne (les pièges et la Cup n'y sont plus, et la case ne donne ni roue ni boutique). Ce que le plateau règle tout seul — le fantôme de Luna Park, la glace de Banquise — suit son cours.",
       ],

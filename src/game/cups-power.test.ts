@@ -11,7 +11,9 @@ import { isInvisible } from "./mist";
 import { advanceMist } from "./mist-cycle";
 import { applyCurrencyChange } from "./state-utils";
 import { isHermitPrimeActive, canTargetPlayer } from "./passive-rules";
-import { getSisterNode, mirrorStep } from "./sister";
+import { assignGuardian } from "./guardian";
+import { canSwap, getSisterNode, mirrorStep } from "./sister";
+import { getFog } from "../ui/fog";
 import { useGameStore } from "./store";
 import { planItemUse } from "./turn-actions";
 import type { GameState, NodeId, PassiveId, Player } from "./types";
@@ -62,6 +64,26 @@ describe("Mime", () => {
     expect(store().energyLeft).toBe(3);
     expect(store().turnActionTaken).toBe(false);
     expect(player(0).mimeReadyRound).toBe(store().round + 3);
+  });
+
+  it("copie le passif d’un joueur, au choix, et la table lit lequel", () => {
+    startTable(["mime", ["lambda", "goblin"]]);
+    store().mimeCopy("p2", "passif");
+    expect(player(0).mimicId).toBe("goblin");
+    expect(hasCard(player(0), "goblin")).toBe(true);
+    expect(store().log[0].text).toContain("passif de Joueur 2");
+    expect(store().log[0].secret).toBeUndefined();
+    expect(player(0).mimeReadyRound).toBe(store().round + 3);
+  });
+
+  it("ne copie ni Non merci, ni L’Ermite, ni L’Assureur, et un joueur sans passif n’en offre pas", () => {
+    startTable(["mime", ["lambda", "no-thanks"], ["lambda", "hermit"], ["lambda", "insurer"], "lambda"]);
+    const before = store().players;
+    store().mimeCopy("p2", "passif");
+    store().mimeCopy("p3", "passif");
+    store().mimeCopy("p4", "passif");
+    store().mimeCopy("p5", "passif");
+    expect(store().players).toBe(before);
   });
 
   it("garde secret le Cups Power copié : la table n’apprend que le nom du joueur", () => {
@@ -306,16 +328,26 @@ describe("Mage noir", () => {
     expect(store().mudTraps).toHaveLength(0);
   });
 
-  it("à zéro chance, le mage est éliminé", () => {
+  it("à zéro pentagramme, le mage reste en jeu mais ne peut plus se téléporter", () => {
     mageAtTwo();
     store().placeMark();
     editPlayer(0, { position: 9, luck: 1, luckReturnRound: 9 });
     openTurn(0);
     vi.spyOn(Math, "random").mockReturnValue(0.9);
     store().teleportToMark();
-    expect(store().players.map((other) => other.id)).toEqual(["p2", "p3"]);
-    expect(store().blackMarks).toHaveLength(0);
+    expect(store().players.map((other) => other.id)).toEqual(["p1", "p2", "p3"]);
+    expect(player(0).luck).toBe(0);
     expect(store().phase).toBe("playing");
+    // Out of pentagrams: no more teleport, whatever the mark.
+    store().placeMark();
+    editPlayer(0, { position: 9 });
+    openTurn(0);
+    const before = store().players;
+    store().teleportToMark();
+    expect(store().players).toBe(before);
+    expect(canTeleport(store(), player(0))).toBe(false);
+    // One comes back after fifteen rounds.
+    expect(regainMageLuck(store(), 9).players[0].luck).toBe(1);
   });
 
   it("récupère une chance tous les 15 tours de table", () => {
@@ -327,6 +359,26 @@ describe("Mage noir", () => {
     expect(due.players[0].luck).toBe(2);
     expect(due.players[0].luckReturnRound).toBe(31);
     expect(regainMageLuck(due, 31).players[0].luck).toBe(3);
+  });
+
+  it("arrive sur sa marque même en esquivant : la Red Cup qui s’y trouve est ramassée", () => {
+    startTable(["black-mage", "lambda"]);
+    edit({ redCupNodeId: 2 });
+    editPlayer(0, { position: 2 });
+    openTurn(0);
+    store().placeMark();
+    edit({ redCupNodeId: 2 });
+    editPlayer(0, { position: 9 });
+    editPlayer(1, {
+      inventory: [{ id: "hp", kind: "item", itemId: "hollow-purple" }],
+      currency: 5000,
+    });
+    openTurn(1);
+    store().useItem("hp", "p1");
+    vi.spyOn(Math, "random").mockReturnValue(0.9);
+    store().resolveReaction("p1", true);
+    expect(player(0).position).toBe(2);
+    expect(store().redCupNodeId).not.toBe(2);
   });
 
   it("esquive un objet qui le vise en se téléportant", () => {
@@ -547,6 +599,26 @@ describe("Sœur Fantôme", () => {
     expect(store().energyLeft).toBe(0);
   });
 
+  it("Swap : une fois tous les 4 tours seulement", () => {
+    startTable(["ghost-sister", "lambda"]);
+    editPlayer(0, { position: 4, sisterNodeId: 5 });
+    edit({ round: 3 });
+    openTurn(0);
+    store().swapWithSister();
+    expect(player(0).position).toBe(5);
+    expect(player(0).swapReadyRound).toBe(7);
+    // Back on a tile away from the sister, with a full gauge, in each round until the seventh.
+    for (const round of [4, 5, 6]) {
+      editPlayer(0, { position: 4, sisterNodeId: 5 });
+      edit({ round });
+      openTurn(0);
+      expect(canSwap(store(), player(0))).toBe(false);
+    }
+    edit({ round: 7 });
+    openTurn(0);
+    expect(canSwap(store(), player(0))).toBe(true);
+  });
+
   it("Swap : refusé en Enfer, sur la même case ou sans 3 énergie", () => {
     startTable(["ghost-sister", "lambda"]);
     editPlayer(0, { position: 4, sisterNodeId: 4 });
@@ -653,5 +725,37 @@ describe("L'Assureur", () => {
     store().resolveWheel();
     expect(player(0).position).toBe(HELL_NODE_ID);
     expect(player(1).currency).toBe(2050);
+  });
+});
+
+describe("L'Ange-Gardien et le Mage noir", () => {
+  it("le Mage noir n'est jamais tiré comme protégé", () => {
+    startTable(["guardian-angel", "black-mage", "lambda", "lambda"]);
+    for (let draw = 0; draw < 24; draw += 1) {
+      const guarded = assignGuardian({ ...store(), guardian: null });
+      expect(guarded.guardian?.protegeId).not.toBe(store().players[1].id);
+    }
+    const alone = assignGuardian({ ...store(), players: store().players.slice(0, 2), guardian: null });
+    expect(alone.guardian).toBeNull();
+  });
+});
+
+describe("Mi-vu, Mi-vue : le brouillard", () => {
+  it("l'invisible ne voit plus la table pendant son tour seulement", () => {
+    startTable(["half-seen", "lambda", "lambda"]);
+    edit({ redCupNodeId: 8 });
+    editPlayer(0, { position: 4, mistTurns: 2 });
+    expect(isInvisible(store(), player(0))).toBe(true);
+    // Their own turn: nothing of the table is seen, the Red Cup included.
+    openTurn(0);
+    expect(getFog(store(), player(0).id).viewerHidden).toBe(true);
+    expect(getFog(store(), null).viewerHidden).toBe(true);
+    // Somebody else plays: the others still do not see them, but they watch the turn.
+    openTurn(1);
+    const online = getFog(store(), player(0).id);
+    expect(online.viewerHidden).toBe(false);
+    expect(online.ghostlyId).toBe(player(0).id);
+    expect(getFog(store(), player(1).id).hiddenIds.has(player(0).id)).toBe(true);
+    expect(getFog(store(), null).viewerHidden).toBe(false);
   });
 });

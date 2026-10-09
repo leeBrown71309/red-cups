@@ -30,7 +30,7 @@ interface EnergyGaugeProps {
   large?: boolean;
 }
 
-/** The energy left this turn, one pip per point, coloured by how much is left. */
+/** The energy left this turn, one lightning bolt per point, coloured by how much is left. */
 export function EnergyGauge({ left, capacity, large = false }: EnergyGaugeProps) {
   const tone = getEnergyTone(left);
   return (
@@ -40,9 +40,13 @@ export function EnergyGauge({ left, capacity, large = false }: EnergyGaugeProps)
       aria-label={`Énergie : ${left} sur ${capacity}`}
       title="Énergie du tour : chaque objet en coûte, le déplacement prend le reste."
     >
-      <EnergyIcon size={large ? 22 : 16} fill={BOLT_FILLS[tone]} />
       {Array.from({ length: capacity }, (_, index) => (
-        <span key={index} className={`energy-gauge__pip ${index < left ? "is-full" : ""}`} />
+        <EnergyIcon
+          key={index}
+          size={large ? 24 : 18}
+          fill={index < left ? BOLT_FILLS[tone] : BOLT_FILLS.empty}
+          className={`energy-gauge__bolt ${index < left ? "is-full" : ""}`}
+        />
       ))}
     </span>
   );

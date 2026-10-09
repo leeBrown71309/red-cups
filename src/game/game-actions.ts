@@ -1,10 +1,10 @@
 import { hasCard } from "./cards";
 import { abandonPlayer, canAbandon } from "./abandon";
-import { eliminateFallenMages, placeMark, teleportToMark } from "./black-mage";
+import { arriveOnMark, clearOrphanedMarks, placeMark, teleportToMark } from "./black-mage";
 import { markHermitIntrusions } from "./hermit";
 import { rewardInsurerInHell } from "./insurer";
 import { canTeleportFromWheel, canTeleportInTurn } from "./mage-queries";
-import { mimeCopy } from "./mime";
+import { mimeCopy, type MimeCopyKind } from "./mime";
 import { getMoleReadyRound, planCrossing, planDig, recordVisitedTiles } from "./mole";
 import { withPowerEvent } from "./power-event";
 import { moveSisters, sendSistersHome, swapWithSister } from "./sister";
@@ -179,7 +179,7 @@ export type GameAction =
   /** Roller: throws the die that sets the length of the move. */
   | { type: "rollDice" }
   /** Mime: copies the actif of another player until the end of the turn. */
-  | { type: "mimeCopy"; targetPlayerId: PlayerId }
+  | { type: "mimeCopy"; targetPlayerId: PlayerId; kind?: MimeCopyKind }
   /** Taupe: digs a tunnel to a visited tile and moves through it. */
   | { type: "digTunnel"; destination: NodeId }
   /** Crosses a tunnel from the tile the player stands on; whoever dug it pays less. */
@@ -660,9 +660,24 @@ function teleportInTurn(state: GameState): GameState {
     ...nextState,
     turnStage: fell && resting ? "turn-end" : normalizeResumeStage(nextState, nextState.turnStage),
   };
+  // A decision the arrival opened (a Red Cup to place, a wheel, a duel) must not give the turn back either.
+  if (fell) nextState = endTurnAfterFall(nextState);
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
   if (nextState.phase !== "playing" || waitsForDecision) return nextState;
   return settleBoard(nextState, nextState.turnStage);
+}
+
+/** A fall into Hell mid-turn ends the turn: whatever was left waiting resumes there, not in the move. */
+function endTurnAfterFall(state: GameState): GameState {
+  const over = (stage: TurnStage | null): TurnStage | null =>
+    stage === "move" || stage === "hell" ? "turn-end" : stage;
+  return {
+    ...state,
+    pendingCupRepositionResumeStage: over(state.pendingCupRepositionResumeStage),
+    tileWheelResumeStage: over(state.tileWheelResumeStage) ?? "turn-end",
+    duelResumeStage: over(state.duelResumeStage) ?? "turn-end",
+    gambleResumeStage: over(state.gambleResumeStage) ?? "turn-end",
+  };
 }
 
 /**
@@ -795,8 +810,12 @@ function resolveBulletReaction(
   // Mage noir: out of the way, onto the mark; Bullet Bill then charges at whoever is nearest, if it can hit anybody.
   if (teleport) {
     if (reactorId !== victimId) return state;
+    const from = findPlayer(state, victimId)?.position;
     const gone = teleportToMark(state, victimId, "reaction", { arrive: false });
-    return gone === state ? state : resumeAfterBulletReaction(gone, false);
+    if (gone === state || from === undefined) return state;
+    // The mage arrives on their mark like anywhere else, but only once the next turn is seated: seating it wipes
+    // whatever the tile would have left pending (a wheel, a discard, a Calme-toi offer).
+    return arriveOnceSeated(resumeAfterBulletReaction(gone, false), victimId, from);
   }
   const reactor = findPlayer(state, reactorId);
   const victim = findPlayer(state, victimId);
@@ -816,6 +835,28 @@ function resolveBulletReaction(
   let nextState = spendNoThanks(state, victimId, state.round + 1);
   nextState = addLog(nextState, `${victim?.name ?? "Un joueur"} utilise Non merci contre Bullet Bill.`, "event");
   return resumeAfterBulletReaction(nextState, true);
+}
+
+/** A mage who teleported while the round turned arrives on their mark, in the turn that was just seated. */
+function arriveOnceSeated(state: GameState, mageId: PlayerId, from: NodeId): GameState {
+  if (state.phase !== "playing") return state;
+  const arrived = arriveOnMark(state, mageId, from);
+  let nextState = arrived.state;
+  if (arrived.mudHell && nextState.lastPowerEvent?.kind === "mark-teleport") {
+    nextState = { ...nextState, lastPowerEvent: { ...nextState.lastPowerEvent, mudHell: true } };
+  }
+  // Dropped into Hell mid-turn by the mud of their own mark, the turn is over, as for any fall into Hell.
+  const fell = findPlayer(nextState, mageId)?.position === HELL_NODE_ID;
+  const resting = nextState.turnStage === "move" || nextState.turnStage === "hell";
+  const turnOver = fell && resting && getActivePlayer(nextState)?.id === mageId;
+  nextState = {
+    ...nextState,
+    turnStage: turnOver ? "turn-end" : normalizeResumeStage(nextState, nextState.turnStage),
+  };
+  if (turnOver) nextState = endTurnAfterFall(nextState);
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
 }
 
 function endTurn(state: GameState): GameState {
@@ -1281,7 +1322,7 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   const settled = recordVisitedTiles(
     prepared,
     announceSpentItems(
-      offerGamble(checkVictories(skipBenchedTurns(releaseQueuedWheels(eliminateFallenMages(forfeited))))),
+      offerGamble(checkVictories(skipBenchedTurns(releaseQueuedWheels(clearOrphanedMarks(forfeited))))),
     ),
   );
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
@@ -1314,7 +1355,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "rollDice":
       return rollDice(state);
     case "mimeCopy":
-      return mimeCopy(state, action.targetPlayerId);
+      return mimeCopy(state, action.targetPlayerId, action.kind);
     case "digTunnel":
       return digTunnel(state, action.destination);
     case "crossTunnel":

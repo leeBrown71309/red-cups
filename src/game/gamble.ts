@@ -73,7 +73,9 @@ export function resolveGamble(state: GameState, accept: boolean): GameState {
         : `${beneficiary?.name} perd les ${linked.amount} pièces qu’il venait de toucher.`,
       doubled ? "good" : "bad",
     );
-    nextState = applyCurrencyChange(nextState, linked.playerId, doubled ? linked.amount : -linked.amount);
+    nextState = applyCurrencyChange(nextState, linked.playerId, doubled ? linked.amount : -linked.amount, {
+      gamble: false,
+    });
   }
   return settleKnockout(nextState, player.id);
 }

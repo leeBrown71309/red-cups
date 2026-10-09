@@ -11,7 +11,7 @@ import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
 import { getLuck } from "../mage-luck";
 import { canPlaceMark, canTeleportFromWheel, canTeleportInTurn, findMark } from "../mage-queries";
-import { getMimeTargets } from "../mime";
+import { getCopyableKinds, getMimeTargets } from "../mime";
 import { getCrossings, getDigTargets } from "../mole";
 import { canSwap, getSisterNode } from "../sister";
 import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
@@ -96,13 +96,10 @@ function listUsableItems(store: GameStore): ItemOption[] {
   });
 }
 
-/** A mage with a single chance left only spends it now and then: the table must still see a few fall. */
-const LAST_CHANCE_SPENT = 0.12;
-
-/** Whether the bot's mage spends a chance: freely above one, rarely on the last. */
-function mageMaySpendLuck(store: GameStore, playerId: PlayerId, random: Random): boolean {
+/** Whether the bot's mage still has a pentagram to spend: with none left they simply cannot teleport. */
+function mageMaySpendLuck(store: GameStore, playerId: PlayerId): boolean {
   const mage = findPlayer(store, playerId);
-  return mage !== undefined && (getLuck(mage) > 1 || random() < LAST_CHANCE_SPENT);
+  return mage !== undefined && getLuck(mage) > 0;
 }
 
 /**
@@ -116,7 +113,8 @@ function choosePower(store: GameStore, random: Random): BotAction | null {
   const mimicable = getMimeTargets(store, player);
   const copied = pick(mimicable, random);
   if (copied && random() < 0.6) {
-    return { label: "power:mime-copy", perform: (current) => current.mimeCopy(copied.id) };
+    const kind = pick(getCopyableKinds(copied), random);
+    return { label: "power:mime-copy", perform: (current) => current.mimeCopy(copied.id, kind) };
   }
 
   const digTargets = getDigTargets(store, player);
@@ -139,7 +137,7 @@ function choosePower(store: GameStore, random: Random): BotAction | null {
   const mark = findMark(store, player.id);
   const markIsCloser = mark !== undefined && distanceToCup(store, mark.nodeId) < distanceToCup(store, player.position);
   const teleportChance = player.position === HELL_NODE_ID || markIsCloser ? 0.5 : 0.04;
-  if (canTeleportInTurn(store, player) && random() < teleportChance && mageMaySpendLuck(store, player.id, random)) {
+  if (canTeleportInTurn(store, player) && random() < teleportChance && mageMaySpendLuck(store, player.id)) {
     return { label: "power:teleport-mark", perform: (current) => current.teleportToMark() };
   }
 
@@ -345,12 +343,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       if (target && canUseNoThanks(target, store.round) && random() < 0.3) {
         return { label: "no-thanks:wheel", perform: (current) => current.cancelWheel(true) };
       }
-      if (
-        target &&
-        canTeleportFromWheel(store, target) &&
-        random() < 0.5 &&
-        mageMaySpendLuck(store, target.id, random)
-      ) {
+      if (target && canTeleportFromWheel(store, target) && random() < 0.5 && mageMaySpendLuck(store, target.id)) {
         return { label: "power:teleport-wheel", perform: (current) => current.cancelWheel(false, true) };
       }
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
@@ -368,7 +361,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
     case "target": {
       const challengerId = store.pendingChallenge?.playerId;
       const opponent = pick(
-        store.players.filter((player) => canBeChallenged(challengerId, player)),
+        store.players.filter((player) => canBeChallenged(challengerId, player, store)),
         random,
       );
       if (!opponent) return null;
@@ -433,7 +426,7 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
         const reactor = findPlayer(store, id);
         return reactor !== undefined && findMark(store, id) !== undefined && getLuck(reactor) > 0;
       });
-      if (slipper && random() < 0.5 && mageMaySpendLuck(store, slipper, random)) {
+      if (slipper && random() < 0.5 && mageMaySpendLuck(store, slipper)) {
         return { label: `power:teleport-${kind}`, perform: (current) => current.resolveReaction(slipper, true) };
       }
       const reactorId = random() < 0.4 ? pick(pending.reactorIds, random) : undefined;

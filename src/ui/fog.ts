@@ -29,13 +29,16 @@ export function getFog(state: GameState, localPlayerId: PlayerId | null): Fog {
   const invisibleIds = getInvisiblePlayerIds(state);
   if (invisibleIds.length === 0) return CLEAR_FOG;
   const viewerId = localPlayerId ?? getDecidingPlayer(state)?.id ?? null;
-  const viewerHidden = viewerId !== null && invisibleIds.includes(viewerId);
+  // Hidden from the table, the player still watches the others play: only their own turn is spent in the fog.
+  const viewerHidden =
+    viewerId !== null && invisibleIds.includes(viewerId) && getDecidingPlayer(state)?.id === viewerId;
   const hiddenIds = new Set(
     viewerHidden
       ? state.players.filter((player) => player.id !== viewerId).map((player) => player.id)
       : invisibleIds.filter((id) => id !== viewerId),
   );
-  return { viewerId, viewerHidden, hiddenIds, ghostlyId: viewerHidden ? viewerId : null };
+  const ghostlyId = viewerId !== null && invisibleIds.includes(viewerId) ? viewerId : null;
+  return { viewerId, viewerHidden, hiddenIds, ghostlyId };
 }
 
 export function useFog(): Fog {

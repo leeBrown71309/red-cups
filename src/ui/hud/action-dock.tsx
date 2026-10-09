@@ -1,15 +1,17 @@
 import { getHellTurnLimit } from "../../game/passive-rules";
 import { hasCard } from "../../game/cards";
-import type { PassiveId } from "../../game/types";
 import { useVisibleCards } from "../card-visibility";
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { formatGambleAmount } from "../../game/gamble";
 import { canLeaveHell, DEVIL_HELL_EXIT_ENERGY } from "../../game/devil";
 import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
-import { CupPowerControls } from "./cup-power-controls";
+import { CupPowerControls, MageLuck } from "./cup-power-controls";
+import { buildCardEntries, CardSlideOver } from "./card-slide-over";
+import { PassiveIcon } from "../icons/passive-icon";
+import { getLuck } from "../../game/mage-luck";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import {
@@ -30,7 +32,6 @@ import { getCorrupterHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
-import { describeCupPowerState } from "../display/cup-power-state";
 import { canSeePlayer, useFog } from "../fog";
 import { getAvatarExpression } from "./player-status";
 import { TurnTimer } from "./turn-timer";
@@ -52,9 +53,11 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const canAct = useCanActFor([decider?.id]);
   const cards = useVisibleCards(decider ?? undefined);
   const fog = useFog();
+  const [openCard, setOpenCard] = useState<string | null>(null);
   if (!activePlayer || !decider || phase !== "playing") return null;
   // Mi-vu, Mi-vue: whoever the fog hides keeps their name and their turn, nothing else.
   const deciderSeen = canSeePlayer(fog, decider.id);
+  const cardEntries = buildCardEntries(game, decider, cards);
 
   return (
     <section
@@ -84,19 +87,22 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
               <UiIcon name="eye" size={12} /> Hors de vue
             </span>
           )}
-          <span
-            hidden={!deciderSeen}
-            className="action-dock__passive"
-            title={[cards.actif, cards.passif]
-              .filter((cardId): cardId is PassiveId => cardId !== null)
-              .map((cardId) => `${PASSIVE_CATALOG[cardId].name} : ${PASSIVE_CATALOG[cardId].description}`)
-              .join(" — ")}
-          >
-            <UiIcon name="sparkle" size={12} /> {cards.actif ? PASSIVE_CATALOG[cards.actif].name : "Cups Power caché"}
-            {cards.passif ? ` · ${PASSIVE_CATALOG[cards.passif].name}` : ""}
-          </span>
-          {deciderSeen && cards.actif && describeCupPowerState(game, decider, cards.actif) && (
-            <span className="action-dock__power-note">{describeCupPowerState(game, decider, cards.actif)}</span>
+          {deciderSeen && cardEntries.length > 0 && (
+            <span className="action-dock__cards">
+              {cardEntries.map((entry) => (
+                <button
+                  key={entry.label}
+                  type="button"
+                  className={`action-dock__card ${entry.label === openCard ? "is-open" : ""}`}
+                  onClick={() => setOpenCard(entry.label === openCard ? null : entry.label)}
+                  aria-label={`${entry.label} : ${PASSIVE_CATALOG[entry.cardId].name}`}
+                  title={`${entry.label} : ${PASSIVE_CATALOG[entry.cardId].name}`}
+                  aria-expanded={entry.label === openCard}
+                >
+                  <PassiveIcon passiveId={entry.cardId} size={34} />
+                </button>
+              ))}
+            </span>
           )}
           {deciderSeen && (
             <span className="action-dock__wallet">
@@ -107,8 +113,10 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
           {deciderSeen && decider.id === activePlayer.id && (
             <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer, game)} />
           )}
+          {deciderSeen && cards.actif === "black-mage" && <MageLuck luck={getLuck(decider)} />}
         </div>
       </div>
+      {openCard && <CardSlideOver entries={cardEntries} openLabel={openCard} onOpen={setOpenCard} />}
       <div className="action-dock__content">
         {canAct ? (
           <StageContent player={activePlayer} stage={turnStage} onOpenShop={onOpenShop} />
@@ -445,32 +453,35 @@ function MoveContent({ player }: { player: Player }) {
         </div>
       )}
       {previewNodeId === null && <EndTurnButton />}
-      {canRescue && previewNodeId === null && (
-        <button
-          type="button"
-          className="btn btn--small btn--gold"
-          onClick={rescueProtege}
-          title="Il te rejoint sur ta case ; ton tour s’arrête et tu perds tes 2 prochains tours"
-        >
-          <UiIcon name="sparkle" size={16} /> Libérer {protegeName}
-        </button>
-      )}
-      {previewNodeId === null && <CupPowerControls player={player} stage="move" />}
-      {isCorrupter && !digMode && (
-        <button
-          type="button"
-          className={`btn btn--small ${ignoreArrows ? "btn--gold" : "btn--cream"}`}
-          onClick={() => setIgnoreArrows(!ignoreArrows)}
-          disabled={corrupterHint !== null}
-          aria-pressed={ignoreArrows}
-          title={
-            corrupterHint?.full ??
-            `Corrupteur : ${CORRUPTER_COST} pièces pour ce déplacement, quel que soit le nombre de sens interdits`
-          }
-        >
-          {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} ·{" "}
-          {corrupterHint ? corrupterHint.short : `−${CORRUPTER_COST}`}
-        </button>
+      {previewNodeId === null && (
+        <CupPowerControls player={player} stage="move">
+          {canRescue && previewNodeId === null && (
+            <button
+              type="button"
+              className="btn btn--small btn--gold"
+              onClick={rescueProtege}
+              title="Il te rejoint sur ta case ; ton tour s’arrête et tu perds tes 2 prochains tours"
+            >
+              <UiIcon name="sparkle" size={16} /> Libérer {protegeName}
+            </button>
+          )}
+          {isCorrupter && !digMode && (
+            <button
+              type="button"
+              className={`btn btn--small ${ignoreArrows ? "btn--gold" : "btn--cream"}`}
+              onClick={() => setIgnoreArrows(!ignoreArrows)}
+              disabled={corrupterHint !== null}
+              aria-pressed={ignoreArrows}
+              title={
+                corrupterHint?.full ??
+                `Corrupteur : ${CORRUPTER_COST} pièces pour ce déplacement, quel que soit le nombre de sens interdits`
+              }
+            >
+              {ignoreArrows ? "Flèches ignorées" : "Ignorer les flèches"} ·{" "}
+              {corrupterHint ? corrupterHint.short : `−${CORRUPTER_COST}`}
+            </button>
+          )}
+        </CupPowerControls>
       )}
     </DockPrompt>
   );

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { reduceGame, type GameAction } from "./game-actions";
+import type { MimeCopyKind } from "./mime";
 import { createGameSaveOptions, pickGameState } from "./game-save";
 import type {
   DuelMode,
@@ -39,7 +40,7 @@ interface GameActions {
   /** Roller: throws the die before the move. */
   rollDice: () => void;
   /** Mime: copies another player's actif for the turn. */
-  mimeCopy: (targetPlayerId: PlayerId) => void;
+  mimeCopy: (targetPlayerId: PlayerId, kind?: MimeCopyKind) => void;
   /** Taupe: digs a tunnel to a visited tile and moves through it. */
   digTunnel: (destination: NodeId) => void;
   /** Crosses the tunnel that opens on the player's tile. */
@@ -151,7 +152,7 @@ export const useGameStore = create<GameStore>()(
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       rollDice: () => dispatch({ type: "rollDice" }),
-      mimeCopy: (targetPlayerId) => dispatch({ type: "mimeCopy", targetPlayerId }),
+      mimeCopy: (targetPlayerId, kind) => dispatch({ type: "mimeCopy", targetPlayerId, kind }),
       digTunnel: (destination) => dispatch({ type: "digTunnel", destination }),
       crossTunnel: (tunnelId) => dispatch({ type: "crossTunnel", tunnelId }),
       placeMark: () => dispatch({ type: "placeMark" }),

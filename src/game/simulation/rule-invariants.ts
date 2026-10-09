@@ -722,8 +722,6 @@ function playersMovedWithoutArrival(previous: GameState, next: GameState, applie
   // Sœur Fantôme's swap sets the player down on her tile: nothing is triggered there.
   const power = newPowerEvent(previous, next);
   if (power?.kind === "sister-swap") exempt.add(power.playerId);
-  // A Mage noir who slips away from Bullet Bill lands without the tile acting: the round is turning.
-  if (power?.kind === "mark-teleport" && power.reason === "reaction") exempt.add(power.playerId);
   if (appliedItem && MOVES_WITHOUT_ARRIVAL.includes(appliedItem.itemId)) {
     exempt.add(appliedItem.userId);
     if (appliedItem.targetPlayerId) exempt.add(appliedItem.targetPlayerId);

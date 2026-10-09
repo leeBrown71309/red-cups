@@ -81,6 +81,8 @@ export function canEndTurn(state: GameState): boolean {
   // The Botte is put on to be walked: with a road to take, the turn cannot end before the walk.
   const bootOn = state.turnStage === "move" && state.moveDistance > 1 && hasLegalMove(state, player);
   if (bootOn && canAffordMove(state)) return false;
+  // In Hell the wheel is the move, and it is not a choice: with the energy for it, the turn cannot end before it.
+  if (state.turnStage === "hell" && canAffordMove(state)) return false;
   if (state.turnActionTaken || !canAffordMove(state)) return true;
   return state.turnStage === "move" && player.position !== HELL_NODE_ID && !hasLegalMove(state, player);
 }

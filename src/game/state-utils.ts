@@ -45,6 +45,7 @@ export function getCupPowerState(
 ): Pick<
   Player,
   | "mimeReadyRound"
+  | "swapReadyRound"
   | "visitedNodeIds"
   | "moleReadyRound"
   | "luck"
@@ -56,6 +57,7 @@ export function getCupPowerState(
 > {
   const {
     mimeReadyRound,
+    swapReadyRound,
     visitedNodeIds,
     moleReadyRound,
     luck,
@@ -69,6 +71,7 @@ export function getCupPowerState(
   const exhausted = luck !== undefined && luck <= 0;
   return {
     ...(mimeReadyRound === undefined ? {} : { mimeReadyRound }),
+    ...(swapReadyRound === undefined ? {} : { swapReadyRound }),
     ...(visitedNodeIds === undefined ? {} : { visitedNodeIds }),
     ...(moleReadyRound === undefined ? {} : { moleReadyRound }),
     ...(luck === undefined || exhausted ? {} : { luck }),

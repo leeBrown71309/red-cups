@@ -47,7 +47,7 @@ export function getDefaultAction(state: GameState): GameAction | null {
     }
     case "target": {
       const challengerId = state.pendingChallenge?.playerId;
-      const opponent = randomChoice(state.players.filter((player) => canBeChallenged(challengerId, player)));
+      const opponent = randomChoice(state.players.filter((player) => canBeChallenged(challengerId, player, state)));
       return opponent ? { type: "challengePlayer", targetPlayerId: opponent.id } : null;
     }
     case "duel-choice":
