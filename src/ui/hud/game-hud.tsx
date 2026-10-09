@@ -16,7 +16,7 @@ import { AlertBannerView } from "./alert-banner";
 import { CameraControls } from "./camera-controls";
 import { EventToasts, useHudFeedback } from "./event-toasts";
 import { GameCountdown } from "./game-countdown";
-import { DiceRollAnimation } from "./dice-roll";
+import { CupRollAnimation, DiceRollAnimation } from "./dice-roll";
 import { GambleSplash } from "./gamble-splash";
 import { PauseOverlay } from "./pause-controls";
 import { PlayerDock } from "./player-dock";
@@ -111,6 +111,7 @@ export function GameHud() {
       <TurnSplash />
       <GameCountdown />
       <DiceRollAnimation />
+      <CupRollAnimation />
       <GambleSplash />
       <AlertBannerView />
       {decision}

@@ -9,7 +9,7 @@ import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { chooseDuelMode } from "./duel-choice";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
 import { createEngineId, drawEngineRandom, runWithSeededSource } from "./engine-random";
-import { announceDevil, leaveHell, rewardDevilInHell } from "./devil";
+import { leaveHell, rewardDevilInHell } from "./devil";
 import { submitArmTaps } from "./arm-wrestle";
 import { blackjackHit, blackjackStand } from "./blackjack";
 import {
@@ -32,6 +32,7 @@ import { buyItem, isOnShelf, sellItem } from "./shopping";
 import { assignGuardian, rescueProtege } from "./guardian";
 import {
   canBeChallenged,
+  canCollectRedCup,
   canUseItemKind,
   getStartingCurrency,
   getTheftPenalty,
@@ -70,6 +71,7 @@ import {
   itemCopyForPassive,
   normalizeResumeStage,
   resumeAfterBulletReaction,
+  rollForRedCup,
   sendPlayerToHell,
   settleBoard,
   stealFromKnockedOut,
@@ -298,14 +300,14 @@ function startGame(
       ],
     };
     // A draft deals the passive cards first; without one, both roles are public at once: le diable
-    // is announced, L'Ange-Gardien's protégé drawn and named.
+    // is not announced (a card like any other), L’Ange-Gardien’s protégé is drawn and named.
     const withRoles = draft
       ? {
           ...opening,
           phase: "draft" as const,
           draft: createDraft(players, draft.now === undefined ? null : draft.now + DRAFT_TIME_MS),
         }
-      : announceDevil(assignGuardian(opening));
+      : assignGuardian(opening);
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
     const withIce =
       map.blizzardEveryRounds === undefined
@@ -560,8 +562,24 @@ function rollDice(state: GameState): GameState {
   const player = getActivePlayer(state);
   if (!player || !hasCard(player, "roller") || state.turnStage !== "move" || state.diceRoll !== null) return state;
   if (!canAffordMove(state)) return state;
+  // Standing on the Red Cup they failed to pick up: this throw is another try at the Cup, not a walk.
+  if (state.redCupNodeId !== null && state.redCupNodeId === player.position && canCollectRedCup(player)) {
+    return retryRedCup(state, player);
+  }
   const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
   return addLog({ ...state, diceRoll }, `${player.name} lance le dé : ${diceRoll}.`, "event");
+}
+
+/**
+ * Roller (patch 0.2.2): back on the Red Cup tile after two misses, the turn asks for no move. Items first if they
+ * like, then the two throws at a six; whatever the result, the turn ends.
+ */
+function retryRedCup(state: GameState, player: Player): GameState {
+  let nextState: GameState = { ...spendAllEnergy(state), moveDistance: 1, turnStage: "turn-end" };
+  nextState = rollForRedCup(nextState, player.id, player.position);
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
 }
 
 /**

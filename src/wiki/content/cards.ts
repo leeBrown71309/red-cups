@@ -165,6 +165,8 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Une fois le dé lancé, plus d'objets : il ne reste que marcher.",
         "• En Enfer, le dé reste dans la poche : la roue remplace la marche.",
         "• Les cases traversées comptent pour Red light, Green light.",
+        "• La Red Cup se MÉRITE : en arrivant dessus, il faut un 6 au dé pour la ramasser, avec deux essais. Les lancers sont montrés à TOUTE la table, puis annoncés sur la bannière.",
+        "• Deux ratés : la Red Cup reste là et le Roller aussi. À son prochain tour on ne lui demande pas de bouger : il peut utiliser ses objets, puis retente ses deux essais (le dé vise la Cup, pas une marche). Le tour se termine ensuite dans tous les cas.",
       ],
     },
   ],
@@ -199,7 +201,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       title: "Détail",
       body: [
         "• Ne vois JAMAIS où est la Red Cup : elle est masquée à son écran.",
-        "• Aucun objet ne peut lui nuire : jamais cible d'un objet, épargné par Draven, Bullet Bill, Sentence, Portails et Doomsday; la Boue le fait simplement reculer d'une case sans rien lui coûter.",
+        "• Aucun objet ne peut lui nuire : jamais cible d'un objet, épargné par Draven, Bullet Bill, Sentence, Portails et Doomsday; la Boue le fait simplement reculer d'une case sans rien lui coûter (il pose d'abord le pied dessus, glisse, et la Boue ne disparaît qu'après).",
         "• Lui seul peut acheter et utiliser Made In Heaven.",
         "• On ne peut pas le tirer en duel depuis l'Enfer (roue de l'Enfer « Duel »).",
         "• Ses propres objets marchent normalement : c'est ce qui tombe SUR lui qui rebondit.",
@@ -211,7 +213,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• Son identité est ANNONCÉE à toute la table dès que les cartes sont prises (fin de draft, ou départ sans draft).",
+        "• Son identité n'est PAS annoncée : c'est un actif comme les autres (ni bannière, ni toast, ni ligne de journal).",
         "• Victoire propre : quand les autres ont cumulé ⌊4 × N − N/2⌋ passages en Enfer (N = joueurs de départ; 2 → 7, 4 → 14, 8 → 28). Comptent : chaque ENTRÉE d'un autre en Enfer (+1 point) et chaque tour commencé là-bas (+1 point), tour sauté compris — mais ses propres tours ne comptent pas.",
         "• Pas de Red Cup pour lui : il marche dessus comme sur une case neutre.",
         "• Sa propre descente en Enfer le paie +100 pièces; celle d'un autre : +50 pièces et +1 point.",

@@ -51,7 +51,8 @@ function useDisplayedMapId(mode: CameraMode): MapId {
   return mode === "play" && phase !== "setup" ? gameMapId : previewMapId;
 }
 
-export function BoardStage({ mode }: { mode: CameraMode }) {
+/** `paused`: a full-screen page covers the board, so it is kept alive but not drawn. */
+export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [world, setWorld] = useState<BoardWorld | null>(null);
   const [status, setStatus] = useState<StageStatus>("loading");
@@ -89,13 +90,24 @@ export function BoardStage({ mode }: { mode: CameraMode }) {
     };
   }, [mapId]);
 
+  useEffect(() => {
+    world?.setPaused(paused);
+  }, [world, paused]);
+
   const view = useBoardView(mode, mapId);
   useEffect(() => {
     world?.update(view);
   }, [world, view]);
 
   return (
-    <div className="board-stage" data-status={status} data-map-theme={getBoardMap(mapId).themeId}>
+    <div
+      className="board-stage"
+      data-status={status}
+      data-map-theme={getBoardMap(mapId).themeId}
+      data-doomed={view.doomed}
+    >
+      {/* Doomsday's sky: it fades in behind the transparent canvas. */}
+      <div className="board-stage__doom" aria-hidden="true" />
       <div className="board-stage__canvas" ref={containerRef} aria-label="Plateau de jeu Red Cups en 3D" role="img" />
       {/* Desktop only: the edges of the view blur, as the far decor would under a lens. */}
       <div className="board-stage__focus" aria-hidden="true" />
@@ -170,6 +182,7 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       mode,
       carouselReversed: playing && game.carouselReversed,
       iceTileNodeId: playing ? game.iceTileNodeId : null,
+      doomed: playing && game.doomsday !== null,
       pawns: playing
         ? game.players.map((player) => {
             // Stuck in fallen ice only while still on the tile the slide left from.

@@ -12,6 +12,7 @@ import {
   GHOST_SLAP_MS,
   GLIDE_MS,
   HELL_DROP_MS,
+  MUD_SLIP_MS,
   HOP_MS,
   PORTAL_SWALLOW_MS,
   SHATTER_MS,
@@ -56,7 +57,9 @@ type PawnAction =
   /** Portail: the tile's portal widens, and the pawn whirls down into it. */
   | { type: "portalSwallow"; nodeId: NodeId; duration: number }
   /** Portail: the pawn drops from above through the Hell-side portal onto the Hell floor. */
-  | { type: "hellDrop"; to: THREE.Vector3; duration: number };
+  | { type: "hellDrop"; to: THREE.Vector3; duration: number }
+  /** Chance aveugle: feet lost in the mud, a skid and a spin, thrown back to the tile it came from. */
+  | { type: "mudSlip"; to: THREE.Vector3; duration: number };
 
 /** Lets the scene's other actors join in a pawn's animation. */
 export interface PawnHooks {
@@ -278,6 +281,7 @@ export class PawnController {
     }
 
     const fallsIntoPortal = movement.portalNodeId !== undefined && !movement.interruptedTo;
+    const slipsInMud = movement.slippedInMud === true && !movement.interruptedTo && !fallsIntoPortal;
 
     if (movement.thawed) {
       pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
@@ -312,7 +316,8 @@ export class PawnController {
     let previous = from;
     path.forEach((nodeId, index) => {
       // With a Portail at the end, the pawn stands on the tile first: it must be seen walking there.
-      const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal;
+      // Same for the mud: the pawn must be seen setting foot on it before it slips.
+      const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal && !slipsInMud;
       const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
       const edge = findEdge(this.layout.board, previous, nodeId);
 
@@ -351,6 +356,8 @@ export class PawnController {
         { type: "hellDrop", to: finalSlot, duration: HELL_DROP_MS },
       );
     }
+
+    if (slipsInMud) pawn.actions.push({ type: "mudSlip", to: finalSlot, duration: MUD_SLIP_MS });
   }
 
   private advance(pawn: Pawn, deltaMs: number): void {
@@ -474,6 +481,24 @@ export class PawnController {
         body.rotation.y = progress * Math.PI * 6;
         break;
       }
+      case "mudSlip": {
+        // The feet stick for a beat (a shiver), then the pawn skids off backwards, spinning, and lands in a squash.
+        const stuck = 0.3;
+        const throwProgress = Math.max(0, (progress - stuck) / (1 - stuck));
+        const eased = easeInOutCubic(throwProgress);
+        root.position.lerpVectors(pawn.actionStart, action.to, eased);
+        root.position.y += Math.sin(throwProgress * Math.PI) * 0.6;
+        if (progress < stuck) {
+          body.rotation.z = Math.sin(progress * 60) * 0.18;
+          body.scale.set(1.08, 0.9, 1.08);
+        } else {
+          body.rotation.y = easeInOutCubic(throwProgress) * Math.PI * 4;
+          body.rotation.z = Math.sin(throwProgress * Math.PI) * -0.5;
+          const squash = throwProgress > 0.85 ? Math.sin(((throwProgress - 0.85) / 0.15) * Math.PI) * 0.22 : 0;
+          body.scale.set(1 + squash, 1 - squash, 1 + squash);
+        }
+        break;
+      }
       case "hellDrop": {
         // Dropped through the Hell-side portal: it falls fast and straight, then squashes on landing.
         const drop = progress * progress;
@@ -503,6 +528,11 @@ export class PawnController {
         pawn.landingTimer = LANDING_MS;
       }
       if (action.type === "portalSwallow") body.scale.setScalar(1);
+      if (action.type === "mudSlip") {
+        root.position.copy(action.to);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+      }
       if (action.type === "appear") body.scale.setScalar(1);
       if (action.type === "bump") {
         root.position.copy(pawn.actionStart);
@@ -541,7 +571,7 @@ export class PawnController {
 
     const yawDelta = Math.atan2(Math.sin(pawn.targetYaw - pawn.yaw), Math.cos(pawn.targetYaw - pawn.yaw));
     pawn.yaw += yawDelta * Math.min(1, deltaSeconds * 10);
-    const spinning = moving && ["vanish", "appear", "wobble", "carried"].includes(pawn.actions[0].type);
+    const spinning = moving && ["vanish", "appear", "wobble", "carried", "mudSlip"].includes(pawn.actions[0].type);
     if (!spinning) body.rotation.y = pawn.yaw;
 
     const scaleTarget = pawn.baseScale * (pawn.active ? 1.12 : 1);

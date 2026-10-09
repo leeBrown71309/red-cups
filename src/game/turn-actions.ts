@@ -10,7 +10,7 @@ import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendE
 import {
   addRedGreenBonuses,
   addStartBonus,
-  collectCupOrRequestDiscard,
+  collectCupOrRoll,
   itemCopyForPassive,
   queueTileWheel,
   queueWheelsForMovedPlayers,
@@ -143,12 +143,12 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   // Queued first, spun last: mud and the Red Cup resolve before the tile's wheel.
   nextState = queueTileWheel(nextState, player.id);
   nextState = triggerMud(nextState, player.id, destination, path[path.length - 2] ?? player.position);
+  // Chance aveugle may have stepped back out of the mud: the Red Cup is only reached on its tile.
+  const cupAhead = findPlayer(nextState, player.id)?.position === destination && nextState.redCupNodeId === destination;
+  // A Portail swallows the player first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
   nextState = triggerPortal(nextState, player.id);
-  // Chance aveugle may have stepped back out of the mud, a Portail drops into Hell: the Red Cup is only
-  // reached on its tile.
-  const landed = findPlayer(nextState, player.id)?.position === destination;
-  if (landed && nextState.redCupNodeId === destination) {
-    nextState = collectCupOrRequestDiscard(nextState, player.id, destination);
+  if (cupAhead && nextState.phase === "playing") {
+    nextState = collectCupOrRoll(nextState, player.id, destination);
   }
 
   const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
@@ -253,6 +253,8 @@ export function planItemUse(
   const target = findPlayer(state, targetPlayerId);
   if (!target || !canTargetPlayer(state, player, target)) return null;
   if (target.id === player.id && !definition.canTargetSelf) return null;
+  // Hollow Purple sends its target down: nobody aims at a player already in Hell (report 2026-10-08).
+  if (itemId === "hollow-purple" && target.position === HELL_NODE_ID) return null;
   return { itemId, target, count };
 }
 
@@ -392,7 +394,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
       nextState = addLog(nextState, `${player.name} sort de l’Enfer et atterrit en case ${destination}.`, "good");
       if (nextState.redCupNodeId === destination) {
-        nextState = collectCupOrRequestDiscard(nextState, player.id, destination);
+        nextState = collectCupOrRoll(nextState, player.id, destination);
       }
       break;
     }

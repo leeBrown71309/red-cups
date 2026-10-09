@@ -1,0 +1,839 @@
+/* ---------- Draft chapter (patch 0.2.2): the cards, their rules, and nothing else ---------- */
+/*
+ * Third chapter of the flow, on the same stage as the setup. The cards are held in 3D on the left (the one in
+ * focus in front, the other leaning behind it, either can be turned over), the whole rule is written large
+ * on the right, and a strip of avatars shows how far the table has got.
+ */
+.draft {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: calc(16px + var(--safe-bottom));
+}
+
+.draft__top {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  animation: flow-rise 460ms var(--ease-out) both;
+}
+
+.draft__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--flow-text);
+}
+
+.draft__who svg {
+  flex: none;
+  filter: drop-shadow(0 3px 0 rgba(0, 0, 0, 0.3));
+}
+
+.draft__who strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: clamp(1.3rem, 2.6vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.05;
+  text-shadow: 0 3px 0 var(--flow-deep);
+}
+
+.draft__who small {
+  color: var(--flow-text-soft);
+  font-size: clamp(0.88rem, 1.4vw, 1rem);
+}
+
+/* Who has chosen, who is choosing, who waits. */
+.draft-strip {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.draft-strip__player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 12px 3px 3px;
+  border: 2px solid rgba(255, 243, 226, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--flow-text-soft);
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition:
+    background-color 240ms ease,
+    border-color 240ms ease,
+    color 240ms ease;
+}
+
+.draft-strip__player.is-current {
+  border-color: var(--ink);
+  background: var(--cream);
+  box-shadow: 0 3px 0 var(--flow-deep);
+  color: var(--ink);
+}
+
+.draft-strip__player.is-done:not(.is-current) {
+  border-color: rgba(92, 196, 106, 0.55);
+  color: var(--mint-light);
+}
+
+.draft-strip__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.draft-strip__player:not(.is-current):not(.is-done) .draft-strip__avatar svg {
+  opacity: 0.55;
+}
+
+.draft-strip__check {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--mint);
+  color: var(--white);
+  animation: strip-check 420ms var(--ease-bounce) both;
+}
+
+@keyframes strip-check {
+  from {
+    transform: scale(0);
+  }
+}
+
+/* Online: the clock, worn as a bracelet next to the sound buttons. */
+.draft-timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--sky-light);
+  box-shadow: 0 3px 0 var(--flow-deep);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.draft-timer__unit {
+  font-size: 0.78rem;
+}
+
+.draft-timer.is-low {
+  background: var(--cup-light);
+  color: var(--cup-deep);
+  animation: button-pulse 1s ease-in-out infinite;
+}
+
+/* ---------- The local hand-over: the stage empties, a lit pedestal asks for the screen ---------- */
+.handover {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  margin: auto;
+  padding: 8px 8px 24px;
+  color: var(--flow-text);
+  text-align: center;
+}
+
+.handover__pedestal {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(150px, 27dvh, 240px);
+  aspect-ratio: 1;
+  animation: handover-land 640ms var(--ease-bounce) both;
+}
+
+@keyframes handover-land {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.8);
+  }
+}
+
+.handover__avatar {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 28%, var(--white), var(--cream-2));
+  box-shadow:
+    0 8px 0 var(--flow-deep),
+    0 34px 50px rgba(0, 0, 0, 0.4);
+  animation: handover-tilt 5.2s ease-in-out infinite;
+}
+
+.handover__avatar svg {
+  width: 78%;
+  height: 78%;
+}
+
+/* Rings leave the avatar like a ping: "this is for you", said without a word. */
+.handover__ripple {
+  position: absolute;
+  inset: 0;
+  border: 3px solid rgba(255, 196, 77, 0.75);
+  border-radius: 50%;
+  opacity: 0;
+  animation: handover-ripple 2.6s var(--ease-out) infinite;
+}
+
+.handover__ripple--late {
+  animation-delay: 1.3s;
+}
+
+@keyframes handover-ripple {
+  from {
+    opacity: 0.85;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+@keyframes handover-tilt {
+  0%,
+  100% {
+    transform: rotate(-3deg) translateY(0);
+  }
+  50% {
+    transform: rotate(3deg) translateY(-7px);
+  }
+}
+
+.handover__line {
+  display: grid;
+  gap: 2px;
+  animation: flow-rise 480ms var(--ease-out) 160ms both;
+}
+
+.handover__line small {
+  color: var(--flow-text-soft);
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 2.4vw, 1.4rem);
+}
+
+.handover__line strong {
+  font-family: var(--font-display);
+  font-size: clamp(2.4rem, 8vw, 5rem);
+  font-weight: 700;
+  line-height: 1;
+  text-shadow: 0 5px 0 var(--flow-deep);
+  overflow-wrap: anywhere;
+}
+
+.handover__hint {
+  max-width: 36ch;
+  color: var(--flow-text-soft);
+  font-size: clamp(0.92rem, 1.6vw, 1.05rem);
+  line-height: 1.4;
+  animation: flow-rise 480ms var(--ease-out) 240ms both;
+}
+
+.handover .btn {
+  animation: flow-rise 480ms var(--ease-out) 320ms both;
+}
+
+/* ---------- The inspector: cards left, rule right ---------- */
+.draft-inspector {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  gap: clamp(16px, 3vw, 48px);
+}
+
+.draft-inspector__stage {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The hand is a box the cards are sized from, so they fit it whatever the screen. */
+.draft-inspector__hand {
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  container-type: size;
+}
+
+.draft-inspector .draft-inspector__slot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  height: min(calc(100cqh - 16px), calc(100cqw * 0.95));
+  aspect-ratio: 5 / 7.2;
+  container-type: inline-size;
+  translate: -50% -50%;
+  /* The card in front leans a little away from the other, so the pair stays centred in the box. */
+  transform: translateX(calc(var(--lean, 0) * -24%));
+  transition: transform 520ms var(--ease-drawer);
+  animation: slot-deal 640ms var(--ease-out) calc(var(--deal, 0) * 170ms) backwards;
+}
+
+/* The card behind: smaller, tilted outwards, dimmed. Touching it brings it forward. */
+.draft-inspector .draft-inspector__slot:not(.is-focused) {
+  z-index: 1;
+  transform: translateX(calc(var(--rel) * 36%)) rotate(calc(var(--rel) * 7deg)) scale(0.8);
+  cursor: pointer;
+}
+
+/* The card behind is dimmed by a veil whose opacity fades: a filter on a 3D card would be repainted every frame. */
+.draft-inspector__slot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 5cqw;
+  background: rgba(24, 10, 32, 0.45);
+  opacity: 0;
+  transform: translateZ(1px);
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+
+.draft-inspector__slot:not(.is-focused)::after {
+  opacity: 1;
+}
+
+@keyframes slot-deal {
+  from {
+    opacity: 0;
+    transform: translateY(70px) rotate(-6deg) scale(0.86);
+  }
+}
+
+.draft-inspector .draft-inspector__slot .tilt-card,
+.draft-inspector .draft-inspector__slot .tilt-card__surface,
+.draft-inspector .draft-inspector__slot .tilt-card__flip,
+.draft-inspector .draft-inspector__slot .tilt-card__turn,
+.draft-inspector .draft-inspector__slot .tilt-card__face--front,
+.draft-inspector .draft-inspector__slot .tarot-card {
+  width: 100%;
+  height: 100%;
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card {
+  padding: 5cqw 6cqw 4cqw;
+  /* The long rule is written large on the right; the card keeps its emblem, name and suit. */
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 3cqw;
+  border-radius: 5cqw;
+  box-shadow:
+    0 6px 0 var(--flow-deep),
+    0 26px 40px rgba(0, 0, 0, 0.45);
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card::before {
+  inset: 2cqw;
+  border-radius: 3.4cqw;
+}
+
+.draft-inspector__slot .tarot-card__text {
+  display: none;
+}
+
+.draft-inspector__slot .tarot-card__numeral {
+  font-size: 6cqw;
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card__art {
+  align-self: center;
+  justify-self: center;
+  width: min(58cqw, 100%);
+  height: auto;
+  max-height: 100%;
+  aspect-ratio: 1;
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card__art svg {
+  width: 66%;
+  height: 66%;
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card__name {
+  width: calc(100% + 4cqw);
+  margin-inline: -2cqw;
+  font-size: clamp(0.85rem, 7.2cqw, 1.7rem);
+}
+
+.draft-inspector .draft-inspector__slot .tarot-card__suit {
+  font-size: clamp(0.6rem, 4.6cqw, 0.95rem);
+}
+
+.draft-inspector .draft-inspector__slot .tilt-card__face--back {
+  border-radius: 5cqw;
+}
+
+.draft-inspector__slot.is-picked .tarot-card {
+  box-shadow:
+    0 0 0 4px var(--card-accent),
+    0 8px 0 var(--flow-deep),
+    0 26px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* A passif is a talisman: one coin, centred, floating over its plaque. */
+.draft-inspector .draft-inspector__slot--talisman {
+  height: auto;
+  width: min(100%, 420px);
+  aspect-ratio: auto;
+  container-type: normal;
+  transform: none;
+}
+
+.draft-inspector__talisman {
+  display: grid;
+  width: 100%;
+}
+
+.draft-inspector__talisman .talisman {
+  --coin-size: clamp(104px, 36cqh, 230px);
+  height: auto;
+  min-height: 0;
+  padding: 18px 16px 16px;
+  grid-template-rows: auto auto auto;
+  box-shadow:
+    0 6px 0 var(--flow-deep),
+    0 26px 40px rgba(0, 0, 0, 0.45);
+}
+
+.draft-inspector__talisman .talisman__text {
+  display: none;
+}
+
+/* Under the cards: which one is on show, and the turn-over button. */
+.draft-inspector__bar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.draft-inspector__choices {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  border: 2px solid rgba(255, 243, 226, 0.2);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.draft-inspector__choice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 190px;
+  padding: 3px 14px 3px 4px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--flow-text-soft);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    transform 140ms var(--ease-out);
+}
+
+.draft-inspector__choice svg {
+  flex: none;
+}
+
+.draft-inspector__choice span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-inspector__choice:active {
+  transform: scale(0.97);
+}
+
+.draft-inspector__choice.is-active {
+  border-color: var(--ink);
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.draft-inspector__flip {
+  flex: none;
+}
+
+/* The panel: the rule, at reading size. It is remounted for each card, so its content cascades in again. */
+.draft-inspector__detail {
+  --card-accent: var(--grape-deep);
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: clamp(16px, 2vw, 26px);
+  border: var(--border);
+  border-radius: 28px;
+  background: var(--cream);
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 7px 0 var(--flow-deep),
+    0 34px 60px rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+  animation: flow-rise 520ms var(--ease-out) 120ms backwards;
+}
+
+.draft-inspector__detail-body {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  /* The medallion's rings stick out of its box: the scroller must leave them room. */
+  padding: 8px 4px 2px 8px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.draft-inspector__detail-body > * {
+  animation: flow-rise 420ms var(--ease-out) calc(var(--i, 0) * 70ms + 40ms) backwards;
+}
+
+.draft-inspector__medallion {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: clamp(72px, 13dvh, 108px);
+  aspect-ratio: 1;
+  border: 3px solid var(--card-accent);
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--white), color-mix(in srgb, var(--card-accent) 22%, var(--white)));
+  box-shadow:
+    0 0 0 3px var(--cream),
+    0 0 0 5px var(--card-accent);
+}
+
+.draft-inspector__medallion svg {
+  width: 68%;
+  height: 68%;
+}
+
+.draft-inspector__tags {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-inspector__kind {
+  padding: 2px 12px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  color: var(--white);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 0 rgba(58, 37, 48, 0.35);
+  text-transform: uppercase;
+}
+
+.draft-inspector__kind--actif {
+  background: var(--cup);
+}
+
+.draft-inspector__kind--passif {
+  background: var(--grape);
+}
+
+.draft-inspector__suit {
+  color: var(--card-accent);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.draft-inspector__numeral {
+  margin-left: auto;
+  color: var(--ink-faint);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+}
+
+.draft-inspector__name {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 3.4vw, 2.7rem);
+  font-weight: 700;
+  line-height: 1.02;
+}
+
+.draft-inspector__text {
+  color: var(--ink);
+  font-size: clamp(1rem, 1.7vw, 1.2rem);
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.draft-inspector__cta {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 3px dashed var(--paper-edge);
+}
+
+.draft-inspector__pick {
+  width: 100%;
+}
+
+.draft-inspector__note {
+  color: var(--ink-soft);
+  font-size: 0.86rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+/* ---------- Tablets and phones in portrait: the cards on top, the rule under them ---------- */
+@media (max-width: 860px) and (min-height: 521px) {
+  .draft-inspector {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 12px;
+  }
+
+  .draft-strip__name {
+    display: none;
+  }
+
+  .draft-strip__player.is-current .draft-strip__name {
+    display: inline;
+  }
+
+  .draft-strip__player {
+    padding-right: 3px;
+  }
+
+  .draft-strip__player.is-current {
+    padding-right: 12px;
+  }
+
+  .draft__top {
+    justify-content: flex-start;
+  }
+
+  .draft-strip {
+    justify-content: flex-start;
+  }
+
+  .draft-inspector__detail {
+    gap: 8px;
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .draft-inspector__detail-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+    align-items: center;
+    gap: 4px 12px;
+  }
+
+  .draft-inspector__medallion {
+    width: 60px;
+    grid-row: 1 / span 2;
+  }
+
+  .draft-inspector__tags {
+    grid-column: 2;
+  }
+
+  .draft-inspector__name {
+    grid-column: 2;
+    font-size: 1.5rem;
+  }
+
+  .draft-inspector__text {
+    grid-column: 1 / -1;
+    margin-top: 4px;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  .draft-inspector__choice {
+    max-width: 150px;
+    font-size: 0.82rem;
+  }
+
+  .draft-inspector__note {
+    display: none;
+  }
+
+  .handover__pedestal {
+    width: clamp(130px, 22dvh, 200px);
+  }
+}
+
+/* ---------- Short landscape phones ---------- */
+@media (max-height: 520px) {
+  .draft {
+    gap: 6px;
+    padding-bottom: calc(8px + var(--safe-bottom));
+  }
+
+  .draft-strip {
+    display: none;
+  }
+
+  /* The header's left corner is empty here (the logo steps aside): whose turn it is moves up into it. */
+  .draft__top {
+    position: absolute;
+    top: -50px;
+    left: 0;
+    z-index: 3;
+    max-width: 32%;
+  }
+
+  .draft__who strong {
+    font-size: 1.15rem;
+  }
+
+  .draft__who small {
+    font-size: 0.82rem;
+  }
+
+  .draft-inspector {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 1fr);
+    gap: 16px;
+  }
+
+  .draft-inspector__detail {
+    gap: 6px;
+    padding: 10px 14px;
+    border-radius: 20px;
+  }
+
+  .draft-inspector__detail-body {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+    align-items: center;
+    gap: 2px 10px;
+  }
+
+  .draft-inspector__medallion {
+    width: 48px;
+    grid-row: 1 / span 2;
+  }
+
+  .draft-inspector__tags,
+  .draft-inspector__name {
+    grid-column: 2;
+  }
+
+  .draft-inspector__name {
+    font-size: 1.25rem;
+  }
+
+  .draft-inspector__text {
+    grid-column: 1 / -1;
+    font-size: 0.9rem;
+    line-height: 1.4;
+  }
+
+  .draft-inspector__pick {
+    min-height: 46px;
+    font-size: 1.05rem;
+  }
+
+  .draft-inspector__note {
+    display: none;
+  }
+
+  .draft-inspector__choices {
+    display: none;
+  }
+
+  .handover {
+    grid-template-columns: auto auto;
+    column-gap: 28px;
+    padding-bottom: 8px;
+  }
+
+  .handover__pedestal {
+    grid-row: 1 / span 3;
+    width: clamp(110px, 40dvh, 170px);
+  }
+
+  .handover__line,
+  .handover__hint,
+  .handover .btn {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .handover__line strong {
+    font-size: clamp(1.8rem, 11dvh, 3rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .handover__avatar,
+  .handover__ripple {
+    animation: none;
+  }
+
+  .handover__ripple {
+    display: none;
+  }
+
+  .draft__top,
+  .handover__pedestal,
+  .handover__line,
+  .handover__hint,
+  .handover .btn,
+  .draft-inspector__detail,
+  .draft-inspector__detail-body > *,
+  .draft-inspector .draft-inspector__slot {
+    animation: none;
+  }
+
+  .draft-inspector .draft-inspector__slot {
+    transition-duration: 1ms;
+  }
+}

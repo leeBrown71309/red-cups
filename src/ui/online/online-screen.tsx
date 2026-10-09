@@ -1,20 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { useUiStore } from "../../feedback/ui-store";
 import { PLAYER_COLORS } from "../../game/types";
 import { useAccountStore } from "../../net/account-store";
 import { buildInviteLink, normalizeRoomCode, type RoomPlayer } from "../../net/room-api";
 import { useRoomStore } from "../../net/room-store";
-import { AudioToggles } from "../components/audio-controls";
-import { VoiceBadge, VoiceMicButton } from "../components/voice-controls";
-import { FullscreenButton } from "../components/fullscreen-button";
-import { GameLogo } from "../components/game-logo";
+import { FlowFooter, FlowShell } from "../components/flow-shell";
 import { KickButton } from "../components/kick-button";
+import { ModalShell } from "../components/modal-shell";
 import { PlayerAvatar } from "../components/player-avatar";
+import { VoiceBadge, VoiceMicButton } from "../components/voice-controls";
 import { EventToasts } from "../hud/event-toasts";
 import { UiIcon } from "../icons/ui-icon";
+import { MapStep } from "../setup/map-step";
+import { PlayersTable } from "../setup/players-table";
 import { AccountPanel } from "./account-panel";
-import { drawChosenMap } from "../lobby/map-choice-store";
-import { MapPicker } from "../lobby/map-picker";
 import { AvatarPicker, firstFreeAvatar } from "./avatar-picker";
 import { loadOnlineIdentity, ONLINE_NAME_MAX_LENGTH, saveOnlineIdentity } from "./online-name";
 
@@ -22,9 +21,9 @@ const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 8;
 
 /**
- * Online play, before the board: who you are, then a room to create or join,
- * then the lobby where the host starts the game. Only seated players exist:
- * there is no way to watch a game without playing it.
+ * Online play, before the board, on the same full-screen pages as the local setup: who you are, then a room
+ * to create or join, then the lobby (the table, chapter one) where the host picks the board (chapter two)
+ * and starts the game. Only seated players exist: there is no way to watch a game without playing it.
  */
 export function OnlineScreen() {
   const view = useRoomStore((state) => state.view);
@@ -36,30 +35,46 @@ export function OnlineScreen() {
     if (accountError) useUiStore.getState().pushToast({ id: "account-error", text: accountError, tone: "bad" });
   }, [accountError]);
 
-  let panel = <OnlineHome />;
-  if (view === "lobby") panel = <RoomLobby />;
-  else if (preview?.kicked) panel = <RejoinRoom code={preview.code} />;
-  else if (preview) panel = <JoinRoom players={preview.players} code={preview.code} />;
+  if (view === "lobby") return <RoomLobby />;
+  if (preview?.kicked) return <RejoinRoom code={preview.code} />;
+  if (preview) return <JoinRoom players={preview.players} code={preview.code} />;
+  return <OnlineHome />;
+}
 
+/** A page of the online flow that is not a chapter yet (home, join): the title and its context beside a form. */
+function OnlinePage({
+  leading,
+  title,
+  lead,
+  aside,
+  children,
+}: {
+  leading?: ReactNode;
+  title: ReactNode;
+  lead?: ReactNode;
+  aside?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <main className="lobby online">
-      <div className="lobby__corner">
-        <AudioToggles />
-        <VoiceMicButton />
-        <FullscreenButton />
-      </div>
-
-      <section className="lobby__hero">
-        <GameLogo />
-        <p className="lobby__tagline">Chacun sur son écran, la même table.</p>
-        <AccountPanel />
-      </section>
-
-      <section className="lobby__panel panel" aria-live="polite">
-        {panel}
+    <FlowShell step={null} leading={leading} corner={<VoiceMicButton />}>
+      <section className="onpage">
+        <div className="onpage__intro">
+          <h1>{title}</h1>
+          {lead && <p className="onpage__lead">{lead}</p>}
+          {aside}
+        </div>
+        <div className="onpage__card">{children}</div>
       </section>
       <EventToasts />
-    </main>
+    </FlowShell>
+  );
+}
+
+function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button type="button" className="icon-button" onClick={onClick} aria-label={label}>
+      <UiIcon name="arrowLeft" />
+    </button>
   );
 }
 
@@ -111,22 +126,25 @@ function OnlineHome() {
   };
 
   return (
-    <>
-      <header className="lobby__panel-header">
-        <div>
-          <span className="eyebrow">Jouer en ligne</span>
-          <h1>Crée ou rejoins une table</h1>
-        </div>
-        <button type="button" className="icon-button" onClick={closeMenu} aria-label="Retour au jeu local">
-          <UiIcon name="close" />
-        </button>
-      </header>
-
+    <OnlinePage
+      leading={<BackButton onClick={closeMenu} label="Retour au menu" />}
+      title={
+        <>
+          Une table, <br />
+          chacun chez soi
+        </>
+      }
+      lead="Crée un salon et partage son code, ou rejoins celui d’un ami."
+      aside={<AccountPanel />}
+    >
       <NameField identity={identity} />
-      <AvatarPicker selected={avatar} taken={[]} onSelect={setAvatar} />
+      <div className="onpage__group">
+        <span className="onpage__label">Ton avatar</span>
+        <AvatarPicker selected={avatar} taken={[]} onSelect={setAvatar} />
+      </div>
       <button
         type="button"
-        className="btn btn--cup btn--large lobby__start"
+        className="btn btn--cup btn--large onpage__cta"
         onClick={create}
         disabled={busy || !identity.isValid}
       >
@@ -156,7 +174,7 @@ function OnlineHome() {
           Rejoindre <UiIcon name="arrowRight" size={20} />
         </button>
       </form>
-    </>
+    </OnlinePage>
   );
 }
 
@@ -171,13 +189,16 @@ function RejoinRoom({ code }: { code: string }) {
   const avatar = identity.rememberedAvatar ?? 0;
 
   return (
-    <div className="rejoin-panel">
-      <header className="lobby__panel-header">
-        <div>
-          <span className="eyebrow">Salon {formatCode(code)}</span>
-          <h1>Retour à la table</h1>
-        </div>
-      </header>
+    <OnlinePage
+      leading={<BackButton onClick={clearPreview} label="Retour" />}
+      title={
+        <>
+          Retour à <br />
+          la table
+        </>
+      }
+      lead={`Salon ${formatCode(code)}`}
+    >
       {waiting ? (
         <>
           <p className="modal-lead">Demande envoyée : l’hôte doit l’accepter. Reste sur cette page.</p>
@@ -198,7 +219,7 @@ function RejoinRoom({ code }: { code: string }) {
           <NameField identity={identity} />
           <button
             type="button"
-            className="btn btn--cup btn--large lobby__start"
+            className="btn btn--cup btn--large onpage__cta"
             disabled={busy || !identity.isValid}
             onClick={() => {
               saveOnlineIdentity(identity.name, avatar);
@@ -207,12 +228,9 @@ function RejoinRoom({ code }: { code: string }) {
           >
             <UiIcon name="play" size={22} /> Demander à revenir
           </button>
-          <button type="button" className="btn btn--cream btn--small" onClick={clearPreview}>
-            Annuler
-          </button>
         </>
       )}
-    </div>
+    </OnlinePage>
   );
 }
 
@@ -227,23 +245,25 @@ function JoinRoom({ code, players }: { code: string; players: RoomPlayer[] }) {
   const avatarFree = !taken.includes(avatar);
 
   return (
-    <>
-      <header className="lobby__panel-header">
-        <div>
-          <span className="eyebrow">Salon {formatCode(code)}</span>
-          <h1>Rejoindre la table</h1>
-        </div>
-        <span className="count-badge">
-          {players.length}/{MAX_PLAYERS}
-        </span>
-      </header>
-
-      <RosterList players={players} />
+    <OnlinePage
+      leading={<BackButton onClick={clearPreview} label="Retour" />}
+      title={
+        <>
+          Rejoindre <br />
+          la table
+        </>
+      }
+      lead={`Salon ${formatCode(code)} : ${players.length} places prises sur ${MAX_PLAYERS}.`}
+      aside={<RosterList players={players} />}
+    >
       <NameField identity={identity} />
-      <AvatarPicker selected={avatar} taken={taken} onSelect={setAvatar} />
+      <div className="onpage__group">
+        <span className="onpage__label">Ton avatar</span>
+        <AvatarPicker selected={avatar} taken={taken} onSelect={setAvatar} />
+      </div>
       <button
         type="button"
-        className="btn btn--cup btn--large lobby__start"
+        className="btn btn--cup btn--large onpage__cta"
         disabled={busy || !identity.isValid || !avatarFree}
         onClick={() => {
           saveOnlineIdentity(identity.name, avatar);
@@ -252,13 +272,11 @@ function JoinRoom({ code, players }: { code: string; players: RoomPlayer[] }) {
       >
         <UiIcon name="play" size={22} /> Prendre place
       </button>
-      <button type="button" className="btn btn--cream btn--small" onClick={clearPreview}>
-        Annuler
-      </button>
-    </>
+    </OnlinePage>
   );
 }
 
+/** Chapter one for a room: the table and its seats. The host then picks the board (chapter two) and launches. */
 function RoomLobby() {
   const code = useRoomStore((state) => state.code);
   const players = useRoomStore((state) => state.players);
@@ -270,12 +288,22 @@ function RoomLobby() {
   const updateSeat = useRoomStore((state) => state.updateSeat);
   const shuffleOrder = useRoomStore((state) => state.shuffleOrder);
   const kick = useRoomStore((state) => state.kick);
+  const connected = useRoomStore((state) => state.connectedUserIds);
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
-  // Like the local lobby, the host picks the board in a step of its own, once the table is set.
   const [pickingMap, setPickingMap] = useState(false);
+  const [changingAvatar, setChangingAvatar] = useState(false);
+  const [shuffles, setShuffles] = useState(0);
+  const [flourish, setFlourish] = useState(false);
   const me = players.find((player) => player.userId === myUserId);
   const isHost = myUserId !== null && myUserId === hostId;
   const takenByOthers = players.filter((player) => player.userId !== myUserId).map((player) => player.avatar);
+
+  // The staggered glide after a toss only lasts a moment.
+  useEffect(() => {
+    if (!flourish) return undefined;
+    const timer = window.setTimeout(() => setFlourish(false), 900);
+    return () => window.clearTimeout(timer);
+  }, [flourish]);
 
   if (!code) return null;
 
@@ -289,184 +317,195 @@ function RoomLobby() {
     }
   };
 
+  const toss = () => {
+    setShuffles((count) => count + 1);
+    setFlourish(true);
+    void shuffleOrder();
+  };
+
+  const leaveButton = (
+    <button
+      type="button"
+      className="icon-button"
+      onClick={() => void leave()}
+      disabled={busy}
+      aria-label="Quitter le salon"
+    >
+      <UiIcon name="arrowLeft" />
+    </button>
+  );
+  const enoughPlayers = players.length >= MIN_PLAYERS;
+
   if (isHost && pickingMap) {
     return (
-      <>
-        <header className="lobby__panel-header">
-          <div>
-            <span className="eyebrow">Salon {formatCode(code)} · étape 2/2</span>
-            <h1>Sur quelle carte ?</h1>
-          </div>
-          <span className="count-badge">{players.length} joueurs</span>
-        </header>
-
-        <MapPicker />
-
-        <div className="lobby__step-actions">
-          <button type="button" className="btn btn--cream" onClick={() => setPickingMap(false)}>
-            ← Retour
-          </button>
-          <button
-            type="button"
-            className="btn btn--cup btn--large lobby__start"
-            onClick={() => void startGame(drawChosenMap())}
-            disabled={busy || players.length < MIN_PLAYERS}
-          >
-            <UiIcon name="play" size={22} /> Lancer la partie
-          </button>
-        </div>
-        <p className="lobby__note">
-          {players.length < MIN_PLAYERS
-            ? "Il faut au moins deux joueurs : reviens partager le code ou le lien."
-            : "Les autres joueurs découvriront la carte au lancement."}
-        </p>
-      </>
+      <FlowShell step="map" onStepBack={() => setPickingMap(false)} leading={leaveButton} corner={<VoiceMicButton />}>
+        <MapStep
+          playerCount={players.length}
+          onBack={() => setPickingMap(false)}
+          onLaunch={(mapId) => {
+            if (enoughPlayers && !busy) void startGame(mapId);
+          }}
+        />
+        <EventToasts />
+      </FlowShell>
     );
   }
 
   return (
-    <>
-      <header className="lobby__panel-header">
-        <div>
-          <span className="eyebrow">Salon{isHost ? " · étape 1/2" : ""}</span>
-          <h1 className="online__code">{formatCode(code)}</h1>
+    <FlowShell step="players" leading={leaveButton} corner={<VoiceMicButton />}>
+      <section className="players players--online" aria-labelledby="room-title">
+        <div className="players__intro">
+          <h1 id="room-title" className="players__code">
+            {formatCode(code)}
+          </h1>
+          <p className="players__lead">
+            {enoughPlayers
+              ? "L’ordre du tour est celui de la table. Chacun choisira son actif, les passifs sont tirés au sort."
+              : "Il faut au moins deux joueurs : partage le code ou le lien."}
+          </p>
+          <div className="online-share">
+            <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("code")}>
+              <UiIcon name={copied === "code" ? "check" : "copy"} size={18} />
+              {copied === "code" ? (
+                "Copié !"
+              ) : (
+                <>
+                  <span className="flow-foot__wide">Copier le code</span>
+                  <span className="flow-foot__narrow">Code</span>
+                </>
+              )}
+            </button>
+            <button type="button" className="btn btn--cream btn--small" onClick={() => void copy("link")}>
+              <UiIcon name={copied === "link" ? "check" : "link"} size={18} />
+              {copied === "link" ? (
+                "Copié !"
+              ) : (
+                <>
+                  <span className="flow-foot__wide">Copier le lien</span>
+                  <span className="flow-foot__narrow">Lien</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
-        <span className="count-badge">
-          {players.length}/{MAX_PLAYERS}
-        </span>
-      </header>
 
-      {/* One compact row: the roster below gets the height back on landscape phones. */}
-      <div className="lobby__tools online__tools">
-        <button
-          type="button"
-          className="btn btn--cream btn--small"
-          onClick={() => void copy("code")}
-          aria-label="Copier le code"
-          title="Copier le code"
-        >
-          <UiIcon name={copied === "code" ? "check" : "copy"} size={18} /> {copied === "code" ? "Copié !" : "Code"}
-        </button>
-        <button
-          type="button"
-          className="btn btn--cream btn--small"
-          onClick={() => void copy("link")}
-          aria-label="Copier le lien"
-          title="Copier le lien"
-        >
-          <UiIcon name={copied === "link" ? "check" : "link"} size={18} /> {copied === "link" ? "Copié !" : "Lien"}
-        </button>
-        {isHost && (
-          <button
-            type="button"
-            className="btn btn--cream btn--small"
-            onClick={() => void shuffleOrder()}
-            disabled={busy || players.length < MIN_PLAYERS}
-            aria-label="Mélanger l’ordre"
-            title="Mélanger l’ordre"
-          >
-            <UiIcon name="dice" size={18} /> Mélanger
-          </button>
-        )}
-      </div>
+        <div className="players__stage">
+          <PlayersTable
+            seats={players.map((player) => ({
+              key: player.userId,
+              name: player.name,
+              color: PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0],
+            }))}
+            shuffles={shuffles}
+            flourish={flourish}
+          />
+        </div>
 
-      <RosterList
-        players={players}
-        hostId={hostId}
-        myUserId={myUserId}
-        onKick={isHost ? kick : undefined}
-        busy={busy}
-      />
+        <ol className="players__roster">
+          {players.map((player, index) => {
+            const online = connected.includes(player.userId) || player.userId === myUserId;
+            const color = PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0];
+            return (
+              <li
+                key={player.userId}
+                className="seat seat--online"
+                style={{ "--seat-color": color, "--order": index } as CSSProperties}
+              >
+                <span className="seat__rank">{index + 1}</span>
+                <span className="seat__avatar">
+                  <PlayerAvatar color={color} size={52} />
+                </span>
+                <span className="seat__who">
+                  <span className="seat__label">
+                    {player.userId === hostId ? "Hôte" : index === 0 ? "Premier à jouer" : `Joueur ${index + 1}`}
+                  </span>
+                  <strong className="seat__name">
+                    {player.name}
+                    {player.userId === myUserId && <em> (toi)</em>}
+                  </strong>
+                </span>
+                <span className="seat__badges">
+                  <VoiceBadge userId={player.userId} />
+                  {player.userId === hostId && <UiIcon name="crown" size={18} />}
+                  {isHost && player.userId !== myUserId && (
+                    <KickButton name={player.name} disabled={busy} onKick={() => void kick(player.userId)} />
+                  )}
+                  <span
+                    className={`online-dot ${online ? "is-online" : ""}`}
+                    title={online ? "Connecté" : "Déconnecté"}
+                  />
+                </span>
+              </li>
+            );
+          })}
+        </ol>
 
-      {me && (
-        <details className="online__change-avatar">
-          <summary>Changer d’avatar</summary>
+        <FlowFooter>
+          {isHost && (
+            <button type="button" className="btn btn--gold" onClick={toss} disabled={busy || !enoughPlayers}>
+              <UiIcon name="dice" size={20} />
+              <span>
+                Mélanger<span className="flow-foot__wide"> l’ordre</span>
+              </span>
+            </button>
+          )}
+          {me && (
+            <button type="button" className="btn btn--cream" onClick={() => setChangingAvatar(true)}>
+              <UiIcon name="user" size={20} />
+              <span>
+                Avatar<span className="flow-foot__wide"> à changer</span>
+              </span>
+            </button>
+          )}
+          <p className="flow-foot__count" aria-live="polite">
+            <strong>{players.length}</strong> / {MAX_PLAYERS}
+            <span className="flow-foot__wide"> joueurs</span>
+          </p>
+          {isHost ? (
+            <button
+              type="button"
+              className="btn btn--cup btn--large flow-foot__next"
+              onClick={() => setPickingMap(true)}
+              disabled={busy || !enoughPlayers}
+              data-autofocus
+            >
+              Choisir la carte
+              <UiIcon name="arrowRight" size={22} />
+            </button>
+          ) : (
+            <p className="online__waiting flow-foot__next">L’hôte choisit la carte et lance la partie…</p>
+          )}
+        </FlowFooter>
+      </section>
+      {changingAvatar && me && (
+        <ModalShell title="Changer d’avatar" size="small" onClose={() => setChangingAvatar(false)}>
           <AvatarPicker
             selected={me.avatar}
             taken={takenByOthers}
             onSelect={(avatar) => {
               saveOnlineIdentity(me.name, avatar);
               void updateSeat(me.name, avatar);
+              setChangingAvatar(false);
             }}
           />
-        </details>
+        </ModalShell>
       )}
-
-      {!isHost && <p className="online__waiting">En attente de l’hôte : il choisit la carte puis lance la partie…</p>}
-      <p className="lobby__note">
-        {players.length < MIN_PLAYERS
-          ? "Il faut au moins deux joueurs. Partage le code ou le lien."
-          : "L’ordre du tour est celui de la liste. Chacun choisira son actif, et les passifs seront tirés au sort."}
-      </p>
-      <div className="lobby__actions">
-        <button
-          type="button"
-          className="btn btn--cream lobby__leave"
-          onClick={() => void leave()}
-          disabled={busy}
-          aria-label="Quitter le salon"
-        >
-          <UiIcon name="logout" size={18} /> Quitter
-        </button>
-        {isHost && (
-          <button
-            type="button"
-            className="btn btn--cup lobby__start"
-            onClick={() => setPickingMap(true)}
-            disabled={busy || players.length < MIN_PLAYERS}
-            aria-label="Suivant : choisir la carte"
-          >
-            Suivant →
-          </button>
-        )}
-      </div>
-    </>
+      <EventToasts />
+    </FlowShell>
   );
 }
 
-function RosterList({
-  players,
-  hostId = null,
-  myUserId = null,
-  onKick,
-  busy = false,
-}: {
-  players: RoomPlayer[];
-  hostId?: string | null;
-  myUserId?: string | null;
-  /** Given to the host only: a button next to every other player. */
-  onKick?: (userId: string) => Promise<void>;
-  busy?: boolean;
-}) {
-  const connected = useRoomStore((state) => state.connectedUserIds);
+/** The seats already taken in a room, read-only: shown to somebody about to join it. */
+function RosterList({ players }: { players: RoomPlayer[] }) {
   return (
-    <ol className="lobby__players">
-      {players.map((player, index) => {
-        const online = connected.includes(player.userId) || player.userId === myUserId;
-        return (
-          <li className="lobby-player online-player" key={player.userId}>
-            <span className="lobby-player__seat">{index + 1}</span>
-            <PlayerAvatar color={PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0]} size={40} />
-            <span className="online-player__name">
-              {player.name}
-              {player.userId === myUserId && <em> (toi)</em>}
-            </span>
-            <span className="online-player__badges">
-              <VoiceBadge userId={player.userId} />
-              {player.userId === hostId && <UiIcon name="crown" size={18} />}
-              {onKick && player.userId !== myUserId && (
-                <KickButton name={player.name} disabled={busy} onKick={() => void onKick(player.userId)} />
-              )}
-              {myUserId && (
-                <span
-                  className={`online-dot ${online ? "is-online" : ""}`}
-                  title={online ? "Connecté" : "Déconnecté"}
-                />
-              )}
-            </span>
-          </li>
-        );
-      })}
+    <ol className="roster-peek">
+      {players.map((player, index) => (
+        <li key={player.userId} className="roster-peek__player">
+          <span className="roster-peek__rank">{index + 1}</span>
+          <PlayerAvatar color={PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0]} size={34} />
+          <span className="roster-peek__name">{player.name}</span>
+        </li>
+      ))}
     </ol>
   );
 }

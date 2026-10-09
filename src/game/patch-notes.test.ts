@@ -4,6 +4,7 @@ import { advanceBulletBill } from "./bullet-bill";
 import { ITEM_CATALOG, PASSIVE_CATALOG } from "./catalog";
 import { canUseItemKind } from "./passive-rules";
 import { getRefusedPassifs } from "./draft";
+import { triggerPortal } from "./devil";
 import { canEndTurn } from "./energy";
 import { withPassives } from "./forced-passives";
 import { canWalkWithBoot, getForwardTiles } from "./game-actions";
@@ -37,6 +38,7 @@ function editPlayer(index: number, changes: Partial<Player>): void {
 
 const store = () => useGameStore.getState();
 const item = (id: string, itemId: ItemId): InventoryEntry => ({ id, kind: "item", itemId });
+const playerId = (index: number) => store().players[index].id;
 
 afterEach(() => {
   store().resetGame();
@@ -384,5 +386,46 @@ describe("patch 0.2.0: the players' reports", () => {
     store().endTurn(); // seated to play at last
     expect(store().players[1].knockedOut).toBe(false);
     expect(store().activePlayerIndex).toBe(1);
+  });
+});
+
+describe("patch 0.2.1: the players' reports of October 8th", () => {
+  it("says Hollow Purple never aims at a player already in Hell, and Portails pick the Cup before the fall", () => {
+    expect(ITEM_CATALOG["hollow-purple"].description).toContain("déjà");
+    expect(ITEM_CATALOG.portal.description).toContain("ne s’active pas");
+    expect(ITEM_CATALOG.portal.description).toContain("ramassée");
+  });
+
+  it("swallows the queued wheel and the shop with the player who falls into a Portail", () => {
+    startTable(["devil", "lambda"]);
+    const victim = store().players[1];
+    useGameStore.setState({
+      activePlayerIndex: 1,
+      turnStage: "shop",
+      hellPortals: [{ id: "p1", nodeId: 1, casterId: playerId(0), untilRound: 99 }],
+      pendingTileWheels: [{ playerId: victim.id, nodeId: 1 }],
+    });
+    editPlayer(1, { position: 1 });
+    const fallen = triggerPortal(store(), victim.id);
+    expect(fallen.players[1].position).toBe(HELL_NODE_ID);
+    expect(fallen.pendingTileWheels).toEqual([]);
+    expect(fallen.turnStage).toBe("turn-end");
+  });
+
+  it("leaves a Parachuted player's wheel and shop alone", () => {
+    startTable(["devil", "lambda"]);
+    const victim = store().players[1];
+    editPlayer(1, { position: 1, inventory: [item("para", "parachute")] });
+    useGameStore.setState({
+      activePlayerIndex: 1,
+      turnStage: "shop",
+      hellPortals: [{ id: "p1", nodeId: 1, casterId: playerId(0), untilRound: 99 }],
+      pendingTileWheels: [{ playerId: victim.id, nodeId: 1 }],
+    });
+    const saved = triggerPortal(store(), victim.id);
+    expect(saved.players[1].position).toBe(1);
+    expect(saved.turnStage).toBe("shop");
+    // Tile 1 is green: the owed wheel stands while the player got away with the Parachute.
+    expect(saved.pendingTileWheels).toEqual([{ playerId: victim.id, nodeId: 1 }]);
   });
 });

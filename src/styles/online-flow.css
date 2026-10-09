@@ -1,0 +1,293 @@
+/* ---------- Online pages (patch 0.2.2): the same stage and chapters as the local setup ---------- */
+/* Home, join and rejoin are pages of their own; the lobby is chapter one, the host's board pick chapter two. */
+
+/* ----- Home, join, rejoin: the title and its context on the left, the form on a cream card ----- */
+.onpage {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(260px, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 16px clamp(20px, 4vw, 64px);
+  padding-bottom: calc(18px + var(--safe-bottom));
+}
+
+.onpage__intro {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  min-height: 0;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 6px 4px 6px 0;
+}
+
+.onpage__intro h1,
+.players__code {
+  color: var(--flow-text);
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, min(5.4vw, 8dvh), 4.2rem);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  text-shadow: 0 4px 0 var(--flow-deep);
+  animation: flow-rise 520ms var(--ease-out) both;
+}
+
+.players__code {
+  letter-spacing: 0.06em;
+}
+
+.onpage__lead {
+  max-width: 40ch;
+  color: var(--flow-text-soft);
+  font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+  line-height: 1.45;
+  animation: flow-rise 520ms var(--ease-out) 90ms both;
+}
+
+.onpage__intro .account-panel {
+  max-width: 420px;
+  animation: flow-rise 520ms var(--ease-out) 160ms both;
+}
+
+.onpage__card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  width: 100%;
+  max-width: 580px;
+  max-height: 100%;
+  min-height: 0;
+  justify-self: end;
+  padding: clamp(16px, 2.4vw, 28px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: var(--border);
+  border-radius: 28px;
+  background: var(--cream);
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 7px 0 var(--flow-deep),
+    0 34px 60px rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+  animation: flow-rise 520ms var(--ease-out) 120ms both;
+  scrollbar-width: thin;
+}
+
+.onpage__group {
+  display: grid;
+  gap: 8px;
+}
+
+.onpage__label {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.onpage__card .avatar-picker {
+  grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
+}
+
+.onpage__card .lobby-player__input {
+  width: 100%;
+  height: 48px;
+}
+
+.onpage__cta {
+  width: 100%;
+}
+
+/* A room's seats, seen from the join page: small chips under the title. */
+.roster-peek {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation: flow-rise 520ms var(--ease-out) 160ms both;
+}
+
+.roster-peek__player {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 14px 3px 4px;
+  border: 2px solid rgba(255, 243, 226, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--flow-text);
+  font-weight: 700;
+}
+
+.roster-peek__rank {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+
+/* ----- The lobby, as chapter one ----- */
+.online-share {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  animation: flow-rise 520ms var(--ease-out) 160ms both;
+}
+
+.seat--online {
+  grid-template-columns: 60px minmax(0, 1fr) auto;
+}
+
+.seat__who {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.seat__name {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat__name em {
+  color: var(--ink-faint);
+  font-size: 0.85rem;
+  font-style: normal;
+}
+
+.seat__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--gold-deep);
+}
+
+.flow-foot .online__waiting {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  color: var(--flow-text-soft);
+  text-align: right;
+}
+
+/* ----- Narrow windows: the card goes under the title ----- */
+@media (max-width: 700px) and (min-height: 521px) {
+  .onpage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .onpage__intro {
+    max-height: 34dvh;
+  }
+
+  .onpage__card {
+    justify-self: stretch;
+    max-width: none;
+  }
+
+  .onpage__intro h1 br {
+    display: none;
+  }
+}
+
+/* ----- Short landscape phones: the title shrinks, the form scrolls in its card ----- */
+@media (max-height: 520px) {
+  .onpage {
+    grid-template-columns: minmax(180px, 0.8fr) minmax(0, 1.2fr);
+    align-items: stretch;
+    padding-bottom: 8px;
+  }
+
+  .onpage__intro h1 {
+    font-size: clamp(1.4rem, 9dvh, 2rem);
+  }
+
+  .onpage__intro .account-panel {
+    display: none;
+  }
+
+  .onpage__card {
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 20px;
+  }
+
+  .onpage__card .lobby-player__input,
+  .onpage__card .online__code-input {
+    height: 40px;
+  }
+
+  .onpage__card .avatar-picker {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .online-share .btn {
+    min-height: 34px;
+    padding: 0 10px;
+    font-size: 0.85rem;
+  }
+
+  .players__code {
+    font-size: clamp(1.4rem, 9dvh, 2rem);
+  }
+
+  /* Unlike the local table, a room's code must stay on screen: it sits above the table instead of hiding. */
+  .players--online .players__intro {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  .players--online {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "intro roster"
+      "stage roster"
+      "foot foot";
+  }
+
+  .players--online .players__lead {
+    display: none;
+  }
+
+  .seat--online {
+    grid-template-columns: 44px minmax(0, 1fr) auto;
+  }
+
+  .seat__name {
+    font-size: 1.05rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onpage__intro h1,
+  .players__code,
+  .onpage__lead,
+  .onpage__intro .account-panel,
+  .onpage__card,
+  .roster-peek,
+  .online-share {
+    animation: none;
+  }
+}

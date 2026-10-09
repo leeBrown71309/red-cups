@@ -420,12 +420,14 @@ html,
 }
 
 .admin__filter.is-current {
-  background: var(--ink);
-  color: var(--cream);
+  background: var(--cup);
+  color: var(--white);
+  box-shadow: 0 2px 0 var(--cup-deep);
 }
 
 .admin__filter.is-current small {
-  color: var(--gold);
+  color: var(--white);
+  opacity: 0.85;
 }
 
 .admin__tools {

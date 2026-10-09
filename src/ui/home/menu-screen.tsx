@@ -4,6 +4,7 @@ import { APP_VERSION } from "../../version";
 import { AudioToggles } from "../components/audio-controls";
 import { FullscreenButton } from "../components/fullscreen-button";
 import { GameLogo } from "../components/game-logo";
+import { CoinIcon, RedCupIcon } from "../icons/item-icon";
 import { UiIcon, type UiIconName } from "../icons/ui-icon";
 import { HelpModal } from "../modals/help-modal";
 import { useHomeStore } from "./home-store";
@@ -44,6 +45,17 @@ export function MenuScreen({ onPlayOnline }: MenuScreenProps) {
         </span>
         <GameLogo />
         <p className="lobby__tagline">Le jeu de plateau qui finit mal entre amis.</p>
+        <ul className="lobby__facts" aria-label="Le jeu en bref">
+          <li>
+            <UiIcon name="users" size={18} /> 2 à 8 joueurs
+          </li>
+          <li>
+            <RedCupIcon size={20} /> 3 Red Cups pour gagner
+          </li>
+          <li>
+            <CoinIcon size={20} /> 2 000 pièces au départ
+          </li>
+        </ul>
         <span className="menu-screen__version" title="Version du jeu">
           Version {APP_VERSION}
         </span>

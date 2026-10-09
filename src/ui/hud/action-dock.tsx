@@ -17,6 +17,7 @@ import {
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
   MOVE_MINIMUM_ENERGY,
+  ROLLER_CUP_FACE,
   START_BONUS,
 } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
@@ -309,6 +310,7 @@ function MoveContent({ player }: { player: Player }) {
   const mudPlaced = useGameStore((state) => state.mudPlacedThisTurn);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const diceRoll = useGameStore((state) => state.diceRoll);
+  const onRedCup = useGameStore((state) => state.redCupNodeId === player.position);
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
   const rescueProtege = useGameStore((state) => state.rescueProtege);
@@ -330,6 +332,21 @@ function MoveContent({ player }: { player: Player }) {
     return (
       <DockPrompt title="Plus d’énergie" hint="Tes objets ont pris toute ton énergie : ton tour s’arrête là.">
         <EndTurnButton primary />
+      </DockPrompt>
+    );
+  }
+
+  // Roller on the Red Cup tile after two misses: no walk is asked, only another go at a six (after their items).
+  if (hasCard(player, "roller") && diceRoll === null && onRedCup) {
+    return (
+      <DockPrompt
+        title="La Red Cup est sous tes pieds"
+        hint={`Utilise d’abord tes objets si tu veux, puis lance le dé : deux essais pour faire un ${ROLLER_CUP_FACE}.`}
+      >
+        <button type="button" className="btn btn--gold btn--pulse" onClick={rollDice} data-autofocus>
+          <UiIcon name="dice" size={20} /> Tenter la Red Cup
+        </button>
+        <EndTurnButton />
       </DockPrompt>
     );
   }

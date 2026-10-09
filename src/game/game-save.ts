@@ -139,6 +139,7 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     lastIceFall: save.lastIceFall ?? null,
     ghost: save.ghost ?? (save.mapId === "luna-park" ? createAbsentGhost(Number(save.round) || FIRST_ROUND) : null),
     lastGhostEvent: save.lastGhostEvent ?? null,
+    lastCupRoll: save.lastCupRoll ?? null,
     lastTomatoThrow: save.lastTomatoThrow ?? null,
     snowballHits: save.snowballHits ?? {},
     snowFrozenPlayerIds: save.snowFrozenPlayerIds ?? [],

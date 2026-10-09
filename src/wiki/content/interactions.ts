@@ -339,6 +339,21 @@ export const INTERACTIONS: Interaction[] = [
   { a: "item:bullet-bill", b: "system:hell", text: "Les joueurs en Enfer sont hors de portée de Bullet Bill." },
   { a: "item:mud", b: "system:hell", text: "Pas de Boue en Enfer : on n'y marche pas, le piège n'y a pas de sens." },
   {
+    a: "item:hollow-purple",
+    b: "system:hell",
+    text: "Impossible de cibler un joueur DÉJÀ en Enfer : la liste des cibles le refuse, l'objet reste dans le sac.",
+  },
+  {
+    a: "item:portal",
+    b: "system:tiles",
+    text: "La case avalée par un Portail ne s'active pas : ni roue de case, ni boutique. Le Parachute qui sauve laisse la case s'activer normalement.",
+  },
+  {
+    a: "item:portal",
+    b: "system:cups",
+    text: "Portail sous une Red Cup : le joueur la ramasse avant de tomber en Enfer.",
+  },
+  {
     a: "item:tomato",
     b: "system:turn",
     text: "La Tomate est gratuite : elle ne compte pas comme « avoir agi » et ne permet pas de finir son tour sans marcher.",
@@ -526,6 +541,11 @@ export const INTERACTIONS: Interaction[] = [
     a: "card:roller",
     b: "system:move",
     text: "Dé à 6 faces puis exactement ce nombre de cases, sans jamais repasser par une case foulée (sinon : les plus longs chemins possibles sont joués).",
+  },
+  {
+    a: "card:roller",
+    b: "system:cups",
+    text: "Pour ramasser la Red Cup, il faut un 6 en deux essais (visibles de tous, avec bannière) ; deux ratés et elle l'attend à son prochain tour, sans déplacement demandé.",
   },
   {
     a: "card:double-or-nothing",

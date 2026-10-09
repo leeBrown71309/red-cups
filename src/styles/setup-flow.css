@@ -1,0 +1,1016 @@
+/* ---------- Setup chapters (patch 0.2.2): the table, then the board ---------- */
+/* The shell they live in (backdrop, header, stepper, footer) is in flow-shell.css. */
+
+.players,
+.mapstep {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 12px clamp(20px, 4vw, 64px);
+}
+
+.players h1,
+.mapstep h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, min(5.4vw, 8dvh), 4.2rem);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.01em;
+  color: var(--flow-text);
+  text-shadow: 0 4px 0 var(--flow-deep);
+  animation: flow-rise 520ms var(--ease-out) both;
+}
+
+.players__lead,
+.mapstep__lead {
+  max-width: 40ch;
+  margin-top: 10px;
+  color: var(--flow-text-soft);
+  font-size: clamp(0.9rem, 1.5vw, 1.05rem);
+  line-height: 1.45;
+  animation: flow-rise 520ms var(--ease-out) 90ms both;
+}
+
+/* ---------- Step 1: the table ---------- */
+.players {
+  grid-template-columns: minmax(280px, 0.85fr) minmax(0, 1.15fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "intro roster"
+    "stage roster"
+    "foot foot";
+}
+
+.players__intro {
+  grid-area: intro;
+  padding-top: 6px;
+}
+
+.players__stage {
+  grid-area: stage;
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  container-type: size;
+  container-name: tablebox;
+}
+
+.players .flow-foot {
+  grid-area: foot;
+}
+
+/* The table seen from above. Everything is sized from the box it sits in, whatever the screen. */
+.table {
+  --t: min(100cqw, 100cqh);
+  position: relative;
+  width: var(--t);
+  height: var(--t);
+}
+
+.table__plate {
+  position: absolute;
+  inset: 11%;
+  display: grid;
+  place-items: center;
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 26%, #fff7ea, #f7dfbd 62%, #e9c496);
+  box-shadow:
+    inset 0 0 0 6px rgba(255, 255, 255, 0.5),
+    0 8px 0 var(--flow-deep),
+    0 34px 50px rgba(0, 0, 0, 0.4);
+  animation: table-land 640ms var(--ease-bounce) both;
+}
+
+@keyframes table-land {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(18px);
+  }
+}
+
+.table__ring {
+  position: absolute;
+  inset: 9%;
+  border: 3px dashed rgba(58, 37, 48, 0.3);
+  border-radius: 50%;
+}
+
+/* Tossing the order spins the ring once, ease-out, like a wheel let go. */
+.table__ring.is-spinning {
+  animation: table-ring-spin 900ms var(--ease-out);
+}
+
+@keyframes table-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(540deg);
+  }
+}
+
+.table__cups {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-items: center;
+  align-items: end;
+}
+
+.table__cups svg {
+  width: calc(var(--t) * 0.11);
+  height: auto;
+  margin: 0 calc(var(--t) * -0.012);
+  filter: drop-shadow(0 3px 0 rgba(58, 37, 48, 0.2));
+}
+
+.table__cups svg:first-child {
+  grid-column: 1 / -1;
+  margin-bottom: calc(var(--t) * -0.05);
+}
+
+.table__seat {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  justify-items: center;
+  width: calc(var(--t) * 0.22);
+  margin: calc(var(--t) * -0.11) 0 0 calc(var(--t) * -0.11);
+  translate: calc(var(--x) * var(--t)) calc(var(--y) * var(--t));
+  transition: translate 680ms cubic-bezier(0.34, 1.32, 0.64, 1);
+  animation: table-seat-in 520ms var(--ease-out) calc(var(--i) * 70ms + 160ms) backwards;
+}
+
+/* Tossing the order: the pawns set off one after the other, so the swap reads as a shuffle. */
+.table.is-shuffling .table__seat {
+  transition-delay: calc(var(--i) * 45ms);
+}
+
+@keyframes table-seat-in {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+}
+
+.table__pawn {
+  --bob-rotation: 0deg;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  filter: drop-shadow(0 6px 0 rgba(58, 37, 48, 0.3));
+  animation: bob 3.2s ease-in-out var(--bob, 0s) infinite;
+}
+
+.table__pawn svg {
+  width: 100%;
+  height: 100%;
+}
+
+.table__start {
+  position: absolute;
+  top: 0;
+  right: -2%;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--ink);
+}
+
+.table__name {
+  max-width: calc(var(--t) * 0.27);
+  margin-top: calc(var(--t) * -0.012);
+  padding: 1px 9px;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--cream);
+  box-shadow: 0 2px 0 var(--flow-deep);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: clamp(0.62rem, calc(var(--t) * 0.036), 0.95rem);
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container tablebox (max-width: 250px) {
+  .table__name {
+    display: none;
+  }
+}
+
+/* The roster: one card per place, and the free places waiting to be taken. */
+.players__roster,
+.mapstep__list {
+  scrollbar-color: rgba(255, 243, 226, 0.4) transparent;
+  scrollbar-width: thin;
+}
+
+.players__roster {
+  position: relative; /* offsetParent of the seats: the drag measures their slots from it */
+  grid-area: roster;
+  display: grid;
+  grid-auto-rows: minmax(88px, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(min(310px, 100%), 1fr));
+  gap: 14px 14px;
+  min-height: 0;
+  padding: 12px 8px 14px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.seat {
+  --seat-color: var(--gold);
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px 60px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 10px 10px 10px 20px;
+  border: var(--border);
+  border-radius: 22px;
+  background: var(--cream);
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 5px 0 var(--flow-deep);
+  color: var(--ink);
+  transition: box-shadow 160ms ease;
+  animation: seat-in 460ms var(--ease-out) calc(var(--order, 0) * 55ms) backwards;
+}
+
+@keyframes seat-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+}
+
+/* The seat's colour is the pawn's: a band on the left edge ties the card to its place at the table. */
+.seat::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 12px;
+  border-radius: 19px 0 0 19px;
+  background: var(--seat-color);
+  box-shadow: inset -3px 0 0 rgba(58, 37, 48, 0.18);
+}
+
+.seat__rank {
+  position: absolute;
+  top: -11px;
+  left: -9px;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--seat-color);
+  box-shadow: 0 2px 0 var(--flow-deep);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.seat.is-dragging {
+  z-index: 6;
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 10px 0 var(--flow-deep),
+    0 26px 40px rgba(0, 0, 0, 0.5);
+}
+
+.seat__grip {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--ink-faint);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seat__grip:hover {
+    background: var(--cream-2);
+    color: var(--ink-soft);
+  }
+}
+
+.seat.is-dragging .seat__grip {
+  background: var(--gold-light);
+  color: var(--ink);
+  cursor: grabbing;
+}
+
+.seat__avatar {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  height: 60px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--seat-color) 30%, var(--white));
+}
+
+.seat__avatar svg {
+  width: 84%;
+  height: 84%;
+}
+
+.seat__field {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.seat__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.seat__input {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 13px;
+  background: var(--cream-2);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  outline: none;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.seat__input:focus {
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px var(--gold);
+}
+
+.seat__remove {
+  justify-self: end;
+}
+
+/* A place still free: a dashed seat that asks to be taken. */
+.seat--free {
+  --seat-color: rgba(255, 243, 226, 0.22);
+  grid-template-columns: 56px minmax(0, 1fr);
+  padding-left: 20px;
+  border: 3px dashed rgba(255, 243, 226, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+  color: var(--flow-text-soft);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: left;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 140ms var(--ease-out);
+}
+
+.seat--free::before {
+  display: none;
+}
+
+.seat--free .seat__rank {
+  border-color: rgba(255, 243, 226, 0.4);
+  background: #3a2250;
+  color: var(--flow-text-soft);
+  box-shadow: none;
+}
+
+.seat__plus {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 3px dashed rgba(255, 243, 226, 0.4);
+  border-radius: 50%;
+  transition:
+    transform 320ms var(--ease-bounce),
+    border-color 180ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seat--free:hover {
+    border-color: var(--gold);
+    background: rgba(255, 196, 77, 0.1);
+    color: var(--flow-text);
+  }
+
+  .seat--free:hover .seat__plus {
+    border-color: var(--gold);
+    transform: rotate(90deg);
+  }
+}
+
+.seat--free:active {
+  transform: scale(0.98);
+}
+
+/* ---------- Step 2: the board, as a level select ---------- */
+.mapstep {
+  --row: clamp(64px, 11dvh, 92px);
+  --gap: 10px;
+  grid-template-columns: minmax(280px, 380px) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "intro stage"
+    "list stage"
+    "foot foot";
+}
+
+.mapstep__intro {
+  grid-area: intro;
+  padding-top: 6px;
+}
+
+.mapstep .flow-foot {
+  grid-area: foot;
+}
+
+.mapstep__list {
+  position: relative;
+  grid-area: list;
+  display: grid;
+  grid-auto-rows: var(--row);
+  align-content: start;
+  gap: var(--gap);
+  min-height: 0;
+  padding: 6px 6px 10px 2px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* One cream tile slides behind the options: the choice moves, it does not blink. */
+.mapstep__marker {
+  position: absolute;
+  top: 6px;
+  left: 2px;
+  right: 6px;
+  height: var(--row);
+  border: var(--border);
+  border-radius: 22px;
+  background: var(--cream);
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 5px 0 var(--flow-deep);
+  transform: translateY(calc(var(--index) * (var(--row) + var(--gap))));
+  transition: transform 480ms var(--ease-drawer);
+}
+
+.mapopt {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px 8px 9px;
+  border: 3px solid rgba(255, 243, 226, 0.16);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--flow-text);
+  text-align: left;
+  transition:
+    background-color 220ms ease,
+    border-color 220ms ease,
+    color 220ms ease,
+    transform 140ms var(--ease-out);
+  animation: flow-rise 460ms var(--ease-out) calc(var(--order, 0) * 60ms + 120ms) backwards;
+}
+
+.mapopt:active {
+  transform: scale(0.98);
+}
+
+.mapopt.is-current {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .mapopt:not(.is-current):hover {
+    border-color: rgba(255, 243, 226, 0.5);
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.mapopt__thumb {
+  display: grid;
+  place-items: center;
+  height: calc(var(--row) - 22px);
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--cream-2);
+}
+
+.mapopt__thumb .board-map {
+  width: 100%;
+  height: 100%;
+}
+
+.mapopt__thumb--random {
+  border-style: dashed;
+  color: var(--ink-soft);
+}
+
+.mapopt__text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mapopt__text strong {
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mapopt__text small {
+  display: -webkit-box;
+  overflow: hidden;
+  opacity: 0.78;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* The stage: every option sits in the same cell, the one in focus rises and the others sink aside. */
+.mapstep__stage {
+  grid-area: stage;
+  display: grid;
+  min-height: 0;
+  padding: 6px 4px 8px 0;
+  touch-action: pan-y;
+}
+
+.mapshow {
+  grid-area: 1 / 1;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  border: var(--border);
+  border-radius: 28px;
+  background: var(--cream);
+  box-shadow:
+    inset 0 0 0 3px var(--white),
+    0 7px 0 var(--flow-deep),
+    0 34px 60px rgba(0, 0, 0, 0.4);
+  color: var(--ink);
+  opacity: 0;
+  filter: blur(3px);
+  transform: translateX(40px) scale(0.97);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    opacity 260ms ease,
+    filter 260ms ease,
+    transform 460ms var(--ease-drawer),
+    visibility 0s linear 460ms;
+}
+
+.mapshow.is-before {
+  transform: translateX(-40px) scale(0.97);
+}
+
+.mapshow.is-current {
+  opacity: 1;
+  filter: none;
+  transform: none;
+  visibility: visible;
+  pointer-events: auto;
+  transition-delay: 0s, 0s, 0s, 0s;
+}
+
+.mapshow__plan {
+  container-type: size;
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 14px 14px 0;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 20px;
+  background:
+    radial-gradient(rgba(58, 37, 48, 0.06) 1.6px, transparent 2px) 0 0 / 20px 20px,
+    var(--cream-2);
+}
+
+.mapshow__plan .board-map {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/* The draw: the three plans fanned out like a hand of cards, a die on top of them. */
+.mapshow__fan {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.mapshow__fan-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(50cqw, 74cqh, 300px);
+  aspect-ratio: 640 / 403;
+  overflow: hidden;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--cream);
+  box-shadow: 0 5px 0 rgba(58, 37, 48, 0.55);
+  translate: calc(-50% + var(--f) * 38%) -50%;
+  transform: rotate(calc(var(--f) * 9deg));
+  transition: transform 520ms var(--ease-drawer);
+}
+
+.mapshow__fan-card .board-map {
+  width: 100%;
+  height: 100%;
+}
+
+.mapshow.is-current .mapshow__fan-card {
+  animation: fan-deal 620ms var(--ease-out) calc((var(--f) + 1) * 90ms) backwards;
+}
+
+@keyframes fan-deal {
+  from {
+    opacity: 0;
+    transform: translateY(30px) rotate(0deg) scale(0.9);
+  }
+}
+
+.mapshow__dice {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border: 3px solid var(--ink);
+  border-radius: 22px;
+  background: var(--gold);
+  box-shadow: 0 5px 0 var(--ink);
+  color: var(--ink);
+  translate: -50% -50%;
+}
+
+.mapshow.is-current .mapshow__dice {
+  animation: dice-roll 760ms var(--ease-out) 260ms both;
+}
+
+@keyframes dice-roll {
+  from {
+    opacity: 0;
+    transform: rotate(-220deg) scale(0.5);
+  }
+}
+
+.mapshow__text {
+  display: grid;
+  flex: none;
+  gap: 6px;
+  padding: 14px clamp(16px, 2.4vw, 28px) clamp(14px, 2vw, 22px);
+}
+
+.mapshow__text h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3.2vw, 2.4rem);
+  font-weight: 700;
+  line-height: 1.05;
+}
+
+.mapshow__text p {
+  max-width: 58ch;
+  color: var(--ink-soft);
+  font-size: clamp(0.92rem, 1.5vw, 1.06rem);
+  line-height: 1.4;
+}
+
+.mapshow__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mapshow__chips li {
+  padding: 4px 12px;
+  border: 2px solid var(--paper-edge);
+  border-radius: 999px;
+  background: var(--cream-2);
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.mapshow.is-current .mapshow__chips li {
+  animation: flow-rise 420ms var(--ease-out) calc(var(--c, 0) * 70ms + 180ms) backwards;
+}
+
+/* ---------- Tablets and phones in portrait: one column, the stepper's chapters stack ---------- */
+@media (max-width: 860px) {
+  /* Narrow windows keep the two columns (the table left, the seats right): stacking them would squeeze the table. */
+  .players {
+    grid-template-columns: minmax(170px, 0.8fr) minmax(0, 1.2fr);
+    gap: 8px 20px;
+  }
+
+  .players__lead,
+  .mapstep__lead {
+    display: none;
+  }
+
+  .players h1,
+  .mapstep h1 {
+    font-size: clamp(1.7rem, 7.4vw, 2.4rem);
+  }
+
+  /* Two lines of title would eat the table on a phone: it reads as one line there. */
+  .players h1 br,
+  .mapstep h1 br {
+    display: none;
+  }
+
+  .players h1 {
+    font-size: clamp(1.7rem, 5.6vw, 2.4rem);
+  }
+
+  .players__roster {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 84px;
+  }
+
+  .mapstep {
+    --col: min(176px, 46vw);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "intro"
+      "list"
+      "stage"
+      "foot";
+    gap: 8px;
+  }
+
+  /* The options become a swipeable row of chips; the marker slides sideways instead of down. */
+  .mapstep__list {
+    grid-auto-flow: column;
+    grid-auto-columns: var(--col);
+    grid-auto-rows: auto;
+    overflow: auto hidden;
+    padding: 6px 6px 12px 2px;
+    scroll-snap-type: x proximity;
+  }
+
+  .mapstep__marker {
+    right: auto;
+    width: var(--col);
+    height: calc(100% - 18px);
+    transform: translateX(calc(var(--index) * (var(--col) + var(--gap))));
+  }
+
+  .mapopt {
+    grid-template-columns: 52px minmax(0, 1fr);
+    gap: 8px;
+    padding: 6px 8px 6px 6px;
+    scroll-snap-align: center;
+  }
+
+  .mapopt__thumb {
+    height: 36px;
+  }
+
+  .mapopt__text strong {
+    font-size: 0.95rem;
+  }
+
+  .mapopt__text small {
+    display: none;
+  }
+}
+
+/* ---------- Really narrow windows: the table sits above the seats ---------- */
+@media (max-width: 560px) and (min-height: 521px) {
+  .players {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(120px, 0.42fr) minmax(0, 1fr) auto;
+    grid-template-areas:
+      "intro"
+      "stage"
+      "roster"
+      "foot";
+  }
+
+  .players h1 br,
+  .mapstep h1 br {
+    display: none;
+  }
+}
+
+/* ---------- Short landscape phones (the way the game is played on a phone) ---------- */
+/* The stepper already names the chapter, so the big title steps aside and the table and lists get the room. */
+@media (max-height: 520px) {
+  .players__intro,
+  .mapstep__intro {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .players {
+    grid-template-columns: minmax(150px, 0.7fr) minmax(0, 1.3fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "stage roster"
+      "foot foot";
+    gap: 4px 24px;
+  }
+
+  /* One seat per row on a phone: side by side they were too narrow for a name. */
+  .players__roster {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: 66px;
+    gap: 12px;
+    padding-top: 14px;
+  }
+
+  .seat {
+    grid-template-columns: 22px 44px minmax(0, 1fr) 34px;
+    gap: 6px 10px;
+    padding-block: 4px;
+  }
+
+  .seat__avatar {
+    width: 44px;
+    height: 44px;
+  }
+
+  .seat__input {
+    height: 34px;
+    padding-inline: 10px;
+    font-size: 1.05rem;
+  }
+
+  .seat__label {
+    font-size: 0.62rem;
+  }
+
+  .seat--free {
+    grid-template-columns: 46px minmax(0, 1fr);
+  }
+
+  .seat__plus {
+    width: 40px;
+    height: 40px;
+  }
+
+  .mapstep {
+    --row: 50px;
+    --gap: 8px;
+    grid-template-columns: minmax(200px, 300px) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "list stage"
+      "foot foot";
+    gap: 4px 20px;
+  }
+
+  .mapstep__list {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-auto-rows: var(--row);
+    padding-block: 3px 6px;
+    overflow: hidden auto;
+    scroll-snap-type: none;
+  }
+
+  .mapstep__marker {
+    right: 6px;
+    width: auto;
+    height: var(--row);
+    transform: translateY(calc(var(--index) * (var(--row) + var(--gap))));
+  }
+
+  .mapopt {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .mapopt__thumb {
+    height: 36px;
+  }
+
+  .mapopt__text small {
+    display: none;
+  }
+
+  /* The stage becomes a row: the plan beside its name and rules. */
+  .mapshow {
+    flex-direction: row;
+    border-radius: 22px;
+  }
+
+  .mapshow__plan {
+    flex: 1.25 1 0;
+    margin: 8px 0 8px 8px;
+    border-radius: 14px;
+  }
+
+  .mapshow__text {
+    flex: 1 1 0;
+    min-width: 0;
+    align-content: start;
+    gap: 4px;
+    padding: 10px 12px;
+    overflow-y: auto;
+  }
+
+  .mapshow__text h2 {
+    font-size: 1.3rem;
+  }
+
+  .mapshow__text p {
+    display: none;
+  }
+
+  .mapshow__chips {
+    gap: 5px;
+  }
+
+  .mapshow__chips li {
+    padding: 2px 9px;
+    font-size: 0.74rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .table__seat {
+    transition-duration: 1ms;
+    animation: none;
+  }
+
+  .table__plate,
+  .seat,
+  .mapopt,
+  .mapshow.is-current .mapshow__chips li,
+  .mapshow.is-current .mapshow__dice,
+  .mapshow.is-current .mapshow__fan-card,
+  .players h1,
+  .mapstep h1,
+  .players__lead,
+  .mapstep__lead {
+    animation: none;
+  }
+
+  .table__ring.is-spinning,
+  .table__pawn {
+    animation: none;
+  }
+
+  .mapstep__marker,
+  .mapshow {
+    transition-duration: 1ms;
+  }
+}
