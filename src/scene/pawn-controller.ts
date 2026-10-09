@@ -1,8 +1,8 @@
 import * as THREE from "three";
 import { findEdge } from "../game/board";
-import type { NodeId, PlayerColor, PlayerMovement } from "../game/types";
+import type { NodeId, PlayerColor, PlayerMovement, PowerEvent } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
-import { emitFeedback } from "../feedback/event-bus";
+import { emitFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
 import {
   BUMP_MS,
@@ -12,17 +12,29 @@ import {
   GHOST_SLAP_MS,
   GLIDE_MS,
   HELL_DROP_MS,
+  INVISIBILITY_FADE_MS,
+  INVISIBILITY_POP_MS,
+  MAGE_CRUMBLE_MS,
+  MARK_BURN_MS,
+  MARK_EMERGE_MS,
+  MARK_SUCK_MS,
+  MARK_TRANSIT_MS,
   MUD_SLIP_MS,
   HOP_MS,
   PORTAL_SWALLOW_MS,
   SHATTER_MS,
+  SISTER_CONDENSE_MS,
+  SISTER_DISSOLVE_MS,
+  SISTER_TRANSIT_MS,
+  TUNNEL_DIVE_MS,
   TUNNEL_EXTRA_MS,
+  TUNNEL_POP_MS,
   WOBBLE_MS,
 } from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
 import { createPawnVisual, type PawnVisual } from "./models/pawn-model";
 import { TILE_HEIGHT } from "./models/tile-model";
-import { easeInOutCubic, easeOutBack, type SceneKit } from "./scene-kit";
+import { easeInCubic, easeInOutCubic, easeOutBack, easeOutCubic, phase, type SceneKit } from "./scene-kit";
 
 export interface PawnInput {
   id: string;
@@ -36,6 +48,19 @@ export interface PawnInput {
   snowFrozen?: boolean;
   /** L'Ange-Gardien's protégé wears a halo, for the whole table to see. */
   halo?: boolean;
+  /** Mi-vu, Mi-vue: the fog hides this pawn from the viewer: it is not drawn at all, and takes no place on its tile. */
+  hidden?: boolean;
+  /** Mi-vu, Mi-vue: the viewer's own pawn, invisible to the others, is drawn see-through for them alone. */
+  ghostly?: boolean;
+}
+
+/** The tunnel a dive or a pop belongs to. */
+export interface TunnelInfo {
+  id: string;
+  /** The dive digs the tunnel: it did not exist before. */
+  dug: boolean;
+  from: NodeId;
+  to: NodeId;
 }
 
 type PawnAction =
@@ -48,7 +73,8 @@ type PawnAction =
   | { type: "freeze"; duration: number }
   | { type: "shatter"; duration: number }
   | { type: "vanish"; duration: number }
-  | { type: "appear"; at: THREE.Vector3; duration: number }
+  /** Shows up at `at`, or on the tile the pawn is meant to stand on when there is none. */
+  | { type: "appear"; at?: THREE.Vector3; duration: number }
   | { type: "tumble"; duration: number }
   /** Luna Park: cowers, then reels from the ghost's slap; `source` is where the hand comes from. */
   | { type: "slapped"; duration: number; source?: THREE.Vector3 }
@@ -59,12 +85,59 @@ type PawnAction =
   /** Portail: the pawn drops from above through the Hell-side portal onto the Hell floor. */
   | { type: "hellDrop"; to: THREE.Vector3; duration: number }
   /** Chance aveugle: feet lost in the mud, a skid and a spin, thrown back to the tile it came from. */
-  | { type: "mudSlip"; to: THREE.Vector3; duration: number };
+  | { type: "mudSlip"; to: THREE.Vector3; duration: number }
+  /** Taupe: digs into the ground like a drill, in a spray of soil. */
+  | { type: "dive"; duration: number; tunnel: TunnelInfo; deepBurst?: boolean }
+  /** Taupe: bursts out of the ground at the other end of the tunnel, and lands. */
+  | { type: "pop"; to: THREE.Vector3; duration: number; tunnel: TunnelInfo }
+  /** Mage noir: drawn into the vortex, spinning and stretching thin. */
+  | { type: "suck"; duration: number }
+  /** Mage noir: steps out of the burst of light on the pentagram: on `at`, or on the tile the pawn is meant to stand on. */
+  | { type: "emerge"; duration: number; at?: THREE.Vector3 }
+  /** Mage noir: caught in the hellfire, scorched and swallowed. */
+  | { type: "burn"; duration: number }
+  /** Sœur Fantôme: dissolves into mist where it stands. */
+  | { type: "dissolve"; duration: number }
+  /** Sœur Fantôme: condenses out of mist on the tile the pawn is meant to stand on. */
+  | { type: "condense"; duration: number }
+  /** Mime: a squash, a jump with a full turn, a landing. */
+  | { type: "mimic"; duration: number }
+  /** Mage noir: out of chances, scorched, crumbles to ash, then leaves the table. */
+  | { type: "crumble"; duration: number }
+  /** Stays where it is (and out of sight, when `invisible`) while something else plays. */
+  | { type: "wait"; duration: number; invisible?: boolean };
+
+/** A moment of a pawn's choreography that the rest of the scene joins in: the soil, the vortex, the flame. */
+export type PawnPhase =
+  | "dive"
+  | "dig-deep"
+  | "pop"
+  | "suck"
+  | "emerge"
+  | "burn"
+  | "dissolve"
+  | "condense"
+  | "crumble"
+  | "fade-out"
+  | "pop-in";
+
+export interface PawnPhaseInfo {
+  phase: PawnPhase;
+  playerId: string;
+  /** Where the pawn is as the phase begins. */
+  position: THREE.Vector3;
+  /** For a dive and a pop. */
+  tunnel?: TunnelInfo;
+  /** The fog hides this pawn from the viewer: whatever it does stays out of sight and out of hearing. */
+  hidden: boolean;
+}
 
 /** Lets the scene's other actors join in a pawn's animation. */
 export interface PawnHooks {
   /** A pawn is about to be slapped and carried off by the ghost; returns where the ghost slaps from. */
   onGhostSlap?: (pawnId: string) => THREE.Vector3 | null;
+  /** A pawn's choreography reaches a moment the effects, the tunnel and the sounds follow. */
+  onPhase?: (info: PawnPhaseInfo) => void;
 }
 
 const TUMBLE_MS = 820;
@@ -74,6 +147,14 @@ const CARRY_ARC_HEIGHT = 2.4;
 const HELL_DROP_HEIGHT = 2.2;
 /** How far the slap knocks the pawn back. */
 const SLAP_KNOCKBACK = 0.3;
+/** How deep a pawn digs, and how far under the ground it pops from. */
+const DIG_DEPTH = 0.55;
+/** How opaque the viewer's own pawn is when the fog makes it see-through. */
+export const GHOSTLY_OPACITY = 0.35;
+/** A move whose power event never comes (it was lost, or the table left) must not freeze the pawn for good. */
+const HELD_TIMEOUT_SECONDS = 6;
+/** A move explained by a power event that was played first stays valid this long. */
+const EXPLAINED_SECONDS = 1.5;
 
 interface Pawn {
   id: string;
@@ -90,15 +171,56 @@ interface Pawn {
   active: boolean;
   sleeping: boolean;
   baseScale: number;
+  /** Scale of the whole pawn, which eases towards `baseScale` (a little more when it is the active one). */
+  rootScale: number;
   /** Banquise: the ice block around a frozen pawn, grown by "freeze", burst by "shatter". */
   iceBlock: THREE.Mesh;
   /** L'Ange-Gardien's protégé: a golden ring floating over the head. */
   halo: THREE.Mesh;
+  /** Where the pawn is meant to stand on its tile, with the others of the tile around it. */
+  slot: THREE.Vector3;
+  /** Mi-vu, Mi-vue: how opaque the fog lets it be (0 hidden, a little for the viewer's own), and how much it is now. */
+  fogTarget: number;
+  fogAlpha: number;
+  /** What the view said last, so that a change in it (not the view itself) moves `fogTarget`. */
+  viewHidden: boolean;
+  viewGhostly: boolean;
+  /** How long since it popped back into sight, for the little overshoot. */
+  popAge: number;
+  /** Opacity and scorching asked by the running action, set anew every frame. */
+  actionFade: number;
+  char: number;
+  /** Seconds this pawn has waited for a power event to play, null if it is not waiting. */
+  held: number | null;
+  /** A power event moved it: the move is the event's, not a repositioning of its own. */
+  explained: number;
+  /** A power event has it in its choreography, which the other events about it (a poof, a sound) must leave alone. */
+  choreographed: boolean;
+  /** Out of the game, kept on the board until its last deed is played. */
+  dying: boolean;
 }
 
 const LANDING_MS = 150;
 /** Where the protégé's halo floats, over the pawn's head. */
 const HALO_HEIGHT = 1.08;
+
+/** Actions that turn the body round: the idle yaw must leave them alone. */
+const SPINNING_ACTIONS: PawnAction["type"][] = [
+  "vanish",
+  "appear",
+  "wobble",
+  "carried",
+  "mudSlip",
+  "dive",
+  "pop",
+  "suck",
+  "emerge",
+  "burn",
+  "dissolve",
+  "condense",
+  "mimic",
+  "crumble",
+];
 
 /**
  * Animates chibi pawns. The game store teleports positions instantly; this
@@ -116,12 +238,19 @@ export class PawnController {
     private readonly hooks: PawnHooks = {},
   ) {}
 
-  sync(inputs: PawnInput[], movement: PlayerMovement | null): void {
+  /** `pendingPower` is the power event the board knows of and has not played yet: it holds the pawns it moves. */
+  sync(inputs: PawnInput[], movement: PlayerMovement | null, pendingPower: PowerEvent | null = null): void {
     const inputIds = new Set(inputs.map((input) => input.id));
     for (const [id, pawn] of this.pawns) {
       if (inputIds.has(id)) continue;
-      this.group.remove(pawn.visual.root);
-      this.pawns.delete(id);
+      // A mage with no chance left crumbles to ash on their tile before they leave the table.
+      if (pawn.dying || (pendingPower?.kind === "mage-fallen" && pendingPower.playerId === id)) {
+        pawn.dying = true;
+        pawn.choreographed = true;
+        pawn.held ??= 0;
+        continue;
+      }
+      this.removePawn(id);
     }
 
     const slots = this.computeSlots(inputs);
@@ -137,18 +266,46 @@ export class PawnController {
         if (input.frozenTo !== undefined || input.snowFrozen) pawn.iceBlock.scale.setScalar(1);
         this.pawns.set(input.id, pawn);
       } else if (isNewMovement && movement?.playerId === input.id && pawn.logicalNode === movement.from) {
+        pawn.slot.copy(slot.position);
         this.queueWalk(pawn, movement, slot.position);
       } else if (pawn.logicalNode !== input.position) {
-        pawn.actions.push({ type: "vanish", duration: 240 }, { type: "appear", at: slot.position, duration: 320 });
-      } else if (pawn.actions.length === 0 && pawn.visual.root.position.distanceTo(slot.position) > 0.02) {
-        pawn.actions.push({ type: "slide", to: slot.position, duration: 260 });
+        pawn.slot.copy(slot.position);
+        if (this.isMovedByPower(pendingPower, input.id)) {
+          // The move belongs to a power event that is yet to be played: the pawn stays where it is until then.
+          pawn.held = 0;
+          pawn.choreographed = true;
+        } else if (pawn.explained > 0) {
+          pawn.explained = 0;
+        } else {
+          pawn.actions.push(
+            { type: "vanish", duration: 240 },
+            { type: "appear", at: slot.position.clone(), duration: 320 },
+          );
+        }
+      } else if (
+        pawn.actions.length === 0 &&
+        pawn.held === null &&
+        pawn.visual.root.position.distanceTo(slot.position) > 0.02
+      ) {
+        pawn.slot.copy(slot.position);
+        pawn.actions.push({ type: "slide", to: slot.position.clone(), duration: 260 });
       }
+      pawn.slot.copy(slot.position);
 
       // Out of the ice (moved by a Corde or a swap, or thawed after a lost turn): the block bursts.
       const iceQueued = pawn.actions.some((action) => action.type === "freeze" || action.type === "shatter");
       const iceHeld = input.frozenTo !== undefined || input.snowFrozen === true;
       if (!iceHeld && !iceQueued && pawn.iceBlock.scale.x > 0.5) {
         pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
+      }
+
+      // Mi-vu, Mi-vue: what the fog says moves the pawn's opacity when it changes. An event may have moved it first.
+      const hidden = input.hidden === true;
+      const ghostly = input.ghostly === true;
+      if (hidden !== pawn.viewHidden || ghostly !== pawn.viewGhostly) {
+        pawn.viewHidden = hidden;
+        pawn.viewGhostly = ghostly;
+        pawn.fogTarget = hidden ? 0 : ghostly ? GHOSTLY_OPACITY : 1;
       }
 
       pawn.logicalNode = input.position;
@@ -166,16 +323,119 @@ export class PawnController {
     if (movement) this.lastMovementSeq = movement.seq;
   }
 
+  /**
+   * The deed of a Cups Power is played: the pawns it concerns do their choreography. Run whether the board's update
+   * reached the pawns first (they were held in place) or after (the move that follows is then told to be explained).
+   */
+  playPower(event: PowerEvent): void {
+    switch (event.kind) {
+      case "mark-teleport": {
+        const mage = this.pawns.get(event.playerId);
+        if (mage) {
+          const steps: PawnAction[] = [
+            { type: "suck", duration: MARK_SUCK_MS },
+            { type: "wait", duration: MARK_TRANSIT_MS, invisible: true },
+            // The mud under the mark drops the mage into Hell, but they land on the pentagram first.
+            {
+              type: "emerge",
+              duration: MARK_EMERGE_MS,
+              ...(event.mudHell ? { at: this.getStandingPoint(event.to) } : {}),
+            },
+          ];
+          // The mud under the mark swallows the mage themself: they land, then the fire takes them.
+          if (event.mudHell) {
+            steps.push(
+              { type: "wait", duration: 80 },
+              { type: "burn", duration: MARK_BURN_MS },
+              { type: "appear", duration: 320 },
+            );
+          }
+          this.choreograph(mage, steps);
+        }
+        for (const victimId of event.victimIds) {
+          const victim = this.pawns.get(victimId);
+          if (!victim) continue;
+          // The fire rises as the mage lands; the victims are caught in it, then drop out of a portal in Hell.
+          this.choreograph(victim, [
+            { type: "wait", duration: MARK_SUCK_MS + MARK_TRANSIT_MS },
+            { type: "burn", duration: MARK_BURN_MS },
+            { type: "appear", duration: 320 },
+          ]);
+        }
+        return;
+      }
+      case "sister-swap": {
+        const owner = this.pawns.get(event.playerId);
+        if (!owner) return;
+        this.choreograph(owner, [
+          { type: "dissolve", duration: SISTER_DISSOLVE_MS },
+          { type: "wait", duration: SISTER_TRANSIT_MS, invisible: true },
+          { type: "condense", duration: SISTER_CONDENSE_MS },
+        ]);
+        return;
+      }
+      case "mime-copy": {
+        const copier = this.pawns.get(event.playerId);
+        if (copier && copier.actions.length === 0) copier.actions.push({ type: "mimic", duration: 620 });
+        return;
+      }
+      case "mage-fallen": {
+        const mage = this.pawns.get(event.playerId);
+        if (!mage || mage.actions.some((action) => action.type === "crumble")) return;
+        mage.dying = true;
+        this.choreograph(mage, [{ type: "crumble", duration: MAGE_CRUMBLE_MS }]);
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  /**
+   * Mi-vu, Mi-vue: a pawn comes into sight or leaves it. The fog may already say so (the view is a little behind the
+   * events), but this is the moment the table sees it: a fade with sparkles, or a pop with a flash.
+   */
+  playInvisibility(id: string, opacity: number): void {
+    const pawn = this.pawns.get(id);
+    if (!pawn || Math.abs(pawn.fogTarget - opacity) < 0.01) return;
+    const appearing = opacity > pawn.fogTarget;
+    pawn.fogTarget = opacity;
+    if (appearing) pawn.popAge = 0;
+    this.hooks.onPhase?.({
+      phase: appearing ? "pop-in" : "fade-out",
+      playerId: id,
+      position: pawn.visual.root.position.clone(),
+      hidden: false,
+    });
+  }
+
   getPawnPosition(id: string): THREE.Vector3 | null {
     const pawn = this.pawns.get(id);
     return pawn ? pawn.visual.root.position.clone() : null;
   }
 
-  /** The pawn standing closest to `point`, if one is within `maxDistance`. */
+  /** Whether the table still has this pawn on the board (a mage out of chances stays until their ash has fallen). */
+  has(id: string): boolean {
+    return this.pawns.has(id);
+  }
+
+  /** Whether the fog hides the pawn from the viewer. */
+  isHidden(id: string): boolean {
+    const pawn = this.pawns.get(id);
+    return pawn !== undefined && pawn.fogTarget === 0;
+  }
+
+  /** Whether a power event has the pawn in its choreography, and the poofs and sounds of the move must leave it be. */
+  isChoreographed(id: string): boolean {
+    return this.pawns.get(id)?.choreographed === true;
+  }
+
+  /** The pawn standing closest to `point`, if one is within `maxDistance`; the fog's hidden pawns are not seen. */
   getNearestPawnPosition(point: THREE.Vector3, maxDistance: number): THREE.Vector3 | null {
     let nearest: THREE.Vector3 | null = null;
     let nearestDistance = maxDistance;
     for (const pawn of this.pawns.values()) {
+      if (pawn.fogTarget === 0) continue;
       const distance = pawn.visual.root.position.distanceTo(point);
       if (distance > nearestDistance) continue;
       nearestDistance = distance;
@@ -203,10 +463,28 @@ export class PawnController {
 
   update(elapsed: number, deltaSeconds: number): void {
     const deltaMs = deltaSeconds * 1_000;
+    const leaving: string[] = [];
     for (const pawn of this.pawns.values()) {
-      this.advance(pawn, deltaMs);
+      if (pawn.held !== null) {
+        pawn.held += deltaSeconds;
+        if (pawn.held > HELD_TIMEOUT_SECONDS) {
+          pawn.held = null;
+          pawn.choreographed = false;
+          if (pawn.dying) leaving.push(pawn.id);
+          else pawn.actions.push({ type: "vanish", duration: 240 }, { type: "appear", duration: 320 });
+        }
+      }
+      if (pawn.explained > 0) pawn.explained = Math.max(0, pawn.explained - deltaSeconds);
+      if (this.advance(pawn, deltaMs)) leaving.push(pawn.id);
       this.animateIdle(pawn, elapsed, deltaSeconds);
+      this.applyLook(pawn, deltaSeconds);
     }
+    for (const id of leaving) this.removePawn(id);
+  }
+
+  dispose(): void {
+    for (const pawn of this.pawns.values()) pawn.visual.dispose();
+    this.pawns.clear();
   }
 
   private createPawn(input: PawnInput, position: THREE.Vector3): Pawn {
@@ -240,6 +518,11 @@ export class PawnController {
     halo.position.y = HALO_HEIGHT;
     halo.visible = input.halo === true;
     visual.root.add(halo);
+
+    const hidden = input.hidden === true;
+    const ghostly = input.ghostly === true;
+    const fogTarget = hidden ? 0 : ghostly ? GHOSTLY_OPACITY : 1;
+    visual.root.visible = !hidden;
     return {
       id: input.id,
       visual,
@@ -255,9 +538,61 @@ export class PawnController {
       active: input.isActive,
       sleeping: input.isSleeping,
       baseScale: 1,
+      rootScale: 1,
       iceBlock,
       halo,
+      slot: position.clone(),
+      fogTarget,
+      fogAlpha: fogTarget,
+      viewHidden: hidden,
+      viewGhostly: ghostly,
+      popAge: INVISIBILITY_POP_MS,
+      actionFade: 1,
+      char: 0,
+      held: null,
+      explained: 0,
+      choreographed: false,
+      dying: false,
     };
+  }
+
+  private removePawn(id: string): void {
+    const pawn = this.pawns.get(id);
+    if (!pawn) return;
+    this.group.remove(pawn.visual.root);
+    pawn.visual.dispose();
+    this.pawns.delete(id);
+  }
+
+  /** Whether a power event not yet played is what moved this pawn: the mage and their victims, the sister's owner. */
+  private isMovedByPower(power: PowerEvent | null, pawnId: string): boolean {
+    if (!power) return false;
+    if (power.kind === "mark-teleport") return power.playerId === pawnId || power.victimIds.includes(pawnId);
+    if (power.kind === "sister-swap") return power.playerId === pawnId;
+    return false;
+  }
+
+  /** Queues a power event's steps for a pawn, which stops waiting for the event and takes the move as the event's. */
+  private choreograph(pawn: Pawn, steps: PawnAction[]): void {
+    pawn.held = null;
+    pawn.explained = EXPLAINED_SECONDS;
+    pawn.choreographed = true;
+    pawn.actions.push(...steps);
+  }
+
+  private phaseInfo(pawn: Pawn, phaseName: PawnPhase, tunnel?: TunnelInfo): PawnPhaseInfo {
+    return {
+      phase: phaseName,
+      playerId: pawn.id,
+      position: pawn.visual.root.position.clone(),
+      ...(tunnel ? { tunnel } : {}),
+      hidden: pawn.fogTarget === 0,
+    };
+  }
+
+  /** What the sounds of a pawn hear: nothing, for a pawn the fog hides. */
+  private emitHeard(pawn: Pawn, event: FeedbackEvent): void {
+    if (pawn.fogTarget > 0) emitFeedback(event);
   }
 
   /**
@@ -314,33 +649,45 @@ export class PawnController {
     };
 
     let previous = from;
-    path.forEach((nodeId, index) => {
-      // With a Portail at the end, the pawn stands on the tile first: it must be seen walking there.
-      // Same for the mud: the pawn must be seen setting foot on it before it slips.
-      const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal && !slipsInMud;
-      const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
-      const edge = findEdge(this.layout.board, previous, nodeId);
+    if (movement.tunnel && path.length > 0) {
+      // Taupe: no road, no hop: the pawn digs down where it stands and bursts out of the ground at the other end.
+      const arrival = path[path.length - 1];
+      const tunnel: TunnelInfo = { id: movement.tunnel.id, dug: movement.tunnel.dug, from, to: arrival };
+      // With a Portail or mud at the end, the pawn must be seen standing there first.
+      const lands = fallsIntoPortal || slipsInMud ? this.getStandingPoint(arrival) : finalSlot;
+      pawn.actions.push(
+        { type: "dive", duration: TUNNEL_DIVE_MS, tunnel },
+        { type: "pop", to: lands, duration: TUNNEL_POP_MS, tunnel },
+      );
+    } else {
+      path.forEach((nodeId, index) => {
+        // With a Portail at the end, the pawn stands on the tile first: it must be seen walking there.
+        // Same for the mud: the pawn must be seen setting foot on it before it slips.
+        const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal && !slipsInMud;
+        const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
+        const edge = findEdge(this.layout.board, previous, nodeId);
 
-      if (index >= slideStart) {
-        pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
+        if (index >= slideStart) {
+          pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
+          previous = nodeId;
+          pushBumps(index);
+          return;
+        }
+
+        if (edge?.kind === "tunnel") {
+          const tunnel = this.layout.getTunnelLayout(edge);
+          pawn.actions.push(
+            { type: "hop", to: tunnel.entrance.clone().setY(0.05), duration: HOP_MS },
+            { type: "vanish", duration: TUNNEL_EXTRA_MS / 2 },
+            { type: "appear", at: tunnel.exit.clone().setY(0.05), duration: TUNNEL_EXTRA_MS / 2 },
+          );
+        }
+
+        pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
         previous = nodeId;
         pushBumps(index);
-        return;
-      }
-
-      if (edge?.kind === "tunnel") {
-        const tunnel = this.layout.getTunnelLayout(edge);
-        pawn.actions.push(
-          { type: "hop", to: tunnel.entrance.clone().setY(0.05), duration: HOP_MS },
-          { type: "vanish", duration: TUNNEL_EXTRA_MS / 2 },
-          { type: "appear", at: tunnel.exit.clone().setY(0.05), duration: TUNNEL_EXTRA_MS / 2 },
-        );
-      }
-
-      pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
-      previous = nodeId;
-      pushBumps(index);
-    });
+      });
+    }
 
     if (interrupted) {
       pawn.actions.push(
@@ -360,10 +707,13 @@ export class PawnController {
     if (slipsInMud) pawn.actions.push({ type: "mudSlip", to: finalSlot, duration: MUD_SLIP_MS });
   }
 
-  private advance(pawn: Pawn, deltaMs: number): void {
+  /** Plays the running action one step further; true when the pawn is done for and leaves the table. */
+  private advance(pawn: Pawn, deltaMs: number): boolean {
     const root = pawn.visual.root;
     const body = pawn.visual.body;
     const action = pawn.actions[0];
+    pawn.actionFade = 1;
+    pawn.char = 0;
 
     if (!action) {
       if (pawn.landingTimer > 0) {
@@ -371,31 +721,12 @@ export class PawnController {
         const squash = Math.sin((pawn.landingTimer / LANDING_MS) * Math.PI) * 0.2;
         body.scale.set(1 + squash * 0.6, 1 - squash, 1 + squash * 0.6);
       }
-      return;
+      // A power event's choreography is over: the moves that follow are the pawn's own again.
+      if (pawn.choreographed && pawn.held === null && !pawn.dying) pawn.choreographed = false;
+      return false;
     }
 
-    if (pawn.actionElapsed === 0) {
-      if (action.type === "appear") root.position.copy(action.at);
-      if (action.type === "bump") emitFeedback({ type: "barrier-bump", from: action.from, toward: action.toward });
-      pawn.actionStart.copy(root.position);
-      if (action.type === "vanish") emitFeedback({ type: "pawn-tunnel" });
-      if (action.type === "glide") emitFeedback({ type: "pawn-slide" });
-      if (action.type === "portalSwallow") emitFeedback({ type: "portal-swallowed", nodeId: action.nodeId });
-      if (action.type === "hellDrop") {
-        emitFeedback({ type: "hell-portal-open" });
-        root.position.set(action.to.x, action.to.y + HELL_DROP_HEIGHT, action.to.z);
-        body.scale.setScalar(0.3);
-      }
-      if (action.type === "bump") {
-        const direction = action.to.clone().sub(root.position);
-        if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
-      }
-      if (action.type === "shatter") emitFeedback({ type: "ice-shatter", playerId: pawn.id });
-      if (action.type === "slapped") {
-        action.source = this.hooks.onGhostSlap?.(pawn.id) ?? undefined;
-        if (action.source) pawn.targetYaw = yawTowards(root.position, action.source) ?? pawn.targetYaw;
-      }
-    }
+    if (pawn.actionElapsed === 0) this.beginAction(pawn, action);
     pawn.actionElapsed += deltaMs;
     const progress = Math.min(1, pawn.actionElapsed / action.duration);
 
@@ -507,6 +838,123 @@ export class PawnController {
         body.rotation.y = (1 - progress) * Math.PI * 3;
         break;
       }
+      case "dive": {
+        // A wind-up squash, then a drill: spinning faster and faster, the pawn sinks into the soil and is gone.
+        const windUp = Math.sin(phase(progress, 0, 0.22) * Math.PI);
+        const sink = easeInCubic(phase(progress, 0.2, 1));
+        const size = Math.max(0.001, 1 - sink);
+        root.position.y = pawn.actionStart.y - sink * DIG_DEPTH;
+        body.scale.set(size * (1 + windUp * 0.16), size * (1 - windUp * 0.24), size * (1 + windUp * 0.16));
+        body.rotation.y = easeInCubic(phase(progress, 0.1, 1)) * Math.PI * 7;
+        body.rotation.z = Math.sin(progress * 70) * 0.1 * (1 - sink);
+        if (progress > 0.4 && !action.deepBurst) {
+          action.deepBurst = true;
+          this.hooks.onPhase?.(this.phaseInfo(pawn, "dig-deep", action.tunnel));
+        }
+        break;
+      }
+      case "pop": {
+        // Out of the ground like a cork: a stretch on the way up, a turn in the air, a squash on landing.
+        const emerge = easeOutCubic(phase(progress, 0, 0.3));
+        const arc = Math.sin(phase(progress, 0.12, 1) * Math.PI) * 1;
+        root.position.set(action.to.x, action.to.y - DIG_DEPTH * (1 - emerge) + arc, action.to.z);
+        const size = Math.max(0.001, easeOutBack(phase(progress, 0, 0.4)));
+        const stretch = 1 + Math.sin(phase(progress, 0.1, 0.65) * Math.PI) * 0.26;
+        const squash = progress > 0.86 ? Math.sin(phase(progress, 0.86, 1) * Math.PI) * 0.2 : 0;
+        body.scale.set(
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+          size * stretch * (1 - squash),
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+        );
+        body.rotation.y = (1 - easeOutCubic(progress)) * Math.PI * 3;
+        break;
+      }
+      case "suck": {
+        // Drawn into the vortex: spinning faster and faster, stretched thin as it shrinks away.
+        const pull = easeInCubic(progress);
+        const size = Math.max(0.001, 1 - pull);
+        root.position.y = pawn.actionStart.y + Math.sin(progress * Math.PI * 0.5) * 0.35;
+        body.scale.set(size * (1 + progress * 0.1), size * (1 + pull * 0.9), size * (1 + progress * 0.1));
+        body.rotation.y = pull * Math.PI * 10;
+        body.rotation.z = Math.sin(progress * 40) * 0.12 * (1 - pull);
+        break;
+      }
+      case "emerge": {
+        // Out of the flash: stretched thin and tall, it settles into its shape with a little overshoot.
+        const growth = phase(progress, 0, 0.55);
+        const size = Math.max(0.001, easeOutBack(growth));
+        const stretch = 1 + (1 - growth) * 0.7;
+        const squash = progress > 0.85 ? Math.sin(phase(progress, 0.85, 1) * Math.PI) * 0.18 : 0;
+        root.position.y = (action.at ?? pawn.slot).y + Math.sin(phase(progress, 0.1, 0.6) * Math.PI) * 0.35;
+        body.scale.set(
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+          size * stretch * (1 - squash),
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+        );
+        body.rotation.y = (1 - easeOutCubic(progress)) * Math.PI * 4;
+        break;
+      }
+      case "burn": {
+        // Caught in the column of fire: it shakes, scorches, rises on the heat and is swallowed.
+        const gone = easeInCubic(phase(progress, 0.35, 1));
+        const size = Math.max(0.001, 1 - gone);
+        root.position.y = pawn.actionStart.y + easeInCubic(progress) * 0.5;
+        body.scale.set(size * (1 + 0.2 * progress), size * (1 + 0.6 * progress), size * (1 + 0.2 * progress));
+        body.rotation.z = Math.sin(progress * 60) * 0.25 * (1 - progress * 0.3);
+        body.rotation.y = progress * Math.PI * 4;
+        pawn.char = Math.min(1, progress * 1.6);
+        pawn.actionFade = 1 - phase(progress, 0.6, 1);
+        break;
+      }
+      case "dissolve": {
+        // Into mist: it thins out, stretches up and turns slowly, and is gone.
+        const out = easeOutCubic(progress);
+        pawn.actionFade = 1 - out;
+        root.position.y = pawn.actionStart.y + out * 0.3;
+        body.scale.set(1 - 0.15 * out, 1 + 0.6 * out, 1 - 0.15 * out);
+        body.rotation.y = out * Math.PI * 2;
+        break;
+      }
+      case "condense": {
+        // Out of mist: it thickens as it settles, from tall and thin to its own shape.
+        const settle = Math.min(1, easeOutBack(progress));
+        pawn.actionFade = Math.min(1, progress * 1.6);
+        root.position.y = pawn.slot.y + (1 - easeOutCubic(progress)) * 0.3;
+        body.scale.set(1 - 0.2 * (1 - settle), 1 + 0.6 * (1 - settle), 1 - 0.2 * (1 - settle));
+        body.rotation.y = (1 - easeOutCubic(progress)) * Math.PI * 2;
+        break;
+      }
+      case "mimic": {
+        // Anticipation, a jump with a full turn, a landing: the Mime has just taken someone's trick.
+        const crouch = Math.sin(phase(progress, 0, 0.2) * Math.PI);
+        const jump = phase(progress, 0.2, 0.88);
+        const land = progress > 0.88 ? Math.sin(phase(progress, 0.88, 1) * Math.PI) * 0.2 : 0;
+        root.position.y = pawn.actionStart.y + Math.sin(jump * Math.PI) * 0.6;
+        const stretch = 1 + Math.sin(jump * Math.PI) * 0.12;
+        body.scale.set(
+          (1 + crouch * 0.15 + land * 0.6) / Math.sqrt(stretch),
+          (1 - crouch * 0.25 - land) * stretch,
+          (1 + crouch * 0.15 + land * 0.6) / Math.sqrt(stretch),
+        );
+        body.rotation.y = easeInOutCubic(jump) * Math.PI * 2;
+        break;
+      }
+      case "crumble": {
+        // Scorched grey, it shakes, slumps into a heap and falls apart; the ash itself is the effects layer's.
+        const slump = easeInCubic(phase(progress, 0.25, 0.95));
+        pawn.char = easeOutCubic(phase(progress, 0, 0.4));
+        pawn.actionFade = 1 - phase(progress, 0.78, 1);
+        body.scale.set(1 + slump * 0.18, Math.max(0.04, 1 - slump * 0.96), 1 + slump * 0.18);
+        body.rotation.z = Math.sin(progress * 50) * 0.12 * (1 - progress);
+        pawn.visual.eyes.scale.y = 0.2;
+        break;
+      }
+      case "wait":
+        if (action.invisible) {
+          pawn.actionFade = 0;
+          body.scale.setScalar(0.001);
+        }
+        break;
     }
 
     if (progress >= 1) {
@@ -520,8 +968,24 @@ export class PawnController {
       if (action.type === "hop" || action.type === "carried") {
         root.position.copy(action.to);
         pawn.landingTimer = LANDING_MS;
-        emitFeedback({ type: "pawn-hop" });
+        this.emitHeard(pawn, { type: "pawn-hop" });
       }
+      if (action.type === "pop") {
+        root.position.copy(action.to);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+        this.emitHeard(pawn, { type: "pawn-hop" });
+      }
+      if (action.type === "emerge" || action.type === "condense") {
+        root.position.copy(action.type === "emerge" ? (action.at ?? pawn.slot) : pawn.slot);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+      }
+      if (action.type === "mimic") {
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+      }
+      if (action.type === "dissolve" || action.type === "suck" || action.type === "burn") body.scale.setScalar(0.001);
       if (action.type === "hellDrop") {
         root.position.copy(action.to);
         body.scale.setScalar(1);
@@ -540,8 +1004,53 @@ export class PawnController {
       }
       if (action.type === "freeze") pawn.iceBlock.scale.setScalar(1);
       if (action.type === "shatter") pawn.iceBlock.scale.setScalar(0.001);
+      if (action.type === "dive") body.scale.setScalar(0.001);
+      if (
+        action.type === "wait" &&
+        action.invisible &&
+        pawn.actions[0]?.type !== "emerge" &&
+        pawn.actions[0]?.type !== "condense"
+      ) {
+        body.scale.setScalar(1);
+      }
+      if (action.type === "crumble") return true;
       if (pawn.actions.length === 0) pawn.targetYaw = 0;
     }
+    return false;
+  }
+
+  /** What happens the moment an action begins: where the pawn starts from, and what the scene does with it. */
+  private beginAction(pawn: Pawn, action: PawnAction): void {
+    const root = pawn.visual.root;
+    const body = pawn.visual.body;
+    if (action.type === "appear") root.position.copy(action.at ?? pawn.slot);
+    if (action.type === "pop") root.position.set(action.to.x, action.to.y - DIG_DEPTH, action.to.z);
+    if (action.type === "emerge") root.position.copy(action.at ?? pawn.slot);
+    if (action.type === "condense") root.position.copy(pawn.slot);
+    if (action.type === "bump")
+      this.emitHeard(pawn, { type: "barrier-bump", from: action.from, toward: action.toward });
+    pawn.actionStart.copy(root.position);
+    if (action.type === "vanish") this.emitHeard(pawn, { type: "pawn-tunnel" });
+    if (action.type === "glide") this.emitHeard(pawn, { type: "pawn-slide" });
+    if (action.type === "portalSwallow") this.emitHeard(pawn, { type: "portal-swallowed", nodeId: action.nodeId });
+    if (action.type === "hellDrop") {
+      this.emitHeard(pawn, { type: "hell-portal-open" });
+      root.position.set(action.to.x, action.to.y + HELL_DROP_HEIGHT, action.to.z);
+      body.scale.setScalar(0.3);
+    }
+    if (action.type === "bump") {
+      const direction = action.to.clone().sub(root.position);
+      if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);
+    }
+    if (action.type === "shatter") this.emitHeard(pawn, { type: "ice-shatter", playerId: pawn.id });
+    if (action.type === "slapped") {
+      action.source = this.hooks.onGhostSlap?.(pawn.id) ?? undefined;
+      if (action.source) pawn.targetYaw = yawTowards(root.position, action.source) ?? pawn.targetYaw;
+    }
+
+    const phaseName = PHASE_OF_ACTION[action.type];
+    if (phaseName)
+      this.hooks.onPhase?.(this.phaseInfo(pawn, phaseName, "tunnel" in action ? action.tunnel : undefined));
   }
 
   /** Shivers in front of the ghost, then the hand lands: the pawn reels away, dazed, and wobbles. */
@@ -571,12 +1080,15 @@ export class PawnController {
 
     const yawDelta = Math.atan2(Math.sin(pawn.targetYaw - pawn.yaw), Math.cos(pawn.targetYaw - pawn.yaw));
     pawn.yaw += yawDelta * Math.min(1, deltaSeconds * 10);
-    const spinning = moving && ["vanish", "appear", "wobble", "carried", "mudSlip"].includes(pawn.actions[0].type);
+    const spinning = moving && SPINNING_ACTIONS.includes(pawn.actions[0].type);
     if (!spinning) body.rotation.y = pawn.yaw;
 
     const scaleTarget = pawn.baseScale * (pawn.active ? 1.12 : 1);
-    const currentScale = root.scale.x + (scaleTarget - root.scale.x) * Math.min(1, deltaSeconds * 8);
-    root.scale.setScalar(currentScale);
+    pawn.rootScale += (scaleTarget - pawn.rootScale) * Math.min(1, deltaSeconds * 8);
+    // Back in sight, a pawn pops: it overshoots its size a little as it settles.
+    pawn.popAge = Math.min(INVISIBILITY_POP_MS, pawn.popAge + deltaSeconds * 1_000);
+    const pop = pawn.popAge < INVISIBILITY_POP_MS ? 0.55 + 0.45 * easeOutBack(pawn.popAge / INVISIBILITY_POP_MS) : 1;
+    root.scale.setScalar(pawn.rootScale * pop);
 
     if (!moving && pawn.landingTimer === 0) {
       const breath = Math.sin(elapsed * 3 + pawn.phase) * 0.035;
@@ -601,13 +1113,25 @@ export class PawnController {
     sleepLabel.position.y = 1.25 + Math.sin(elapsed * 1.5 + pawn.phase) * 0.08;
   }
 
+  /** The fog's opacity (a hidden pawn is not drawn at all) and the running action's, applied to the pawn's body. */
+  private applyLook(pawn: Pawn, deltaSeconds: number): void {
+    const step = (deltaSeconds * 1_000) / INVISIBILITY_FADE_MS;
+    if (pawn.fogAlpha < pawn.fogTarget) pawn.fogAlpha = Math.min(pawn.fogTarget, pawn.fogAlpha + step);
+    else if (pawn.fogAlpha > pawn.fogTarget) pawn.fogAlpha = Math.max(pawn.fogTarget, pawn.fogAlpha - step);
+    pawn.visual.root.visible = pawn.fogAlpha > 0.01;
+    pawn.visual.setOpacity(pawn.fogAlpha * pawn.actionFade, pawn.char);
+  }
+
   private getStandingPoint(nodeId: NodeId): THREE.Vector3 {
     const point = this.layout.getNodePosition(nodeId);
     point.y = nodeId === HELL_NODE_ID ? this.layout.config.hellFloorY : TILE_HEIGHT;
     return point;
   }
 
-  /** Spreads players sharing a tile on a ring so nobody hides behind anyone. */
+  /**
+   * Spreads players sharing a tile on a ring so nobody hides behind anyone. A pawn the fog hides takes no place
+   * in the ring, or the others would stand apart for no visible reason.
+   */
   private computeSlots(inputs: PawnInput[]): Map<string, { position: THREE.Vector3; scale: number }> {
     const byNode = new Map<NodeId, PawnInput[]>();
     const slots = new Map<string, { position: THREE.Vector3; scale: number }>();
@@ -616,6 +1140,10 @@ export class PawnController {
       if (input.frozenTo !== undefined) {
         const halfway = this.getStandingPoint(input.position).lerp(this.getStandingPoint(input.frozenTo), 0.5);
         slots.set(input.id, { position: halfway.setY(0.05), scale: 1 });
+        continue;
+      }
+      if (input.hidden) {
+        slots.set(input.id, { position: this.getStandingPoint(input.position), scale: 1 });
         continue;
       }
       const list = byNode.get(input.position) ?? [];
@@ -639,6 +1167,18 @@ export class PawnController {
     return slots;
   }
 }
+
+/** The actions the rest of the scene joins in, and the phase each one tells it. */
+const PHASE_OF_ACTION: Partial<Record<PawnAction["type"], PawnPhase>> = {
+  dive: "dive",
+  pop: "pop",
+  suck: "suck",
+  emerge: "emerge",
+  burn: "burn",
+  dissolve: "dissolve",
+  condense: "condense",
+  crumble: "crumble",
+};
 
 /** Yaw that turns a pawn at `from` to face `to`, or null when they stand on the same spot. */
 function yawTowards(from: THREE.Vector3, to: THREE.Vector3): number | null {

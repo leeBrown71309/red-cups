@@ -1,7 +1,11 @@
 import { findEdge, getBoard } from "../board";
 import type { GameState } from "../types";
 import { countItemUnits } from "../rules";
-import { newLogTexts } from "./invariant-helpers";
+import { hasCard } from "../cards";
+import { isInvisible } from "../mist";
+import { isHermitPrimeActive } from "../passive-rules";
+import { findPlayer } from "../state-utils";
+import { newLogTexts, newPowerEvent } from "./invariant-helpers";
 
 /**
  * Counts what each map's own mechanics did during one action, so a campaign
@@ -63,4 +67,20 @@ export function countMapEvents(
     }
   }
   if (next.barriers.length > previous.barriers.length) add("item:barrier");
+
+  // The Cups Power and passifs of patch 0.2.3.
+  const power = newPowerEvent(previous, next);
+  if (power) add(`power:${power.kind}`);
+  if (next.lastMovement?.sister && next.lastMovement.seq !== previous.lastMovement?.seq) {
+    const { sister } = next.lastMovement;
+    if (sister.path.some((tile, index) => tile !== (sister.path[index - 1] ?? sister.from))) add("sister-mirror");
+  }
+  if (
+    next.players.some((player) => isInvisible(next, player) && !isInvisible(previous, findPlayer(previous, player.id)))
+  ) {
+    add("invisible");
+  }
+  if (next.players.some((player) => hasCard(player, "hermit") && isHermitPrimeActive(next, player)))
+    add("hermit-prime");
+  if (logs.some((text) => text.includes("pièces de la banque"))) add("insurer-paid");
 }

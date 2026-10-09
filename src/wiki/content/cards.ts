@@ -1,12 +1,36 @@
+import {
+  BASE_ENERGY,
+  GREEDY_GOAL,
+  HERMIT_DISTANCE,
+  HERMIT_ENERGY_BONUS,
+  HERMIT_START_BONUS,
+  INSURER_HELL_REWARD,
+  INSURER_RATE,
+  INSURER_ROUND_CAP,
+  MAGE_LUCK_RETURN_ROUNDS,
+  MAGE_MAX_LUCK,
+  MARK_HELL_CHANCE,
+  MARK_MUD_HELL_CHANCE,
+  MIME_COOLDOWN_ROUNDS,
+  MIST_CUP_DISTANCE,
+  MIST_CYCLE_TURNS,
+  MOLE_COOLDOWN_ROUNDS,
+  MOLE_DIG_ENERGY,
+  MOLE_OWN_CROSSING_ENERGY,
+  SISTER_SWAP_ENERGY,
+} from "../../game/types";
+import { formatCoins, percent } from "../format";
 import type { ContentSection } from "../types";
 
 /**
- * Le détail de chaque carte, rédigé d'après le moteur : `passive-rules.ts`
- * (effets de règle), `game-effects.ts`, `turn-actions.ts`, `draft.ts`,
- * `devil.ts`, `guardian.ts`, `hell-regular.ts`, `gamble.ts`.
+ * Le détail de chaque Cups Power (le code dit « actif ») et de chaque passif, rédigé d'après le moteur :
+ * `passive-rules.ts` (effets de règle), `game-effects.ts`, `turn-actions.ts`, `draft.ts`, `devil.ts`,
+ * `guardian.ts`, `hell-regular.ts`, `gamble.ts` et, pour le patch 0.2.3, `mime.ts`, `mole.ts`, `black-mage.ts`,
+ * `mist.ts`, `sister.ts`, `hermit.ts`, `insurer.ts`. Les nombres du patch 0.2.3 viennent des constantes de
+ * `types.ts` : ils se mettent à jour avec le moteur.
  */
 export const CARD_SECTIONS: Record<string, ContentSection[]> = {
-  // ————— Actifs —————
+  // ————— Cups Power —————
   "built-like-a-tank": [
     {
       title: "Détail",
@@ -25,7 +49,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• À CHAQUE nouvelle Red Cup, AVANT qu'elle apparaisse : tu choisis de filer au Départ (avec les 200 du bonus) ou de rester où tu es.",
         "• Filer au Départ n'est pas une arrivée : pas de boutique, pas de roue sur la case, et une roue que tu devais encore sur la case quittée s'efface.",
         "• La nouvelle Cup se pose après ton choix; tu peux donc te retrouver juste à côté d'elle.",
-        "• En Enfer, la carte ne libère pas (patch 0.2.0) : « aller au Départ » t'est refusé, tu restes purger ta peine.",
+        "• En Enfer, le passif ne libère pas (patch 0.2.0) : « aller au Départ » t'est refusé, tu restes purger ta peine.",
         "• À Banquise, si le Départ est gelé, la glace t'emporte.",
       ],
     },
@@ -99,6 +123,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Le remplacement déclenche RIEN sur la case : pas de roue, pas de boutique, pas de Boue, pas de Cup — et une roue due ailleurs par ce joueur s'efface.",
         "• Jamais remplacé sur la glace de Banquise (personne n'y stationne).",
         "• Jamais sur toi-même, jamais sur un joueur déjà à 3 ou plus.",
+        "• Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) n'est jamais proposé, et un détenteur invisible ne replace personne.",
       ],
     },
   ],
@@ -106,8 +131,8 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• Rien. Aucune règle spéciale, la carte de remplissage.",
-        "• Distribuée comme actif quand un slot n'a plus de vraie carte (tables pleines) ou quand l'Ange-Gardien n'a personne à protéger.",
+        "• Rien. Aucune règle spéciale : c'est le Cups Power de remplissage.",
+        "• Donnée à la place d'un Cups Power quand un joueur n'en a pas de vrai (tables pleines) ou quand l'Ange-Gardien n'a personne à protéger.",
         "• Un joueur exclu avec l'Ange-Gardien revient en Lambda : les rôles ne se redonnent jamais en cours de partie.",
       ],
     },
@@ -116,7 +141,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• +1 000 pièces au départ (3 000 quand l'autre carte est neutre, contre 2 000 pour tout le monde).",
+        "• +1 000 pièces au départ (3 000 quand ton Cups Power est neutre, contre 2 000 pour tout le monde).",
         "• Jamais distribué au même joueur que Cupide.",
         "• Avec eShop les départs se corrigent : 2 000 + 1 000 − 1 000 = 2 000.",
       ],
@@ -213,7 +238,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• Son identité n'est PAS annoncée : c'est un actif comme les autres (ni bannière, ni toast, ni ligne de journal).",
+        "• Son identité n'est PAS annoncée : c'est un Cups Power comme les autres (ni bannière, ni toast, ni ligne de journal).",
         "• Victoire propre : quand les autres ont cumulé ⌊4 × N − N/2⌋ passages en Enfer (N = joueurs de départ; 2 → 7, 4 → 14, 8 → 28). Comptent : chaque ENTRÉE d'un autre en Enfer (+1 point) et chaque tour commencé là-bas (+1 point), tour sauté compris — mais ses propres tours ne comptent pas.",
         "• Pas de Red Cup pour lui : il marche dessus comme sur une case neutre.",
         "• Sa propre descente en Enfer le paie +100 pièces; celle d'un autre : +50 pièces et +1 point.",
@@ -236,8 +261,150 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Il ne peut viser QUE son protégé : Corde pour l'attirer sur sa case (le sort d'après, c'est le diable), Monopoly Man pour échanger avec lui — les deux pour le sortir d'un mauvais pas, jamais l'inverse en pratique.",
         "• Le Bouclier (objet exclusif, automatique) bloque un objet visant le protégé ou la charge de Bullet Bill sur lui.",
         "• Au secours : sur son tour, si le protégé est en Enfer, l'ange peut le tirer sur SA case (sans effet de case) — contre ses 2 prochains tours, et son tour s'arrête là.",
-        "• L'ange qui abandonne libère le protégé; le protégé qui abandonne fait reprendre à l'ange sa place, ses cartes, son sac, son argent — en redémarrant depuis l'Enfer.",
+        "• L'ange qui abandonne libère le protégé; le protégé qui abandonne fait reprendre à l'ange sa place, son Cups Power et son passif, son sac, son argent — en redémarrant depuis l'Enfer.",
         "• Sa roue du malheur à lui n'a que deux secteurs : « Passe ton prochain tour » ou « Rien du tout ».",
+      ],
+    },
+  ],
+  // ————— Cups Power du patch 0.2.3 —————
+  mime: [
+    {
+      title: "Détail",
+      body: [
+        `• Une copie tous les ${MIME_COOLDOWN_ROUNDS} tours de table (copie au tour 1, prête à nouveau au tour ${1 + MIME_COOLDOWN_ROUNDS}), AVANT de te déplacer : tu désignes un joueur et tu tiens SON Cups Power jusqu'à la fin de ton tour. Seul le Cups Power se copie, jamais le passif.`,
+        "• La copie est entière, avantages ET défauts : l'immunité de [[card:blind-luck|Chance aveugle]] (et sa Red Cup invisible à l'écran), la Red Cup à 1 000 pièces de [[card:greedy|Cupide]] (et plus de place de sac pour elle), le point d'énergie de [[card:red-bull|Red Bull]] (versé aussitôt), la boutique partout d'[[card:eshop|eShop]], le dé du [[card:roller|Roller]], les piles de [[card:tomato-enjoyer|Tomato Enjoyer]], le 50/50 de [[card:double-or-nothing|Double or nothing]], les tunnels de la [[card:mole|Taupe]].",
+        "• Copier ne coûte aucune énergie et n'est pas une action du tour : seule, une copie ne te permet pas de finir ton tour sur place (et, en ligne, un tour où tu n'as fait que copier compte comme un tour sans jouer).",
+        "• La copie tombe à la fin de ton tour, quoi qu'il arrive : jamais gardée d'un tour à l'autre.",
+        "• Ce que tu copies reste TON secret : la table lit « X copie le Cups Power de Y jusqu'à la fin de son tour », sans savoir lequel (en ligne, comme le contenu d'un sac).",
+      ],
+    },
+    {
+      title: "Qui peut être copié",
+      body: [
+        "• Refusés : [[card:devil|le diable]] et [[card:guardian-angel|L'Ange-Gardien]] (des rôles posés au départ, avec leur victoire, leur boutique ou leur protégé), [[card:black-mage|Mage noir]], [[card:ghost-sister|Sœur Fantôme]] et [[card:half-seen|Mi-vu, Mi-vue]] (des états qui vivent d'un tour à l'autre chez leur titulaire), [[card:lambda|Lambda]] (rien à copier) et un autre Mime.",
+        "• Ta liste ne propose que les joueurs copiables : celui qui n'y figure pas tient l'un de ces Cups Power — ou est invisible.",
+        "• Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) ne se copie pas, et un Mime invisible ne copie personne.",
+        "• Il faut être à son tour, avant tout déplacement : ni dé lancé par le [[card:roller|Roller]], ni [[item:boot|Botte]] chaussée, et une seule copie à la fois. C'est aussi possible depuis l'Enfer, avant la roue.",
+      ],
+    },
+    {
+      title: "Cas limites",
+      body: [
+        `• Taupe copiée : tu creuses avec TON compteur de ${MOLE_COOLDOWN_ROUNDS} tours et TES cases visitées (le Mime les note dès le début de la partie, comme une Taupe) ; le tunnel est à toi (traversée à ${MOLE_OWN_CROSSING_ENERGY} énergie).`,
+        `• Cupide copié : sa victoire à ${formatCoins(GREEDY_GOAL)} pièces se vérifie après chaque action, copie comprise — un Mime qui a déjà ces pièces gagne dès qu'il le copie.`,
+        "• Roller copié : le dé se lance avant de bouger, plus d'objet ensuite, la Red Cup se mérite par un 6, et la Botte est interdite (chaussée comme achetée) jusqu'à la fin du tour.",
+        "• Red Bull copié : le point d'énergie est versé tout de suite, la jauge de ce tour passe à 4.",
+      ],
+    },
+  ],
+  mole: [
+    {
+      title: "Creuser",
+      body: [
+        `• Une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours de table, pour ${MOLE_DIG_ENERGY} points d'énergie, avant de te déplacer (ni dé lancé, ni Botte chaussée) : tu creuses un tunnel de ta case vers une case DÉJÀ VISITÉE et tu t'y déplaces aussitôt.`,
+        "• Case visitée = une case où tu t'es arrêté OU que tu as traversée (Botte, glissade de Banquise, long parcours du Roller), le Départ compris. L'Enfer n'en est jamais une.",
+        "• Creuser EST ton déplacement du tour : il prend toute l'énergie qui reste (le surplus est perdu). L'arrivée est une arrivée comme une autre : Boue, Portail, Red Cup, roue de la case, boutique, glace.",
+        "• Pas de bonus du Départ en arrivant par un tunnel, même vers le Départ par sa flèche. Seule la case d'arrivée compte pour [[card:red-light-green-light|Red light, Green light]] : une case de tunnel n'est pas « traversée ».",
+        `• Le compteur court à partir du tour où tu creuses : creuser au tour 2, c'est être prêt au tour ${2 + MOLE_COOLDOWN_ROUNDS}.`,
+      ],
+    },
+    {
+      title: "Le tunnel",
+      body: [
+        "• Visible de tous, ouvert dans les deux sens. Le creuser est sa première utilisation : il se referme après UNE traversée de plus, faite par n'importe qui.",
+        `• Traverser : tout joueur debout sur une extrémité (jamais en Enfer), avant son déplacement, avec au moins ${MOLE_DIG_ENERGY} points d'énergie — ${MOLE_OWN_CROSSING_ENERGY} pour celui qui l'a creusé. Traverser est un déplacement : toute l'énergie part avec, et l'arrivée est complète.`,
+        "• Un tunnel n'est pas une route : une [[item:barrier|Barrière]], une flèche ou un sens unique ne le concernent pas, le [[card:corrupter|Corrupteur]] n'a rien à payer, et [[item:bullet-bill|Bullet Bill]], [[card:calm-down|Calme-toi]], [[card:hermit|L'Ermite]] et la [[card:ghost-sister|Sœur Fantôme]] l'ignorent.",
+        "• Interdit de creuser depuis ou vers : l'Enfer, une case de glace, la case de la Red Cup, une case piégée ([[item:mud|Boue]], Portail du [[card:devil|diable]]) ou qui porte déjà un tunnel.",
+        "• Un piège ou une Red Cup qui apparaît après coup sur une extrémité se déclenche à l'arrivée de qui traverse. Si le blizzard de [[map:banquise|Banquise]] gèle une extrémité, la glace emporte à son tour qui y arrive.",
+      ],
+    },
+  ],
+  "black-mage": [
+    {
+      title: "Détail",
+      body: [
+        `• Commence avec ${MAGE_MAX_LUCK} chances, jamais plus. Une chance revient tous les ${MAGE_LUCK_RETURN_ROUNDS} tours de table : l'horloge démarre à la première chance dépensée et court tant qu'il lui en manque.`,
+        "• Poser le pentagramme : sur sa case, pendant son tour (avant ou après son déplacement), sans énergie. Un seul à la fois, jamais sur une case de Boue ni en Enfer. Visible de tous.",
+        "• Poser ou se téléporter compte comme avoir joué : le Mage peut finir son tour sans marcher.",
+        "• Se téléporter sur le pentagramme coûte 1 chance et ignore routes, Barrières et flèches.",
+      ],
+    },
+    {
+      title: "Les téléportations",
+      body: [
+        "• À son tour, avant de bouger — même depuis l'Enfer, dont il sort (sans bonus ni péage). Aucune énergie : le tour continue, il peut encore se déplacer. Impossible s'il se tient déjà sur la marque.",
+        "• Contre un objet : quand un objet à cible joueur ([[item:ndoye|Ndoye]], [[item:hollow-purple|Hollow Purple]], [[item:rope|Corde]], [[item:middle-finger|Middle Finger]], [[item:monopoly-man|Monopoly Man]]) le vise, il peut se téléporter : l'objet est annulé (consommé, énergie perdue) et le tour du lanceur continue. Contre [[item:draven|Draven]], il est seul épargné. Aucune réaction contre une Tomate.",
+        "• Contre [[item:bullet-bill|Bullet Bill]] : quand la fusée va le toucher, il quitte sa case avant l'impact — sans arriver sur la marque : la case n'agit pas — et Bullet Bill charge alors le joueur le plus proche.",
+        "• À la place d'une roue qui le déplace : « Direction l'Enfer », « Retourne d'où tu viens », « Avance d'une case » ou « Va au Départ ». La roue est écartée comme par la Gomme ; la seconde roue d'un Touché (angélique ou funeste) s'appliquera ensuite.",
+      ],
+    },
+    {
+      title: "À l'arrivée",
+      body: [
+        "• C'est une arrivée comme une autre : roue de la case, Boue, Portail, Red Cup ramassée, glace de [[map:banquise|Banquise]] qui l'emporte si la case a gelé. Rester sur place n'est pas une arrivée.",
+        `• Chaque AUTRE joueur sur la marque a ${percent(MARK_HELL_CHANCE)} de tomber en Enfer, tiré à part pour chacun. Une Boue posée sur la marque coûte au Mage ce qu'elle coûte à tout le monde et le fait tomber en Enfer avec ${percent(MARK_MUD_HELL_CHANCE)} de chances (elle disparaît).`,
+        "• La marque disparaît après usage — sauf si elle a envoyé quelqu'un en Enfer : elle reste alors, prête à resservir. Le Mage tombé par sa propre Boue ne la garde pas.",
+      ],
+    },
+    {
+      title: "Élimination",
+      body: [
+        "• À 0 chance, le Mage est éliminé dès que la table est au repos : il quitte la partie comme un joueur qui abandonne (ses Red Cups et ses objets avec lui), son pentagramme s'efface et il figure en bas du classement. La téléportation qui dépense la dernière chance est jouée avant son élimination.",
+        "• S'il ne reste alors qu'un joueur, celui-ci gagne par abandon.",
+      ],
+    },
+  ],
+  "half-seen": [
+    {
+      title: "Détail",
+      body: [
+        `• Cycle de ${MIST_CYCLE_TURNS} tours du joueur : visible, invisible, invisible, puis de nouveau visible. Il est visible avant son premier tour. Le cycle avance au début de chacun de ses tours, joué ou sauté ; l'invisibilité court d'un début de tour à l'autre, donc aussi pendant les tours des autres.`,
+        "• La table est prévenue : « X devient invisible pour deux tours » et « X redevient visible » s'écrivent dans le journal, pour tout le monde.",
+        `• À ${MIST_CUP_DISTANCE} case ou moins de la Red Cup (sur sa case ou une voisine, routes dans les deux sens, Barrières ignorées), il est visible quoi qu'il arrive. Ce n'est jamais stocké : c'est recalculé, et la Cup qui bouge le cache ou le montre.`,
+      ],
+    },
+    {
+      title: "Ce que ça change aux règles",
+      body: [
+        "• Il ne cible personne et personne ne le cible : objets à cible joueur, [[card:calm-down|Calme-toi]], défi de la roue de l'Enfer, copie du [[card:mime|Mime]].",
+        "• [[item:draven|Draven]] l'épargne. [[item:bullet-bill|Bullet Bill]] ne le traque plus, mais l'explosion qui éclate sur sa case l'assomme comme les autres (−200 pièces, un tour sauté).",
+        "• Ce qui ne vise personne l'atteint quand même : [[item:sentence|Sentence]], [[item:portal|Portails]], [[item:doomsday|Doomsday]], [[item:made-in-heaven|Made In Heaven]], le [[card:goblin|Goblin]], les cases (roues, Boue), les pingouins de [[map:banquise|Banquise]] et le fantôme de [[map:luna-park|Luna Park]].",
+        "• Il compte pour [[card:hermit|L'Ermite]] : invisible ne veut pas dire loin.",
+      ],
+    },
+    {
+      title: "À l'écran",
+      body: [
+        "• Invisible, il ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill. Son propre pion est dessiné translucide, pour lui seul.",
+        "• Les autres ne voient plus son pion, ses actions (le journal garde « Tour de X » et les annonces d'invisibilité), son sac ni ses pièces.",
+        "• Le brouillard est visuel : le jeu reste partagé entre les appareils, comme pour la Red Cup de [[card:blind-luck|Chance aveugle]]. Sur un écran partagé, il suit celui qui doit décider.",
+      ],
+    },
+  ],
+  "ghost-sister": [
+    {
+      title: "Détail",
+      body: [
+        "• Une petite fille fantôme démarre avec toi sur le Départ. À chaque PAS que tu fais, elle fait le pas OPPOSÉ si une route part dans cette direction depuis sa case (haut ↔ bas, gauche ↔ droite, diagonales, à 40° près ; la route la plus proche de l'exact opposé l'emporte) ; sinon elle reste.",
+        "• Elle suit les vraies routes : flèches, sens uniques et [[item:barrier|Barrières]] la retiennent comme toi. Une marche de plusieurs pas ([[item:boot|Botte]], [[card:roller|Roller]], glissade de [[map:banquise|Banquise]]) lui donne un pas en miroir par pas.",
+        "• Elle ne peut pas être ciblée et n'active rien : ni piège, ni case, ni Red Cup.",
+        "• Déplacé par autre chose qu'un pas (téléportation, échange, [[item:rope|Corde]], « Va au Départ », tunnel de la [[card:mole|Taupe]], [[item:made-in-heaven|Made In Heaven]]…), tu la laisses où elle est : elle ne vient pas te chercher.",
+        "• Tombé en Enfer, ta sœur retourne au Départ.",
+      ],
+    },
+    {
+      title: "Swap",
+      body: [
+        `• ${SISTER_SWAP_ENERGY} points d'énergie, avant ton déplacement (ni dé lancé), hors de l'Enfer, depuis une case autre que la sienne : toi et ta sœur échangez vos places. Avec une jauge de ${BASE_ENERGY}, le Swap prend toute la marche : il ne te reste qu'à finir ton tour ; avec la Botte chaussée, il faut garder 1 point pour le déplacement.`,
+        "• Elle emporte avec elle, sur la case que tu quittes, TOUT ce qui était sur la sienne : [[item:mud|Boue]], Portails du [[card:devil|diable]], [[system:cups|Red Cup]], [[item:bullet-bill|Bullet Bill]] — jamais les joueurs.",
+        "• Rien ne se déclenche : ni ce qui est déposé sur ta case (pas de ramassage de la Cup, pas de coup de Bullet Bill, pas de Boue), ni ton arrivée sur la sienne (les pièges et la Cup n'y sont plus, et la case ne donne ni roue ni boutique). Ce que le plateau règle tout seul — le fantôme de Luna Park, la glace de Banquise — suit son cours.",
+      ],
+    },
+    {
+      title: "À savoir",
+      body: [
+        "• Le miroir se lit sur les coordonnées du plan : sur le plateau classique, petit et très fléché, elle reste souvent sur place.",
+        "• Un pas à contresens payé par le [[card:corrupter|Corrupteur]] est reflété en miroir comme les autres, mais elle, elle respecte les flèches de sa propre case.",
       ],
     },
   ],
@@ -277,7 +444,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       title: "Détail",
       body: [
         "• Sur la roue du MALHEUR : deux secteurs tirés, il garde le moins mauvais.",
-        "• La roue de l'Enfer n'est pas « du malheur » au sens de cette carte : son tirage reste simple (c'est Touché funeste qui s'en occupe).",
+        "• La roue de l'Enfer n'est pas « du malheur » au sens de ce passif : son tirage reste simple (c'est Touché funeste qui s'en occupe).",
         "• Les roues enchaînées (« Tourne la roue du malheur » depuis le bonheur) profitent du choix aussi.",
       ],
     },
@@ -345,6 +512,45 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• L'amende n'est jamais mise en jeu par Double or nothing.",
         "• Un objet qu'il ne peut même pas acheter ne peut pas être volé.",
         "• Il est « criminel » : jamais choisi comme protégé par un Ange-Gardien.",
+      ],
+    },
+  ],
+  // ————— Passifs du patch 0.2.3 —————
+  hermit: [
+    {
+      title: "Détail",
+      body: [
+        `• Tant qu'aucun autre joueur n'est à ${HERMIT_DISTANCE} cases ou moins de toi : +${HERMIT_ENERGY_BONUS} point d'énergie à l'ouverture de ton tour, et +${HERMIT_START_BONUS} pièces chaque fois que tu touches le bonus du Départ.`,
+        "• La distance se compte en routes, dans les deux sens, flèches et Barrières ignorées, comme pour Bullet Bill ; un tunnel de la [[card:mole|Taupe]] ne rapproche personne. Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) compte. Un joueur en Enfer n'est près de personne — sauf de qui y est aussi.",
+        "• L'énergie se règle UNE fois, à l'ouverture de ton tour : quelqu'un qui s'approche ensuite ne te la reprend pas. Le bonus de 100 se règle au moment où le Départ paie, depuis le Départ : ce sont donc les joueurs proches du Départ qui comptent. Il vaut pour tous les bonus du Départ : entrée par la flèche, « Va au Départ », sortie d'Enfer, duel gagné, New Cup, New Me.",
+      ],
+    },
+    {
+      title: "La prime perdue",
+      body: [
+        "• Quand un joueur ARRIVE sur ta case — marche, Corde, replacement de Calme-toi, téléportation du Mage noir, tunnel, Made In Heaven… — tu perds la prime jusqu'à la fin de ton prochain tour (ce tour-ci s'il te reste à jouer dans le tour de table, le suivant sinon).",
+        "• Seul celui qui arrive compte : l'Ermite qui rejoint quelqu'un ne perd rien (la proximité joue, elle, comme d'habitude). Ta propre Corde, qui tire quelqu'un sur ta case, te retire donc la prime.",
+        `• Elle est perdue pour l'énergie comme pour le Départ. Avec [[card:red-bull|Red Bull]], un Ermite seul joue à ${BASE_ENERGY + 1 + HERMIT_ENERGY_BONUS} points d'énergie.`,
+      ],
+    },
+  ],
+  insurer: [
+    {
+      title: "Détail",
+      body: [
+        `• Chaque fois qu'un AUTRE joueur perd des pièces, la banque t'en verse ${percent(INSURER_RATE)} (arrondi à l'inférieur), au plus ${INSURER_ROUND_CAP} pièces par tour de table, tous joueurs confondus. Personne ne paie : l'argent sort de la banque.`,
+        "• Comptent les pertes SUBIES : roue du malheur (Ndoye compris) ou de l'Enfer, [[item:mud|Boue]], [[item:bullet-bill|Bullet Bill]], vols du [[card:goblin|Goblin]] et de [[card:greedy|Cupide]], péage de sortie d'Enfer…",
+        "• Ne comptent pas : les achats et reventes, le paiement du [[card:corrupter|Corrupteur]], l'amende du [[card:thief|Voleur]] — tout ce que Double or nothing ne peut pas miser non plus — ni le 50/50 de Double or nothing lui-même.",
+        `• Chaque autre joueur qui descend en Enfer te rapporte ${INSURER_HELL_REWARD} pièces, en plus et hors plafond ; un [[item:parachute|Parachute]] qui évite la chute ne paie rien, et l'[[card:guardian-angel|Ange-Gardien]], qui n'y va jamais, non plus.`,
+        "• Tes propres pertes ne te rapportent rien, et ce que la banque te verse n'est pas misé par Double or nothing : tu empoches tout.",
+      ],
+    },
+    {
+      title: "Cas limites",
+      body: [
+        "• La perte est comptée telle qu'elle est vraiment : un [[item:helmet|Casque]] qui ramène un solde sous zéro à zéro ne laisse compter que ce que le joueur avait ; un joueur qui tombe à −300 compte toute sa chute.",
+        "• Le compte se fait AU MOMENT de la perte : si la victime tient [[card:double-or-nothing|Double or nothing]], tu es payé tout de suite, même si son 50/50 annule ensuite la perte (rien ne t'est repris) — et rien de plus si la perte est doublée.",
+        `• Le plafond de ${INSURER_ROUND_CAP} se remet à zéro à chaque tour de table (le tour de table, pas le tour de jeu). Les ${INSURER_HELL_REWARD} des descentes en Enfer n'y entrent pas.`,
       ],
     },
   ],

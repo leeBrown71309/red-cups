@@ -1,4 +1,6 @@
-import { hasCard } from "../cards";
+import { hasCard, ownsCard } from "../cards";
+import { canTeleport } from "../mage-queries";
+import { isInvisible } from "../mist";
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isBlockedRoad, isIce } from "../board";
 import {
   avoidsHell,
@@ -51,6 +53,7 @@ import {
   carriedByIce,
   hellRewardCoins,
   newLogTexts,
+  newPowerEvent,
   slidOnIce,
   touchedByHell,
   turnChanged,
@@ -60,6 +63,7 @@ import {
 import { checkMapState, checkMapTransition } from "./map-invariants";
 import { checkDevilHellTurns, checkDevilItem, checkRoleState } from "./role-invariants";
 import { checkClockState } from "./clock-invariants";
+import { checkCupPowerState, checkCupPowerTransition } from "./cups-power-invariants";
 import { checkDraftState, checkDraftTransition } from "./draft-invariants";
 import { findDevil, getDevilGoalFor } from "../devil";
 
@@ -212,7 +216,9 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   const bullet = state.bulletBill;
-  const bulletAway = bullet?.status === "waiting" && bullet.position !== START_NODE_ID;
+  // Sœur Fantôme's swap may carry a Bullet Bill still waiting on the start to the tile she goes to.
+  const carriedBill = hadGhostSister(state);
+  const bulletAway = bullet?.status === "waiting" && bullet.position !== START_NODE_ID && !carriedBill;
   if (bullet && (!getBoard(state).normalNodeIds.includes(bullet.position) || bulletAway)) {
     found.push(violation("bullet-tile", `Bullet Bill ${bullet.status} on tile ${bullet.position}`));
   }
@@ -229,12 +235,17 @@ export function checkState(state: GameState): RuleViolation[] {
   }
 
   if (state.redCupNodeId !== null) {
-    // Le diable's Black Cup keeps it in Hell for a while.
-    if (state.redCupNodeId === START_NODE_ID || (state.redCupNodeId === HELL_NODE_ID && !state.blackCup)) {
+    // Le diable's Black Cup keeps it in Hell for a while; Sœur Fantôme's swap may set it down where the player stood.
+    // (no memory of it is kept past the next deed, so a table with a ghost sister is let off).
+    const cupCarried = hadGhostSister(state);
+    if (
+      (state.redCupNodeId === START_NODE_ID && !cupCarried) ||
+      (state.redCupNodeId === HELL_NODE_ID && !state.blackCup)
+    ) {
       found.push(violation("cup-tile", `Red Cup on forbidden tile ${state.redCupNodeId}`));
     }
     // A Black Cup may take a Cup down to Hell where the last one was found.
-    if (state.redCupCycle > 0 && state.redCupNodeId === state.previousRedCupNodeId && !state.blackCup) {
+    if (state.redCupCycle > 0 && state.redCupNodeId === state.previousRedCupNodeId && !state.blackCup && !cupCarried) {
       found.push(violation("cup-moves-on", `Red Cup reappeared on tile ${state.redCupNodeId}`));
     }
   } else if (state.phase === "playing" && state.pendingCupRevealNodeId === null) {
@@ -250,7 +261,7 @@ export function checkState(state: GameState): RuleViolation[] {
   const wonByGreed =
     state.winReason === "greedy" &&
     greedyWinner !== undefined &&
-    hasCard(greedyWinner, "greedy") &&
+    ownsCard(greedyWinner, "greedy") &&
     greedyWinner.currency >= GREEDY_GOAL;
   const devil = findDevil(state);
   const wonByDevil =
@@ -258,7 +269,7 @@ export function checkState(state: GameState): RuleViolation[] {
   if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
     found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
-  const rich = state.players.find((player) => hasCard(player, "greedy") && player.currency >= GREEDY_GOAL);
+  const rich = state.players.find((player) => ownsCard(player, "greedy") && player.currency >= GREEDY_GOAL);
   if (rich && state.phase === "playing") {
     found.push(violation("greedy-victory", `${rich.name} holds ${rich.currency} coins but the game goes on`));
   }
@@ -292,6 +303,9 @@ export function checkState(state: GameState): RuleViolation[] {
         reactor.inventory.some((entry) => entry.kind === "item" && entry.itemId === "shield") &&
         (action.type === "item" ? action.targetPlayerId : action.victimId) === state.guardian?.protegeId;
       if (shield) continue;
+      // Mage noir is offered the way out their mark opens, whatever else they hold.
+      const slips: boolean = canTeleport(state, reactor);
+      if (slips) continue;
       if (!reactor || !hasCard(reactor, "no-thanks")) {
         found.push(violation("reactor-has-passive", `${reactor?.name ?? reactorId} is offered Non merci`));
       } else if (reactor.id === state.pendingReaction.actorId) {
@@ -309,6 +323,7 @@ export function checkState(state: GameState): RuleViolation[] {
   checkRoleState(state, found);
   checkClockState(state, found);
   checkMapState(state, found);
+  checkCupPowerState(state, found);
   return found;
 }
 
@@ -339,7 +354,9 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   // Roller: the die's count, or as far as a walk that never comes back to a tile can go.
   const roll = previous.diceRoll;
   const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
-  const rolled = !stepForward && hasCard(mover, "roller");
+  // Taupe: a dig or a crossing is a single hop that follows no road and pays no start bonus.
+  const viaTunnel = movement.tunnel !== undefined;
+  const rolled = !stepForward && !viaTunnel && hasCard(mover, "roller");
   // The Botte, put on just in front of a Barrière that leaves no other way out, hops it in a single step.
   const bootHop =
     !stepForward &&
@@ -347,7 +364,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     walkedLength === 1 &&
     previous.moveDistance === 2 &&
     isBlockedRoad(getBoard(previous), movement.from, movement.path[0]);
-  const expectedLength = stepForward ? 1 : rolled ? rollerReach : bootHop ? 1 : previous.moveDistance;
+  const expectedLength = stepForward || viaTunnel ? 1 : rolled ? rollerReach : bootHop ? 1 : previous.moveDistance;
   if (walkedLength !== expectedLength) {
     found.push(violation("move-distance", `${mover.name} walked ${walkedLength} tiles`));
   }
@@ -367,6 +384,11 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   let came = movement.from;
   let from = movement.from;
   for (const [stepIndex, step] of movement.path.entries()) {
+    if (viaTunnel && stepIndex === 0) {
+      came = from;
+      from = step;
+      continue;
+    }
     const allowed = getNeighbors(board, from, rebel && hasCard(mover, "corrupter"));
     // The Botte's hop crosses a barred road on purpose; so does a slide with nowhere else to go (see `drawSlide`).
     const slideLastResort =
@@ -399,7 +421,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   }
 
   // Doomsday: the start pays nothing.
-  const passedStart = earnsStartBonus(board, movement.from, movement.path) && !isDoomed(previous, mover);
+  const passedStart = !viaTunnel && earnsStartBonus(board, movement.from, movement.path) && !isDoomed(previous, mover);
   // Another player may pass the start in the same action (out of Hell as the turn changes).
   const gotBonus = logs.includes(`${mover.name} passe par le départ.`);
   if (passedStart && !gotBonus) {
@@ -614,6 +636,8 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   const wheel = previous.pendingWheel;
   if (!wheel || next.pendingWheel?.id === wheel.id || previous.turnStage !== "wheel-result") return;
   if (newLogTexts(previous, next).some((text) => text.includes("Gomme") || text.includes("Non merci"))) return;
+  // Mage noir set the wheel aside and teleported to their mark.
+  if (newPowerEvent(previous, next)?.kind === "mark-teleport") return;
   // « Va au Départ » left undecided to the clock: the engine's luck settled between the start and nothing,
   // and the drawn outcome is not visible on either side of this step.
   if (wheel.randomFallback && wheel.chosen === undefined) return;
@@ -693,8 +717,13 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
 }
 
 /** Pulled, swapped, sent to the start by New Cup or set down by Calme-toi: they moved, but earn nothing there. */
-function playersMovedWithoutArrival(previous: GameState, appliedItem?: AppliedItem): Set<PlayerId> {
+function playersMovedWithoutArrival(previous: GameState, next: GameState, appliedItem?: AppliedItem): Set<PlayerId> {
   const exempt = new Set<PlayerId>();
+  // Sœur Fantôme's swap sets the player down on her tile: nothing is triggered there.
+  const power = newPowerEvent(previous, next);
+  if (power?.kind === "sister-swap") exempt.add(power.playerId);
+  // A Mage noir who slips away from Bullet Bill lands without the tile acting: the round is turning.
+  if (power?.kind === "mark-teleport" && power.reason === "reaction") exempt.add(power.playerId);
   if (appliedItem && MOVES_WITHOUT_ARRIVAL.includes(appliedItem.itemId)) {
     exempt.add(appliedItem.userId);
     if (appliedItem.targetPlayerId) exempt.add(appliedItem.targetPlayerId);
@@ -730,7 +759,7 @@ function checkTileWheelSpin(
   // Walking, being teleported or pushed back: landing on green or red owes a wheel. A pull, a swap or
   // a New Cup, New Me repositioning never does.
   if (next.phase !== "playing") return;
-  const exempt = playersMovedWithoutArrival(previous, appliedItem);
+  const exempt = playersMovedWithoutArrival(previous, next, appliedItem);
   // Chance aveugle stepping back out of the mud does not arrive on the tile behind, nor a protégé the
   // angel pulls out of Hell.
   const logs = newLogTexts(previous, next);
@@ -846,6 +875,10 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   if (target && isImmuneToItems(target)) {
     found.push(violation("blind-luck-untargetable", `${label} on Chance aveugle`));
   }
+  // Nobody aims at the player Mi-vu, Mi-vue hides, and the hidden player aims at nobody.
+  if (target && (isInvisible(previous, target) || isInvisible(previous, user))) {
+    found.push(violation("invisible-untargetable", `${label} on ${target.name} in the dark`));
+  }
 
   // Je note never copies an item its holder used on themselves: the bag always loses it (one of a stack).
   if (countItemUnits(userAfter, item.itemId) !== countItemUnits(user, item.itemId) - (item.count ?? 1)) {
@@ -939,9 +972,16 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
           found.push(violation("blind-luck-draven", `${label}: Draven sent ${player.name} to Hell`));
         }
       }
+      // Whoever Mi-vu, Mi-vue hides is spared, and so is a Mage noir who slipped away onto their mark.
+      const slipped = newPowerEvent(previous, next)?.kind === "mark-teleport";
       if (
+        !slipped &&
         next.players.some(
-          (player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !avoidsHell(player),
+          (player) =>
+            player.position !== HELL_NODE_ID &&
+            !isImmuneToItems(player) &&
+            !avoidsHell(player) &&
+            !isInvisible(previous, findPlayer(previous, player.id)),
         )
       ) {
         found.push(violation("draven", `${label}: someone escaped the trip to Hell`));
@@ -978,6 +1018,11 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
     default:
       break;
   }
+}
+
+/** Whether a Sœur Fantôme sits, or sat, at the table: she may have carried the Red Cup or Bullet Bill somewhere odd. */
+function hadGhostSister(state: GameState): boolean {
+  return [...state.players, ...state.abandonedPlayers].some((player) => hasCard(player, "ghost-sister"));
 }
 
 const AUTOMATIC_ITEMS: ItemId[] = ["wake-up", "parachute", "mirror"];
@@ -1063,5 +1108,6 @@ export function checkTransition(previous: GameState, nextState: GameState, appli
   checkEnergy(previous, next, found, itemApplied);
   checkDevilHellTurns(previous, next, found);
   checkMapTransition(previous, next, found);
+  checkCupPowerTransition(previous, next, found);
   return found;
 }

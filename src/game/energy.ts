@@ -1,10 +1,10 @@
 import { getCards } from "./cards";
 import { ITEM_CATALOG } from "./catalog";
-import { isLastInClass } from "./passive-rules";
+import { isHermitPrimeActive, isLastInClass } from "./passive-rules";
 import { canUseCorrupter, hasTurnMove } from "./rules";
 import { getActivePlayer } from "./state-utils";
 import type { GameState, ItemId, PassiveId, Player } from "./types";
-import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
+import { BASE_ENERGY, HELL_NODE_ID, HERMIT_ENERGY_BONUS, MOVE_MINIMUM_ENERGY } from "./types";
 
 /**
  * Energy (patch 0.1.4): every turn opens with a full gauge. Items are used
@@ -16,10 +16,16 @@ import { BASE_ENERGY, HELL_NODE_ID, MOVE_MINIMUM_ENERGY } from "./types";
 const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
 
 /** Energy a player's turn opens with. */
-export function getEnergyCapacity(player: Player, state?: Pick<GameState, "players">): number {
+export function getEnergyCapacity(
+  player: Player,
+  state?: Pick<GameState, "players" | "round" | "mapId" | "carouselReversed" | "iceTileNodeId">,
+): number {
   const cards = getCards(player).reduce((sum, card) => sum + (ENERGY_BONUSES[card] ?? 0), BASE_ENERGY);
-  // Dernier de la classe: one more point while they trail the table in Red Cups.
-  return state && isLastInClass(state, player) ? cards + 1 : cards;
+  if (!state) return cards;
+  // Dernier de la classe: one more point while they trail the table in Red Cups; L'Ermite while they are alone.
+  return (
+    cards + (isLastInClass(state, player) ? 1 : 0) + (isHermitPrimeActive(state, player) ? HERMIT_ENERGY_BONUS : 0)
+  );
 }
 
 export function getItemEnergyCost(itemId: ItemId): number {

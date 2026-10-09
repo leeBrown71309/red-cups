@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ownsCard } from "../game/cards";
 import { isPortalVisible } from "../game/devil";
 import { isKnockedOut } from "../game/rules";
+import { getSisterNode } from "../game/sister";
 import { getBarrierRoads } from "../game/turn-actions";
 import { getBoardMap } from "../game/maps/map-registry";
 import { useGameStore } from "../game/store";
-import type { MapId, NodeId } from "../game/types";
+import type { BlackMark, MapId, MoleTunnel, NodeId } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
 import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves, useRedCupHidden } from "../ui/game-hooks";
+import { getLocalPlayerId } from "../net/room-store";
+import { getFog, useFog, type Fog } from "../ui/fog";
 import { useMapChoiceStore } from "../ui/lobby/map-choice-store";
-import { BoardWorld, type BoardView } from "./board-world";
+import { BoardWorld, type BoardView, type MarkView, type TunnelView } from "./board-world";
 import type { CameraMode } from "./camera-rig";
 import { waitForDisplayFont } from "./text-sprites";
 
@@ -37,6 +41,11 @@ function placeBarrierOnRoad(road: [NodeId, NodeId]): void {
   if (roadPickEntryId === null) return;
   setRoadPickEntryId(null);
   useGameStore.getState().useItem(roadPickEntryId, undefined, undefined, road);
+}
+
+/** What the fog hides from this device right now: read by the scene when a feedback event reaches it. */
+function readFog(): Fog {
+  return getFog(useGameStore.getState(), getLocalPlayerId());
 }
 
 function openGhostLoot(): void {
@@ -70,7 +79,12 @@ export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?
       try {
         created = new BoardWorld(
           container,
-          { onTileSelect: selectDestinationFromBoard, onGhostSelect: openGhostLoot, onRoadSelect: placeBarrierOnRoad },
+          {
+            onTileSelect: selectDestinationFromBoard,
+            onGhostSelect: openGhostLoot,
+            onRoadSelect: placeBarrierOnRoad,
+            readFog,
+          },
           mapId,
         );
         boardCamera.world = created;
@@ -130,17 +144,29 @@ interface LaggedProps {
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
   portalNodeIds: NodeId[];
+  /** Taupe and Mage noir: what was on the board once it last settled, to show what has just gone a while longer. */
+  moleTunnels: MoleTunnel[];
+  blackMarks: BlackMark[];
+  /** Mi-vu, Mi-vue: who the viewer sees, once the board has settled: a pawn is not hidden or shown mid-walk. */
+  fog: Fog;
 }
 
 /**
  * The rules move the Red Cup, remove mud and close the Portails the instant a
  * move is played. The board keeps showing the previous props until the pawn
  * has landed, walked into the Portail and fallen through.
+ *
+ * The tunnels and the pentagrams are held the other way round: a new one shows at once (it is drawn as it
+ * appears), and one that has gone stays until the pawn has crossed it or the mage has landed on it. The fog
+ * changes what the viewer sees only once the walk is over.
  */
 function useLaggedProps(): LaggedProps {
   const redCupNodeId = useGameStore((state) => state.redCupNodeId);
   const mudTraps = useGameStore((state) => state.mudTraps);
   const hellPortals = useGameStore((state) => state.hellPortals);
+  const moleTunnels = useGameStore((state) => state.moleTunnels);
+  const blackMarks = useGameStore((state) => state.blackMarks);
+  const fog = useStableFog();
   const round = useGameStore((state) => state.round);
   const settled = useBoardSettled();
   const visiblePortalNodeIds = useMemo(
@@ -151,6 +177,9 @@ function useLaggedProps(): LaggedProps {
     redCupNodeId,
     mudNodeIds: mudTraps.map((trap) => trap.nodeId),
     portalNodeIds: visiblePortalNodeIds,
+    moleTunnels,
+    blackMarks,
+    fog,
   }));
 
   useEffect(() => {
@@ -159,17 +188,38 @@ function useLaggedProps(): LaggedProps {
       redCupNodeId,
       mudNodeIds: mudTraps.map((trap) => trap.nodeId),
       portalNodeIds: visiblePortalNodeIds,
+      moleTunnels,
+      blackMarks,
+      fog,
     });
-  }, [settled, redCupNodeId, mudTraps, visiblePortalNodeIds]);
+  }, [settled, redCupNodeId, mudTraps, visiblePortalNodeIds, moleTunnels, blackMarks, fog]);
 
   return displayed;
+}
+
+/** The fog is a new object at every state change: this one changes only when what it hides does. */
+function useStableFog(): Fog {
+  const fog = useFog();
+  const stable = useRef(fog);
+  if (!isSameFog(stable.current, fog)) stable.current = fog;
+  return stable.current;
+}
+
+function isSameFog(first: Fog, second: Fog): boolean {
+  return (
+    first.viewerId === second.viewerId &&
+    first.viewerHidden === second.viewerHidden &&
+    first.ghostlyId === second.ghostlyId &&
+    first.hiddenIds.size === second.hiddenIds.size &&
+    [...first.hiddenIds].every((id) => second.hiddenIds.has(id))
+  );
 }
 
 function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   const game = useGameStore();
   const legalMoves = useLegalMoves();
   const lagged = useLaggedProps();
-  const cupHidden = useRedCupHidden();
+  const cupHidden = useRedCupHidden() || lagged.fog.viewerHidden;
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
   const roadPickEntryId = useUiStore((state) => state.roadPickEntryId);
@@ -178,6 +228,20 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
     const activePlayer = game.players[game.activePlayerIndex];
     const decider = getDecidingPlayer(game);
     const playing = mode === "play" && game.phase !== "setup";
+    const { fog } = lagged;
+    const hidesProps = playing && fog.viewerHidden;
+    const power = playing ? game.lastPowerEvent : null;
+    const colorOf = (playerId: string) => game.players.find((player) => player.id === playerId)?.color ?? "#ffffff";
+    // A new tunnel or pentagram shows at once; the one that has just gone stays a moment, for the animation.
+    const tunnels: TunnelView[] = playing
+      ? [...game.moleTunnels, ...lagged.moleTunnels.filter((old) => !game.moleTunnels.some((now) => now.id === old.id))]
+      : [];
+    const marks: MarkView[] = playing
+      ? [
+          ...game.blackMarks,
+          ...lagged.blackMarks.filter((old) => !game.blackMarks.some((now) => isSameMark(now, old))),
+        ].map((mark) => ({ ownerId: mark.ownerId, nodeId: mark.nodeId, color: colorOf(mark.ownerId) }))
+      : [];
     return {
       mode,
       carouselReversed: playing && game.carouselReversed,
@@ -198,15 +262,35 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
               ...(frozen ? { frozenTo: frozen.to } : {}),
               ...(game.snowFrozenPlayerIds.includes(player.id) ? { snowFrozen: true } : {}),
               ...(game.guardian?.protegeId === player.id ? { halo: true } : {}),
+              ...(fog.hiddenIds.has(player.id) ? { hidden: true } : {}),
+              ...(fog.ghostlyId === player.id ? { ghostly: true } : {}),
             };
           })
         : [],
+      hidesProps,
+      moleTunnels: tunnels,
+      blackMarks: marks,
+      sisters: playing
+        ? game.players
+            .filter((player) => ownsCard(player, "ghost-sister"))
+            .map((player) => ({
+              ownerId: player.id,
+              color: player.color,
+              nodeId: getSisterNode(player),
+              hidden: fog.hiddenIds.has(player.id),
+            }))
+        : [],
+      powerEvent: power,
+      bulletCarry:
+        power?.kind === "sister-swap" && power.carried.bulletBill
+          ? { seq: power.seq, from: power.sisterFrom, to: power.playerFrom }
+          : null,
       redCupNodeId: playing ? (cupHidden ? null : lagged.redCupNodeId) : getBoardMap(mapId).initialCupNodeId,
-      mudNodeIds: playing ? lagged.mudNodeIds : [],
+      mudNodeIds: playing && !hidesProps ? lagged.mudNodeIds : [],
       barrierEdges: playing ? game.barriers.map((barrier): [NodeId, NodeId] => [barrier.a, barrier.b]) : [],
       pickableRoads: playing && roadPickEntryId !== null ? getBarrierRoads(game) : [],
       // Lagged: the Portail stays under the pawn until it has fallen through.
-      portalNodeIds: playing ? lagged.portalNodeIds : [],
+      portalNodeIds: playing && !hidesProps ? lagged.portalNodeIds : [],
       // Not lagged: the scene holds Bullet Bill in place itself until its charge has been replayed.
       bulletBill:
         playing && game.bulletBill ? { nodeId: game.bulletBill.position, status: game.bulletBill.status } : null,
@@ -226,4 +310,9 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       activePlayerId: activePlayer?.id ?? null,
     };
   }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, roadPickEntryId, mode, mapId]);
+}
+
+/** The same pentagram, whoever holds it: a mage has at most one, so the owner and the tile say which. */
+function isSameMark(first: BlackMark, second: BlackMark): boolean {
+  return first.ownerId === second.ownerId && first.nodeId === second.nodeId;
 }

@@ -31,6 +31,8 @@ interface UiState {
   ghostLootOpen: boolean;
   /** The Barrière being set down: its bag entry while the player taps the road on the board to close. */
   roadPickEntryId: string | null;
+  /** Taupe: the player is choosing the visited tile to dig a tunnel to, on the board. */
+  digMode: boolean;
   /** Corrupteur toggle for the current move. */
   ignoreArrows: boolean;
   /** Calme-toi: the player the holder has chosen to set down, among those offered. */
@@ -42,6 +44,7 @@ interface UiState {
   setBoardBusyUntil: (timestamp: number) => void;
   setCountdownUntil: (timestamp: number) => void;
   setRoadPickEntryId: (entryId: string | null) => void;
+  setDigMode: (digMode: boolean) => void;
   setIgnoreArrows: (ignoreArrows: boolean) => void;
   setCalmTargetId: (playerId: PlayerId | null) => void;
   setPreviewNodeId: (nodeId: NodeId | null) => void;
@@ -74,10 +77,12 @@ export const useUiStore = create<UiState>((set) => ({
   followActivePlayer: prefersFollowCamera(),
   ghostLootOpen: false,
   roadPickEntryId: null,
+  digMode: false,
   ignoreArrows: false,
   calmTargetId: null,
   previewNodeId: null,
   hoveredChipNodeId: null,
+  setDigMode: (digMode) => set({ digMode, previewNodeId: null }),
   setCalmTargetId: (calmTargetId) => set({ calmTargetId }),
   setRoadPickEntryId: (roadPickEntryId) => set({ roadPickEntryId }),
   setBoardBusyUntil: (boardBusyUntil) => set({ boardBusyUntil }),
@@ -106,6 +111,7 @@ export const useUiStore = create<UiState>((set) => ({
       alert: null,
       ghostLootOpen: false,
       roadPickEntryId: null,
+      digMode: false,
       ignoreArrows: false,
       calmTargetId: null,
       previewNodeId: null,

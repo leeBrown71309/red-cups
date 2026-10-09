@@ -1,4 +1,4 @@
-import type { BulletFlight, GameLogEntry, NodeId, PlayerId } from "../game/types";
+import type { BulletFlight, GameLogEntry, NodeId, PlayerId, PowerEvent } from "../game/types";
 
 /**
  * Presentation events derived from game state changes. The scene, the HUD
@@ -67,7 +67,11 @@ export type FeedbackEvent =
   /** A volley of Tomates flies from one player to another; `stunned` when one knocked the target out. */
   | { type: "tomato-thrown"; throwerId: PlayerId; targetId: PlayerId; count: number; stunned: boolean }
   /** Luna Park: the ghost won and took coins or an item. */
-  | { type: "ghost-stole"; playerId: PlayerId };
+  | { type: "ghost-stole"; playerId: PlayerId }
+  /** Patch 0.2.3: the last deed of a Cups Power (a copy, a tunnel, a pentagram, a swap...), as the engine recorded it. */
+  | { type: "power"; event: PowerEvent }
+  /** Mi-vu, Mi-vue: the player is no longer seen (`hidden`), or shows again, whatever the reason. */
+  | { type: "invisibility"; playerId: PlayerId; hidden: boolean };
 
 type Listener = (event: FeedbackEvent) => void;
 

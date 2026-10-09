@@ -7,6 +7,7 @@ import { useGameStore } from "../../game/store";
 import { HELL_NODE_ID } from "../../game/types";
 import { useUiStore } from "../../feedback/ui-store";
 import { PlayerAvatar } from "../components/player-avatar";
+import { canSeePlayer, useFog } from "../fog";
 import { getAvatarExpression } from "./player-status";
 
 const SPLASH_DURATION_MS = 1_600;
@@ -29,7 +30,9 @@ export function TurnSplash() {
   }, [splash, hideSplash]);
 
   const cards = useVisibleCards(player);
+  const fog = useFog();
   if (!splash || !player) return null;
+  const seen = canSeePlayer(fog, player.id);
   const inHell = player.position === HELL_NODE_ID;
 
   return (
@@ -47,10 +50,12 @@ export function TurnSplash() {
           </span>
           <strong className="turn-splash__title">Au tour de {player.name}</strong>
           <span className="turn-splash__passive">
-            {[cards.actif ?? "Actif caché", cards.passif]
-              .filter((cardId): cardId is string => cardId !== null)
-              .map((cardId) => (cardId in PASSIVE_CATALOG ? PASSIVE_CATALOG[cardId as PassiveId].name : cardId))
-              .join(" · ")}
+            {seen
+              ? [cards.actif ?? "Cups Power caché", cards.passif]
+                  .filter((cardId): cardId is string => cardId !== null)
+                  .map((cardId) => (cardId in PASSIVE_CATALOG ? PASSIVE_CATALOG[cardId as PassiveId].name : cardId))
+                  .join(" · ")
+              : "Hors de vue"}
           </span>
         </div>
       </div>

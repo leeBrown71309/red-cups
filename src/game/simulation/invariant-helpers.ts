@@ -1,4 +1,5 @@
-import type { GameState, NodeId, Player } from "../types";
+import { hasCard } from "../cards";
+import type { GameState, NodeId, Player, PowerEvent } from "../types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "../types";
 
 /** Building blocks shared by the rule checks run after every bot action. */
@@ -33,8 +34,23 @@ export function hellRewardCoins(texts: string[], name: string): number {
     if (text.includes(`${name} gagne 50 pièces et un point`)) coins += 50;
     const own = new RegExp(String.raw`^${name} est chez lui en Enfer : \+(\d+) pièces`).exec(text);
     if (own) coins += Number(own[1]);
+    coins += insurerCoins(text, name);
   }
   return coins;
+}
+
+/** What L'Assureur is paid by the bank in one log line: a share of a loss, or a descent into Hell. */
+export function insurerCoins(text: string, name: string): number {
+  const share = new RegExp(String.raw`^${name} touche (\d+) pièces de la banque`).exec(text);
+  if (share) return Number(share[1]);
+  const hell = new RegExp(String.raw`descend en Enfer : ${name} touche (\d+) pièces de la banque`).exec(text);
+  return hell ? Number(hell[1]) : 0;
+}
+
+/** The deed of a Cups Power of patch 0.2.3 this action recorded, if any. */
+export function newPowerEvent(previous: GameState, next: GameState): PowerEvent | null {
+  const event = next.lastPowerEvent;
+  return event && event.seq !== previous.lastPowerEvent?.seq ? event : null;
 }
 
 /** Expected balance after a single coin change, including the Casque and the −300 reset. */
@@ -52,7 +68,7 @@ export function expectedBalance(player: Player, delta: number): number {
  */
 export function balanceMatches(player: Player, delta: number, actual: number, extra = 0): boolean {
   if (actual === expectedBalance(player, delta) + extra) return true;
-  const holdsGamble = player.passiveId === "double-or-nothing" || player.passifId === "double-or-nothing";
+  const holdsGamble = hasCard(player, "double-or-nothing");
   return holdsGamble && delta < 0 && actual === player.currency + delta + extra;
 }
 

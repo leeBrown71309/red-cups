@@ -1,5 +1,5 @@
 import { findEdge, type Board } from "../game/board";
-import type { NodeId, PlayerMovement } from "../game/types";
+import type { NodeId, PlayerMovement, PowerEvent } from "../game/types";
 
 /** Duration of one pawn hop between two neighbouring tiles. */
 export const HOP_MS = 360;
@@ -45,6 +45,56 @@ export const HELL_DROP_MS = 700;
 /** Chance aveugle: a beat standing in the mud, then the skid that throws them back a tile. */
 export const MUD_SLIP_MS = 1_000;
 
+/** Taupe: the pawn digs down in a burst of dirt, then pops out of the ground at the other end of the tunnel. */
+export const TUNNEL_DIVE_MS = 750;
+export const TUNNEL_POP_MS = 650;
+
+/** Mage noir: the pentagram draws itself on the tile under the mage. */
+export const MARK_DRAW_MS = 1_100;
+/** Mage noir: the mage is sucked into a dark vortex and lands on their pentagram. */
+export const MARK_TELEPORT_MS = 1_700;
+/** Mage noir: what the pentagram does to players left on it (a column of flame), after the landing. */
+export const MARK_VICTIM_MS = 900;
+/** Mage noir: the last chance is gone and the mage crumbles to ash. */
+export const MAGE_FALL_MS = 1_900;
+
+/** Sœur Fantôme: the two figures dissolve into mist and trade places, carrying what lay under the sister. */
+export const SISTER_SWAP_MS = 1_500;
+
+/** Mime: the mask flashes on the copier, and the copied card shines over them. */
+export const MIME_COPY_MS = 1_300;
+
+/**
+ * The phases inside those animations, which the scene plays one after the other. Each set adds up to at most the
+ * estimate above, because the dialogs open when the estimate runs out.
+ *
+ * Mage noir: sucked in at the mage's tile, a dark streak across the board, out of the light on the pentagram
+ * (1 600 of 1 700); the flame that swallows the players left on it runs from the landing on.
+ */
+export const MARK_SUCK_MS = 700;
+export const MARK_TRANSIT_MS = 250;
+export const MARK_EMERGE_MS = 650;
+/** Mage noir: a player on the pentagram is swallowed by the flame, then drops out of a Hell portal. */
+export const MARK_BURN_MS = 520;
+/** Mage noir: crumbling to ash (the rest of MAGE_FALL_MS is the ring that spreads over the tile). */
+export const MAGE_CRUMBLE_MS = 1_500;
+/** Sœur Fantôme: dissolving, the mist crossing the board, condensing (1 250 of 1 500). */
+export const SISTER_DISSOLVE_MS = 450;
+export const SISTER_TRANSIT_MS = 300;
+export const SISTER_CONDENSE_MS = 500;
+/** Sœur Fantôme: what the sister carries flies over in an arc, from the start of the swap (ends at 1 100). */
+export const SISTER_CARRY_DELAY_MS = 250;
+export const SISTER_CARRY_MS = 850;
+/** Sœur Fantôme: a move nobody explains (a trip to Hell sends her back to the start) is a quick fade out and in. */
+export const SISTER_SNAP_OUT_MS = 260;
+export const SISTER_SNAP_IN_MS = 380;
+/** Mime: the beam from the copied pawn, then the mask over the copier (the rest is the mask floating away). */
+export const MIME_BEAM_MS = 550;
+export const MIME_MASK_DELAY_MS = 380;
+/** Mi-vu, Mi-vue: a pawn fades from sight, or pops back with a flash. */
+export const INVISIBILITY_FADE_MS = 420;
+export const INVISIBILITY_POP_MS = 420;
+
 /** Pause after a Red Cup pickup before modals open, so the celebration reads. */
 export const CUP_CELEBRATION_MS = 900;
 
@@ -72,6 +122,28 @@ export function estimateBulletFlightMs(path: NodeId[]): number {
 }
 
 /**
+ * How long the animation of a Cups Power's deed holds the dialogs back, once the walk (if any) is over. A tunnel
+ * and the mirror steps of the sister belong to the walk itself (`estimateMovementMs`), so they add nothing here.
+ */
+export function estimatePowerEventMs(event: PowerEvent): number {
+  switch (event.kind) {
+    case "mime-copy":
+      return MIME_COPY_MS;
+    case "mark-place":
+      return MARK_DRAW_MS;
+    case "mark-teleport":
+      return MARK_TELEPORT_MS + (event.victimIds.length > 0 || event.mudHell ? MARK_VICTIM_MS : 0);
+    case "mage-fallen":
+      return MAGE_FALL_MS;
+    case "sister-swap":
+      return SISTER_SWAP_MS;
+    case "tunnel-dig":
+    case "tunnel-cross":
+      return 0;
+  }
+}
+
+/**
  * Game rules resolve instantly, while the board animates. The HUD uses this
  * estimate to delay modals and feedback until the pawn has landed.
  */
@@ -83,6 +155,8 @@ export function estimateMovementMs(
     return SHATTER_MS + GLIDE_MS + (movement.portalNodeId !== undefined ? PORTAL_SWALLOW_MS + HELL_DROP_MS : 0);
   }
   if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
+  // Taupe: the dive into the ground and the pop out of it replace the hop.
+  if (movement.tunnel) return TUNNEL_DIVE_MS + TUNNEL_POP_MS;
   const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
   let previous = movement.from;

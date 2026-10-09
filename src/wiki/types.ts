@@ -51,7 +51,7 @@ export interface Interaction {
 
 export const KIND_LABELS: Record<EntryKind, string> = {
   item: "Objet",
-  card: "Carte",
+  card: "Cups Power / passif",
   map: "Plateau",
   wheel: "Roue",
   system: "Système",

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { getForwardTiles } from "../game/game-actions";
 import { getCalmDownTiles } from "../game/game-effects";
+import { getDigTargets } from "../game/mole";
 import { isBlindToRedCup } from "../game/passive-rules";
 import { getDecidingPlayer, getTurnMoveOptions } from "../game/rules";
 import { canUseCorrupter, useGameStore } from "../game/store";
@@ -25,7 +26,7 @@ export function useDecidingPlayer(): Player | undefined {
   return useGameStore(getDecidingPlayer);
 }
 
-export function computeLegalMoves(state: GameState, ignoreArrows: boolean): LegalMoves {
+export function computeLegalMoves(state: GameState, ignoreArrows: boolean, digMode = false): LegalMoves {
   const activePlayer = state.players[state.activePlayerIndex];
   const paths = new Map<NodeId, NodeId[]>();
   if (state.phase !== "playing" || !activePlayer) return { origin: null, paths };
@@ -44,6 +45,11 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean): Lega
   }
 
   if (state.turnStage !== "move") return { origin: null, paths };
+  // Taupe: the tiles a tunnel may be dug to, shown instead of the walks while the player chooses.
+  if (digMode) {
+    for (const nodeId of getDigTargets(state, activePlayer)) paths.set(nodeId, [nodeId]);
+    return { origin: activePlayer.position, paths };
+  }
   const canIgnoreArrows = ignoreArrows && canUseCorrupter(activePlayer, state.round);
   for (const path of getTurnMoveOptions(state, activePlayer, canIgnoreArrows)) {
     const destination = path[path.length - 1];
@@ -75,14 +81,15 @@ function isLocalDecider(state: GameState, localPlayerId: string | null): boolean
 export function useLegalMoves(): LegalMoves {
   const game = useGameStore();
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
+  const digMode = useUiStore((state) => state.digMode);
   const countdownRunning = useCountdownRunning();
   const localPlayerId = useLocalPlayerId();
   return useMemo(
     () =>
       isLocalDecider(game, localPlayerId) && !countdownRunning
-        ? computeLegalMoves(game, ignoreArrows)
+        ? computeLegalMoves(game, ignoreArrows, digMode)
         : { origin: null, paths: new Map<NodeId, NodeId[]>() },
-    [game, ignoreArrows, localPlayerId, countdownRunning],
+    [game, ignoreArrows, digMode, localPlayerId, countdownRunning],
   );
 }
 
@@ -90,7 +97,7 @@ export function useLegalMoves(): LegalMoves {
 export function commitDestination(nodeId: NodeId): void {
   const game = useGameStore.getState();
   const ui = useUiStore.getState();
-  const legal = computeLegalMoves(game, ui.ignoreArrows);
+  const legal = computeLegalMoves(game, ui.ignoreArrows, ui.digMode);
   if (isCountdownRunning() || !isLocalDecider(game, getLocalPlayerId()) || !legal.paths.has(nodeId)) {
     soundEffects.error();
     return;
@@ -105,6 +112,12 @@ export function commitDestination(nodeId: NodeId): void {
   }
   if (game.turnStage === "advance") {
     game.advanceOneTile(nodeId);
+    return;
+  }
+  // Taupe: the chosen tile is where the tunnel leads.
+  if (ui.digMode) {
+    ui.setDigMode(false);
+    game.digTunnel(nodeId);
     return;
   }
   game.movePlayer(nodeId, ui.ignoreArrows);

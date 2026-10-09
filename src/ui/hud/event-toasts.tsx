@@ -2,7 +2,9 @@ import { useEffect } from "react";
 import { onFeedback, type FeedbackEvent } from "../../feedback/event-bus";
 import { useUiStore, type AlertBanner, type Toast } from "../../feedback/ui-store";
 import { useGameStore } from "../../game/store";
+import { isInMistPhase } from "../../game/mist";
 import { BULLET_BILL_DAMAGE } from "../../game/types";
+import { canSeePlayer, getFogNow, isLogEntryVisible } from "../fog";
 
 const TOAST_LIFETIME_MS = 4_200;
 
@@ -10,8 +12,10 @@ const TOAST_LIFETIME_MS = 4_200;
 const TOASTLESS_LOG =
   /^(Tour de |Bullet Bill |Toute la table est fauchée|Le carrousel change de sens|Blizzard|La glace tombe|Un fantôme surgit|Le fantôme attaque)|se déplace en case/;
 
+/** A player's name, unless the fog of Mi-vu, Mi-vue hides them from this device. */
 function playerName(playerId: string | null): string {
-  return useGameStore.getState().players.find((player) => player.id === playerId)?.name ?? "quelqu’un";
+  const player = useGameStore.getState().players.find((candidate) => candidate.id === playerId);
+  return player && canSeePlayer(getFogNow(), player.id) ? player.name : "quelqu’un";
 }
 
 /** Big table events nobody should miss, phrased for the banner. */
@@ -140,7 +144,22 @@ export function useHudFeedback(): void {
         if (event.type === "turn-start") showSplash(event.playerId);
         const alert = describeAlert(event);
         if (alert) showAlert(alert);
-        if (event.type === "log" && !TOASTLESS_LOG.test(event.entry.text)) {
+        // Mi-vu, Mi-vue: the Red Cup too close shows the player again, whatever the cycle says.
+        if (event.type === "invisibility" && !event.hidden) {
+          const hiddenOne = useGameStore.getState().players.find((candidate) => candidate.id === event.playerId);
+          if (hiddenOne && isInMistPhase(hiddenOne) && canSeePlayer(getFogNow(), hiddenOne.id)) {
+            pushToast({
+              id: `mist-${event.playerId}-${performance.now()}`,
+              text: `${hiddenOne.name} se découvre : la Red Cup est trop près.`,
+              tone: "event",
+            });
+          }
+        }
+        if (
+          event.type === "log" &&
+          !TOASTLESS_LOG.test(event.entry.text) &&
+          isLogEntryVisible(event.entry, getFogNow())
+        ) {
           // A toast is read by the whole table: a purchase or a theft never gives its price or its item away.
           pushToast({
             id: event.entry.id,

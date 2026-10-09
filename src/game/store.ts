@@ -38,6 +38,18 @@ interface GameActions {
   prepareBoot: (entryId: string) => void;
   /** Roller: throws the die before the move. */
   rollDice: () => void;
+  /** Mime: copies another player's actif for the turn. */
+  mimeCopy: (targetPlayerId: PlayerId) => void;
+  /** Taupe: digs a tunnel to a visited tile and moves through it. */
+  digTunnel: (destination: NodeId) => void;
+  /** Crosses the tunnel that opens on the player's tile. */
+  crossTunnel: (tunnelId: string) => void;
+  /** Mage noir: lays a pentagram on their tile. */
+  placeMark: () => void;
+  /** Mage noir: teleports to the pentagram during their own turn. */
+  teleportToMark: () => void;
+  /** Sœur Fantôme: swaps places with the little ghost. */
+  swapWithSister: () => void;
   /** Le diable walks out of Hell, back on the start. */
   leaveHell: () => void;
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
@@ -52,8 +64,8 @@ interface GameActions {
   /** `count`: Tomates thrown at once from their stack. */
   /** `targetRoad`: the two tiles of the road a Barrière closes. */
   useItem: (entryId: string, targetPlayerId?: PlayerId, count?: number, targetRoad?: [NodeId, NodeId]) => void;
-  /** A Non merci holder cancels the declared action, or null lets it happen. */
-  resolveReaction: (reactorId: PlayerId | null) => void;
+  /** A Non merci holder cancels the declared action, or null lets it happen; `teleport`: a Mage noir slips away. */
+  resolveReaction: (reactorId: PlayerId | null, teleport?: boolean) => void;
   /** Ends the turn; when every player is broke, the Tour de Bénédiction runs first. */
   endTurn: () => void;
   spinHellWheel: () => void;
@@ -64,8 +76,8 @@ interface GameActions {
   spinWheel: (wheelId: WheelId, playerId: PlayerId, resumeStage: TurnStage, sourceItemId?: ItemId) => void;
   resolveWheel: () => void;
   pickWheelResult: (index: 0 | 1) => void;
-  /** Rubs the wheel's result out with the Gomme, or with Non merci when `withNoThanks` is set. */
-  cancelWheel: (withNoThanks?: boolean) => void;
+  /** Rubs the wheel's result out with the Gomme, with Non merci when `withNoThanks` is set, or by teleporting. */
+  cancelWheel: (withNoThanks?: boolean, teleport?: boolean) => void;
   challengePlayer: (targetPlayerId: PlayerId) => void;
   /** Meneur de jeu: picks the mini-game of the duel. */
   chooseDuelMode: (mode: DuelMode) => void;
@@ -139,6 +151,12 @@ export const useGameStore = create<GameStore>()(
       movePlayer: (destination, ignoreArrows = false) => dispatch({ type: "movePlayer", destination, ignoreArrows }),
       prepareBoot: (entryId) => dispatch({ type: "prepareBoot", entryId }),
       rollDice: () => dispatch({ type: "rollDice" }),
+      mimeCopy: (targetPlayerId) => dispatch({ type: "mimeCopy", targetPlayerId }),
+      digTunnel: (destination) => dispatch({ type: "digTunnel", destination }),
+      crossTunnel: (tunnelId) => dispatch({ type: "crossTunnel", tunnelId }),
+      placeMark: () => dispatch({ type: "placeMark" }),
+      teleportToMark: () => dispatch({ type: "teleportToMark" }),
+      swapWithSister: () => dispatch({ type: "swapWithSister" }),
       leaveHell: () => dispatch({ type: "leaveHell" }),
       rescueProtege: () => dispatch({ type: "rescueProtege" }),
       sellItem: (entryId) => dispatch({ type: "sellItem", entryId }),
@@ -152,7 +170,8 @@ export const useGameStore = create<GameStore>()(
           count,
           ...(targetRoad !== undefined ? { targetRoad } : {}),
         }),
-      resolveReaction: (reactorId) => dispatch({ type: "resolveReaction", reactorId }),
+      resolveReaction: (reactorId, teleport) =>
+        dispatch({ type: "resolveReaction", reactorId, ...(teleport ? { teleport } : {}) }),
       endTurn: () => dispatch({ type: "endTurn" }),
       spinHellWheel: () => dispatch({ type: "spinHellWheel" }),
       spinTileWheel: () => dispatch({ type: "spinTileWheel" }),
@@ -162,7 +181,12 @@ export const useGameStore = create<GameStore>()(
         dispatch({ type: "spinWheel", wheelId, playerId, resumeStage, sourceItemId }),
       resolveWheel: () => dispatch({ type: "resolveWheel" }),
       pickWheelResult: (index) => dispatch({ type: "pickWheelResult", index }),
-      cancelWheel: (withNoThanks) => dispatch({ type: "cancelWheel", ...(withNoThanks ? { withNoThanks } : {}) }),
+      cancelWheel: (withNoThanks, teleport) =>
+        dispatch({
+          type: "cancelWheel",
+          ...(withNoThanks ? { withNoThanks } : {}),
+          ...(teleport ? { teleport } : {}),
+        }),
       challengePlayer: (targetPlayerId) => dispatch({ type: "challengePlayer", targetPlayerId }),
       chooseDuelMode: (mode) => dispatch({ type: "chooseDuelMode", mode }),
       flipDuelCoin: () => dispatch({ type: "flipDuelCoin" }),

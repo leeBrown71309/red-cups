@@ -4,7 +4,10 @@ import { earnsStartBonus, getBoard, getOpenBoard, isBlockedRoad, getShortestPath
 import { launchBulletBill } from "./bullet-bill";
 import { carryOffIce, drawSlide, recordSlide, toPathBumps } from "./ice";
 import { ITEM_CATALOG } from "./catalog";
+import { teleportToMark } from "./black-mage";
+import { canTeleport } from "./mage-queries";
 import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
+import { isInvisible } from "./mist";
 import { startArmWrestle } from "./arm-wrestle";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
@@ -67,6 +70,8 @@ export interface MovePlan {
   path: NodeId[];
   /** True when the move goes against an arrow thanks to Corrupteur. */
   rebel: boolean;
+  /** Taupe: the move is a dig (`dug`) or a crossing of a tunnel, a single hop that follows no road. */
+  tunnel?: { id: string; dug: boolean };
 }
 
 export function planMove(state: GameState, destination: NodeId, ignoreArrows: boolean): MovePlan | null {
@@ -112,11 +117,18 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   const interruptedTo = slide?.interruptedTo ?? null;
 
   nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
-  nextState = addLog(nextState, `${player.name} se déplace en case ${walkEnd}.`);
+  nextState = addLog(
+    nextState,
+    plan.tunnel
+      ? `${player.name} ${plan.tunnel.dug ? "creuse un tunnel" : "traverse un tunnel"} jusqu’en case ${walkEnd}.`
+      : `${player.name} se déplace en case ${walkEnd}.`,
+    plan.tunnel ? "event" : "neutral",
+  );
   if (slide) nextState = recordSlide(nextState, player.id, slide, destination);
   nextState = addRedGreenBonuses(nextState, player.id, path);
   // Doomsday: the start pays nothing.
-  if (earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
+  // A tunnel is no road: going down it to the start earns nothing.
+  if (!plan.tunnel && earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
     nextState = addStartBonus(nextState, player.id);
   }
 
@@ -133,6 +145,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
       ...(slide && slide.slide.length + (interruptedTo === null ? 0 : 1) > 0 ? { slideStart: plan.path.length } : {}),
       ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(plan.path.length, slide.bumps) } : {}),
       ...(interruptedTo === null ? {} : { interruptedTo }),
+      ...(plan.tunnel ? { tunnel: plan.tunnel } : {}),
     },
   };
 
@@ -409,12 +422,14 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
 
     case "draven": {
-      // Non merci spares its holder; Chance aveugle is spared anyway.
+      // Non merci spares its holder; Chance aveugle and whoever Mi-vu, Mi-vue hides are spared anyway.
       const spared = plan.sparedIds ?? [];
       nextState = {
         ...nextState,
         players: nextState.players.map((candidate) =>
-          spared.includes(candidate.id) || isImmuneToItems(candidate) ? candidate : placeInHell(candidate),
+          spared.includes(candidate.id) || isImmuneToItems(candidate) || isInvisible(state, candidate)
+            ? candidate
+            : placeInHell(candidate),
         ),
       };
       nextState = addLog(nextState, "Draven envoie toute la table en Enfer.", "bad");
@@ -553,7 +568,7 @@ function pullWithRope(state: GameState, user: Player, target: Player): GameState
 function getItemVictims(state: GameState, actorId: PlayerId, itemId: ItemId, targetPlayerId?: PlayerId): PlayerId[] {
   if (itemId === "draven") {
     return state.players
-      .filter((player) => player.id !== actorId && !isImmuneToItems(player))
+      .filter((player) => player.id !== actorId && !isImmuneToItems(player) && !isInvisible(state, player))
       .map((player) => player.id);
   }
   if (ITEM_CATALOG[itemId].target !== "player" || isThrownItem(itemId)) return [];
@@ -564,6 +579,13 @@ function getItemVictims(state: GameState, actorId: PlayerId, itemId: ItemId, tar
 export function getNoThanksReactors(state: GameState, victimIds: PlayerId[]): PlayerId[] {
   return state.players
     .filter((player) => victimIds.includes(player.id) && canUseNoThanks(player, state.round))
+    .map((player) => player.id);
+}
+
+/** Mage noir: the victims who hold a mark and a chance, and may teleport out of the item's way. */
+export function getTeleportReactors(state: GameState, victimIds: PlayerId[]): PlayerId[] {
+  return state.players
+    .filter((player) => victimIds.includes(player.id) && canTeleport(state, player))
     .map((player) => player.id);
 }
 
@@ -589,7 +611,13 @@ export function openReactionWindow(state: GameState, action: DeclaredAction): Ga
   const actor = getActivePlayer(state);
   if (!actor || action.type !== "item") return null;
   const victimIds = getItemVictims(state, actor.id, action.itemId, action.targetPlayerId);
-  const reactorIds = [...getNoThanksReactors(state, victimIds), ...getShieldBearers(state, actor.id, action)];
+  const reactorIds = [
+    ...new Set([
+      ...getNoThanksReactors(state, victimIds),
+      ...getTeleportReactors(state, victimIds),
+      ...getShieldBearers(state, actor.id, action),
+    ]),
+  ];
   if (reactorIds.length === 0) return null;
 
   const pendingReaction: PendingReaction = { actorId: actor.id, action, reactorIds, resumeStage: state.turnStage };
@@ -607,26 +635,49 @@ export function spendNoThanks(state: GameState, holderId: PlayerId, round: numbe
 /**
  * A cancelled item is lost with its energy, but the actor's turn goes on.
  * Draven still sends the rest of the table to Hell: Non merci only spares its
- * holder.
+ * holder. A Mage noir may answer by teleporting to their mark instead (`teleport`): the item is cancelled for them
+ * all the same, they pay a chance, and they land on the mark.
  */
-export function cancelDeclaredAction(state: GameState, pending: PendingReaction, reactorId: PlayerId): GameState {
+export function cancelDeclaredAction(
+  state: GameState,
+  pending: PendingReaction,
+  reactorId: PlayerId,
+  teleport = false,
+): GameState {
   const reactor = findPlayer(state, reactorId);
   const actor = findPlayer(state, pending.actorId);
   const { action } = pending;
   if (!reactor || !actor || action.type !== "item") return state;
+  if (teleport && !canTeleport(state, reactor)) return state;
 
-  // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci.
-  const shield = hasCard(reactor, "guardian-angel");
+  // L'Ange-Gardien raises their Bouclier, which is then spent; anybody else answers with Non merci, and the mage
+  // with a teleport, which costs a chance and no cooldown.
+  const shield = !teleport && hasCard(reactor, "guardian-angel");
+  // A reactor who answers with neither a Bouclier nor a teleport must hold a ready Non merci (a mage is listed for
+  // their mark alone).
+  if (!teleport && !shield && !canUseNoThanks(reactor, state.round)) return state;
   const shieldEntry = reactor.inventory.find((entry) => entry.kind === "item" && entry.itemId === "shield");
-  let nextState = shield
-    ? updatePlayer(state, reactor.id, (player) => spendItemEntry(player, shieldEntry?.id ?? ""))
-    : spendNoThanks(state, reactor.id, state.round);
+  let nextState = teleport
+    ? state
+    : shield
+      ? updatePlayer(state, reactor.id, (player) => spendItemEntry(player, shieldEntry?.id ?? ""))
+      : spendNoThanks(state, reactor.id, state.round);
   const base: GameState = { ...nextState, pendingReaction: null, turnStage: pending.resumeStage };
+  const teleportAfter = (current: GameState): GameState =>
+    teleport && current.phase === "playing"
+      ? settleBoard(teleportToMark(current, reactor.id, "reaction"), current.turnStage)
+      : current;
   if (action.itemId === "draven" && !shield) {
     const plan = planItemUse(base, action.entryId);
     if (!plan) return base;
-    const spared = addLog(base, `${reactor.name} utilise Non merci : Draven l’épargne.`, "event");
-    return applyItemUse(spared, action.entryId, { ...plan, sparedIds: [reactor.id] });
+    const spared = addLog(
+      base,
+      teleport
+        ? `${reactor.name} se téléporte : Draven l’épargne.`
+        : `${reactor.name} utilise Non merci : Draven l’épargne.`,
+      "event",
+    );
+    return teleportAfter(applyItemUse(spared, action.entryId, { ...plan, sparedIds: [reactor.id] }));
   }
 
   nextState = base;
@@ -635,8 +686,13 @@ export function cancelDeclaredAction(state: GameState, pending: PendingReaction,
   }
   nextState = spendEnergy(nextState, getItemEnergyCost(action.itemId));
   const itemName = ITEM_CATALOG[action.itemId].name;
-  const answer = shield ? "lève son Bouclier" : "utilise Non merci";
-  return addLog(nextState, `${reactor.name} ${answer} : l’objet de ${actor.name} (${itemName}) est annulé.`, "event");
+  const answer = teleport ? "se téléporte" : shield ? "lève son Bouclier" : "utilise Non merci";
+  nextState = addLog(
+    nextState,
+    `${reactor.name} ${answer} : l’objet de ${actor.name} (${itemName}) est annulé.`,
+    "event",
+  );
+  return teleportAfter(nextState);
 }
 
 /** Re-plays the declared item once nobody reacted, from the stage it was declared in. */

@@ -5,7 +5,22 @@ import { getBoardMap } from "../../game/maps/map-registry";
 import type { RoadLegendEntry } from "../../game/maps/map-types";
 import { useGameStore } from "../../game/store";
 import type { ItemId, MapId, PassiveId } from "../../game/types";
-import { BASE_ENERGY, HELL_EXIT_TOLL, HELL_TURN_LIMIT, START_BONUS } from "../../game/types";
+import {
+  BASE_ENERGY,
+  HELL_EXIT_TOLL,
+  HELL_TURN_LIMIT,
+  HERMIT_DISTANCE,
+  HERMIT_ENERGY_BONUS,
+  HERMIT_START_BONUS,
+  INSURER_HELL_REWARD,
+  INSURER_RATE,
+  MAGE_MAX_LUCK,
+  MIME_COOLDOWN_ROUNDS,
+  MOLE_COOLDOWN_ROUNDS,
+  MOLE_DIG_ENERGY,
+  SISTER_SWAP_ENERGY,
+  START_BONUS,
+} from "../../game/types";
 import { BoardMap, TileArrowSwatch } from "../components/board-map";
 import { CatalogBrowser } from "../components/catalog-browser";
 import { ItemDetail } from "../components/item-detail";
@@ -23,12 +38,12 @@ import { useMapChoiceStore } from "../lobby/map-choice-store";
 
 type HelpTab = "rules" | "board" | "items" | "passives";
 
-/** The basic rules come first, then the board, the items and the passives. */
+/** The basic rules come first, then the board, the items and the Cups Power and passives (the « actif » cards). */
 const TABS: { id: HelpTab; label: string }[] = [
   { id: "rules", label: "Règles" },
   { id: "board", label: "Plateau" },
   { id: "items", label: "Objets" },
-  { id: "passives", label: "Cartes" },
+  { id: "passives", label: "Cups Power & passifs" },
 ];
 
 const ROAD_SWATCH_CLASSES: Record<Exclude<RoadLegendEntry["style"], "arrow">, string> = {
@@ -68,7 +83,7 @@ function getRuleSections(mapId: MapId): RuleSection[] {
         "Le premier joueur à ramasser 3 Red Cups gagne. Une Cup attend sur une case du plateau : arrive dessus pour " +
           "la prendre, et une nouvelle apparaît ailleurs.",
         "Chaque Cup prend une place de ton sac (4 places). Sac plein, tu jettes un objet, jamais une Cup.",
-        "Quelques passifs ont leur propre victoire : Cupide à 6 000 pièces, le diable quand les autres ont passé " +
+        "Quelques Cups Power ont leur propre victoire : Cupide à 6 000 pièces, le diable quand les autres ont passé " +
           "assez de tours en Enfer, L’Ange-Gardien avec son protégé.",
       ],
     },
@@ -94,6 +109,9 @@ function getRuleSections(mapId: MapId): RuleSection[] {
         "Puis avance : il faut au moins 1 point, le déplacement prend tout ce qui reste et termine ton tour. Après " +
           "un objet, ou sans assez d’énergie pour bouger, tu peux aussi finir ton tour sur place.",
         "La Botte coûte 1 point et en garde 1 pour ton déplacement. Une seule Boue par tour.",
+        `Les Cups Power à bouton se jouent comme des objets, avant le déplacement : le tunnel de la Taupe ` +
+          `(${MOLE_DIG_ENERGY} points) et le Swap de la Sœur Fantôme (${SISTER_SWAP_ENERGY} points) tiennent lieu de ` +
+          `marche ; la copie du Mime et les pouvoirs du Mage noir ne coûtent aucune énergie.`,
       ],
     },
     {
@@ -116,7 +134,7 @@ function getRuleSections(mapId: MapId): RuleSection[] {
       title: "Pièces et boutique",
       icon: "shop",
       paragraphs: [
-        "Tout le monde commence avec des pièces (2 000 en général, selon le passif). Dans la boutique, achète tant " +
+        "Tout le monde commence avec des pièces (2 000 en général, selon tes atouts). Dans la boutique, achète tant " +
           "que ton solde et ton sac le permettent, sans énergie. Ce que tu achètes sert à partir de ton prochain tour.",
         "Deux exemplaires au plus d’un même objet, une seule Gomme. Les Tomates s’empilent par 5 : une pile compte " +
           "comme un exemplaire, et tu ne lances qu’une pile par tour.",
@@ -136,6 +154,7 @@ function getRuleSections(mapId: MapId): RuleSection[] {
           "de 21 sans le dépasser gagne. Égalité : la pièce départage.",
         `Toujours en Enfer après ${HELL_TURN_LIMIT} tours, tours sautés compris ? Tu sors en case 0 avec les ` +
           `${START_BONUS} du départ, mais tu paies ${HELL_EXIT_TOLL} pièces.`,
+        "Le Mage noir peut s’en échapper, ou l’éviter, en se téléportant sur son pentagramme.",
       ],
     },
     {
@@ -150,6 +169,32 @@ function getRuleSections(mapId: MapId): RuleSection[] {
           "proche à chaque tour de table. Celui qu’il atteint perd 200 pièces et passe son prochain tour.",
         "Un joueur assommé garde ce statut tant qu’il n’a pas pu rejouer : son tour sauté passé, il reste la proie " +
           "du Toucher d’Enfer et des vols du Cupide jusqu’à son tour suivant.",
+        "Le Mage noir peut aussi esquiver un objet qui le vise, Draven ou Bullet Bill en se téléportant sur son " +
+          "pentagramme, au prix d’une de ses chances.",
+      ],
+    },
+    {
+      id: "powers",
+      title: "Cups Power et passifs",
+      icon: "sparkle",
+      paragraphs: [
+        "Chaque joueur a un Cups Power (choisi au draft : le pouvoir qui le porte toute la partie) et un passif (un " +
+          "talisman tiré au sort). Leur détail est dans l’onglet Cups Power & passifs ; voici les nouveaux.",
+        `Mime : une fois tous les ${MIME_COOLDOWN_ROUNDS} tours, copie le Cups Power d’un autre joueur jusqu’à la fin ` +
+          "de ton tour, avantages et défauts compris.",
+        `Taupe : une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours, creuse un tunnel vers une case déjà visitée ; les ` +
+          "autres le traversent une fois, puis il se referme.",
+        `Mage noir : pose un pentagramme et téléporte-toi dessus, à ton tour, contre un objet ou Bullet Bill, ou à ` +
+          `la place d’une roue qui te déplace. ${MAGE_MAX_LUCK} chances, une de moins à chaque téléportation : à zéro, ` +
+          "tu es éliminé.",
+        "Mi-vu, Mi-vue : invisible deux de tes tours sur trois, tu ne peux plus être ciblé et tu ne vois plus la table ; " +
+          "à une case de la Red Cup, tu redeviens visible.",
+        "Sœur Fantôme : une petite sœur fait en miroir chacun de tes pas, et le Swap te fait changer de place avec elle, " +
+          "avec ce qu’elle porte (pièges, Red Cup, Bullet Bill).",
+        `L’Ermite : tant que personne n’est à ${HERMIT_DISTANCE} cases ou moins de toi, +${HERMIT_ENERGY_BONUS} point ` +
+          `d’énergie et +${HERMIT_START_BONUS} pièces au Départ ; quelqu’un qui arrive sur ta case te les retire un tour.`,
+        `L’Assureur : la banque te verse ${Math.round(INSURER_RATE * 100)} % de ce que les autres perdent, et ` +
+          `${INSURER_HELL_REWARD} pièces chaque fois que l’un d’eux tombe en Enfer.`,
       ],
     },
     {
@@ -157,9 +202,9 @@ function getRuleSections(mapId: MapId): RuleSection[] {
       title: "Avant et pendant la partie",
       icon: "users",
       paragraphs: [
-        "Avant la partie, chacun choisit son actif parmi deux cartes, jamais les mêmes que celles des autres. Les " +
+        "Avant la partie, chacun choisit son Cups Power parmi deux propositions, différentes de celles des autres. Les " +
           "passifs, eux, sont tirés au sort : deux joueurs n’ont jamais le même. En ligne, la table a une minute " +
-          "pour les actifs ; en local, l’écran passe de main en main.",
+          "pour les Cups Power ; en local, l’écran passe de main en main.",
         "En ligne, ton tour dure 45 secondes, et les décisions des autres 20 : à la fin, le choix par défaut " +
           "s’applique. Le chrono s’arrête pendant les duels et les roues, pas dans la boutique. Un tour passé sans " +
           "rien faire te coûte une chance ; à la troisième, tu déclares forfait. L’hôte peut mettre la partie en pause " +
@@ -331,11 +376,11 @@ type CardFilter = "all" | CardKind;
 
 const CARD_FILTERS: { id: CardFilter; label: string }[] = [
   { id: "all", label: "Toutes" },
-  { id: "actif", label: "Actifs" },
+  { id: "actif", label: "Cups Power" },
   { id: "passif", label: "Passifs" },
 ];
 
-/** Every card: the miniatures on the left, and the tarot card itself on the right, held in 3D. */
+/** Every Cups Power and passif: the miniatures on the left, and the tarot card or talisman on the right, held in 3D. */
 function CardsCatalog() {
   const [filter, setFilter] = useState<CardFilter>("all");
   const [selectedId, setSelectedId] = useState<PassiveId>(PASSIVE_ORDER[0]);
@@ -343,7 +388,7 @@ function CardsCatalog() {
   const entries = shownIds.map((passiveId) => ({
     id: passiveId,
     name: PASSIVE_CATALOG[passiveId].name,
-    keywords: `${PASSIVE_CATALOG[passiveId].description} ${CARD_KINDS[passiveId]}`,
+    keywords: `${PASSIVE_CATALOG[passiveId].description} ${CARD_KINDS[passiveId]} cups power cp`,
   }));
   const passiveId = shownIds.includes(selectedId) ? selectedId : (shownIds[0] ?? selectedId);
 
@@ -353,9 +398,9 @@ function CardsCatalog() {
       entries={entries}
       selectedId={passiveId}
       onSelect={(id) => setSelectedId(id as PassiveId)}
-      searchLabel="Chercher une carte"
+      searchLabel="Chercher un Cups Power ou un passif"
       filters={
-        <div className="segmented segmented--compact" role="group" aria-label="Type de carte">
+        <div className="segmented segmented--compact" role="group" aria-label="Cups Power ou passif">
           {CARD_FILTERS.map((option) => (
             <button
               key={option.id}
@@ -374,7 +419,7 @@ function CardsCatalog() {
           <PassiveIcon passiveId={entry.id as PassiveId} size={34} />
           <span className="catalog__mini-name">{entry.name}</span>
           <span className="catalog__mini-kind">
-            {CARD_KINDS[entry.id as PassiveId] === "actif" ? "Actif" : "Passif"}
+            {CARD_KINDS[entry.id as PassiveId] === "actif" ? "Cups Power" : "Passif"}
           </span>
         </>
       )}

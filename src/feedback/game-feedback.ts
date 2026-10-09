@@ -1,4 +1,5 @@
 import { getBoard } from "../game/board";
+import { isInvisible } from "../game/mist";
 import { ITEM_ORDER } from "../game/catalog";
 import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
 import { countBagUnits, countItemUnits, countRedCups } from "../game/rules";
@@ -13,6 +14,7 @@ import {
   CUP_ROLL_THROW_MS,
   estimateBulletFlightMs,
   estimateMovementMs,
+  estimatePowerEventMs,
 } from "../theme/timing";
 import { emitFeedback, type FeedbackEvent } from "./event-bus";
 import { useUiStore } from "./ui-store";
@@ -77,6 +79,11 @@ export function startGameFeedback(): () => void {
     const nextTurnAt = impactAt + impactPauseMs;
     const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
     const celebrates = events.some((event) => event.type === "cup-collected");
+    // A Cups Power of patch 0.2.3 plays its own animation once the walk is over: the dialogs wait for it too.
+    const powerMs = events.reduce(
+      (longest, event) => (event.type === "power" ? Math.max(longest, estimatePowerEventMs(event.event)) : longest),
+      0,
+    );
     // The shop, the wheels and the other dialogs wait until the whole table has read the map's banner.
     const announcesMapEvent = events.some((event) =>
       [
@@ -111,7 +118,7 @@ export function startGameFeedback(): () => void {
     // Only real animations hold modals back: moving the deadline to "now" would unmount an open
     // modal for a frame (the shop used to blink after every purchase).
     const settlesAt = Math.max(
-      nextTurnAt + cupRollMs + (cupRoll ? ALERT_BANNER_MS : 0) + (celebrates ? CUP_CELEBRATION_MS : 0),
+      nextTurnAt + cupRollMs + powerMs + (cupRoll ? ALERT_BANNER_MS : 0) + (celebrates ? CUP_CELEBRATION_MS : 0),
       announcesMapEvent ? impactAt + ALERT_BANNER_MS : 0,
     );
     if (settlesAt > now && settlesAt > ui.boardBusyUntil) ui.setBoardBusyUntil(settlesAt);
@@ -292,6 +299,19 @@ function collectEvents(
   }
   if (state.carouselReversed !== previous.carouselReversed && previous.phase === "playing") {
     events.push({ type: "carousel-flipped", reversed: state.carouselReversed });
+  }
+  const power = state.lastPowerEvent;
+  if (power && power.seq !== previous.lastPowerEvent?.seq && previous.phase === "playing") {
+    events.push({ type: "power", event: power });
+  }
+  // Mi-vu, Mi-vue: read from what the table would see, so the Red Cup coming near shows the player again.
+  if (previous.phase === "playing") {
+    for (const player of state.players) {
+      const before = previous.players.find((candidate) => candidate.id === player.id);
+      if (!before) continue;
+      const hidden = isInvisible(state, player);
+      if (hidden !== isInvisible(previous, before)) events.push({ type: "invisibility", playerId: player.id, hidden });
+    }
   }
 
   // Compared by player, not by seat: seats shift when someone before the active player leaves.

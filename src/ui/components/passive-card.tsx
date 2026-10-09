@@ -57,6 +57,13 @@ export const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
   "game-master": "swords",
   "junk-dealer": "coins",
   trapper: "swords",
+  mime: "swords",
+  mole: "coins",
+  "black-mage": "arcana",
+  "half-seen": "arcana",
+  "ghost-sister": "arcana",
+  hermit: "wands",
+  insurer: "coins",
 };
 
 const ROMAN_NUMERALS: [number, string][] = [
@@ -108,7 +115,7 @@ export function PassiveCard({ passiveId, onPick, selected = false, children }: P
         {passive.description}
       </span>
       <span className="tarot-card__suit">
-        {CARD_KINDS[passiveId] === "actif" ? "Actif" : "Passif"} · {SUIT_LABELS[suit]}
+        {CARD_KINDS[passiveId] === "actif" ? "Cups Power" : "Passif"} · {SUIT_LABELS[suit]}
       </span>
       {children}
     </>

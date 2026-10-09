@@ -127,9 +127,9 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Comportement",
       body: [
         "• Il attend au Départ le tour de son achat, puis à chaque NOUVEAU tour de table il avance d'une case vers le joueur vivant le plus proche (chemin le plus court, flèches et sens uniques ne le gênent pas, Barrières non plus).",
-        "• En Enfer, personne n'est à sa portée; Chance aveugle n'est jamais poursuivi.",
+        "• En Enfer, personne n'est à sa portée; Chance aveugle n'est jamais poursuivi, ni un joueur que [[card:half-seen|Mi-vu, Mi-vue]] rend invisible (qu'il assomme pourtant s'il explose sur sa case).",
         "• Il explose sur la case de sa cible : −200 pièces et un tour sauté pour elle, et pour tous les autres joueurs présents sur la case (immunisés exceptés).",
-        "• Non merci (sa victime) ou Bouclier (son ange) peuvent l'annuler au début du tour : il s'écrase sans effet sur la case.",
+        "• Non merci (sa victime) ou Bouclier (son ange) peuvent l'annuler au début du tour : il s'écrase sans effet sur la case. Un [[card:black-mage|Mage noir]] qui a une marque peut aussi se téléporter avant l'impact : Bullet Bill choisit alors sa cible à nouveau.",
         "• Le tour sauté peut être annulé par un Réveil.",
       ],
     },
@@ -204,8 +204,8 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Effet",
       body: [
-        "• Chaque victime y va par un vrai voyage : Parachute possible pour chacune, l'Ange perd un tour à la place, Chance aveugle est épargné.",
-        "• Non merci ne protège QUE son détenteur : épargné, lui, les autres y vont quand même.",
+        "• Chaque victime y va par un vrai voyage : Parachute possible pour chacune, l'Ange perd un tour à la place, Chance aveugle et tout joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) sont épargnés.",
+        "• Non merci ne protège QUE son détenteur : épargné, lui, les autres y vont quand même. Un [[card:black-mage|Mage noir]] peut de même se téléporter sur sa marque (1 chance) et rester seul épargné.",
         "• À l'arrivée de tout ce beau monde, la table se règle : duels en Enfer s'il y a de la place, point du diable, récompense de l'Habitué, Toucher d'Enfer…",
       ],
     },

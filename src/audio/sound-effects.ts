@@ -572,6 +572,328 @@ export const soundEffects = {
     });
   },
 
+  /** Taupe: a pawn digs into the ground: a low thump, a gritty scrape of soil, a tone that sinks away. */
+  dig(): void {
+    audioEngine.tone({ type: "sine", frequency: 160, frequencyEnd: 52, duration: 0.24, gain: 0.24 });
+    audioEngine.noise({
+      duration: 0.5,
+      gain: 0.16,
+      filterType: "bandpass",
+      filterFrequency: 1_100,
+      filterFrequencyEnd: 260,
+      q: 1.1,
+    });
+    audioEngine.noise({
+      start: at(0.14),
+      duration: 0.4,
+      gain: 0.1,
+      filterType: "lowpass",
+      filterFrequency: 700,
+      filterFrequencyEnd: 180,
+    });
+    audioEngine.tone({
+      type: "triangle",
+      frequency: 440,
+      frequencyEnd: 120,
+      duration: 0.65,
+      gain: 0.07,
+      filterFrequency: 1_000,
+    });
+  },
+
+  /** Taupe: out of the ground like a cork: a pop with a rising chirp, soil raining down, a soft landing. */
+  popOut(delay = 0): void {
+    audioEngine.noise({
+      start: at(delay),
+      duration: 0.12,
+      gain: 0.2,
+      filterType: "lowpass",
+      filterFrequency: 1_800,
+      filterFrequencyEnd: 400,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 200,
+      frequencyEnd: 520,
+      start: at(delay),
+      duration: 0.16,
+      gain: 0.18,
+    });
+    audioEngine.noise({
+      start: at(delay + 0.12),
+      duration: 0.35,
+      gain: 0.08,
+      filterType: "highpass",
+      filterFrequency: 2_400,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 130,
+      frequencyEnd: 70,
+      start: at(delay + 0.4),
+      duration: 0.16,
+      gain: 0.14,
+    });
+  },
+
+  /** Taupe: a closed tunnel caves in: a soft rumble, a few clods falling. */
+  tunnelCollapse(): void {
+    audioEngine.noise({
+      duration: 1,
+      gain: 0.16,
+      filterType: "lowpass",
+      filterFrequency: 500,
+      filterFrequencyEnd: 90,
+    });
+    audioEngine.tone({ type: "sine", frequency: 95, frequencyEnd: 42, duration: 0.9, gain: 0.16 });
+    [0.1, 0.27, 0.4, 0.62].forEach((offset) => {
+      audioEngine.noise({
+        start: at(offset),
+        duration: 0.08,
+        gain: 0.06,
+        filterType: "bandpass",
+        filterFrequency: 700 + offset * 800,
+        q: 1.5,
+      });
+    });
+  },
+
+  /** Mage noir: the pentagram draws itself: an eerie shimmer that climbs, over a low drone. */
+  pentagramDraw(): void {
+    for (const detune of [0, 28]) {
+      audioEngine.tone({
+        type: "sine",
+        frequency: 330,
+        frequencyEnd: 990,
+        duration: 1.1,
+        attack: 0.5,
+        release: 0.45,
+        gain: 0.05,
+        detune,
+      });
+    }
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 55,
+      frequencyEnd: 62,
+      duration: 1.3,
+      attack: 0.3,
+      release: 0.5,
+      gain: 0.09,
+      filterFrequency: 240,
+    });
+    // Minor notes, one for every stroke of the star.
+    [NOTE.A4, NOTE.C5, NOTE.E5, NOTE.A5, NOTE.C6].forEach((frequency, index) => {
+      audioEngine.tone({
+        type: "sine",
+        frequency,
+        start: at(0.2 + index * 0.11),
+        duration: 0.5,
+        gain: 0.04,
+        release: 0.4,
+      });
+    });
+    audioEngine.noise({
+      start: at(0.3),
+      duration: 0.8,
+      gain: 0.03,
+      filterFrequency: 4_200,
+      filterFrequencyEnd: 6_500,
+      q: 4,
+    });
+  },
+
+  /** Mage noir: sucked into the vortex (a whoosh that swells instead of dying away), a sub boom as they land. */
+  mageTeleport(): void {
+    // Inverse whoosh: bursts of rising pitch and rising loudness, then the cut.
+    for (let index = 0; index < 6; index += 1) {
+      audioEngine.noise({
+        start: at(index * 0.1),
+        duration: 0.16,
+        gain: 0.03 + index * 0.016,
+        filterFrequency: 250 + index * 520,
+        q: 2.2,
+      });
+    }
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 90,
+      frequencyEnd: 700,
+      duration: 0.7,
+      attack: 0.55,
+      release: 0.05,
+      gain: 0.06,
+      filterFrequency: 1_400,
+    });
+    audioEngine.tone({ type: "sine", frequency: 110, frequencyEnd: 32, start: at(0.95), duration: 0.8, gain: 0.34 });
+    audioEngine.noise({ start: at(0.95), duration: 0.35, gain: 0.14, filterFrequency: 3_000, filterFrequencyEnd: 400 });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 1_400,
+      frequencyEnd: 700,
+      start: at(0.97),
+      duration: 0.5,
+      gain: 0.04,
+      detune: 30,
+    });
+  },
+
+  /** Mage noir: hellfire shoots up out of the pentagram: a roar, a crackle, a low growl. */
+  hellfire(delay = 0): void {
+    audioEngine.noise({
+      start: at(delay),
+      duration: 0.95,
+      gain: 0.26,
+      filterType: "lowpass",
+      filterFrequency: 1_100,
+      filterFrequencyEnd: 280,
+    });
+    audioEngine.noise({
+      start: at(delay),
+      duration: 0.7,
+      gain: 0.1,
+      filterType: "bandpass",
+      filterFrequency: 1_900,
+      filterFrequencyEnd: 800,
+      q: 0.8,
+    });
+    audioEngine.tone({
+      type: "sawtooth",
+      frequency: 72,
+      frequencyEnd: 110,
+      start: at(delay),
+      duration: 0.9,
+      gain: 0.1,
+      filterFrequency: 380,
+    });
+    [0.1, 0.19, 0.3, 0.38, 0.52, 0.66].forEach((offset) => {
+      audioEngine.noise({
+        start: at(delay + offset),
+        duration: 0.04,
+        gain: 0.08,
+        filterType: "highpass",
+        filterFrequency: 3_200,
+      });
+    });
+  },
+
+  /** Mage noir: the last chance is gone: a minor sting that falls away, ash whispering down. */
+  mageFallen(): void {
+    [NOTE.A4, 349.23, 293.66, 220].forEach((frequency, index) => {
+      for (const detune of [0, 18]) {
+        audioEngine.tone({
+          type: "sawtooth",
+          frequency,
+          frequencyEnd: frequency * 0.94,
+          start: at(index * 0.26),
+          duration: 0.4,
+          gain: 0.045,
+          release: 0.16,
+          filterFrequency: 1_300,
+          detune,
+        });
+      }
+    });
+    audioEngine.tone({ type: "sine", frequency: 70, frequencyEnd: 28, start: at(0.75), duration: 1.1, gain: 0.3 });
+    audioEngine.noise({
+      start: at(0.2),
+      duration: 1.5,
+      gain: 0.06,
+      filterType: "highpass",
+      filterFrequency: 2_800,
+      filterFrequencyEnd: 1_200,
+    });
+  },
+
+  /** Sœur Fantôme: two ghostly chimes, a little out of tune, and an airy whoosh as the two figures trade places. */
+  sisterSwap(): void {
+    [NOTE.E6, NOTE.B5].forEach((frequency, index) => {
+      for (const detune of [0, 22]) {
+        audioEngine.tone({
+          type: "sine",
+          frequency,
+          start: at(index * 0.2),
+          duration: 0.8,
+          attack: 0.03,
+          release: 0.7,
+          gain: 0.05,
+          detune,
+        });
+      }
+    });
+    audioEngine.noise({
+      start: at(0.1),
+      duration: 0.8,
+      gain: 0.07,
+      filterFrequency: 1_200,
+      filterFrequencyEnd: 3_600,
+      q: 1.6,
+    });
+    audioEngine.noise({
+      start: at(0.75),
+      duration: 0.6,
+      gain: 0.05,
+      filterFrequency: 3_400,
+      filterFrequencyEnd: 900,
+      q: 1.6,
+    });
+    audioEngine.tone({
+      type: "sine",
+      frequency: 660,
+      frequencyEnd: 990,
+      start: at(0.8),
+      duration: 0.5,
+      attack: 0.1,
+      gain: 0.04,
+    });
+  },
+
+  /** Mime: a cartoon "boing" of springs, then a sparkle as the copy lights up. */
+  mimeCopy(): void {
+    audioEngine.tone({
+      type: "square",
+      frequency: 200,
+      frequencyEnd: 560,
+      duration: 0.11,
+      gain: 0.07,
+      filterFrequency: 2_400,
+    });
+    audioEngine.tone({
+      type: "square",
+      frequency: 560,
+      frequencyEnd: 170,
+      start: at(0.11),
+      duration: 0.22,
+      gain: 0.07,
+      filterFrequency: 2_000,
+    });
+    audioEngine.noise({ start: at(0.36), duration: 0.06, gain: 0.06, filterFrequency: 1_800, q: 1.4 });
+    [NOTE.E6, NOTE.G6, 1_975.5, 2_637].forEach((frequency, index) => {
+      audioEngine.tone({
+        type: "sine",
+        frequency,
+        start: at(0.4 + index * 0.06),
+        duration: 0.22,
+        gain: 0.05,
+        release: 0.18,
+      });
+    });
+  },
+
+  /** Mi-vu, Mi-vue: a pawn leaves the sight of the table: a soft, descending whoosh. */
+  invisibilityOn(): void {
+    audioEngine.noise({ duration: 0.5, gain: 0.08, filterFrequency: 3_200, filterFrequencyEnd: 500, q: 1.8 });
+    audioEngine.tone({ type: "sine", frequency: 900, frequencyEnd: 280, duration: 0.45, gain: 0.06 });
+    audioEngine.tone({ type: "triangle", frequency: 1_350, frequencyEnd: 420, duration: 0.4, gain: 0.025, detune: 20 });
+  },
+
+  /** Mi-vu, Mi-vue: a pawn shows again: a soft, rising pop. */
+  invisibilityOff(): void {
+    audioEngine.tone({ type: "sine", frequency: 300, frequencyEnd: 900, duration: 0.14, gain: 0.12 });
+    audioEngine.noise({ start: at(0.1), duration: 0.12, gain: 0.07, filterType: "highpass", filterFrequency: 3_000 });
+    audioEngine.tone({ type: "sine", frequency: NOTE.E6, start: at(0.12), duration: 0.25, gain: 0.05, release: 0.2 });
+  },
+
   /** Basket: the soft whoosh of a throw. */
   basketShoot(): void {
     audioEngine.noise({ duration: 0.2, gain: 0.06, filterFrequency: 700, filterFrequencyEnd: 2_400, q: 1.2 });

@@ -1,4 +1,5 @@
 import { useGameStore } from "../../game/store";
+import { useFog } from "../fog";
 import { useRoomStore } from "../../net/room-store";
 import { boardCamera } from "../../scene/board-stage";
 import { AudioToggles } from "../components/audio-controls";
@@ -65,7 +66,9 @@ function OnlineChip() {
 /** Keeps Bullet Bill on everybody's mind for as long as it is on the board. */
 function BulletChip() {
   const bullet = useGameStore((state) => state.bulletBill);
-  if (!bullet) return null;
+  const fog = useFog();
+  // Mi-vu, Mi-vue: an invisible player no longer sees Bullet Bill.
+  if (!bullet || fog.viewerHidden) return null;
 
   const waiting = bullet.status === "waiting";
   const label = waiting

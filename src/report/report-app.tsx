@@ -29,7 +29,7 @@ export function ReportApp() {
           <GameLogo compact />
           <h1>Signaler un bug ou une idée</h1>
           <p className="report__intro">
-            Un objet qui fait n’importe quoi, une carte mal équilibrée, une idée qui rendrait la partie meilleure ?
+            Un objet qui fait n’importe quoi, un Cups Power mal équilibré, une idée qui rendrait la partie meilleure ?
             Écrivez-le ici : chaque signalement est lu, trié, puis corrigé.
           </p>
           <a className="report__back btn btn--cream btn--small" href="./">

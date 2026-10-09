@@ -17,7 +17,7 @@ export interface ElementGroup {
 
 const GROUP_ORDER: [kind: string, label: string][] = [
   ["item", "Objets"],
-  ["card", "Cartes"],
+  ["card", "Cups Power & passifs"],
   ["map", "Plateaux"],
   ["wheel", "Roues"],
   ["system", "Systèmes"],

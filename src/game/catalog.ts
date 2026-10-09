@@ -328,7 +328,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "New Cup",
     description:
       "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es. " +
-      "La carte ne sort pas de l’Enfer.",
+      "Ce passif ne te sort pas de l’Enfer.",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
@@ -519,6 +519,63 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Piégeur",
     description: "Ta Boue coûte 100 pièces au lieu de 200, mais tu n’en peux poser qu’une à la fois.",
   },
+  mime: {
+    id: "mime",
+    name: "Mime",
+    shortName: "Mime",
+    description:
+      "Une fois tous les 3 tours, tu copies entièrement le Cups Power d’un autre joueur pour la durée de ton tour, " +
+      "avec ses atouts et ses défauts. Copier ne coûte aucune énergie.",
+  },
+  mole: {
+    id: "mole",
+    name: "Taupe",
+    shortName: "Taupe",
+    description:
+      "Une fois tous les 3 tours, tu creuses (3 énergie) un tunnel vers une case déjà visitée et tu t’y déplaces. " +
+      "Les autres le traversent pour 3 énergie, toi pour 2 ; une fois traversé, il se referme.",
+  },
+  "black-mage": {
+    id: "black-mage",
+    name: "Mage noir",
+    shortName: "Mage noir",
+    description:
+      "Pose un pentagramme sur ta case et téléporte-toi dessus quand tu veux (ton tour, un objet qui te vise, une roue " +
+      "qui te déplace), au prix d’une de tes 3 chances : à zéro, tu es éliminé. Tu en regagnes une tous les 15 tours.",
+  },
+  "half-seen": {
+    id: "half-seen",
+    name: "Mi-vu, Mi-vue",
+    shortName: "Mi-vu",
+    description:
+      "Tu es invisible deux tours sur trois : plus personne ne te voit, tu ne vois plus personne, ni cibler ni être " +
+      "ciblé, et Bullet Bill ne te traque plus. À une case de la Red Cup, tu redeviens visible.",
+  },
+  "ghost-sister": {
+    id: "ghost-sister",
+    name: "Sœur Fantôme",
+    shortName: "Sœur",
+    description:
+      "Une petite fille fantôme fait en miroir chacun de tes pas : si la route inverse existe, elle la prend, sinon " +
+      "elle reste. Swap (3 énergie) : tu changes de place avec elle, et elle emporte avec elle pièges, Red Cup et " +
+      "Bullet Bill de sa case.",
+  },
+  hermit: {
+    id: "hermit",
+    name: "L’Ermite",
+    shortName: "Ermite",
+    description:
+      "Tant qu’aucun joueur n’est à 2 cases ou moins de toi : 1 point d’énergie de plus et 100 pièces de plus au " +
+      "Départ. Si quelqu’un arrive sur ta case, tu perds cette prime jusqu’à la fin de ton prochain tour.",
+  },
+  insurer: {
+    id: "insurer",
+    name: "L’Assureur",
+    shortName: "Assureur",
+    description:
+      "Toute perte de pièces subie par un autre joueur te rapporte 20 %, payés par la banque (150 pièces par tour de " +
+      "table au plus). Chaque joueur qui descend en Enfer te rapporte 50 pièces.",
+  },
 };
 
 export const PASSIVE_ORDER: PassiveId[] = [
@@ -551,6 +608,13 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "game-master",
   "junk-dealer",
   "trapper",
+  "mime",
+  "mole",
+  "black-mage",
+  "half-seen",
+  "ghost-sister",
+  "hermit",
+  "insurer",
 ];
 
 export interface WeightedWheelResult {

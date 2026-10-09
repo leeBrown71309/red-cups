@@ -9,6 +9,11 @@ import { getCalmDownTiles } from "../game-effects";
 import { getHandValue } from "../blackjack";
 import { canLeaveHell } from "../devil";
 import { canRescueProtege } from "../guardian";
+import { getLuck } from "../mage-luck";
+import { canPlaceMark, canTeleportFromWheel, canTeleportInTurn, findMark } from "../mage-queries";
+import { getMimeTargets } from "../mime";
+import { getCrossings, getDigTargets } from "../mole";
+import { canSwap, getSisterNode } from "../sister";
 import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOptions, isOnSale } from "../rules";
 import { findPlayer, getActivePlayer } from "../state-utils";
@@ -91,6 +96,61 @@ function listUsableItems(store: GameStore): ItemOption[] {
   });
 }
 
+/** A mage with a single chance left only spends it now and then: the table must still see a few fall. */
+const LAST_CHANCE_SPENT = 0.12;
+
+/** Whether the bot's mage spends a chance: freely above one, rarely on the last. */
+function mageMaySpendLuck(store: GameStore, playerId: PlayerId, random: Random): boolean {
+  const mage = findPlayer(store, playerId);
+  return mage !== undefined && (getLuck(mage) > 1 || random() < LAST_CHANCE_SPENT);
+}
+
+/**
+ * The Cups Power of patch 0.2.3, before the items: a copy, a tunnel dug or crossed, a pentagram, a teleport, a swap.
+ * Each one is only asked about when the engine says it is possible, so a table without them plays as before.
+ */
+function choosePower(store: GameStore, random: Random): BotAction | null {
+  const player = getActivePlayer(store);
+  if (!player) return null;
+
+  const mimicable = getMimeTargets(store, player);
+  const copied = pick(mimicable, random);
+  if (copied && random() < 0.6) {
+    return { label: "power:mime-copy", perform: (current) => current.mimeCopy(copied.id) };
+  }
+
+  const digTargets = getDigTargets(store, player);
+  if (digTargets.length > 0 && random() < 0.3) {
+    const towardCup = random() < 0.5;
+    const destination = towardCup
+      ? [...digTargets].sort((left, right) => distanceToCup(store, left) - distanceToCup(store, right))[0]
+      : pick(digTargets, random)!;
+    return { label: "power:dig-tunnel", perform: (current) => current.digTunnel(destination) };
+  }
+  const crossing = pick(getCrossings(store, player), random);
+  if (crossing && random() < 0.4) {
+    return { label: "power:cross-tunnel", perform: (current) => current.crossTunnel(crossing.tunnel.id) };
+  }
+
+  if (canPlaceMark(store, player) && random() < 0.4) {
+    return { label: "power:place-mark", perform: (current) => current.placeMark() };
+  }
+  // A mage teleports when it brings them closer to the Red Cup, or out of Hell; the rest of the time, rarely.
+  const mark = findMark(store, player.id);
+  const markIsCloser = mark !== undefined && distanceToCup(store, mark.nodeId) < distanceToCup(store, player.position);
+  const teleportChance = player.position === HELL_NODE_ID || markIsCloser ? 0.5 : 0.04;
+  if (canTeleportInTurn(store, player) && random() < teleportChance && mageMaySpendLuck(store, player.id, random)) {
+    return { label: "power:teleport-mark", perform: (current) => current.teleportToMark() };
+  }
+
+  // A swap costs the whole move: worth it when the sister stands nearer the Red Cup than the player.
+  const sisterIsCloser = distanceToCup(store, getSisterNode(player)) < distanceToCup(store, player.position);
+  if (canSwap(store, player) && random() < (sisterIsCloser ? 0.8 : 0.05)) {
+    return { label: "power:swap-sister", perform: (current) => current.swapWithSister() };
+  }
+  return null;
+}
+
 /** Now and then a turn ends after an item, without moving. */
 const EARLY_END_CHANCE = 0.05;
 
@@ -112,6 +172,9 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (canRescueProtege(store) && random() < 0.5) {
     return { label: "rescue-protege", perform: (current) => current.rescueProtege() };
   }
+
+  const power = choosePower(store, random);
+  if (power) return power;
 
   const items = listUsableItems(store);
   if (items.length > 0 && random() < 0.35) return useItemAction(store, pick(items, random)!);
@@ -249,6 +312,8 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       if (canLeaveHell(store) && random() < 0.5) {
         return { label: "leave-hell", perform: (current) => current.leaveHell() };
       }
+      const power = choosePower(store, random);
+      if (power) return power;
       const items = listUsableItems(store);
       if (items.length > 0 && random() < 0.3) return useItemAction(store, pick(items, random)!);
       if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
@@ -279,6 +344,14 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       if (hasEraser && random() < 0.3) return { label: "cancel-wheel", perform: (current) => current.cancelWheel() };
       if (target && canUseNoThanks(target, store.round) && random() < 0.3) {
         return { label: "no-thanks:wheel", perform: (current) => current.cancelWheel(true) };
+      }
+      if (
+        target &&
+        canTeleportFromWheel(store, target) &&
+        random() < 0.5 &&
+        mageMaySpendLuck(store, target.id, random)
+      ) {
+        return { label: "power:teleport-wheel", perform: (current) => current.cancelWheel(false, true) };
       }
       return { label: `wheel:${store.pendingWheel?.result.id}`, perform: (current) => current.resolveWheel() };
     }
@@ -350,15 +423,28 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       const pending = store.pendingReaction;
       if (!pending) return null;
       const kind = pending.action.type === "bullet-bill" ? "bullet" : "item";
-      const reactorId = random() < 0.4 ? pick(pending.reactorIds, random) : undefined;
-      if (reactorId) {
-        return { label: `reaction:cancel-${kind}`, perform: (current) => current.resolveReaction(reactorId) };
-      }
       const { action, actorId } = pending;
       const item =
         action.type === "item" && actorId
           ? { itemId: action.itemId, userId: actorId, targetPlayerId: action.targetPlayerId }
           : undefined;
+      // A Mage noir who may slip away does so now and then, with a mark and a chance to spare.
+      const slipper = pending.reactorIds.find((id) => {
+        const reactor = findPlayer(store, id);
+        return reactor !== undefined && findMark(store, id) !== undefined && getLuck(reactor) > 0;
+      });
+      if (slipper && random() < 0.5 && mageMaySpendLuck(store, slipper, random)) {
+        return { label: `power:teleport-${kind}`, perform: (current) => current.resolveReaction(slipper, true) };
+      }
+      const reactorId = random() < 0.4 ? pick(pending.reactorIds, random) : undefined;
+      if (reactorId) {
+        const reactor = findPlayer(store, reactorId);
+        // Whoever holds Non merci answers with it; a mage with nothing else to answer with lets it happen.
+        if (reactor && !canUseNoThanks(reactor, store.round) && !hasCard(reactor, "guardian-angel")) {
+          return { label: `reaction:allow-${kind}`, perform: (current) => current.resolveReaction(null), item };
+        }
+        return { label: `reaction:cancel-${kind}`, perform: (current) => current.resolveReaction(reactorId) };
+      }
       return { label: `reaction:allow-${kind}`, perform: (current) => current.resolveReaction(null), item };
     }
 

@@ -55,7 +55,7 @@ export const HUB_SECTIONS: Record<string, ContentSection[]> = {
         "• Deux joueurs en Enfer quand le plateau se repose : duel (le tour passe au vainqueur). Jamais trois à la fois : un seul duel, les autres attendent.",
         "• « Choisis un joueur à affronter » sur la roue de l'Enfer : la victime choisie est ENVOYÉE en Enfer avec vous, puis duel.",
         "• À [[map:luna-park|Luna Park]], croiser le fantôme est un duel à enjeux différents (voir la fiche du plateau).",
-        "• Ne peuvent être tirés comme victime : ni l'[[card:guardian-angel|Ange]] (il n'y va jamais), ni [[card:blind-luck|Chance aveugle]] (rien ne l'atteint). Sans cible, le défi tombe.",
+        "• Ne peuvent être tirés comme victime : ni l'[[card:guardian-angel|Ange]] (il n'y va jamais), ni [[card:blind-luck|Chance aveugle]] (rien ne l'atteint), ni un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]). Sans cible, le défi tombe.",
         "• Un [[item:parachute|Parachute]] sur la victime du défi annule sa venue en Enfer → pas de duel.",
       ],
     },

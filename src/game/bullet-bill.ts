@@ -1,4 +1,6 @@
 import { getOpenBoard, getShortestPath } from "./board";
+import { canTeleport, findMark } from "./mage-queries";
+import { isInvisible } from "./mist";
 import { isImmuneToItems } from "./passive-rules";
 import { canUseNoThanks } from "./rules";
 import { addLog, applyCurrencyChange, updatePlayer, loseTurns } from "./state-utils";
@@ -25,12 +27,13 @@ interface ChaseTarget {
 
 /**
  * Arrows do not bind a projectile; players in Hell are out of its reach, and
- * Chance aveugle is never chased. Ties go to the first seat.
+ * Chance aveugle is never chased, nor whoever Mi-vu, Mi-vue hides (the blast still reaches them if it goes off on
+ * their tile). Ties go to the first seat.
  */
 function findNearestTarget(state: GameState, from: NodeId): ChaseTarget | undefined {
   const board = getOpenBoard(state);
   return state.players
-    .filter((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player))
+    .filter((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !isInvisible(state, player))
     .map((player) => ({ player, path: getShortestPath(board, from, player.position, true) }))
     .filter((entry): entry is ChaseTarget => entry.path !== null)
     .sort((left, right) => left.path.length - right.path.length)[0];
@@ -74,7 +77,12 @@ export function findBulletReactors(
   const charge = planCharge(state, bullet.position);
   if (!charge?.hit) return null;
   const victim = charge.target.player;
-  const reactorIds = canUseNoThanks(victim, round) ? [victim.id] : [];
+  // The victim answers with Non merci, or, for a Mage noir with a mark, by teleporting out of the way.
+  const reactorIds =
+    canUseNoThanks(victim, round) ||
+    (canTeleport(state, victim) && findMark(state, victim.id)?.nodeId !== victim.position)
+      ? [victim.id]
+      : [];
   const angel = state.players.find((player) => player.id === state.guardian?.angelId);
   const shielded =
     angel !== undefined &&
