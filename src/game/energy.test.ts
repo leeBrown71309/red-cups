@@ -99,6 +99,15 @@ describe("ending a turn before moving", () => {
     expect(act(tired, { type: "endTurn" }).activePlayerIndex).toBe(1);
   });
 
+  it("in Hell, the wheel is not a choice: with the energy for it, the turn cannot end before it", () => {
+    const base = editPlayer(startTable(), 0, { position: HELL_NODE_ID, hellTurns: 1 });
+    const inHell: GameState = { ...base, turnStage: "hell", turnActionTaken: true };
+    expect(canEndTurn(inHell)).toBe(false);
+    expect(act(inHell, { type: "endTurn" })).toBe(inHell);
+    // Too tired for the wheel, the turn may end.
+    expect(canEndTurn({ ...inHell, energyLeft: 0 })).toBe(true);
+  });
+
   it("is still refused after a free item: a Tomate is no action of the turn (author's answer)", () => {
     const tomatoes: InventoryEntry = { id: "tomatoes", kind: "item", itemId: "tomato", count: 1 };
     const thrown = act(editPlayer(startTable(), 0, { inventory: [tomatoes] }), {

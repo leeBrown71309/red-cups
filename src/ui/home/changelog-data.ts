@@ -13,6 +13,26 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.2.3",
+    date: "2026-10-09",
+    title: "Cups Power : cinq pouvoirs inédits, deux nouveaux passifs",
+    highlights: [
+      "Les actifs s’appellent désormais des Cups Power, CP pour les intimes : le mot « actif » disparaît de l’écran, de l’aide et du wiki. Les passifs gardent leur nom.",
+      "Mime : une fois tous les 3 tours, il copie le Cups Power ou le passif (à son choix) d’un autre joueur pour la durée de son tour, avec tous ses avantages et tous ses défauts, sans dépenser d’énergie. Seul le Mime sait quel Cups Power il a emprunté ; un passif copié se lit dans le journal. Les rôles (le diable, L’Ange-Gardien), les pouvoirs à mémoire propre et les passifs Non merci, L’Ermite, L’Assureur et L’Habitué de l’Enfer ne se copient pas.",
+      "Taupe : elle creuse (3 énergie, une fois tous les 3 tours) un tunnel vers une case déjà visitée et s’y rend. Le tunnel reste ouvert pour une traversée : les autres joueurs l’empruntent pour 3 énergie, la Taupe pour 2. Pas de tunnel depuis ou vers une case avec la Red Cup, un piège ou un autre tunnel. La plongée dans la terre et la sortie en gerbe de poussière sont animées.",
+      "Mage noir : il trace un pentagramme sur sa case (un seul à la fois, jamais sur de la Boue) et s’y téléporte quand il veut : pendant son tour, quand un objet le vise ou à la place d’un déplacement de roue. Chaque téléportation coûte un de ses 3 pentagrammes, qui reviennent un à un tous les 15 tours : à zéro, il ne peut plus se téléporter (mais il continue de jouer) jusqu’à en retrouver un. Un joueur resté sur la marque tombe en Enfer une fois sur cinq, et la marque reste alors sur le plateau.",
+      "Mi-vu, Mi-vue : invisible deux tours sur trois. Plus personne ne le voit, il ne voit plus personne : ni pions, ni actions, ni sacs, ni pièces, ni pièges, ni Red Cup, ni Bullet Bill. Il ne cible personne, personne ne le cible, Draven l’épargne et Bullet Bill ne le traque plus. À une case de la Red Cup, il se découvre. Son pion devient translucide pour lui, et seul son propre tour se joue dans le brouillard : il suit celui des autres normalement.",
+      "Sœur Fantôme : une petite fille fantôme fait en miroir chacun de tes pas (gauche contre droite, haut contre bas, diagonales comprises) quand une route le permet, sinon elle reste sur place. Elle n’est pas ciblable et n’active rien. Swap (3 énergie, une fois tous les 4 tours) : vous échangez vos places, et elle emporte avec elle les pièges, la Red Cup et Bullet Bill de sa case.",
+      "L’Ermite (passif) : tant qu’aucun joueur n’est à 2 cases ou moins, 1 point d’énergie de plus et 100 pièces de plus au Départ. Si quelqu’un arrive sur sa case, il perd cette prime jusqu’à la fin de son prochain tour.",
+      "L’Assureur (passif) : toute perte de pièces subie par un autre lui rapporte 20 %, payés par la banque (150 pièces par tour de table au plus), et chaque joueur qui descend en Enfer lui rapporte 50 pièces.",
+      "Chaque nouveau pouvoir a ses animations : pentagramme qui se dessine, vortex de téléportation, tunnel qui s’ouvre puis s’effondre, sœur qui danse en miroir, masque du Mime, pions qui s’estompent dans l’ombre.",
+      "Les cartes d’un joueur se lisent autrement : le Cups Power et le passif sont deux icônes (dans la fiche du joueur et dans le dock) ; un clic ouvre leurs règles complètes sur un voile sombre à droite de l’écran, avec une flèche pour passer de l’un à l’autre.",
+      "Le dock est mieux rangé : les actions principales d’un côté, les boutons de pouvoir (pentagramme, tunnel, Swap, copie…) alignés et de même taille dessous. L’énergie s’affiche en éclairs, et les pentagrammes du Mage noir (sa réserve de téléportations, trois au départ) en mini pentagrammes sous l’énergie.",
+      "Chaque carte a son propre design : fini les familles de couleur. Chaque Cups Power et chaque passif a sa texture, ses couleurs, son médaillon, ses glyphes et son cadre, et un dos unique bâti sur le même dessin (le diable en flammes, le Mime en losanges d’arlequin, le Mage noir en pentagrammes, la Taupe en couches de terre…) : on reconnaît une carte avant d’en lire le nom.",
+      "Les bots ont appris à jouer tous ces pouvoirs, et ils ont été lâchés sur les trois cartes, en local comme en ligne, avec toutes les combinaisons d’objets, de roues et de passifs.",
+    ],
+  },
+  {
     version: "0.2.2",
     date: "2026-10-08",
     title: "La préparation passe en plein écran",

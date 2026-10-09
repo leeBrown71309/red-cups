@@ -45,12 +45,34 @@ const SPECIAL_ACTIONS = [
   "reaction:cancel-item",
   "draft:pick",
   "expire-clock",
+  // The Cups Power of patch 0.2.3.
+  "power:mime-copy",
+  "power:dig-tunnel",
+  "power:cross-tunnel",
+  "power:place-mark",
+  "power:teleport-mark",
+  "power:teleport-item",
+  "power:teleport-wheel",
+  "power:swap-sister",
 ];
 
 /** Each map's mechanics, read from the map itself so a new map gets its checks for free. */
 function getMapEvents(mapId: MapId): string[] {
   const map = getBoardMap(mapId);
-  const events = ["start-bonus", "bullet-bill"];
+  // Every map plays the Cups Power of patch 0.2.3 on its own tiles.
+  const events = [
+    "start-bonus",
+    "bullet-bill",
+    "power:tunnel-dig",
+    "power:tunnel-cross",
+    "power:mark-teleport",
+    "power:sister-swap",
+    "power:mime-copy",
+    "sister-mirror",
+    "invisible",
+    "hermit-prime",
+    "insurer-paid",
+  ];
   if (map.edges.some((edge) => edge.kind === "tunnel")) events.push("tunnel");
   if (map.edges.some((edge) => edge.kind === "carousel")) events.push("carousel-flip");
   if (map.haunted) events.push("ghost:appear", "ghost:move", "ghost:teleport", "ghost:duel", "ghost:fling");

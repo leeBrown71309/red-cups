@@ -9,6 +9,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { useFullscreenToggle } from "../fullscreen";
 import { usePauseControls } from "../hud/pause-controls";
 import { UiIcon } from "../icons/ui-icon";
+import { useVisibleLog } from "../fog";
 import { useLogReader } from "../log-text";
 import { PlayerPickList } from "./decision-modals";
 
@@ -148,7 +149,7 @@ export function AbandonModal({ onClose }: { onClose: () => void }) {
 }
 
 export function JournalModal({ onClose }: { onClose: () => void }) {
-  const log = useGameStore((state) => state.log);
+  const log = useVisibleLog();
   const readEntry = useLogReader();
 
   return (

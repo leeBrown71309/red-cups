@@ -16,7 +16,12 @@ function startTable(): GameState {
   return {
     ...state,
     seededRandom: null,
-    players: state.players.map((player) => ({ ...player, passiveId: "goblin", currency: STARTING_CURRENCY })),
+    players: state.players.map((player) => ({
+      ...player,
+      passiveId: "goblin",
+      passifId: null,
+      currency: STARTING_CURRENCY,
+    })),
   };
 }
 

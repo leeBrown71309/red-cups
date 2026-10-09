@@ -6,10 +6,28 @@ import {
   PASSIVE_ORDER,
   WHEEL_RESULTS,
 } from "../game/catalog";
-import { CARD_KINDS } from "../game/cards";
+import { CARD_KINDS, type CardKind } from "../game/cards";
 import { MAP_ORDER, getBoardMap } from "../game/maps/map-registry";
-import { RULES_VERSION, STARTING_CURRENCY } from "../game/types";
+import {
+  HERMIT_DISTANCE,
+  HERMIT_ENERGY_BONUS,
+  HERMIT_START_BONUS,
+  INSURER_HELL_REWARD,
+  INSURER_RATE,
+  INSURER_ROUND_CAP,
+  MAGE_LUCK_RETURN_ROUNDS,
+  MAGE_MAX_LUCK,
+  MIME_COOLDOWN_ROUNDS,
+  MIST_CYCLE_TURNS,
+  MOLE_COOLDOWN_ROUNDS,
+  MOLE_DIG_ENERGY,
+  RULES_VERSION,
+  SISTER_SWAP_COOLDOWN_ROUNDS,
+  SISTER_SWAP_ENERGY,
+  STARTING_CURRENCY,
+} from "../game/types";
 import type { ItemId, MapId, PassiveId, WheelId } from "../game/types";
+import { percent } from "./format";
 import { ITEM_SECTIONS } from "./content/items";
 import { CARD_SECTIONS } from "./content/cards";
 import { MAP_SECTIONS } from "./content/maps";
@@ -60,13 +78,53 @@ function itemFacts(itemId: ItemId): Fact[] {
   return facts;
 }
 
+/**
+ * What the players read for each kind of card. The code keeps `actif` (saves and online rooms depend on the id), the
+ * screens say « Cups Power » since patch 0.2.3. The list filter reads these labels too, in lower case.
+ */
+export const CARD_KIND_LABELS: Record<CardKind, string> = { actif: "Cups Power", passif: "Passif" };
+
+/** The numbers that tell the Cups Power and passifs of patch 0.2.3 apart at a glance, read from the engine's constants. */
+const PATCH_FACTS: Partial<Record<PassiveId, Fact[]>> = {
+  mime: [
+    { label: `Une copie tous les ${MIME_COOLDOWN_ROUNDS} tours`, tone: "grape" },
+    { label: "Sans énergie", tone: "sky" },
+  ],
+  mole: [
+    { label: `Creuser : ${MOLE_DIG_ENERGY} points d'énergie`, tone: "sky" },
+    { label: `Tous les ${MOLE_COOLDOWN_ROUNDS} tours`, tone: "grape" },
+  ],
+  "black-mage": [
+    { label: `${MAGE_MAX_LUCK} chances`, tone: "mint" },
+    { label: `Une chance rendue tous les ${MAGE_LUCK_RETURN_ROUNDS} tours`, tone: "grape" },
+  ],
+  "half-seen": [{ label: `Invisible ${MIST_CYCLE_TURNS - 1} tours sur ${MIST_CYCLE_TURNS}`, tone: "grape" }],
+  "ghost-sister": [
+    {
+      label: `Swap : ${SISTER_SWAP_ENERGY} points d'énergie, tous les ${SISTER_SWAP_COOLDOWN_ROUNDS} tours`,
+      tone: "sky",
+    },
+  ],
+  hermit: [
+    { label: `Seul à plus de ${HERMIT_DISTANCE} cases`, tone: "grape" },
+    { label: `+${HERMIT_ENERGY_BONUS} énergie`, tone: "sky" },
+    { label: `+${HERMIT_START_BONUS} pièces au Départ`, tone: "gold" },
+  ],
+  insurer: [
+    { label: `${percent(INSURER_RATE)} des pertes des autres`, tone: "gold" },
+    { label: `Au plus ${INSURER_ROUND_CAP} pièces par tour de table`, tone: "grape" },
+    { label: `+${INSURER_HELL_REWARD} pièces par descente en Enfer`, tone: "gold" },
+  ],
+};
+
 function cardFacts(passiveId: PassiveId): Fact[] {
   const kind = CARD_KINDS[passiveId];
-  const facts: Fact[] = [{ label: kind === "actif" ? "Actif" : "Passif", tone: kind === "actif" ? "cup" : "sky" }];
+  const facts: Fact[] = [{ label: CARD_KIND_LABELS[kind], tone: kind === "actif" ? "cup" : "sky" }];
   if (passiveId === "devil" || passiveId === "guardian-angel")
     facts.push({ label: "Un seul par table", tone: "grape" });
   if (passiveId === "guardian-angel") facts.push({ label: "Tables de 4 joueurs et plus", tone: "mint" });
-  if (passiveId === "lambda") facts.push({ label: "Carte de remplissage", tone: "neutral" });
+  if (passiveId === "lambda") facts.push({ label: "Cups Power de remplissage", tone: "neutral" });
+  facts.push(...(PATCH_FACTS[passiveId] ?? []));
   return facts;
 }
 
@@ -109,7 +167,7 @@ function hubFacts(hubId: string): Fact[] {
 }
 
 const HUB_TITLES: Record<string, [string, string]> = {
-  shop: ["La boutique", "Ce qui se vend, à quel prix, à qui, et les exceptions de chaque carte."],
+  shop: ["La boutique", "Ce qui se vend, à quel prix, à qui, et les exceptions de chaque Cups Power et passif."],
   duels: ["Les duels", "Quand on se bat, contre qui, avec quel mini-jeu, et ce que ça change."],
 };
 
@@ -132,15 +190,18 @@ function buildEntries(): Map<Ref, WikiEntry> {
 
   for (const passiveId of PASSIVE_ORDER) {
     const card = PASSIVE_CATALOG[passiveId];
+    const cardKind = CARD_KINDS[passiveId];
+    // « actif » stays searchable next to « Cups Power » and « CP », whatever the screens call it.
+    const aliases = cardKind === "actif" ? "actif cups power cp" : "passif";
     add({
       ref: ref("card", passiveId),
       kind: "card",
       title: card.name,
-      subtitle: CARD_KINDS[passiveId] === "actif" ? "Actif" : "Passif",
+      subtitle: CARD_KIND_LABELS[cardKind],
       summary: card.description,
       facts: cardFacts(passiveId),
       sections: CARD_SECTIONS[passiveId] ?? [],
-      keywords: `${card.description} ${passiveId} ${CARD_KINDS[passiveId]}`,
+      keywords: `${card.description} ${passiveId} ${aliases}`,
     });
   }
 
@@ -240,7 +301,7 @@ export function interactionsOf(target: Ref): InteractionRow[] {
     });
 }
 
-/** Une section par famille de partenaires (cartes, objets, systèmes…) pour la page fiche. */
+/** Une section par famille de partenaires (Cups Power et passifs, objets, systèmes…) pour la page fiche. */
 export function groupInteractions(
   rows: InteractionRow[],
 ): { kind: ReturnType<typeof refKind>; rows: InteractionRow[] }[] {

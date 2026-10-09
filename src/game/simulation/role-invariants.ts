@@ -29,8 +29,12 @@ export function checkRoleState(state: GameState, found: RuleViolation[]): void {
   if (state.blackCup && state.redCupNodeId !== HELL_NODE_ID && state.phase === "playing") {
     found.push(violation("black-cup-away", `the Black Cup waits but the Red Cup is on tile ${state.redCupNodeId}`));
   }
+  // Sœur Fantôme's swap may set a Portail down on the tile the player stood on, the start included.
+  const swap = state.lastPowerEvent?.kind === "sister-swap" ? state.lastPowerEvent : null;
   for (const portal of state.hellPortals) {
-    if (portal.nodeId === START_NODE_ID || portal.nodeId === HELL_NODE_ID) {
+    const carried =
+      [...state.players, ...state.abandonedPlayers].some((player) => hasCard(player, "ghost-sister")) || swap !== null;
+    if ((portal.nodeId === START_NODE_ID && !carried) || portal.nodeId === HELL_NODE_ID) {
       found.push(violation("portal-tile", `a Portail opened on tile ${portal.nodeId}`));
     }
   }

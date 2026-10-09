@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UiIcon } from "../ui/icons/ui-icon";
 import { RedCupIcon } from "../ui/icons/item-icon";
-import { WIKI_ENTRIES } from "./registry";
+import { CARD_KIND_LABELS, WIKI_ENTRIES } from "./registry";
 import { INTERACTIONS } from "./content/interactions";
 import { EntryIcon } from "./components/entry-icon";
 import { EntryPage, HomePage, ListPage, MatrixPage, NotFound } from "./components/pages";
-import type { WikiEntry } from "./types";
+import { KIND_LABELS, type WikiEntry } from "./types";
 import { hashToRef, normalizeSearch, refToHash } from "./utils";
 
 /**
@@ -76,7 +76,7 @@ export function WikiApp() {
               <EntryIcon entry={entry} size={24} />
               <span>
                 <strong>{entry.title}</strong>
-                <small>{KIND_LABEL[entry.kind]}</small>
+                <small>{KIND_LABELS[entry.kind]}</small>
               </span>
             </a>
           ))}
@@ -96,7 +96,7 @@ export function WikiApp() {
           route={route}
           href="#/cards"
           kind="card"
-          label="Cartes"
+          label="Cups Power & passifs"
           entries={entriesOf("card")}
           onNavigate={() => setDrawerOpen(false)}
         />
@@ -163,15 +163,6 @@ export function WikiApp() {
   );
 }
 
-const KIND_LABEL: Record<string, string> = {
-  item: "Objet",
-  card: "Carte",
-  map: "Plateau",
-  wheel: "Roue",
-  system: "Système",
-  hub: "Mécanique",
-};
-
 function entriesOf(kind: WikiEntry["kind"]): WikiEntry[] {
   return [...WIKI_ENTRIES.values()].filter((entry) => entry.kind === kind);
 }
@@ -192,12 +183,14 @@ function renderPage(route: string[]) {
       return (
         <ListPage
           kind="card"
-          title="Cartes Actif & Passif"
-          blurb="Chaque joueur tient un actif (le rôle qui le porte toute la partie) et un passif (le réflexe d'une situation)."
+          title="Cups Power & passifs"
+          placeholder="Filtrer les Cups Power et les passifs…"
+          blurb="Chaque joueur tient un Cups Power (le pouvoir qui le porte toute la partie, choisi au draft) et un passif (le réflexe d'une situation, tiré au sort)."
           filter={{
+            // The filter ids are the lower-cased fact labels the list page compares them with.
             options: [
-              ["actif", "Actifs"],
-              ["passif", "Passifs"],
+              [CARD_KIND_LABELS.actif.toLowerCase(), "Cups Power"],
+              [CARD_KIND_LABELS.passif.toLowerCase(), "Passifs"],
             ],
           }}
         />
@@ -207,7 +200,7 @@ function renderPage(route: string[]) {
         <ListPage
           kind="map"
           title="Plateaux"
-          blurb="Trois tabliers, trois lois physiques : coffro à jouets, fête foraine et lac gelé."
+          blurb="Trois tabliers, trois lois physiques : coffre à jouets, fête foraine et lac gelé."
         />
       );
     if (name === "wheels")

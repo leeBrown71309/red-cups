@@ -1,7 +1,9 @@
 import { hasCard } from "../../game/cards";
 import { useEffect, useState } from "react";
 import { ITEM_CATALOG } from "../../game/catalog";
+import { canTeleport } from "../../game/mage-queries";
 import { canBeChallenged, canTargetPlayer, getTomatoStunChance } from "../../game/passive-rules";
+import { canUseNoThanks } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import type { DeclaredAction, ItemId, Player, PlayerId } from "../../game/types";
 import { HELL_NODE_ID } from "../../game/types";
@@ -61,7 +63,7 @@ export function PlayerPickList({
  */
 export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose: () => void }) {
   const players = useGameStore((state) => state.players);
-  const guardian = useGameStore((state) => state.guardian);
+  const game = useGameStore();
   const activePlayer = useGameStore((state) => state.players[state.activePlayerIndex]);
   const useItem = useGameStore((state) => state.useItem);
   const [targetId, setTargetId] = useState<PlayerId | null>(null);
@@ -130,9 +132,9 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
         <ItemIcon itemId={entry.itemId} size={46} />
         <p>{item.description}</p>
       </div>
-      {/* Chance aveugle is out of every item's reach; L'Ange-Gardien only aims at their protégé. */}
+      {/* Chance aveugle and whoever Mi-vu, Mi-vue hides are out of every item's reach; L'Ange-Gardien only aims at their protégé. */}
       <PlayerPickList
-        players={players.filter((player) => canTargetPlayer({ guardian }, activePlayer, player))}
+        players={players.filter((player) => canTargetPlayer(game, activePlayer, player))}
         isDisabled={(player) =>
           entry.itemId === "hollow-purple" && player.position === HELL_NODE_ID
             ? "Déjà en Enfer"
@@ -158,6 +160,7 @@ export function ItemTargetModal({ entryId, onClose }: { entryId: string; onClose
 /** Hell wheel "Duel" result: the spinner drags an opponent down for a duel. */
 export function ChallengeModal() {
   const pending = useGameStore((state) => state.pendingChallenge);
+  const game = useGameStore();
   const players = useGameStore((state) => state.players);
   const challengePlayer = useGameStore((state) => state.challengePlayer);
   const challenger = players.find((player) => player.id === pending?.playerId);
@@ -169,7 +172,7 @@ export function ChallengeModal() {
       <p className="modal-lead">L’adversaire te rejoint en Enfer. Le gagnant repart du Départ.</p>
       {canAct ? (
         <PlayerPickList
-          players={players.filter((player) => canBeChallenged(challenger.id, player))}
+          players={players.filter((player) => canBeChallenged(challenger.id, player, game))}
           onPick={challengePlayer}
         />
       ) : (
@@ -265,15 +268,20 @@ export function ReactionModal() {
     return () => window.clearTimeout(timer);
   }, [countdownActive, canReact, secondsLeft, resolveReaction]);
 
+  const game = useGameStore();
   const actor = players.find((player) => player.id === pending?.actorId);
   if (!pending) return null;
   const reactors = players.filter((player) => pending.reactorIds.includes(player.id));
-  // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci.
+  // L'Ange-Gardien answers with their Bouclier, everyone else with Non merci; a Mage noir may slip away instead.
+  const answersWithNoThanks = (reactor: Player) =>
+    !hasCard(reactor, "guardian-angel") && canUseNoThanks(reactor, game.round + (pending.actorId === null ? 1 : 0));
+  const slips = (reactor: Player) => canTeleport(game, reactor);
   const shieldOnly = reactors.every((reactor) => hasCard(reactor, "guardian-angel"));
+  const slipOnly = reactors.every((reactor) => slips(reactor) && !answersWithNoThanks(reactor));
 
   return (
     <ModalShell
-      title={shieldOnly ? "Bouclier ?" : "Non merci ?"}
+      title={shieldOnly ? "Bouclier ?" : slipOnly ? "Te téléporter ?" : "Non merci ?"}
       eyebrow="Réaction possible"
       tone="grape"
       className="reaction-modal"
@@ -297,17 +305,33 @@ export function ReactionModal() {
               <li key={reactor.id}>
                 <PlayerAvatar color={reactor.color} size={44} />
                 <span className="reaction__reactor-name">{reactor.name}</span>
-                <button type="button" className="btn btn--grape btn--small" onClick={() => resolveReaction(reactor.id)}>
-                  {hasCard(reactor, "guardian-angel") ? (
-                    <>
-                      <UiIcon name="shield" size={18} /> Bouclier !
-                    </>
-                  ) : (
-                    <>
-                      <UiIcon name="hand" size={18} /> Non merci !
-                    </>
-                  )}
-                </button>
+                {(hasCard(reactor, "guardian-angel") || answersWithNoThanks(reactor)) && (
+                  <button
+                    type="button"
+                    className="btn btn--grape btn--small"
+                    onClick={() => resolveReaction(reactor.id)}
+                  >
+                    {hasCard(reactor, "guardian-angel") ? (
+                      <>
+                        <UiIcon name="shield" size={18} /> Bouclier !
+                      </>
+                    ) : (
+                      <>
+                        <UiIcon name="hand" size={18} /> Non merci !
+                      </>
+                    )}
+                  </button>
+                )}
+                {slips(reactor) && (
+                  <button
+                    type="button"
+                    className="btn btn--grape btn--small"
+                    onClick={() => resolveReaction(reactor.id, true)}
+                    title="Tu perds un pentagramme et tu atterris sur ton pentagramme : l’objet est annulé"
+                  >
+                    <UiIcon name="flag" size={18} /> Te téléporter (−1 pentagramme)
+                  </button>
+                )}
               </li>
             ))}
           </ul>

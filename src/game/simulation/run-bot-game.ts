@@ -367,12 +367,15 @@ export type TableSetup = Pick<BotGameOptions, "playerCount" | "passives" | "star
  */
 export function getTableSetup(index: number): TableSetup {
   const playerCount = 2 + (index % 7);
-  const draft = index % 4 === 3;
+  // Shifted by one every time the list of cards has gone round, so that a card is not tied to one kind of table
+  // (the list is not a multiple of 3 or 4 long, but close enough for the pairing to stick without this).
+  const mix = index + Math.floor(index / PASSIVE_ORDER.length);
+  const draft = mix % 4 === 3;
   const first = PASSIVE_ORDER[index % PASSIVE_ORDER.length];
   const second = PASSIVE_ORDER[(index * 7 + 3) % PASSIVE_ORDER.length];
   const passives = draft ? undefined : first === second ? [first] : [first, second];
   const startingCurrency = index % 10 === 5 ? 0 : index % 10 === 9 ? 4_500 : undefined;
-  return { playerCount, passives, startingCurrency, online: index % 3 === 1, draft };
+  return { playerCount, passives, startingCurrency, online: mix % 3 === 1, draft };
 }
 
 export interface MapCampaignOptions {

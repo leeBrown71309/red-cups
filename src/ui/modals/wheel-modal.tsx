@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { canTeleportFromWheel } from "../../game/mage-queries";
 import { canUseNoThanks } from "../../game/rules";
 import { useGameStore } from "../../game/store";
 import { START_BONUS } from "../../game/types";
@@ -140,6 +141,8 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
   const hasEraser = player?.inventory.some((entry) => entry.kind === "item" && entry.itemId === "eraser") ?? false;
   // Non merci cancels any wheel spun for its holder, once recharged.
   const hasNoThanks = player !== undefined && canUseNoThanks(player, round);
+  // Mage noir: a wheel that would move them gives way to their pentagram.
+  const canSlip = useGameStore((state) => canTeleportFromWheel(state, player));
   const positive = isPositiveOutcome(pending.result.id);
 
   return (
@@ -260,6 +263,16 @@ function WheelSpin({ pending }: { pending: PendingWheel }) {
                       {hasNoThanks && !mustChoose && (
                         <button type="button" className="btn btn--grape btn--block" onClick={() => cancelWheel(true)}>
                           <UiIcon name="hand" size={20} /> Non merci !
+                        </button>
+                      )}
+                      {canSlip && !mustChoose && (
+                        <button
+                          type="button"
+                          className="btn btn--grape btn--block"
+                          onClick={() => cancelWheel(false, true)}
+                          title="Tu perds un pentagramme : la roue est mise de côté et tu atterris sur ton pentagramme"
+                        >
+                          <UiIcon name="flag" size={20} /> Te téléporter sur ton pentagramme (−1 pentagramme)
                         </button>
                       )}
                     </>

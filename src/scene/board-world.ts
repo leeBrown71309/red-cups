@@ -1,14 +1,15 @@
 import * as THREE from "three";
-import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement } from "../game/types";
+import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement, PowerEvent } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
+import type { Fog } from "../ui/fog";
 import type { MapThemeId } from "../game/maps/map-types";
 import { getSceneTheme, type SceneTheme } from "../theme/map-themes";
 import { SCENE_COLORS } from "../theme/palette";
 import { BoardLayout } from "./board-layout";
-import { BulletBillActor, type BulletView } from "./bullet-bill-actor";
+import { BulletBillActor, type BulletCarry, type BulletView } from "./bullet-bill-actor";
 import { CameraRig, type CameraMode } from "./camera-rig";
-import { EffectsLayer } from "./effects-layer";
+import { EffectsLayer, SISTER_MIST_COLORS } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
 import { createSurroundings } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
@@ -24,15 +25,25 @@ import {
   type AnimatedProp,
   type HellPortalProp,
 } from "./models/props-model";
+import { createMarkProp, type MarkProp } from "./models/mark-model";
 import { createTileArrow } from "./models/tile-arrow-model";
+import { createTunnelProp, type TunnelProp } from "./models/tunnel-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
-import { PawnController, type PawnInput } from "./pawn-controller";
+import { GHOSTLY_OPACITY, PawnController, type PawnInput, type PawnPhaseInfo } from "./pawn-controller";
 import { RoadNetwork } from "./road-network";
-import { SceneKit, easeOutBack } from "./scene-kit";
+import { SisterController, type SisterView } from "./sister-actor";
+import { SceneKit, clamp01, easeInOutCubic, easeOutBack, prefersReducedMotion } from "./scene-kit";
 import {
   HELL_DROP_MS,
+  MAGE_CRUMBLE_MS,
+  MARK_SUCK_MS,
+  MIME_BEAM_MS,
+  MIME_MASK_DELAY_MS,
   PORTAL_SWALLOW_MS,
+  SISTER_CARRY_DELAY_MS,
+  SISTER_CARRY_MS,
+  SISTER_TRANSIT_MS,
   SNOWBALL_FLIGHT_MS,
   TOMATO_FLIGHT_MS,
   TOMATO_VOLLEY_GAP_MS,
@@ -68,6 +79,18 @@ export interface BoardView {
   /** Doomsday: le diable's spell is on the table, every tile turns red. */
   doomed: boolean;
   pawns: PawnInput[];
+  /** Mi-vu, Mi-vue: the viewer is invisible, and sees no mud, no Portail, no Red Cup, no Bullet Bill, no other sister. */
+  hidesProps: boolean;
+  /** Taupe: the tunnels on the board (the ones just closed are still here until the pawn has crossed). */
+  moleTunnels: TunnelView[];
+  /** Mage noir: the pentagrams on the board (the one just spent is still here until the mage has landed on it). */
+  blackMarks: MarkView[];
+  /** Sœur Fantôme: the little ghost of every player who holds the card. */
+  sisters: SisterView[];
+  /** The last deed of a Cups Power, so the scene knows one is about to be played and holds what it moves in place. */
+  powerEvent: PowerEvent | null;
+  /** The sister's swap carries Bullet Bill from one tile to another. */
+  bulletCarry: BulletCarry | null;
   redCupNodeId: NodeId | null;
   mudNodeIds: NodeId[];
   /** Le diable's Portails onto Hell. */
@@ -93,7 +116,22 @@ export interface BoardView {
   activePlayerId: string | null;
 }
 
+export interface TunnelView {
+  id: string;
+  a: NodeId;
+  b: NodeId;
+}
+
+export interface MarkView {
+  ownerId: string;
+  nodeId: NodeId;
+  /** The owner's colour. */
+  color: string;
+}
+
 export interface BoardWorldCallbacks {
+  /** What the fog hides from the viewer of this device, read when a feedback event arrives. */
+  readFog: () => Fog;
   onTileSelect: (nodeId: NodeId, pointerType: string) => void;
   /** A road was tapped while a Barrière is being set down. */
   onRoadSelect: (road: [NodeId, NodeId]) => void;
@@ -114,6 +152,47 @@ const TAP_DURATION_MS = 650;
 const MUD_OFFSET = new THREE.Vector3(0.36, 0, 0.3);
 /** Where a Portail opens on a tile, opposite the mud. */
 const PORTAL_OFFSET = new THREE.Vector3(-0.32, 0, -0.3);
+/** How big a pentagram is on an ordinary tile and on the start, which is wider. */
+const MARK_RADIUS = 0.88;
+const START_MARK_RADIUS = 1.15;
+/** A tunnel that waits for its dig to be played, and a power event that waits for its turn, give up after this. */
+const DORMANT_TUNNEL_SECONDS = 4;
+const PENDING_POWER_SECONDS = 8;
+/** How high what the sister carries is thrown over the board. */
+const CARRY_ARC_HEIGHT = 1.8;
+/** Sparkles of a pawn that fades from sight or pops back. */
+const INVISIBILITY_SPARKLES = ["#ffffff", "#bfeaff", "#e8d9ff"];
+
+/** A tunnel prop and what the world knows of it. */
+interface TunnelEntry {
+  prop: TunnelProp;
+  a: NodeId;
+  b: NodeId;
+  /** Still on the board: not wanted any more means it caves in as soon as it may. */
+  wanted: boolean;
+  /** Seconds the prop has waited for its dig to be played, null once it has begun. */
+  dormantSeconds: number | null;
+}
+
+interface MarkEntry {
+  prop: MarkProp;
+  nodeId: NodeId;
+  wanted: boolean;
+}
+
+/** Something the sister carries, flying over the board in an arc until the board has set it down on the new tile. */
+interface FlyingProp {
+  prop: AnimatedProp;
+  kind: "mud" | "portal" | "cup";
+  from: THREE.Vector3;
+  to: THREE.Vector3;
+  destNode: NodeId;
+  elapsed: number;
+  delay: number;
+  duration: number;
+  trail: number;
+  landed: boolean;
+}
 
 /**
  * Owns the Three.js scene of one map. React feeds it a serialisable
@@ -133,6 +212,7 @@ export class BoardWorld {
   private readonly tiles = new Map<NodeId, TileVisual>();
   private readonly roads: RoadNetwork;
   private readonly pawns: PawnController;
+  private readonly sisters: SisterController;
   private readonly effects = new EffectsLayer();
   private readonly animated: AnimatedProp[] = [];
   private readonly redCup: AnimatedProp;
@@ -168,6 +248,23 @@ export class BoardWorld {
   private doomLevel = 0;
   private doomTarget = 0;
   private mood: DoomMood | null = null;
+  private disposed = false;
+  /** Taupe: the tunnels on the board, by their id. */
+  private readonly tunnels = new Map<string, TunnelEntry>();
+  /** Mage noir: the pentagrams on the board, by owner. */
+  private readonly marks = new Map<string, MarkEntry>();
+  /** The last power event played, and the one the board knows of that is yet to be played. */
+  private playedPowerSeq = 0;
+  private pendingPower: PowerEvent | null = null;
+  private pendingPowerSeconds = 0;
+  /** Mage noir: the teleport being played, which the mage's choreography refers to as it goes. */
+  private teleport: Extract<PowerEvent, { kind: "mark-teleport" }> | null = null;
+  private flameSeq = 0;
+  /** Sœur Fantôme: what her swap carries, in flight. */
+  private readonly flyingProps: FlyingProp[] = [];
+  /** The real Red Cup waits out of sight while its twin flies over the board. */
+  private redCupFlight: FlyingProp | null = null;
+  private readonly timers = new Set<number>();
 
   constructor(
     private readonly container: HTMLElement,
@@ -194,8 +291,12 @@ export class BoardWorld {
 
     this.pawns = new PawnController(this.kit, this.layout, {
       onGhostSlap: (pawnId) => this.ghost?.fling(pawnId) ?? null,
+      onPhase: (info) => this.handlePawnPhase(info),
     });
     this.scene.add(this.pawns.group);
+
+    this.sisters = new SisterController(this.kit, this.effects, this.layout);
+    this.scene.add(this.sisters.group);
 
     this.redCup = createRedCup(this.kit);
     this.redCup.group.visible = false;
@@ -231,7 +332,13 @@ export class BoardWorld {
   update(view: BoardView): void {
     const firstView = this.view === null;
     this.view = view;
-    if (firstView) this.pawns.acknowledgeMovement(view.lastMovement);
+    if (firstView) {
+      this.pawns.acknowledgeMovement(view.lastMovement);
+      this.sisters.acknowledgeMovement(view.lastMovement);
+      // A restored game has no Cups Power deed left to replay.
+      this.playedPowerSeq = view.powerEvent?.seq ?? 0;
+    }
+    this.followPowerEvent(view.powerEvent);
 
     this.rig.setMode(view.mode);
     this.doomTarget = view.doomed ? 1 : 0;
@@ -241,12 +348,13 @@ export class BoardWorld {
       tile.setDoomed(view.doomed);
     }
     this.carouselHell?.setReversed(view.carouselReversed);
-    this.pawns.sync(view.pawns, view.lastMovement);
+    this.pawns.sync(view.pawns, view.lastMovement, this.pendingPower);
+    this.sisters.sync(view.sisters, view.lastMovement, this.pendingPower);
     this.refreshHighlights();
 
     if (view.redCupNodeId !== this.cupNodeId) {
       this.cupNodeId = view.redCupNodeId;
-      this.redCup.group.visible = view.redCupNodeId !== null;
+      this.redCup.group.visible = view.redCupNodeId !== null && this.redCupFlight === null;
       if (view.redCupNodeId !== null) {
         this.redCup.group.position.copy(this.layout.getNodePosition(view.redCupNodeId)).setY(TILE_HEIGHT);
         this.cupPopProgress = firstView ? 1 : 0;
@@ -257,8 +365,12 @@ export class BoardWorld {
     this.syncPortals(view.portalNodeIds);
     this.syncBarriers(view.barrierEdges);
     this.syncRoadHandles(view.pickableRoads);
-    this.bullet.sync(view.bulletBill, view.bulletFlightSeq);
+    this.syncTunnels(view.moleTunnels, firstView, view.lastMovement);
+    this.syncMarks(view.blackMarks, firstView);
+    this.bullet.setHidden(view.hidesProps);
+    this.bullet.sync(view.bulletBill, view.bulletFlightSeq, view.bulletCarry);
     this.ghost?.sync(view.ghost, view.ghostEventSeq);
+    this.landFlyingProps(view);
     this.refreshCoveredTiles(view);
   }
 
@@ -285,8 +397,15 @@ export class BoardWorld {
   }
 
   dispose(): void {
+    this.disposed = true;
+    for (const timer of this.timers) window.clearTimeout(timer);
+    this.timers.clear();
     this.renderer.setAnimationLoop(null);
     this.unsubscribeFeedback();
+    for (const entry of this.tunnels.values()) entry.prop.dispose();
+    for (const entry of this.marks.values()) entry.prop.dispose();
+    this.pawns.dispose();
+    this.sisters.dispose();
     this.resizeObserver.disconnect();
     const canvas = this.renderer.domElement;
     canvas.removeEventListener("pointerdown", this.handlePointerDown);
@@ -610,7 +729,13 @@ export class BoardWorld {
    * Bullet Bill hovers behind the number, so it never hides it.
    */
   private refreshCoveredTiles(view: BoardView): void {
-    const covered = new Set<NodeId>([...view.pawns.map((pawn) => pawn.position), ...view.mudNodeIds]);
+    // The fog hides a pawn: its tile must not show a badge to tell that somebody stands there.
+    const covered = new Set<NodeId>([
+      ...view.pawns.filter((pawn) => pawn.hidden !== true).map((pawn) => pawn.position),
+      ...view.mudNodeIds,
+      ...view.moleTunnels.flatMap((tunnel) => [tunnel.a, tunnel.b]),
+      ...view.blackMarks.map((mark) => mark.nodeId),
+    ]);
     if (view.redCupNodeId !== null) covered.add(view.redCupNodeId);
     for (const [nodeId, tile] of this.tiles) tile.setCovered(covered.has(nodeId));
   }
@@ -643,7 +768,12 @@ export class BoardWorld {
     this.updateDoomMood(delta, elapsed);
     this.roads.update(elapsed);
     this.pawns.update(elapsed, delta);
+    this.sisters.update(elapsed, delta);
     this.effects.update(delta);
+    this.updatePendingPower(delta);
+    this.updateTunnels(elapsed, delta);
+    this.updateMarks(elapsed, delta);
+    this.updateFlyingProps(elapsed, delta);
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
     for (const portal of this.portals.values()) portal.update(elapsed, delta);
@@ -811,11 +941,19 @@ export class BoardWorld {
     return nearest ?? new THREE.Vector3(target.x, 0, -this.layout.halfDepth - 1);
   }
 
+  /** Whether the fog hides this player's pawn, and so what they do, from the viewer of this device. */
+  private isUnseen(fog: Fog, playerId: string | null): boolean {
+    return playerId !== null && fog.hiddenIds.has(playerId);
+  }
+
   private readonly handleFeedback = (event: FeedbackEvent) => {
+    // Mi-vu, Mi-vue: what concerns a pawn or a tile the fog hides stays out of the viewer's sight.
+    const fog = this.callbacks.readFog();
+    const actorUnseen = this.isUnseen(fog, this.view?.activePlayerId ?? null);
     switch (event.type) {
       case "currency": {
         const position = this.pawns.getPawnPosition(event.playerId);
-        if (!position) return;
+        if (!position || this.isUnseen(fog, event.playerId)) return;
         // The price paid in the shop would give away what was bought, to the table and online alike.
         if (event.purchase) return;
         const text = `${event.delta > 0 ? "+" : "−"}${Math.abs(event.delta)}`;
@@ -823,6 +961,7 @@ export class BoardWorld {
         return;
       }
       case "barrier-bump": {
+        if (actorUnseen) return;
         const from = this.layout.getNodePosition(event.from);
         const to = this.layout.getNodePosition(event.toward);
         this.effects.spawnPoof(
@@ -835,24 +974,32 @@ export class BoardWorld {
         return;
       }
       case "cup-collected":
+        if (this.isUnseen(fog, event.playerId)) return;
         this.effects.spawnConfetti(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
         return;
       case "hell-entered":
       case "hell-escaped":
       case "teleport": {
-        const position = this.pawns.getPawnPosition(event.playerId);
-        if (position) this.effects.spawnPoof(position, event.type === "hell-entered" ? "#c9a2ff" : "#ffffff");
+        const { playerId } = event;
+        if (this.isUnseen(fog, playerId)) return;
+        // A power event owns the move of the pawns in its choreography (the event comes right after this one).
+        window.requestAnimationFrame(() => {
+          if (this.disposed || this.pawns.isChoreographed(playerId)) return;
+          const position = this.pawns.getPawnPosition(playerId);
+          if (position) this.effects.spawnPoof(position, event.type === "hell-entered" ? "#c9a2ff" : "#ffffff");
+        });
         return;
       }
       case "portal-swallowed": {
         const portal = this.portals.get(event.nodeId);
-        if (!portal) return;
+        if (!portal || actorUnseen) return;
         this.portals.delete(event.nodeId);
         portal.swallow(PORTAL_SWALLOW_MS / 1000);
         this.swallowingPortals.push({ nodeId: event.nodeId, prop: portal, remaining: PORTAL_SWALLOW_MS / 1000 });
         return;
       }
       case "hell-portal-open": {
+        if (actorUnseen || fog.viewerHidden) return;
         // A Portail spits its victim out: the swirl opens above the Hell floor and fades once they land.
         const hellPortal = createHellPortal(this.kit);
         hellPortal.group.position
@@ -865,22 +1012,26 @@ export class BoardWorld {
       }
       case "mud-placed":
       case "mud-triggered":
+        if (actorUnseen || fog.viewerHidden) return;
         this.effects.spawnPoof(
           this.layout.getNodePosition(event.nodeId).add(MUD_OFFSET).setY(TILE_HEIGHT),
           SCENE_COLORS.mud,
         );
         return;
       case "bullet-flight": {
+        // The charge is replayed whether it is seen or not: the actor keeps its place on the board in step.
         this.bullet.launch(event.flight);
         const landing = event.flight.path[event.flight.path.length - 1] ?? event.flight.from;
-        if (this.view?.mode === "play" && this.view.followActivePlayer) {
+        if (this.view?.mode === "play" && this.view.followActivePlayer && !fog.viewerHidden) {
           this.rig.focusOn(this.layout.getNodePosition(landing), 0.78);
         }
         return;
       }
       case "bullet-hit": {
-        this.effects.spawnExplosion(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
-        this.rig.shakeFor(0.45, 650);
+        if (!fog.viewerHidden) {
+          this.effects.spawnExplosion(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
+          this.rig.shakeFor(0.45, 650);
+        }
         this.pawns.knockOut(event.playerId);
         return;
       }
@@ -893,11 +1044,13 @@ export class BoardWorld {
         return;
       }
       case "ice-fall": {
+        if (this.isUnseen(fog, event.playerId)) return;
         const halfway = this.layout.getNodePosition(event.from).lerp(this.layout.getNodePosition(event.to), 0.5);
         this.effects.spawnIceFall(halfway.setY(0.05), event.hit);
         return;
       }
       case "ice-shatter": {
+        if (this.isUnseen(fog, event.playerId)) return;
         const position = this.pawns.getPawnPosition(event.playerId);
         if (position) this.effects.spawnIceBurst(position, 16);
         return;
@@ -917,7 +1070,7 @@ export class BoardWorld {
         this.ghost?.teleported(event.to);
         return;
       case "ghost-attack":
-        this.ghost?.attacked(event.playerId);
+        if (!this.isUnseen(fog, event.playerId)) this.ghost?.attacked(event.playerId);
         return;
       case "ghost-vanished":
         this.ghost?.vanished();
@@ -926,11 +1079,11 @@ export class BoardWorld {
         this.ghost?.flung();
         return;
       case "ghost-stole":
-        this.ghost?.stole(event.playerId);
+        if (!this.isUnseen(fog, event.playerId)) this.ghost?.stole(event.playerId);
         return;
       case "snowball-thrown": {
         const target = this.pawns.getPawnPosition(event.targetId);
-        if (!target) return;
+        if (!target || this.isUnseen(fog, event.targetId)) return;
         const penguin = this.findNearestPenguin(target);
         // A miss lands a step beside the target, on the side facing the penguin.
         const aim = event.hit ? target : target.clone().add(new THREE.Vector3(0.9, 0, 0.5));
@@ -944,6 +1097,7 @@ export class BoardWorld {
         const from = this.pawns.getPawnPosition(event.throwerId);
         const to = this.pawns.getPawnPosition(event.targetId);
         if (!from || !to) return;
+        if (this.isUnseen(fog, event.throwerId) || this.isUnseen(fog, event.targetId)) return;
         // Rapid fire: each Tomate of the volley leaves a moment after the last, on a slightly different arc.
         for (let index = 0; index < event.count; index += 1) {
           const last = index === event.count - 1;
@@ -960,20 +1114,447 @@ export class BoardWorld {
       }
       case "player-left": {
         const position = this.pawns.getPawnPosition(event.playerId);
-        if (position) this.effects.spawnPoof(position, "#ffffff");
+        // A mage who crumbles to ash needs no poof; a pawn the fog hides needs none either.
+        if (!position || this.pawns.isChoreographed(event.playerId) || this.isUnseen(fog, event.playerId)) return;
+        this.effects.spawnPoof(position, "#ffffff");
         return;
       }
       case "turn-start": {
         const view = this.view;
         if (!view || view.mode !== "play" || !view.followActivePlayer) return;
+        // The camera does not follow a player the fog hides: it would give them away.
+        if (this.isUnseen(fog, event.playerId)) return;
         const pawn = view.pawns.find((candidate) => candidate.id === event.playerId);
         if (pawn) this.rig.focusOn(this.layout.getNodePosition(pawn.position), 0.78);
         return;
       }
+      case "power":
+        this.playPower(event.event, fog);
+        return;
+      case "invisibility":
+        this.playInvisibility(event.playerId, fog);
+        return;
       default:
         return;
     }
   };
+
+  /**
+   * Patch 0.2.3: a Cups Power's deed is played, once the walk before it is over. The pawns and the sister it moves
+   * were held in place by the board until now (or are told that the move that follows is its own).
+   */
+  private playPower(event: PowerEvent, fog: Fog): void {
+    if (event.seq <= this.playedPowerSeq) return;
+    this.playedPowerSeq = event.seq;
+    if (this.pendingPower?.seq === event.seq) this.pendingPower = null;
+    this.pawns.playPower(event);
+
+    const seen = (playerId: string) => !this.isUnseen(fog, playerId);
+    switch (event.kind) {
+      case "tunnel-dig":
+        // The dive has dug it; a tunnel whose dive was missed (a late join) is dug now.
+        this.tunnels.get(event.tunnelId)?.prop.dig();
+        return;
+      case "tunnel-cross": {
+        const entry = this.tunnels.get(event.tunnelId);
+        if (entry && event.closed) this.collapseTunnel(entry);
+        return;
+      }
+      case "mark-place": {
+        this.marks.get(`${event.playerId}:${event.nodeId}`)?.prop.draw();
+        if (seen(event.playerId)) {
+          const at = this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT);
+          this.effects.spawnShockRing(at, "#c44bff", 2, 0.7, 0.55);
+          this.effects.spawnSparkles(at, ["#ff7a9a", "#d38bff"], 10, 0.7, 1);
+        }
+        return;
+      }
+      case "mark-teleport": {
+        this.teleport = event;
+        const view = this.view;
+        if (view && view.mode === "play" && view.followActivePlayer && seen(event.playerId)) {
+          this.rig.focusOn(this.layout.getNodePosition(event.to), 0.78);
+        }
+        return;
+      }
+      case "sister-swap":
+        this.playSisterSwap(event, fog);
+        return;
+      case "mime-copy":
+        if (seen(event.playerId) && seen(event.targetId)) this.playMimeCopy(event);
+        return;
+    }
+  }
+
+  /** Mime: a beam of light from the pawn that is copied to the copier, then a mask and a glint over the copier. */
+  private playMimeCopy(event: Extract<PowerEvent, { kind: "mime-copy" }>): void {
+    const copier = this.pawns.getPawnPosition(event.playerId);
+    const target = this.pawns.getPawnPosition(event.targetId);
+    if (!copier || !target) return;
+    const chest = (point: THREE.Vector3) => point.clone().setY(point.y + 0.8);
+    this.effects.spawnSparkles(target, ["#fff2b8", "#ffffff"], 8, 0.4, 0.7);
+    this.effects.spawnBeam(chest(target), chest(copier), MIME_BEAM_MS / 1000);
+    this.later(MIME_MASK_DELAY_MS, () => {
+      const at = this.pawns.getPawnPosition(event.playerId) ?? copier;
+      this.effects.spawnMask(at, 0.9);
+      if (!prefersReducedMotion()) this.effects.spawnFlash(chest(at), "#ffffff", 0.7, 0.3);
+      this.effects.spawnSparkleRing(at, "#fff2b8", 1.1);
+      this.effects.spawnGlint(at, 0.5);
+    });
+  }
+
+  /** Sœur Fantôme: mist crosses the board each way, and what the sister carried flies over in an arc. */
+  private playSisterSwap(event: Extract<PowerEvent, { kind: "sister-swap" }>, fog: Fog): void {
+    this.sisters.playSwap(event);
+    if (this.isUnseen(fog, event.playerId)) return;
+    const playerSpot = this.layout.getNodePosition(event.playerFrom).setY(TILE_HEIGHT);
+    const sisterSpot = this.layout.getNodePosition(event.sisterFrom).setY(TILE_HEIGHT);
+    const view = this.view;
+    const streamSeconds = (SISTER_TRANSIT_MS / 1000) * 1.7;
+    this.effects.spawnMistStream(playerSpot, sisterSpot, SISTER_MIST_COLORS, streamSeconds, 0.27);
+    this.effects.spawnMistStream(sisterSpot, playerSpot, SISTER_MIST_COLORS, streamSeconds, 0.27);
+    if (view && view.mode === "play" && view.followActivePlayer) {
+      this.rig.focusOn(playerSpot.clone().lerp(sisterSpot, 0.5), 0.7);
+    }
+
+    if (event.carried.bulletBill) {
+      const carry = { seq: event.seq, from: event.sisterFrom, to: event.playerFrom };
+      this.later(SISTER_CARRY_DELAY_MS, () => this.bullet.carry(carry, SISTER_CARRY_MS));
+    }
+    if (!view || view.hidesProps) return;
+    if (event.carried.mud > 0) {
+      const puddle = this.mudPuddles.get(event.sisterFrom);
+      if (puddle) {
+        puddle.group.visible = false;
+        this.launchFlight("mud", createMudPuddle(this.kit), event.sisterFrom, event.playerFrom);
+      }
+    }
+    if (event.carried.portals > 0) {
+      const portal = this.portals.get(event.sisterFrom);
+      if (portal) {
+        portal.group.visible = false;
+        this.launchFlight("portal", createHellPortal(this.kit), event.sisterFrom, event.playerFrom);
+      }
+    }
+    if (event.carried.redCup && this.cupNodeId === event.sisterFrom && this.redCup.group.visible) {
+      this.redCup.group.visible = false;
+      this.redCupFlight = this.launchFlight("cup", createRedCup(this.kit), event.sisterFrom, event.playerFrom);
+    }
+  }
+
+  /** Mi-vu, Mi-vue: a player leaves the sight of the table, or shows again. Only a viewer who can see it sees it. */
+  private playInvisibility(playerId: string, fog: Fog): void {
+    if (fog.viewerHidden && fog.viewerId !== playerId) return;
+    const opacity = fog.hiddenIds.has(playerId) ? 0 : fog.ghostlyId === playerId ? GHOSTLY_OPACITY : 1;
+    this.pawns.playInvisibility(playerId, opacity);
+  }
+
+  /** The moments of a pawn's choreography the rest of the scene joins in: the soil, the vortex, the flame, the ash. */
+  private handlePawnPhase(info: PawnPhaseInfo): void {
+    const { position, hidden } = info;
+    const ground = position.clone();
+    switch (info.phase) {
+      case "dive": {
+        const entry = info.tunnel ? this.tunnels.get(info.tunnel.id) : undefined;
+        if (entry) {
+          entry.dormantSeconds = null;
+          if (info.tunnel?.dug) entry.prop.dig();
+          else entry.prop.cross(info.tunnel?.from === entry.a);
+        }
+        if (hidden) return;
+        this.effects.spawnDirtBurst(ground, 18);
+        this.rig.shakeFor(0.1, 240);
+        return;
+      }
+      case "dig-deep":
+        if (!hidden) this.effects.spawnDirtBurst(ground.setY(position.y + 0.05), 10);
+        return;
+      case "pop": {
+        // The pawn starts below the ground: the soil flies from the tile's top.
+        const mouth = ground.setY(TILE_HEIGHT);
+        if (hidden) return;
+        this.effects.spawnDirtBurst(mouth, 22);
+        this.effects.spawnShockRing(mouth, "#d3bc9c", 1.8, 0.45);
+        this.rig.shakeFor(0.16, 280);
+        return;
+      }
+      case "suck":
+        if (hidden) return;
+        this.effects.spawnVortex(ground, MARK_SUCK_MS / 1000 + 0.25);
+        this.rig.shakeFor(0.1, 320);
+        return;
+      case "emerge": {
+        const teleport = this.teleport;
+        if (teleport && teleport.playerId === info.playerId) {
+          // The pentagram flares as the mage lands, and is spent (a mark that sent somebody to Hell stays).
+          const entry = this.marks.get(`${teleport.playerId}:${teleport.to}`);
+          entry?.prop.flash();
+          if (!teleport.kept) entry?.prop.burnOut(0.45);
+        }
+        if (hidden) return;
+        this.effects.spawnEmergeBurst(ground);
+        this.rig.shakeFor(0.22, 380);
+        return;
+      }
+      case "burn": {
+        const teleport = this.teleport;
+        if (hidden || !teleport || this.flameSeq === teleport.seq) return;
+        this.flameSeq = teleport.seq;
+        this.effects.spawnFlameColumn(this.layout.getNodePosition(teleport.to).setY(TILE_HEIGHT), 0.9);
+        this.rig.shakeFor(0.3, 520);
+        return;
+      }
+      case "crumble":
+        if (hidden) return;
+        this.effects.spawnAshCrumble(ground, MAGE_CRUMBLE_MS / 1000 + 0.4);
+        this.rig.shakeFor(0.18, 420);
+        return;
+      case "dissolve":
+        if (!hidden) this.effects.spawnGhostMist(ground, 10, SISTER_MIST_COLORS, true);
+        return;
+      case "condense":
+        if (hidden) return;
+        this.effects.spawnGhostMist(ground, 10, SISTER_MIST_COLORS, true);
+        this.effects.spawnSparkleRing(ground, "#cfe9ff", 0.9, 12);
+        return;
+      case "fade-out":
+        if (hidden) return;
+        this.effects.spawnSparkles(ground, INVISIBILITY_SPARKLES, 14, 0.5, 0.9);
+        this.effects.spawnShockRing(ground, "#bfeaff", 1.2, 0.5);
+        return;
+      case "pop-in":
+        if (hidden) return;
+        if (!prefersReducedMotion()) {
+          this.effects.spawnFlash(ground.clone().setY(ground.y + 0.6), "#ffffff", 0.8, 0.3);
+        }
+        this.effects.spawnSparkleRing(ground, "#ffffff", 1, 12);
+        this.effects.spawnSparkles(ground, INVISIBILITY_SPARKLES, 8, 0.5, 0.7);
+        return;
+    }
+  }
+
+  private updatePendingPower(delta: number): void {
+    if (!this.pendingPower) return;
+    this.pendingPowerSeconds += delta;
+    if (this.pendingPowerSeconds < PENDING_POWER_SECONDS) return;
+    this.playedPowerSeq = this.pendingPower.seq;
+    this.pendingPower = null;
+  }
+
+  private later(delayMs: number, action: () => void): void {
+    const timer = window.setTimeout(() => {
+      this.timers.delete(timer);
+      if (!this.disposed) action();
+    }, delayMs);
+    this.timers.add(timer);
+  }
+
+  /** The power event the board knows of waits for its turn only so long: a deed that never comes is let go. */
+  private followPowerEvent(power: PowerEvent | null): void {
+    if (power === null) {
+      this.playedPowerSeq = 0;
+      this.pendingPower = null;
+      return;
+    }
+    if (power.seq <= this.playedPowerSeq || this.pendingPower?.seq === power.seq) return;
+    this.pendingPower = power;
+    this.pendingPowerSeconds = 0;
+  }
+
+  /** Where the ground is under a point of the board: the top of a tile, or the ground between the tiles. */
+  private readonly getSurfaceHeight = (x: number, z: number): number => {
+    for (const node of this.layout.board.nodes) {
+      if (node.id === HELL_NODE_ID) continue;
+      const radius = (node.kind === "start" ? START_TILE_RADIUS : TILE_RADIUS) * 0.95;
+      if (Math.hypot(node.x - x, node.z - z) < radius) return TILE_HEIGHT;
+    }
+    return 0;
+  };
+
+  /** Whether Hell's pit (the carousel, the crevasse) stands on this spot: a tunnel runs under it. */
+  private readonly isUnderLandmark = (x: number, z: number): boolean => {
+    const hell = this.layout.getNode(HELL_NODE_ID);
+    return hell !== undefined && Math.hypot(hell.x - x, hell.z - z) < this.layout.config.hellClearance;
+  };
+
+  /**
+   * Taupe: a tunnel is a prop between two tiles. Dug by a pawn's dive (it waits for the dive to begin), crossed by
+   * another, caved in once it is closed. It is not part of the roads, which are drawn once.
+   */
+  private syncTunnels(tunnels: TunnelView[], firstView: boolean, movement: PlayerMovement | null): void {
+    const wanted = new Set(tunnels.map((tunnel) => tunnel.id));
+    for (const [id, entry] of this.tunnels) {
+      entry.wanted = wanted.has(id);
+      // Gone from the board without the crossing's event to say so: it caves in now.
+      if (!entry.wanted && entry.prop.isOpen()) this.collapseTunnel(entry);
+    }
+    for (const tunnel of tunnels) {
+      if (this.tunnels.has(tunnel.id)) continue;
+      const prop = createTunnelProp(this.kit, {
+        a: this.layout.getNodePosition(tunnel.a),
+        b: this.layout.getNodePosition(tunnel.b),
+        surfaceY: this.getSurfaceHeight,
+        isBlocked: this.isUnderLandmark,
+      });
+      this.scene.add(prop.group);
+      const entry: TunnelEntry = { prop, a: tunnel.a, b: tunnel.b, wanted: true, dormantSeconds: null };
+      this.tunnels.set(tunnel.id, entry);
+      if (firstView) prop.reveal();
+      else if (movement?.tunnel?.id === tunnel.id && movement.tunnel.dug) entry.dormantSeconds = 0;
+      else prop.dig();
+    }
+  }
+
+  private collapseTunnel(entry: TunnelEntry): void {
+    if (!entry.prop.isOpen()) return;
+    entry.prop.collapse();
+    const a = this.layout.getNodePosition(entry.a).setY(TILE_HEIGHT);
+    const b = this.layout.getNodePosition(entry.b).setY(TILE_HEIGHT);
+    this.effects.spawnDust(a, 7, 1.1);
+    this.effects.spawnDust(b, 7, 1.1);
+    this.effects.spawnDust(a.clone().lerp(b, 0.5).setY(0.1), 5, 1.2);
+    this.rig.shakeFor(0.1, 320);
+  }
+
+  private updateTunnels(elapsed: number, delta: number): void {
+    for (const [id, entry] of this.tunnels) {
+      if (entry.dormantSeconds !== null) {
+        entry.dormantSeconds += delta;
+        if (entry.dormantSeconds > DORMANT_TUNNEL_SECONDS) {
+          entry.dormantSeconds = null;
+          entry.prop.dig();
+        }
+      }
+      entry.prop.update(elapsed, delta);
+      // Gone from the board, and either caved in or never dug: nothing left to show.
+      if (!entry.wanted && (entry.prop.isGone() || (!entry.prop.isOpen() && entry.dormantSeconds !== null))) {
+        entry.prop.group.removeFromParent();
+        entry.prop.dispose();
+        this.tunnels.delete(id);
+      }
+    }
+  }
+
+  /** Mage noir: a pentagram is laid flat on its tile, drawn stroke by stroke, and burns out when it is spent. */
+  private syncMarks(marks: MarkView[], firstView: boolean): void {
+    const wanted = new Map(marks.map((mark) => [`${mark.ownerId}:${mark.nodeId}`, mark]));
+    for (const [key, entry] of this.marks) {
+      entry.wanted = wanted.has(key);
+      if (!entry.wanted && !entry.prop.isDying()) entry.prop.burnOut();
+    }
+    for (const [key, mark] of wanted) {
+      if (this.marks.has(key)) continue;
+      const tile = this.tiles.get(mark.nodeId);
+      if (!tile) continue;
+      const prop = createMarkProp(this.kit, {
+        ownerColor: mark.color,
+        radius: tile.radius > TILE_RADIUS ? START_MARK_RADIUS : MARK_RADIUS,
+      });
+      prop.group.position.y += tile.topY;
+      tile.surface.add(prop.group);
+      this.marks.set(key, { prop, nodeId: mark.nodeId, wanted: true });
+      if (firstView) prop.reveal();
+      else prop.draw();
+    }
+  }
+
+  private updateMarks(elapsed: number, delta: number): void {
+    for (const [key, entry] of this.marks) {
+      entry.prop.update(elapsed, delta);
+      if (!entry.wanted && entry.prop.isGone()) {
+        entry.prop.group.removeFromParent();
+        entry.prop.dispose();
+        this.marks.delete(key);
+      }
+    }
+  }
+
+  /** Something the sister carries leaves its tile in an arc, and stays in the air over the new one until it is set down. */
+  private launchFlight(kind: FlyingProp["kind"], prop: AnimatedProp, fromNode: NodeId, toNode: NodeId): FlyingProp {
+    const offset = kind === "mud" ? MUD_OFFSET : kind === "portal" ? PORTAL_OFFSET : new THREE.Vector3();
+    const from = this.layout.getNodePosition(fromNode).add(offset).setY(TILE_HEIGHT);
+    const to = this.layout.getNodePosition(toNode).add(offset).setY(TILE_HEIGHT);
+    prop.group.position.copy(from);
+    this.scene.add(prop.group);
+    const flight: FlyingProp = {
+      prop,
+      kind,
+      from,
+      to,
+      destNode: toNode,
+      elapsed: 0,
+      delay: SISTER_CARRY_DELAY_MS / 1000,
+      duration: SISTER_CARRY_MS / 1000,
+      trail: 0,
+      landed: false,
+    };
+    this.flyingProps.push(flight);
+    return flight;
+  }
+
+  private updateFlyingProps(elapsed: number, delta: number): void {
+    for (let index = this.flyingProps.length - 1; index >= 0; index -= 1) {
+      const flight = this.flyingProps[index];
+      flight.elapsed += delta;
+      const progress = clamp01((flight.elapsed - flight.delay) / flight.duration);
+      const { group } = flight.prop;
+      group.position.lerpVectors(flight.from, flight.to, easeInOutCubic(progress));
+      group.position.y += Math.sin(progress * Math.PI) * CARRY_ARC_HEIGHT;
+      if (flight.kind !== "cup") group.rotation.y = progress * Math.PI * 4;
+      flight.prop.update(elapsed, delta);
+
+      flight.trail += delta;
+      if (progress > 0 && progress < 1 && flight.trail > 0.1) {
+        flight.trail = 0;
+        this.effects.spawnGhostMist(group.position.clone().setY(group.position.y + 0.2), 1, SISTER_MIST_COLORS, true);
+      }
+      if (progress >= 1 && !flight.landed) {
+        flight.landed = true;
+        this.effects.spawnPoof(flight.to.clone(), "#cfe9ff");
+        this.effects.spawnSparkleRing(flight.to.clone(), "#cfe9ff", 0.9, 10);
+      }
+      if (flight.elapsed > 12) this.removeFlight(index);
+    }
+  }
+
+  /** Sets down what the sister carried, once the board has put the real thing on its new tile. */
+  private landFlyingProps(view: BoardView): void {
+    for (let index = this.flyingProps.length - 1; index >= 0; index -= 1) {
+      const flight = this.flyingProps[index];
+      if (!flight.landed) continue;
+      const arrived =
+        flight.kind === "mud"
+          ? this.mudPuddles.has(flight.destNode)
+          : flight.kind === "portal"
+            ? this.portals.has(flight.destNode)
+            : view.redCupNodeId === flight.destNode;
+      if (arrived || view.hidesProps) this.removeFlight(index);
+    }
+  }
+
+  private removeFlight(index: number): void {
+    const [flight] = this.flyingProps.splice(index, 1);
+    flight.prop.group.removeFromParent();
+    // The Red Cup's twin owns its geometry, materials and beam texture; the puddle and the Portail only borrow the kit's.
+    if (flight.kind === "cup") disposeObject(flight.prop.group);
+    if (flight === this.redCupFlight) {
+      this.redCupFlight = null;
+      this.redCup.group.visible = this.cupNodeId !== null;
+    }
+  }
+}
+
+/** Frees what a prop made for itself once it has left the scene. */
+function disposeObject(object: THREE.Object3D): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.geometry.dispose();
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      for (const value of Object.values(material)) if (value instanceof THREE.Texture) value.dispose();
+      material.dispose();
+    }
+  });
 }
 
 function preventDefault(event: Event): void {

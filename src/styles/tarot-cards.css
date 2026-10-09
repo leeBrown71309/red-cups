@@ -11,34 +11,12 @@
   padding: 12px 14px 10px;
   border: 3px solid var(--ink);
   border-radius: 16px;
-  background: radial-gradient(
-    circle at 50% 0%,
-    color-mix(in srgb, var(--card-accent) 14%, var(--white)),
-    var(--cream) 70%
-  );
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 0%, var(--white), var(--card-paper, var(--cream)) 72%);
   box-shadow: 0 4px 0 var(--ink);
   color: var(--ink);
   text-align: center;
   font: inherit;
-}
-
-/* The thin inner frame of a printed card. */
-.tarot-card::before {
-  content: "";
-  position: absolute;
-  inset: 5px;
-  border: 2px solid var(--card-accent);
-  border-radius: 10px;
-  pointer-events: none;
-}
-
-.tarot-card--arcana {
-  background: radial-gradient(circle at 50% 0%, var(--gold-light), var(--cream-2) 75%);
-}
-
-.tarot-card--arcana::before {
-  border-style: double;
-  border-width: 4px;
 }
 
 .tarot-card.is-pickable {
@@ -79,17 +57,25 @@
   opacity: 0.6;
 }
 
+/* The emblem stands in a medallion of the card's own shape. */
 .tarot-card__art {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 84px;
-  height: 84px;
-  border: 3px solid var(--card-accent);
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--white), color-mix(in srgb, var(--card-accent) 22%, var(--white)));
-  box-shadow:
-    0 0 0 3px var(--cream),
-    0 0 0 5px var(--card-accent);
+  width: 92px;
+  height: 92px;
+  filter: drop-shadow(0 3px 0 rgba(58, 37, 48, 0.3));
+}
+
+.tarot-card__art > .card-shape {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.tarot-card__art > svg:not(.card-shape) {
+  position: relative;
 }
 
 .tarot-card__name {
@@ -117,7 +103,7 @@
   text-align: left;
 }
 
-.tarot-card__suit {
+.tarot-card__kind {
   color: var(--card-accent);
   font-family: var(--font-display);
   font-size: 0.72rem;
@@ -162,11 +148,11 @@
   }
 
   .tarot-card__art {
-    width: 64px;
-    height: 64px;
+    width: 70px;
+    height: 70px;
   }
 
-  .tarot-card__art svg {
+  .tarot-card__art svg:not(.card-shape) {
     width: 44px;
     height: 44px;
   }
@@ -187,4 +173,87 @@
 .cards-tab section {
   display: grid;
   gap: 8px;
+}
+
+/*
+ * The art of a card, drawn on a 200 x 300 sheet: a texture, a frame and glyphs behind the face; the same three, plus
+ * a medallion, for the back. Each card has its own (see card-design.ts).
+ */
+.card-art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.card-art__layer {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.card-art__texture {
+  position: absolute;
+  inset: 0;
+  opacity: 0.2;
+  -webkit-mask-image: linear-gradient(to bottom, #000, rgb(0 0 0 / 0.55) 45%, #000);
+  mask-image: linear-gradient(to bottom, #000, rgb(0 0 0 / 0.55) 45%, #000);
+}
+
+.tarot-card > :not(.card-art) {
+  position: relative;
+  z-index: 1;
+}
+
+.tarot-card > .tarot-card__picked {
+  position: absolute;
+}
+
+/* The back of a card: its texture across the whole card, its frame and its emblem in the middle. */
+.card-back {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.card-back__sheet {
+  position: absolute;
+  inset: 0;
+}
+
+.card-back__emblem {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  width: 31%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  filter: drop-shadow(0 3px 0 rgba(58, 37, 48, 0.3));
+}
+
+.card-back__emblem svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.tilt-card__face--back.tilt-card__face--own-back {
+  padding: 0;
+  overflow: hidden;
+  background: var(--card-deep, var(--cream));
+}
+
+/* The rule sits on a paper of its own, so it reads over any texture. */
+.tarot-card__text {
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card-paper, var(--cream)) 78%, var(--white));
+}
+
+.card-art__texture {
+  opacity: 0.4;
 }

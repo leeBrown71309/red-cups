@@ -1,8 +1,13 @@
-import { hasCard } from "./cards";
+import { hasCard, ownsCard } from "./cards";
+import { getOpenBoard, getShortestPath } from "./board";
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
+import { isInvisible } from "./mist";
 import type { GameState, ItemId, PassiveId, Player, PlayerId, WheelId } from "./types";
 import {
   BASE_INVENTORY_CAPACITY,
+  HERMIT_DISTANCE,
+  INSURER_RATE,
+  INSURER_ROUND_CAP,
   MUD_OWNER_REWARD,
   STARTING_CURRENCY,
   THEFT_PENALTY_RATE,
@@ -137,9 +142,18 @@ export function isImmuneToItems(player: Player): boolean {
   return hasCard(player, "blind-luck");
 }
 
-/** Whether `user` may aim an item at `target`: never Chance aveugle, and L'Ange-Gardien only at their protégé. */
-export function canTargetPlayer(state: Pick<GameState, "guardian">, user: Player, target: Player): boolean {
-  if (isImmuneToItems(target)) return false;
+/** What the rules that pick a player out of the table read: the angel's protégé, and where the Red Cup stands. */
+export type TargetingState = Pick<
+  GameState,
+  "guardian" | "mapId" | "carouselReversed" | "iceTileNodeId" | "redCupNodeId"
+>;
+
+/**
+ * Whether `user` may aim an item at `target`: never Chance aveugle, nobody in the dark of Mi-vu, Mi-vue (they aim at
+ * nobody, nobody aims at them), and L'Ange-Gardien only at their protégé.
+ */
+export function canTargetPlayer(state: TargetingState, user: Player, target: Player): boolean {
+  if (isImmuneToItems(target) || isInvisible(state, user) || isInvisible(state, target)) return false;
   return !hasCard(user, "guardian-angel") || state.guardian?.protegeId === target.id;
 }
 
@@ -155,17 +169,30 @@ export function avoidsHell(player: Player): boolean {
 
 /**
  * Who the Hell wheel's duel may call down: never L'Ange-Gardien, who never
- * goes to Hell, nor Chance aveugle, whom nothing may harm.
+ * goes to Hell, nor Chance aveugle, whom nothing may harm, nor anybody Mi-vu, Mi-vue hides (the table, or the one
+ * who chooses, when it is they).
  */
-export function canBeChallenged(challengerId: PlayerId | undefined, target: Player): boolean {
-  return target.id !== challengerId && !avoidsHell(target) && !isImmuneToItems(target);
+export function canBeChallenged(
+  challengerId: PlayerId | undefined,
+  target: Player,
+  state?: Pick<GameState, "players" | "mapId" | "carouselReversed" | "iceTileNodeId" | "redCupNodeId">,
+): boolean {
+  if (target.id === challengerId || avoidsHell(target) || isImmuneToItems(target)) return false;
+  if (!state) return true;
+  return (
+    !isInvisible(state, target) &&
+    !isInvisible(
+      state,
+      state.players.find((player) => player.id === challengerId),
+    )
+  );
 }
 
 /** Players L'Ange-Gardien may not protect. */
-const MALEFACTORS: PassiveId[] = ["devil", "thief", "goblin", "corrupter"];
+const MALEFACTORS: PassiveId[] = ["devil", "thief", "goblin", "corrupter", "black-mage"];
 
 export function isMalefactor(player: Player): boolean {
-  return MALEFACTORS.some((cardId) => hasCard(player, cardId));
+  return MALEFACTORS.some((cardId) => ownsCard(player, cardId));
 }
 
 /** Le diable wins once the others entered Hell ⌊4N − N/2⌋ times, N players at the start (2 → 7, 4 → 14). */
@@ -234,6 +261,31 @@ export function drawsTwiceKeepingBest(player: Player | undefined, wheelId: Wheel
     (wheelId === "fortune" && hasCard(player, "green-hand")) ||
     (wheelId === "misfortune" && hasCard(player, "red-hand"))
   );
+}
+
+/**
+ * L'Ermite (patch 0.2.3): whether the player stands on their own, nobody within two steps (arrows and Barrières
+ * ignored, a player in Hell is nowhere near anybody), and was not disturbed since: somebody arriving on their tile
+ * takes the prime away up to the end of their next turn.
+ */
+export function isHermitPrimeActive(
+  state: Pick<GameState, "players" | "round" | "mapId" | "carouselReversed" | "iceTileNodeId">,
+  player: Player,
+): boolean {
+  if (!hasCard(player, "hermit") || state.round <= (player.hermitLostUntilRound ?? 0)) return false;
+  const board = getOpenBoard(state);
+  return state.players.every((other) => {
+    if (other.id === player.id) return true;
+    if (other.position === player.position) return false;
+    const path = getShortestPath(board, player.position, other.position, true);
+    return path === null || path.length > HERMIT_DISTANCE;
+  });
+}
+
+/** L'Assureur: what the bank pays them for `lost` coins another player loses in `round`, the round's cap applied. */
+export function getInsurerPayout(insurer: Pick<Player, "insurerEarned">, round: number, lost: number): number {
+  const earned = insurer.insurerEarned?.round === round ? insurer.insurerEarned.amount : 0;
+  return Math.max(0, Math.min(Math.floor(lost * INSURER_RATE), INSURER_ROUND_CAP - earned));
 }
 
 /**

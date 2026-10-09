@@ -43,6 +43,7 @@ export function GameHud() {
   const settled = useBoardSettled();
   const setPreviewNodeId = useUiStore((state) => state.setPreviewNodeId);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
+  const setDigMode = useUiStore((state) => state.setDigMode);
   const [overlay, setOverlay] = useState<Overlay>(null);
   const [targetEntryId, setTargetEntryId] = useState<string | null>(null);
   const [shopClosed, setShopClosed] = useState(false);
@@ -59,7 +60,8 @@ export function GameHud() {
     setTargetEntryId(null);
     setRoadPickEntryId(null);
     setPreviewNodeId(null);
-  }, [game.turnStage, activePlayerId, setPreviewNodeId, setRoadPickEntryId]);
+    setDigMode(false);
+  }, [game.turnStage, activePlayerId, setPreviewNodeId, setRoadPickEntryId, setDigMode]);
 
   useEffect(() => setIgnoreArrows(false), [activePlayerId, setIgnoreArrows]);
 

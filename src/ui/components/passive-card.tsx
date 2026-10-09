@@ -1,63 +1,17 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { CARD_KINDS } from "../../game/cards";
 import { PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import type { PassiveId } from "../../game/types";
+import { CardFaceDecor, getCardStyle, MedallionShape } from "../cards/card-art";
+import { CARD_DESIGNS } from "../cards/card-design";
 import { PassiveIcon } from "../icons/passive-icon";
 
 /**
- * A card drawn as a tarot card: a numeral on top, an emblem, the name on a ribbon, the rule below and the
- * suit at the bottom. Only the actifs wear it; the passifs are talismans (see `PassiveTalisman`). The roles
- * and the cards with their own victory are the major arcana; the others fall in the three suits by what they touch.
+ * A Cups Power drawn as a tarot card: a numeral on top, an emblem in a medallion, the name on a ribbon and the rule
+ * below. Every card has a design of its own (texture, colours, medallion, corner glyphs, frame; see `card-design.ts`),
+ * laid out the same way, and its back (`CardBack`) carries the same design. The passifs are talismans (see
+ * `PassiveTalisman`).
  */
-
-export type TarotSuit = "arcana" | "coins" | "swords" | "wands";
-
-export const SUIT_LABELS: Record<TarotSuit, string> = {
-  arcana: "Arcane majeur",
-  coins: "Deniers",
-  swords: "Épées",
-  wands: "Bâtons",
-};
-
-/** The accent colour of each suit, taken from the game palette. */
-export const SUIT_ACCENTS: Record<TarotSuit, string> = {
-  arcana: "var(--gold-deep)",
-  coins: "var(--orange-deep)",
-  swords: "var(--sky-deep)",
-  wands: "var(--mint-deep)",
-};
-
-export const PASSIVE_SUITS: Record<PassiveId, TarotSuit> = {
-  devil: "arcana",
-  "guardian-angel": "arcana",
-  greedy: "arcana",
-  "nepo-baby": "coins",
-  eshop: "coins",
-  goblin: "coins",
-  thief: "coins",
-  corrupter: "coins",
-  "double-or-nothing": "coins",
-  "built-like-a-tank": "swords",
-  "no-thanks": "swords",
-  "i-take-notes": "swords",
-  "blind-luck": "swords",
-  "tomato-enjoyer": "swords",
-  "red-bull": "wands",
-  roller: "wands",
-  "red-light-green-light": "wands",
-  "calm-down": "wands",
-  "new-cup-new-me": "wands",
-  lambda: "wands",
-  "last-in-class": "wands",
-  "hell-regular": "coins",
-  "green-hand": "wands",
-  "red-hand": "wands",
-  "angelic-touch": "wands",
-  "devils-hand": "wands",
-  "game-master": "swords",
-  "junk-dealer": "coins",
-  trapper: "swords",
-};
 
 const ROMAN_NUMERALS: [number, string][] = [
   [10, "X"],
@@ -89,17 +43,16 @@ interface PassiveCardProps {
 
 export function PassiveCard({ passiveId, onPick, selected = false, children }: PassiveCardProps) {
   const passive = PASSIVE_CATALOG[passiveId];
-  const suit = PASSIVE_SUITS[passiveId];
   const numeral = toRomanNumeral(PASSIVE_ORDER.indexOf(passiveId) + 1);
-  const style = { "--card-accent": SUIT_ACCENTS[suit] } as CSSProperties;
-  const className = ["tarot-card", `tarot-card--${suit}`, selected && "is-selected", onPick && "is-pickable"]
-    .filter(Boolean)
-    .join(" ");
+  const className = ["tarot-card", selected && "is-selected", onPick && "is-pickable"].filter(Boolean).join(" ");
+  const style = getCardStyle(passiveId);
 
   const face = (
     <>
+      <CardFaceDecor passiveId={passiveId} />
       <span className="tarot-card__numeral">{numeral}</span>
       <span className="tarot-card__art" aria-hidden="true">
+        <MedallionShape shape={CARD_DESIGNS[passiveId].shape} passiveId={passiveId} />
         <PassiveIcon passiveId={passiveId} size={58} />
       </span>
       <strong className="tarot-card__name">{passive.name}</strong>
@@ -107,9 +60,7 @@ export function PassiveCard({ passiveId, onPick, selected = false, children }: P
       <span className="tarot-card__text scroll-block" tabIndex={0}>
         {passive.description}
       </span>
-      <span className="tarot-card__suit">
-        {CARD_KINDS[passiveId] === "actif" ? "Actif" : "Passif"} · {SUIT_LABELS[suit]}
-      </span>
+      <span className="tarot-card__kind">{CARD_KINDS[passiveId] === "actif" ? "Cups Power" : "Passif"}</span>
       {children}
     </>
   );

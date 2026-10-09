@@ -1,6 +1,7 @@
+import { hasCard } from "./cards";
 import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
-import { avoidsHell, offersGamble } from "./passive-rules";
+import { avoidsHell, getInsurerPayout, offersGamble } from "./passive-rules";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
 import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
 
@@ -12,17 +13,85 @@ export function makeLog(
   text: string,
   tone: GameLogEntry["tone"] = "neutral",
   secret?: GameLogEntry["secret"],
+  fog?: Pick<GameLogEntry, "by" | "open">,
 ): GameLogEntry {
-  return { id: createEngineId(), text, tone, ...(secret ? { secret } : {}) };
+  return {
+    id: createEngineId(),
+    text,
+    tone,
+    ...(secret ? { secret } : {}),
+    ...(fog?.by ? { by: fog.by } : {}),
+    ...(fog?.open ? { open: true as const } : {}),
+  };
 }
 
+/** A line is written in the turn of the active player, which is what Mi-vu, Mi-vue's fog reads. */
 export function addLog(
   state: GameState,
   text: string,
   tone: GameLogEntry["tone"] = "neutral",
   secret?: GameLogEntry["secret"],
 ): GameState {
-  return { ...state, log: [makeLog(text, tone, secret), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+  const by = state.phase === "playing" ? getActivePlayer(state)?.id : undefined;
+  return { ...state, log: [makeLog(text, tone, secret, { by }), ...state.log].slice(0, MAX_LOG_ENTRIES) };
+}
+
+/**
+ * What a player's Cups Power of patch 0.2.3 remember (cooldowns, chances, the sister, visited tiles...): it follows
+ * the card to whoever inherits it (L'Ange-Gardien taking a leaving protégé's place).
+ */
+export function getCupPowerState(
+  player: Player,
+): Pick<
+  Player,
+  | "mimeReadyRound"
+  | "swapReadyRound"
+  | "visitedNodeIds"
+  | "moleReadyRound"
+  | "luck"
+  | "luckReturnRound"
+  | "sisterNodeId"
+  | "mistTurns"
+  | "hermitLostUntilRound"
+  | "insurerEarned"
+> {
+  const {
+    mimeReadyRound,
+    swapReadyRound,
+    visitedNodeIds,
+    moleReadyRound,
+    luck,
+    luckReturnRound,
+    sisterNodeId,
+    mistTurns,
+    hermitLostUntilRound,
+    insurerEarned,
+  } = player;
+  // A mage out of chances is out of the game: whoever takes their place starts with a fresh set.
+  const exhausted = luck !== undefined && luck <= 0;
+  return {
+    ...(mimeReadyRound === undefined ? {} : { mimeReadyRound }),
+    ...(swapReadyRound === undefined ? {} : { swapReadyRound }),
+    ...(visitedNodeIds === undefined ? {} : { visitedNodeIds }),
+    ...(moleReadyRound === undefined ? {} : { moleReadyRound }),
+    ...(luck === undefined || exhausted ? {} : { luck }),
+    ...(luckReturnRound === undefined || exhausted ? {} : { luckReturnRound }),
+    ...(sisterNodeId === undefined ? {} : { sisterNodeId }),
+    ...(mistTurns === undefined ? {} : { mistTurns }),
+    ...(hermitLostUntilRound === undefined ? {} : { hermitLostUntilRound }),
+    ...(insurerEarned === undefined ? {} : { insurerEarned }),
+  };
+}
+
+/** Mime: the actif copied for a turn is given back as the turn ends. */
+export function dropCopies(state: GameState): GameState {
+  if (!state.players.some((player) => player.mimicId)) return state;
+  return { ...state, players: state.players.map(({ mimicId: _copy, ...player }) => player) };
+}
+
+/** A line the fog never hides: whose turn it is, who turns invisible, who leaves the table. */
+export function addOpenLog(state: GameState, text: string, tone: GameLogEntry["tone"] = "event"): GameState {
+  return { ...state, log: [makeLog(text, tone, undefined, { open: true }), ...state.log].slice(0, MAX_LOG_ENTRIES) };
 }
 
 /** A line about what is in somebody's bag: the others online read `publicText` instead. */
@@ -238,6 +307,10 @@ export function applyCurrencyChange(
       nextState = addLog(nextState, `${player.name} active son Casque et évite de passer sous zéro.`, "good");
     }
   }
+  // L'Assureur is paid for what the others lose, voluntary spending aside (the same line Double or nothing draws).
+  const lostCoins = amount < 0 && options.gamble !== false ? Math.max(0, player.currency - nextCurrency) : 0;
+  const insure = (current: GameState): GameState =>
+    lostCoins > 0 ? payInsurer(current, playerId, lostCoins) : current;
 
   // A loss the holder may stake does not knock them out yet: wiping it out lets them play on.
   const knockedOut = nextCurrency <= CURRENCY_RESET_THRESHOLD;
@@ -260,14 +333,34 @@ export function applyCurrencyChange(
   });
 
   if (reachedResetThreshold) {
-    return addLog(
-      nextState,
-      `${player.name} tombe à −300 pièces : son solde revient à 0 et son prochain tour sera sauté.`,
-      "bad",
+    return insure(
+      addLog(
+        nextState,
+        `${player.name} tombe à −300 pièces : son solde revient à 0 et son prochain tour sera sauté.`,
+        "bad",
+      ),
     );
   }
 
-  if (options.silent) return nextState;
+  if (options.silent) return insure(nextState);
   const sign = amount > 0 ? "+" : "−";
-  return addLog(nextState, `${player.name} ${sign}${Math.abs(amount)} pièces.`, amount > 0 ? "good" : "bad");
+  return insure(addLog(nextState, `${player.name} ${sign}${Math.abs(amount)} pièces.`, amount > 0 ? "good" : "bad"));
+}
+
+/**
+ * L'Assureur (patch 0.2.3): the bank pays them a share of the coins another player lost, up to a cap for the
+ * round. Nobody pays it: the coins come out of thin air.
+ */
+function payInsurer(state: GameState, victimId: PlayerId, lost: number): GameState {
+  const insurer = state.players.find((player) => player.id !== victimId && hasCard(player, "insurer"));
+  if (!insurer) return state;
+  const payout = getInsurerPayout(insurer, state.round, lost);
+  if (payout <= 0) return state;
+  const earned = insurer.insurerEarned?.round === state.round ? insurer.insurerEarned.amount : 0;
+  const paid = updatePlayer(state, insurer.id, (current) => ({
+    ...current,
+    currency: current.currency + payout,
+    insurerEarned: { round: state.round, amount: earned + payout },
+  }));
+  return addLog(paid, `${insurer.name} touche ${payout} pièces de la banque : une assurance bien placée.`, "good");
 }

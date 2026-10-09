@@ -328,7 +328,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "New Cup",
     description:
       "À chaque nouvelle Cup, avant qu’elle apparaisse : file au Départ (+200 pièces) ou reste où tu es. " +
-      "La carte ne sort pas de l’Enfer.",
+      "Ce passif ne te sort pas de l’Enfer.",
   },
   "red-light-green-light": {
     id: "red-light-green-light",
@@ -519,6 +519,76 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     shortName: "Piégeur",
     description: "Ta Boue coûte 100 pièces au lieu de 200, mais tu n’en peux poser qu’une à la fois.",
   },
+  mime: {
+    id: "mime",
+    name: "Mime",
+    shortName: "Mime",
+    description:
+      "Une fois tous les 3 tours, avant ton déplacement, tu copies entièrement le Cups Power d’un autre joueur " +
+      "visible pour la durée de ton tour (son Cups Power ou son passif, au choix), avec tous ses atouts et tous ses défauts. Copier ne coûte aucune énergie. " +
+      "Tu ne peux copier ni un rôle (le diable, L’Ange-Gardien), ni un Cups Power qui garde un état propre (Mime, " +
+      "Mage noir, Sœur Fantôme, Mi-vu Mi-vue, Lambda), ni les passifs Non merci, L’Ermite, L’Assureur et L’Habitué de l’Enfer. La table sait de qui tu copies, pas ce que tu as copié.",
+  },
+  mole: {
+    id: "mole",
+    name: "Taupe",
+    shortName: "Taupe",
+    description:
+      "Une fois tous les 3 tours, tu creuses (3 énergie) un tunnel entre ta case et une case déjà visitée, et tu t’y " +
+      "déplaces aussitôt : c’est ton déplacement du tour. Tout le monde voit le tunnel : les autres le traversent " +
+      "pour 3 énergie, toi pour 2, et il se referme après une traversée de plus. Pas de tunnel depuis ou vers la " +
+      "Red Cup, l’Enfer, une case de glace, un piège ou un autre tunnel.",
+  },
+  "black-mage": {
+    id: "black-mage",
+    name: "Mage noir",
+    shortName: "Mage noir",
+    description:
+      "Pose un pentagramme sur ta case (un seul à la fois, visible de tous) et téléporte-toi dessus quand tu veux : " +
+      "pendant ton tour, quand un objet ou Bullet Bill te vise, ou à la place d’une roue qui te déplace. Chaque " +
+      "téléportation coûte un de tes 3 pentagrammes ; tu en regagnes un tous les 15 tours, et à zéro tu ne peux plus te téléporter, sans cesser de jouer, jusqu’à en retrouver un. " +
+      "À ton arrivée, chaque autre joueur sur la marque a 20 % de tomber en Enfer, et une Boue posée dessus peut " +
+      "t’y faire tomber aussi. La marque disparaît après usage, sauf si elle a envoyé quelqu’un en Enfer. " +
+      "L’Ange-Gardien ne peut pas te protéger.",
+  },
+  "half-seen": {
+    id: "half-seen",
+    name: "Mi-vu, Mi-vue",
+    shortName: "Mi-vu",
+    description:
+      "Tu es invisible deux de tes tours sur trois (visible, invisible, invisible). Invisible, personne ne te voit : " +
+      "ni ton pion, ni tes actions, ni ton sac, ni tes pièces. Pendant ton tour, tu ne vois plus rien de la table non " +
+      "plus (ni joueurs, ni pièges, ni Red Cup, ni Bullet Bill). Tu ne peux cibler personne et nul ne peut te " +
+      "cibler (objets, Calme-toi, défi de l’Enfer, copie du Mime) ; Draven t’épargne, et Bullet Bill ne te traque " +
+      "plus, mais son explosion te touche si elle a lieu sur ta case. À une case ou moins de la Red Cup, tu es " +
+      "visible.",
+  },
+  "ghost-sister": {
+    id: "ghost-sister",
+    name: "Sœur Fantôme",
+    shortName: "Sœur",
+    description:
+      "Une petite fille fantôme fait en miroir chacun de tes pas : si la route inverse existe, elle la prend, sinon " +
+      "elle reste. Elle n’est pas ciblable et n’active rien. Swap (3 énergie, une fois tous les 4 tours, avant ton " +
+      "déplacement, hors de l’Enfer) : tu changes de place avec elle, et elle emporte avec elle les pièges, la Red " +
+      "Cup et Bullet Bill de sa case, sans que rien se déclenche. Si tu tombes en Enfer, elle retourne au Départ.",
+  },
+  hermit: {
+    id: "hermit",
+    name: "L’Ermite",
+    shortName: "Ermite",
+    description:
+      "Tant qu’aucun joueur n’est à 2 cases ou moins de toi : 1 point d’énergie de plus et 100 pièces de plus au " +
+      "Départ. Si quelqu’un arrive sur ta case, tu perds cette prime jusqu’à la fin de ton prochain tour.",
+  },
+  insurer: {
+    id: "insurer",
+    name: "L’Assureur",
+    shortName: "Assureur",
+    description:
+      "Toute perte de pièces subie par un autre joueur te rapporte 20 %, payés par la banque (150 pièces par tour de " +
+      "table au plus). Chaque joueur qui descend en Enfer te rapporte 50 pièces.",
+  },
 };
 
 export const PASSIVE_ORDER: PassiveId[] = [
@@ -551,6 +621,13 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "game-master",
   "junk-dealer",
   "trapper",
+  "mime",
+  "mole",
+  "black-mage",
+  "half-seen",
+  "ghost-sister",
+  "hermit",
+  "insurer",
 ];
 
 export interface WeightedWheelResult {

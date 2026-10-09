@@ -1,5 +1,13 @@
 import { hasCard } from "./cards";
 import { abandonPlayer, canAbandon } from "./abandon";
+import { arriveOnMark, clearOrphanedMarks, placeMark, teleportToMark } from "./black-mage";
+import { markHermitIntrusions } from "./hermit";
+import { rewardInsurerInHell } from "./insurer";
+import { canTeleportFromWheel, canTeleportInTurn } from "./mage-queries";
+import { mimeCopy, type MimeCopyKind } from "./mime";
+import { getMoleReadyRound, planCrossing, planDig, recordVisitedTiles } from "./mole";
+import { withPowerEvent } from "./power-event";
+import { moveSisters, sendSistersHome, swapWithSister } from "./sister";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
@@ -170,6 +178,18 @@ export type GameAction =
   | { type: "prepareBoot"; entryId: string }
   /** Roller: throws the die that sets the length of the move. */
   | { type: "rollDice" }
+  /** Mime: copies the actif of another player until the end of the turn. */
+  | { type: "mimeCopy"; targetPlayerId: PlayerId; kind?: MimeCopyKind }
+  /** Taupe: digs a tunnel to a visited tile and moves through it. */
+  | { type: "digTunnel"; destination: NodeId }
+  /** Crosses a tunnel from the tile the player stands on; whoever dug it pays less. */
+  | { type: "crossTunnel"; tunnelId: string }
+  /** Mage noir: lays a pentagram on their tile. */
+  | { type: "placeMark" }
+  /** Mage noir: teleports to the pentagram during their own turn (the other cases answer a reaction or a wheel). */
+  | { type: "teleportToMark" }
+  /** Sœur Fantôme: swaps places with the little ghost. */
+  | { type: "swapWithSister" }
   /** Le diable walks out of Hell, whenever they please. */
   | { type: "leaveHell" }
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
@@ -182,7 +202,8 @@ export type GameAction =
   | { type: "stealItem"; itemId: ItemId }
   /** `count`: Tomates thrown in one go from their stack; one for every other item. */
   | { type: "useItem"; entryId: string; targetPlayerId?: PlayerId; count?: number; targetRoad?: [NodeId, NodeId] }
-  | { type: "resolveReaction"; reactorId: PlayerId | null }
+  /** `teleport`: a Mage noir answers by teleporting to their mark, whatever else the reactor could have done. */
+  | { type: "resolveReaction"; reactorId: PlayerId | null; teleport?: boolean }
   | { type: "endTurn" }
   | { type: "spinHellWheel" }
   | { type: "spinTileWheel" }
@@ -197,8 +218,8 @@ export type GameAction =
   | { type: "spinWheel"; wheelId: WheelId; playerId: PlayerId; resumeStage: TurnStage; sourceItemId?: ItemId }
   | { type: "resolveWheel" }
   | { type: "pickWheelResult"; index: 0 | 1 }
-  /** With the Gomme, or with a ready Non merci when `withNoThanks` is set. */
-  | { type: "cancelWheel"; withNoThanks?: boolean }
+  /** With the Gomme, with a ready Non merci when `withNoThanks` is set, or by teleporting to the Mage noir's mark. */
+  | { type: "cancelWheel"; withNoThanks?: boolean; teleport?: boolean }
   | { type: "challengePlayer"; targetPlayerId: PlayerId }
   | { type: "flipDuelCoin" }
   /** Meneur de jeu: the mini-game picked among the two drawn. */
@@ -582,6 +603,83 @@ function retryRedCup(state: GameState, player: Player): GameState {
   return settleBoard(nextState, nextState.turnStage);
 }
 
+/** Taupe: digs a tunnel from where they stand to a visited tile, and goes through it. */
+function digTunnel(state: GameState, destination: NodeId): GameState {
+  const player = getActivePlayer(state);
+  const dig = player ? planDig(state, player, destination) : null;
+  if (!player || !dig) return state;
+  let nextState: GameState = { ...state, moleTunnels: [...state.moleTunnels, dig.tunnel] };
+  nextState = updatePlayer(nextState, player.id, (current) => ({
+    ...current,
+    moleReadyRound: getMoleReadyRound(state.round),
+  }));
+  nextState = withPowerEvent(nextState, {
+    kind: "tunnel-dig",
+    playerId: player.id,
+    from: player.position,
+    to: dig.to,
+    tunnelId: dig.tunnel.id,
+  });
+  return applyMove(nextState, dig.to, { path: [dig.to], rebel: false, tunnel: { id: dig.tunnel.id, dug: true } });
+}
+
+/** Crosses a tunnel the player stands at the end of; it closes behind them. */
+function crossTunnel(state: GameState, tunnelId: string): GameState {
+  const player = getActivePlayer(state);
+  const crossing = player ? planCrossing(state, player, tunnelId) : null;
+  if (!player || !crossing) return state;
+  let nextState: GameState = {
+    ...state,
+    moleTunnels: state.moleTunnels.filter((tunnel) => tunnel.id !== crossing.tunnel.id),
+  };
+  nextState = withPowerEvent(nextState, {
+    kind: "tunnel-cross",
+    playerId: player.id,
+    from: player.position,
+    to: crossing.to,
+    tunnelId,
+    closed: true,
+  });
+  return applyMove(nextState, crossing.to, {
+    path: [crossing.to],
+    rebel: false,
+    tunnel: { id: tunnelId, dug: false },
+  });
+}
+
+/** Mage noir: teleports to their mark during their own turn, out of Hell if they were there. */
+function teleportInTurn(state: GameState): GameState {
+  const mage = getActivePlayer(state);
+  if (!mage || !canTeleportInTurn(state, mage)) return state;
+  let nextState = teleportToMark(state, mage.id, "turn");
+  nextState = { ...nextState, turnActionTaken: true };
+  // Dropped into Hell by the mud of their own mark, the turn is over, as for any fall into Hell mid-turn.
+  const fell = findPlayer(nextState, mage.id)?.position === HELL_NODE_ID;
+  const resting = nextState.turnStage === "move" || nextState.turnStage === "hell";
+  nextState = {
+    ...nextState,
+    turnStage: fell && resting ? "turn-end" : normalizeResumeStage(nextState, nextState.turnStage),
+  };
+  // A decision the arrival opened (a Red Cup to place, a wheel, a duel) must not give the turn back either.
+  if (fell) nextState = endTurnAfterFall(nextState);
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
+}
+
+/** A fall into Hell mid-turn ends the turn: whatever was left waiting resumes there, not in the move. */
+function endTurnAfterFall(state: GameState): GameState {
+  const over = (stage: TurnStage | null): TurnStage | null =>
+    stage === "move" || stage === "hell" ? "turn-end" : stage;
+  return {
+    ...state,
+    pendingCupRepositionResumeStage: over(state.pendingCupRepositionResumeStage),
+    tileWheelResumeStage: over(state.tileWheelResumeStage) ?? "turn-end",
+    duelResumeStage: over(state.duelResumeStage) ?? "turn-end",
+    gambleResumeStage: over(state.gambleResumeStage) ?? "turn-end",
+  };
+}
+
 /**
  * Voleur: one attempt per visit to the shop, with 1 % of risk for every 10
  * coins of the price. Away with it, the item is free; caught, the thief goes
@@ -685,13 +783,16 @@ function useItem(
   return waiting ?? applyItemUse(state, entryId, plan);
 }
 
-function resolveReaction(state: GameState, reactorId: PlayerId | null): GameState {
+function resolveReaction(state: GameState, reactorId: PlayerId | null, teleport = false): GameState {
   const pending = state.pendingReaction;
   if (!pending || state.turnStage !== "reaction") return state;
   if (reactorId !== null && !pending.reactorIds.includes(reactorId)) return state;
-  if (pending.action.type === "bullet-bill") return resolveBulletReaction(state, pending.action.victimId, reactorId);
+  if (teleport && reactorId === null) return state;
+  if (pending.action.type === "bullet-bill") {
+    return resolveBulletReaction(state, pending.action.victimId, reactorId, teleport);
+  }
   if (reactorId === null) return carryOutDeclaredAction(state, pending);
-  return cancelDeclaredAction(state, pending, reactorId);
+  return cancelDeclaredAction(state, pending, reactorId, teleport);
 }
 
 /**
@@ -699,8 +800,23 @@ function resolveReaction(state: GameState, reactorId: PlayerId | null): GameStat
  * or their angel's Bouclier, it fizzles out; otherwise it hits. Either way the
  * turn change then goes on.
  */
-function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: PlayerId | null): GameState {
+function resolveBulletReaction(
+  state: GameState,
+  victimId: PlayerId,
+  reactorId: PlayerId | null,
+  teleport = false,
+): GameState {
   if (reactorId === null) return resumeAfterBulletReaction(state, false);
+  // Mage noir: out of the way, onto the mark; Bullet Bill then charges at whoever is nearest, if it can hit anybody.
+  if (teleport) {
+    if (reactorId !== victimId) return state;
+    const from = findPlayer(state, victimId)?.position;
+    const gone = teleportToMark(state, victimId, "reaction", { arrive: false });
+    if (gone === state || from === undefined) return state;
+    // The mage arrives on their mark like anywhere else, but only once the next turn is seated: seating it wipes
+    // whatever the tile would have left pending (a wheel, a discard, a Calme-toi offer).
+    return arriveOnceSeated(resumeAfterBulletReaction(gone, false), victimId, from);
+  }
   const reactor = findPlayer(state, reactorId);
   const victim = findPlayer(state, victimId);
   if (reactorId !== victimId) {
@@ -715,9 +831,32 @@ function resolveBulletReaction(state: GameState, victimId: PlayerId, reactorId: 
     return resumeAfterBulletReaction(shielded, true);
   }
   // Spent in the round that is starting.
+  if (!victim || !canUseNoThanks(victim, state.round + 1)) return state;
   let nextState = spendNoThanks(state, victimId, state.round + 1);
   nextState = addLog(nextState, `${victim?.name ?? "Un joueur"} utilise Non merci contre Bullet Bill.`, "event");
   return resumeAfterBulletReaction(nextState, true);
+}
+
+/** A mage who teleported while the round turned arrives on their mark, in the turn that was just seated. */
+function arriveOnceSeated(state: GameState, mageId: PlayerId, from: NodeId): GameState {
+  if (state.phase !== "playing") return state;
+  const arrived = arriveOnMark(state, mageId, from);
+  let nextState = arrived.state;
+  if (arrived.mudHell && nextState.lastPowerEvent?.kind === "mark-teleport") {
+    nextState = { ...nextState, lastPowerEvent: { ...nextState.lastPowerEvent, mudHell: true } };
+  }
+  // Dropped into Hell mid-turn by the mud of their own mark, the turn is over, as for any fall into Hell.
+  const fell = findPlayer(nextState, mageId)?.position === HELL_NODE_ID;
+  const resting = nextState.turnStage === "move" || nextState.turnStage === "hell";
+  const turnOver = fell && resting && getActivePlayer(nextState)?.id === mageId;
+  nextState = {
+    ...nextState,
+    turnStage: turnOver ? "turn-end" : normalizeResumeStage(nextState, nextState.turnStage),
+  };
+  if (turnOver) nextState = endTurnAfterFall(nextState);
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
 }
 
 function endTurn(state: GameState): GameState {
@@ -844,7 +983,7 @@ function resolveWheel(state: GameState): GameState {
   }
 
   // L'Ange-Gardien and Chance aveugle cannot be dragged into Hell: with nobody else to call, the duel is off.
-  const opponents = state.players.filter((candidate) => canBeChallenged(pending.playerId, candidate));
+  const opponents = state.players.filter((candidate) => canBeChallenged(pending.playerId, candidate, state));
   if (pending.result.id === "challenge" && opponents.length === 0) {
     const nextState = addLog({ ...state, pendingWheel: null, turnStage: pending.resumeStage }, "Personne à défier.");
     return settleBoard(queueRepeats(nextState, pending), pending.resumeStage);
@@ -961,10 +1100,11 @@ function refundGreedyNdoye(state: GameState, target: Player, userId: PlayerId | 
  * Rubs out the result of a wheel for its player: with the Gomme, or with a
  * ready Non merci, which then recharges (patch 0.1.4).
  */
-function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
+function cancelWheel(state: GameState, withNoThanks: boolean, teleport = false): GameState {
   const pending = state.pendingWheel;
   const player = findPlayer(state, pending?.playerId);
   if (!pending || !player) return state;
+  if (teleport) return teleportInsteadOfWheel(state, pending, player);
 
   let nextState: GameState;
   if (withNoThanks) {
@@ -982,11 +1122,26 @@ function cancelWheel(state: GameState, withNoThanks: boolean): GameState {
   return settleBoard(queueRepeats(nextState, pending), nextState.turnStage);
 }
 
+/**
+ * Mage noir: a wheel that would move them (Hell, back, a step forward, the start) is set aside and they land on
+ * their mark instead, as the Gomme sets it aside; the second wheel of a pair still applies.
+ */
+function teleportInsteadOfWheel(state: GameState, pending: PendingWheel, player: Player): GameState {
+  if (!canTeleportFromWheel(state, player)) return state;
+  let nextState = addLog(state, `${player.name} se téléporte sur son pentagramme au lieu de suivre la roue.`, "event");
+  nextState = queueRepeats({ ...nextState, pendingWheel: null, turnStage: pending.resumeStage }, pending);
+  nextState = teleportToMark(nextState, player.id, "wheel");
+  nextState = { ...nextState, turnStage: getWheelArrivalStage(nextState, player.id, nextState.turnStage) };
+  const waitsForDecision = ["discard", "reposition", "passive-choice"].includes(nextState.turnStage);
+  if (nextState.phase !== "playing" || waitsForDecision) return nextState;
+  return settleBoard(nextState, nextState.turnStage);
+}
+
 function challengePlayer(state: GameState, targetPlayerId: PlayerId): GameState {
   const pending = state.pendingChallenge;
   const target = findPlayer(state, targetPlayerId);
   // L'Ange-Gardien never goes to Hell and nothing may harm Chance aveugle: neither is dragged into a duel there.
-  if (!pending || !target || !canBeChallenged(pending.playerId, target)) return state;
+  if (!pending || !target || !canBeChallenged(pending.playerId, target, state)) return state;
 
   let nextState = updatePlayer(state, targetPlayerId, placeInHell);
   nextState = { ...nextState, pendingChallenge: null };
@@ -1156,10 +1311,20 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   if (dispatched === prepared) return state;
   // Banquise: nobody stays on ice, whatever set them down there.
   const result = slideOffIce(prepared, dispatched);
+  // Sœur Fantôme mirrors the walk that was made, then follows her player to the start if they fell into Hell.
+  const mirrored = sendSistersHome(prepared, moveSisters(prepared, result));
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
-  const counted = rewardHellRegulars(prepared, rewardDevilInHell(prepared, recordPreviousTiles(prepared, result)));
-  const forfeited = applyForfeits(counted);
-  const settled = announceSpentItems(offerGamble(checkVictories(skipBenchedTurns(releaseQueuedWheels(forfeited)))));
+  const counted = rewardHellRegulars(prepared, rewardDevilInHell(prepared, recordPreviousTiles(prepared, mirrored)));
+  // The Cups Power and passifs of patch 0.2.3 that read where players went and fell: L'Assureur, L'Ermite, la Taupe.
+  const followed = markHermitIntrusions(prepared, rewardInsurerInHell(prepared, counted));
+  const forfeited = applyForfeits(followed);
+  // The Taupe's visited tiles are written last, so that a player set down by a departure (an heir) is counted too.
+  const settled = recordVisitedTiles(
+    prepared,
+    announceSpentItems(
+      offerGamble(checkVictories(skipBenchedTurns(releaseQueuedWheels(clearOrphanedMarks(forfeited))))),
+    ),
+  );
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
   // countdown that follows the draft.
   if (now === undefined || settled.seededRandom === null) return settled;
@@ -1189,6 +1354,18 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return prepareBoot(state, action.entryId);
     case "rollDice":
       return rollDice(state);
+    case "mimeCopy":
+      return mimeCopy(state, action.targetPlayerId, action.kind);
+    case "digTunnel":
+      return digTunnel(state, action.destination);
+    case "crossTunnel":
+      return crossTunnel(state, action.tunnelId);
+    case "placeMark":
+      return placeMark(state);
+    case "teleportToMark":
+      return teleportInTurn(state);
+    case "swapWithSister":
+      return swapWithSister(state);
     case "leaveHell":
       return leaveHellAndSettle(state);
     case "rescueProtege":
@@ -1202,7 +1379,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "useItem":
       return useItem(state, action.entryId, action.targetPlayerId, action.count, action.targetRoad);
     case "resolveReaction":
-      return resolveReaction(state, action.reactorId);
+      return resolveReaction(state, action.reactorId, action.teleport === true);
     case "endTurn":
       return endTurn(state);
     case "spinHellWheel":
@@ -1228,7 +1405,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
     case "pickWheelResult":
       return pickWheelResult(state, action.index);
     case "cancelWheel":
-      return cancelWheel(state, action.withNoThanks === true);
+      return cancelWheel(state, action.withNoThanks === true, action.teleport === true);
     case "challengePlayer":
       return challengePlayer(state, action.targetPlayerId);
     case "chooseDuelMode":

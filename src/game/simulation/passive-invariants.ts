@@ -3,6 +3,7 @@ import { getOpenBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG } from "../catalog";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import { isThrownItem } from "../turn-actions";
+import { getHermitStartBonus } from "./cups-power-invariants";
 import type { GameState, NodeId } from "../types";
 import {
   CALM_DOWN_DISTANCE,
@@ -48,7 +49,12 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const landed = after.position === START_NODE_ID || touched || slidOnIce(previous, next, holderId);
   if (
     toStart &&
-    (!landed || after.currency !== expectedBalance(before, START_BONUS + hellRewardCoins(logs, before.name)))
+    (!landed ||
+      after.currency !==
+        expectedBalance(
+          before,
+          START_BONUS + getHermitStartBonus(next, before.id) + hellRewardCoins(logs, before.name),
+        ))
   ) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }
@@ -166,7 +172,12 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
   if (!pending || !cancelled || pending.action.type !== "item") return;
   const actorBefore = findPlayer(previous, pending.actorId);
   const actorAfter = findPlayer(next, pending.actorId);
-  const reactor = next.players.find((player) => pending.reactorIds.includes(player.id));
+  // Several players may have been offered a reaction (a Mage noir may teleport): the one who spent Non merci answers.
+  const spent = newLogTexts(previous, next);
+  const reactor = next.players.find(
+    (player) =>
+      pending.reactorIds.includes(player.id) && spent.includes(`${player.name} utilise Non merci : Draven l’épargne.`),
+  );
   if (pending.action.itemId === "draven") {
     const reactorBefore = findPlayer(previous, reactor?.id);
     if (reactor && reactorBefore && reactor.position !== reactorBefore.position) {

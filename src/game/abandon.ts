@@ -35,8 +35,12 @@ export function abandonPlayer(
       ...state,
       players,
       abandonedPlayers: [...state.abandonedPlayers, leaver],
-      // Keeps pointing at the same player once the seats before them shift.
-      activePlayerIndex: index < state.activePlayerIndex ? state.activePlayerIndex - 1 : state.activePlayerIndex,
+      // Keeps pointing at the same player once the seats before them shift, and never past the last seat left
+      // (the active player leaving from the last seat, with the turn change then held for Bullet Bill's victim).
+      activePlayerIndex: Math.min(
+        index < state.activePlayerIndex ? state.activePlayerIndex - 1 : state.activePlayerIndex,
+        players.length - 1,
+      ),
     },
     reason === "forfeit"
       ? `${leaver.name} déclare forfait : trois tours sans jouer.`

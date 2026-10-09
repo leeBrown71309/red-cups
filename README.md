@@ -13,6 +13,13 @@ Les règles, décisions confirmées et points ouverts sont dans [`red-cups-game-
 patch 0.1.4 est décrit lot par lot dans [`plans/patch-0.1.4-rework.md`](./plans/patch-0.1.4-rework.md), et ses choix
 encore à valider dans la section 13 de la spec.
 
+## Patch 0.2.3
+
+- **Cups Power** : les actifs s’appellent désormais des Cups Power (CP) ; le code garde `actif`. Cinq nouveaux CP,
+  le Mime, la Taupe, le Mage noir, Mi-vu, Mi-vue et la Sœur Fantôme, et deux nouveaux passifs, L’Ermite et L’Assureur
+  (règles : section 8 de la spec ; choix à valider : section 13 septies ; plan : `plans/patch-0.2.3.md` ; une fiche
+  par élément dans le wiki).
+
 ## Patch 0.1.5
 
 - **Menu** avant la préparation de la partie, avec la version du jeu et un journal des modifications.

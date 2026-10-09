@@ -360,7 +360,7 @@ function RoomLobby() {
           </h1>
           <p className="players__lead">
             {enoughPlayers
-              ? "L’ordre du tour est celui de la table. Chacun choisira son actif, les passifs sont tirés au sort."
+              ? "L’ordre du tour est celui de la table. Chacun choisira son Cups Power, les passifs sont tirés au sort."
               : "Il faut au moins deux joueurs : partage le code ou le lien."}
           </p>
           <div className="online-share">

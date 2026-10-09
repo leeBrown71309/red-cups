@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { PASSIVE_CATALOG, PASSIVE_ORDER } from "../../game/catalog";
 import type { PassiveId } from "../../game/types";
-import { PassiveCard, PASSIVE_SUITS, SUIT_ACCENTS, SUIT_LABELS, toRomanNumeral } from "../components/passive-card";
+import { PassiveCard, toRomanNumeral } from "../components/passive-card";
+import { getCardStyle } from "../cards/card-art";
 import { PassiveTalisman } from "../components/passive-talisman";
 import { TiltCard } from "../components/tilt-card";
 import { PassiveIcon } from "../icons/passive-icon";
@@ -51,9 +52,8 @@ export function DraftInspector({
   const focused = cards.includes(focusedId) ? focusedId : cards[0];
   const focusedIndex = cards.indexOf(focused);
   const passive = PASSIVE_CATALOG[focused];
-  const suit = PASSIVE_SUITS[focused];
   const numeral = toRomanNumeral(PASSIVE_ORDER.indexOf(focused) + 1);
-  const accent = { "--card-accent": SUIT_ACCENTS[suit] } as CSSProperties;
+  const accent = getCardStyle(focused);
   // With two cards, the one behind leans to the side of the card in front.
   const lean = cards.length > 1 ? (focusedIndex === 0 ? 1 : -1) : 0;
 
@@ -62,7 +62,7 @@ export function DraftInspector({
       <div className="draft-inspector__stage">
         <ul
           className="draft-inspector__hand"
-          aria-label={kind === "actif" ? "Cartes proposées" : "Talisman tiré"}
+          aria-label={kind === "actif" ? "Cups Power proposés" : "Talisman tiré"}
           style={{ "--lean": lean } as CSSProperties}
         >
           {cards.map((cardId, index) => {
@@ -83,6 +83,7 @@ export function DraftInspector({
                 {kind === "actif" ? (
                   <TiltCard
                     delayMs={260 + index * 180}
+                    backOf={cardId}
                     scrollable
                     flipped={isFocused && flipped}
                     onFlip={() => setFlipped((current) => !current)}
@@ -112,7 +113,7 @@ export function DraftInspector({
         {kind === "actif" && (
           <div className="draft-inspector__bar">
             {cards.length > 1 && (
-              <div className="draft-inspector__choices" role="group" aria-label="Choisir la carte à examiner">
+              <div className="draft-inspector__choices" role="group" aria-label="Choisir le Cups Power à examiner">
                 {cards.map((cardId) => (
                   <button
                     key={cardId}
@@ -147,9 +148,8 @@ export function DraftInspector({
           </span>
           <p className="draft-inspector__tags" style={{ "--i": 1 } as CSSProperties}>
             <span className={`draft-inspector__kind draft-inspector__kind--${kind}`}>
-              {kind === "actif" ? "Actif" : "Passif"}
+              {kind === "actif" ? "Cups Power" : "Passif"}
             </span>
-            <span className="draft-inspector__suit">{SUIT_LABELS[suit]}</span>
             <span className="draft-inspector__numeral" aria-hidden="true">
               {numeral}
             </span>

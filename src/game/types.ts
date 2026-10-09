@@ -108,6 +108,44 @@ export const ARM_WRESTLE_DURATION_MS = 10_000;
 export const ARM_WRESTLE_MAX_TAPS = 150;
 /** Arm wrestle: Baraqué's strength. */
 export const TANK_ARM_STRENGTH = 1.2;
+/** Mime: rounds to wait after a copy before copying again (patch 0.2.3). */
+export const MIME_COOLDOWN_ROUNDS = 3;
+/** Sœur Fantôme: rounds to wait after a Swap before swapping again. */
+export const SISTER_SWAP_COOLDOWN_ROUNDS = 4;
+/** Taupe: energy that digging a tunnel costs. */
+export const MOLE_DIG_ENERGY = 3;
+/** Taupe: energy the digger pays to cross a tunnel they dug; anybody else pays the dig's price. */
+export const MOLE_OWN_CROSSING_ENERGY = 2;
+/** Taupe: rounds to wait after digging before digging again. */
+export const MOLE_COOLDOWN_ROUNDS = 3;
+/** Taupe: a tunnel holds one crossing after the dig that opens it (the dig is its first use, the crossing its second). */
+export const TUNNEL_CROSSINGS = 1;
+/** Mage noir: chances at the start, and the most they may hold. */
+export const MAGE_MAX_LUCK = 3;
+/** Mage noir: rounds it takes to win a chance back. */
+export const MAGE_LUCK_RETURN_ROUNDS = 15;
+/** Mage noir: chance that a player standing on the mark when the mage lands there falls into Hell. */
+export const MARK_HELL_CHANCE = 0.2;
+/** Mage noir: chance that the mage falls into Hell when a Boue lies on their mark. */
+export const MARK_MUD_HELL_CHANCE = 0.2;
+/** Sœur Fantôme: energy that swapping with the sister costs. */
+export const SISTER_SWAP_ENERGY = 3;
+/** Mi-vu, Mi-vue: own turns in a cycle; the first is visible, the others are not. */
+export const MIST_CYCLE_TURNS = 3;
+/** Mi-vu, Mi-vue: standing this close to the Red Cup (in steps) makes them visible again. */
+export const MIST_CUP_DISTANCE = 1;
+/** L'Ermite: no other player within this many steps. */
+export const HERMIT_DISTANCE = 2;
+/** L'Ermite: extra coins every time they pass the start. */
+export const HERMIT_START_BONUS = 100;
+/** L'Ermite: extra energy while they are alone. */
+export const HERMIT_ENERGY_BONUS = 1;
+/** L'Assureur: share of any coins another player loses, paid by the bank. */
+export const INSURER_RATE = 0.2;
+/** L'Assureur: most the bank pays them for lost coins in one round. */
+export const INSURER_ROUND_CAP = 150;
+/** L'Assureur: coins every time another player falls into Hell. */
+export const INSURER_HELL_REWARD = 50;
 
 export const PLAYER_COLORS = [
   "#f16a53",
@@ -185,7 +223,15 @@ export type PassiveId =
   | "devils-hand"
   | "game-master"
   | "junk-dealer"
-  | "trapper";
+  | "trapper"
+  // Cups Power (actifs) and passifs added in patch 0.2.3.
+  | "mime"
+  | "mole"
+  | "black-mage"
+  | "half-seen"
+  | "ghost-sister"
+  | "hermit"
+  | "insurer";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket" | "blackjack";
@@ -221,6 +267,33 @@ export interface Player {
   hellTurns: number;
   /** Tile the player stood on before they were last moved, for « Retourne d’où tu viens ». */
   previousNodeId: NodeId | null;
+  /**
+   * The state of the Cups Power of patch 0.2.3 lives in the fields below, all optional: a player who holds none of
+   * those cards never carries them, and a save from before has none of them.
+   *
+   * Mime: the actif copied from another player for the turn in progress, dropped as the turn changes.
+   */
+  mimicId?: PassiveId | null;
+  /** Mime: first round in which they may copy again. */
+  mimeReadyRound?: number;
+  /** Sœur Fantôme: first round in which they may swap again. */
+  swapReadyRound?: number;
+  /** Taupe: every tile the player stood on or walked through, which is where they may dig a tunnel to. */
+  visitedNodeIds?: NodeId[];
+  /** Taupe: first round in which they may dig again. */
+  moleReadyRound?: number;
+  /** Mage noir: chances left; the game is over for them at zero. */
+  luck?: number;
+  /** Mage noir: round in which the next chance comes back, while they hold fewer than the most. */
+  luckReturnRound?: number;
+  /** Sœur Fantôme: the tile the little ghost floats on. */
+  sisterNodeId?: NodeId;
+  /** Mi-vu, Mi-vue: own turns begun so far, which tell where the player stands in the cycle of three. */
+  mistTurns?: number;
+  /** L'Ermite: the prime is lost up to and including this round (someone arrived on their tile). */
+  hermitLostUntilRound?: number;
+  /** L'Assureur: what the bank paid them for lost coins during `round`. */
+  insurerEarned?: { round: number; amount: number };
 }
 
 export interface BoardNode {
@@ -645,7 +718,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.2";
+export const RULES_VERSION = "0.2.3";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -673,7 +746,63 @@ export interface PlayerMovement {
   portalNodeId?: NodeId;
   /** Chance aveugle: the walk ends on a tile of Boue, where they slip and are thrown back to the tile they came from. */
   slippedInMud?: boolean;
+  /** Taupe: the walk is a dive into a tunnel, from `from` to the only tile of the path. */
+  tunnel?: { id: string; dug: boolean };
+  /** Sœur Fantôme: where the little ghost went while the player walked, one step for each of theirs (or none). */
+  sister?: { playerId: PlayerId; from: NodeId; path: NodeId[] };
 }
+
+/** Taupe: a tunnel between two tiles, open both ways until it was crossed once after the dig. */
+export interface MoleTunnel {
+  id: string;
+  a: NodeId;
+  b: NodeId;
+  /** Who dug it: they cross it for less. */
+  ownerId: PlayerId;
+  /** Crossings left; it closes at zero. */
+  crossingsLeft: number;
+}
+
+/** Mage noir: the pentagram their owner may teleport to, seen by the whole table. */
+export interface BlackMark {
+  ownerId: PlayerId;
+  nodeId: NodeId;
+}
+
+/**
+ * The last deed of a Cups Power of patch 0.2.3, kept so the scene, the toasts and the sounds can play it again.
+ * One record at a time, as for the other `last…` events: `seq` tells a new one.
+ */
+export type PowerEvent = { seq: number } & (
+  | { kind: "mime-copy"; playerId: PlayerId; targetId: PlayerId; cardId: PassiveId }
+  | { kind: "tunnel-dig"; playerId: PlayerId; from: NodeId; to: NodeId; tunnelId: string }
+  | { kind: "tunnel-cross"; playerId: PlayerId; from: NodeId; to: NodeId; tunnelId: string; closed: boolean }
+  | { kind: "mark-place"; playerId: PlayerId; nodeId: NodeId }
+  | {
+      kind: "mark-teleport";
+      playerId: PlayerId;
+      from: NodeId;
+      to: NodeId;
+      /** Why the mage left: their own turn, an item aimed at them, a wheel that would move them. */
+      reason: "turn" | "reaction" | "wheel";
+      /** The mage fell into Hell on arrival, through the mud lying on the mark. */
+      mudHell: boolean;
+      /** Players standing on the mark who fell into Hell. */
+      victimIds: PlayerId[];
+      /** The mark stays on the board because it sent somebody to Hell. */
+      kept: boolean;
+      luckLeft: number;
+    }
+  | {
+      kind: "sister-swap";
+      playerId: PlayerId;
+      /** The player's tile before the swap, and the sister's. */
+      playerFrom: NodeId;
+      sisterFrom: NodeId;
+      /** What the sister carried along from her tile. */
+      carried: { mud: number; portals: number; redCup: boolean; bulletBill: boolean };
+    }
+);
 
 /** Banquise: the last snowball thrown by the penguins, kept so the scene can replay it. */
 export interface SnowballThrow {
@@ -768,6 +897,13 @@ export interface GameLogEntry {
    * screen and reads `text`.
    */
   secret?: { ownerId: PlayerId; publicText: string };
+  /**
+   * Whose turn it was when the line was written (patch 0.2.3). Mi-vu, Mi-vue: whoever is invisible does not read
+   * what others do, and the others do not read what the invisible player does, unless the line is `open`.
+   */
+  by?: PlayerId;
+  /** The line is told to everybody whatever the fog: whose turn begins, who turns invisible. */
+  open?: true;
 }
 
 /** Seeded luck of an online game, stored in the state so every device draws the same. */
@@ -798,6 +934,12 @@ export interface GameState {
   pendingDuelChoice: PendingDuelChoice | null;
   /** The Barrières on the roads: nobody walks them while they stand. */
   barriers: Barrier[];
+  /** Taupe: the tunnels dug and not yet crossed. */
+  moleTunnels: MoleTunnel[];
+  /** Mage noir: the pentagrams on the board, one for each mage at most. */
+  blackMarks: BlackMark[];
+  /** The last deed of a Cups Power of patch 0.2.3. */
+  lastPowerEvent: PowerEvent | null;
   pendingDiscard: PendingDiscard | null;
   pendingChallenge: PendingChallenge | null;
   pendingCupRepositionPlayerId: PlayerId | null;
@@ -909,6 +1051,9 @@ export const EMPTY_GAME_STATE: GameState = {
   pendingDuel: null,
   pendingDuelChoice: null,
   barriers: [],
+  moleTunnels: [],
+  blackMarks: [],
+  lastPowerEvent: null,
   pendingDiscard: null,
   pendingChallenge: null,
   pendingCupRepositionPlayerId: null,

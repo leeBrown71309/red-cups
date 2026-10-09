@@ -1,4 +1,6 @@
 import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import type { PassiveId } from "../../game/types";
+import { CardBack } from "../cards/card-art";
 
 const MAX_TILT_DEGREES = 16;
 
@@ -10,6 +12,8 @@ interface TiltCardProps {
   scrollable?: boolean;
   /** Show the back of the card: the player asked to turn it over. */
   flipped?: boolean;
+  /** The card whose own back is shown when the card is turned over (every card has a back of its own). */
+  backOf?: PassiveId;
   /** Doubt: double-clicking the card turns it over, face or back. */
   onFlip?: () => void;
 }
@@ -20,7 +24,14 @@ interface TiltCardProps {
  * pointer leaves. Give it a \`key\` to replay the flip for another card. With \`flipped\` the player can also
  * turn the opened card over and read its back.
  */
-export function TiltCard({ children, delayMs = 0, scrollable = false, flipped = false, onFlip }: TiltCardProps) {
+export function TiltCard({
+  children,
+  delayMs = 0,
+  scrollable = false,
+  flipped = false,
+  backOf,
+  onFlip,
+}: TiltCardProps) {
   const surface = useRef<HTMLDivElement>(null);
 
   const lean = (event: PointerEvent<HTMLDivElement>) => {
@@ -62,24 +73,32 @@ export function TiltCard({ children, delayMs = 0, scrollable = false, flipped = 
         <div className="tilt-card__flip">
           <div className={`tilt-card__turn ${flipped ? "is-flipped" : ""}`}>
             <div className="tilt-card__face tilt-card__face--front">{children}</div>
-            <div className="tilt-card__face tilt-card__face--back" aria-hidden="true" onClick={onFlip}>
-              <span className="tilt-card__back-frame">
-                <span className="tilt-card__back-medallion">
-                  <svg viewBox="0 0 48 48" width="46" height="46" focusable="false">
-                    <path
-                      d="M12 8h24l-3 32a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3L12 8z"
-                      fill="#e8453c"
-                      stroke="#3a2530"
-                      strokeWidth="3"
-                      strokeLinejoin="round"
-                    />
-                    <path d="M12.8 16h22.4" stroke="#fff8ee" strokeWidth="3" strokeLinecap="round" />
-                    <ellipse cx="24" cy="8" rx="12" ry="3" fill="#ffd9d4" stroke="#3a2530" strokeWidth="3" />
-                  </svg>
+            <div
+              className={`tilt-card__face tilt-card__face--back ${backOf ? "tilt-card__face--own-back" : ""}`}
+              aria-hidden="true"
+              onClick={onFlip}
+            >
+              {backOf ? (
+                <CardBack passiveId={backOf} />
+              ) : (
+                <span className="tilt-card__back-frame">
+                  <span className="tilt-card__back-medallion">
+                    <svg viewBox="0 0 48 48" width="46" height="46" focusable="false">
+                      <path
+                        d="M12 8h24l-3 32a3 3 0 0 1-3 3H18a3 3 0 0 1-3-3L12 8z"
+                        fill="#e8453c"
+                        stroke="#3a2530"
+                        strokeWidth="3"
+                        strokeLinejoin="round"
+                      />
+                      <path d="M12.8 16h22.4" stroke="#fff8ee" strokeWidth="3" strokeLinecap="round" />
+                      <ellipse cx="24" cy="8" rx="12" ry="3" fill="#ffd9d4" stroke="#3a2530" strokeWidth="3" />
+                    </svg>
+                  </span>
+                  <span className="tilt-card__back-star tilt-card__back-star--top">✦</span>
+                  <span className="tilt-card__back-star tilt-card__back-star--bottom">✦</span>
                 </span>
-                <span className="tilt-card__back-star tilt-card__back-star--top">✦</span>
-                <span className="tilt-card__back-star tilt-card__back-star--bottom">✦</span>
-              </span>
+              )}
             </div>
           </div>
         </div>

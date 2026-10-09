@@ -165,7 +165,7 @@ export function closeDraft(state: GameState, now?: number): GameState {
     const deadline = draft.deadline === null ? null : (now ?? draft.deadline) + PASSIF_REVEAL_TIME_MS;
     return addLog(
       { ...state, draft: { stage: "passif", offers, picks: {}, actifs: picks, deadline } },
-      "Les actifs sont choisis : les passifs sont tirés au sort.",
+      "Les Cups Power sont choisis : les passifs sont tirés au sort.",
       "event",
     );
   }
@@ -184,7 +184,7 @@ export function closeDraft(state: GameState, now?: number): GameState {
     players,
     energyLeft: active ? getEnergyCapacity(active) : state.energyLeft,
   };
-  nextState = addLog(nextState, "Les cartes sont choisies : la partie commence !", "event");
+  nextState = addLog(nextState, "Les atouts sont choisis : la partie commence !", "event");
   return assignGuardian(nextState);
 }
 

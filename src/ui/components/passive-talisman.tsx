@@ -2,7 +2,8 @@ import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from "r
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import type { PassiveId } from "../../game/types";
 import { PassiveIcon } from "../icons/passive-icon";
-import { PASSIVE_SUITS, SUIT_ACCENTS, SUIT_LABELS } from "./passive-card";
+import { CardTexture, getCardStyle } from "../cards/card-art";
+import { CARD_DESIGNS } from "../cards/card-design";
 
 /** Slices stacked behind the face: they give the coin its thickness when it leans. */
 const THICKNESS_SLICES = [1, 2, 3, 4, 5, 6];
@@ -25,8 +26,8 @@ interface PassiveTalismanProps {
 export function PassiveTalisman({ passiveId, delayMs = 0, children }: PassiveTalismanProps) {
   const coin = useRef<HTMLDivElement>(null);
   const passive = PASSIVE_CATALOG[passiveId];
-  const suit = PASSIVE_SUITS[passiveId];
-  const style = { "--card-accent": SUIT_ACCENTS[suit], "--drop-delay": `${delayMs}ms` } as CSSProperties;
+  const design = CARD_DESIGNS[passiveId];
+  const style = { ...getCardStyle(passiveId), "--drop-delay": `${delayMs}ms` } as CSSProperties;
 
   const lean = (event: PointerEvent<HTMLDivElement>) => {
     const element = coin.current;
@@ -44,7 +45,10 @@ export function PassiveTalisman({ passiveId, delayMs = 0, children }: PassiveTal
   };
 
   return (
-    <article className={`talisman talisman--${suit}`} style={style}>
+    <article className="talisman" style={style}>
+      <span className="talisman__texture" aria-hidden="true">
+        <CardTexture design={design} />
+      </span>
       <div
         className="talisman__stage"
         onPointerMove={lean}
@@ -82,7 +86,7 @@ export function PassiveTalisman({ passiveId, delayMs = 0, children }: PassiveTal
       <span className="talisman__text scroll-block" tabIndex={0}>
         {passive.description}
       </span>
-      <span className="talisman__suit">Passif · {SUIT_LABELS[suit]}</span>
+      <span className="talisman__kind">Passif</span>
       {children}
     </article>
   );

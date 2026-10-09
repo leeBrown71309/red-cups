@@ -1,0 +1,186 @@
+/*
+ * Cups Power of patch 0.2.3: the dock's extra buttons, Mage noir's chances, and what the fog of Mi-vu, Mi-vue hides
+ * from the players panel and the details card.
+ */
+
+/* Mime: the players whose Cups Power may be borrowed, one chip each. */
+.power-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.power-picker__title {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.power-picker .destination-chip {
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  font-size: 1rem;
+  background: var(--grape-light);
+  box-shadow:
+    0 4px 0 var(--ink),
+    inset 0 -4px 0 var(--grape);
+}
+
+.power-picker__dot {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+/* Mage noir: three pips, one lit for every chance left. */
+.mage-luck {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  cursor: help;
+}
+
+/* Mi-vu, Mi-vue: a player the fog hides from this device. */
+.player-row__fog {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+.player-details__fog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 2px dashed var(--ink-faint);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.status-token--mage {
+  background: var(--grape-light);
+}
+
+/* The state of the holder's own Cups Power, under their name in the dock: a cooldown, the chances left… */
+.action-dock__power-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--grape-deep);
+}
+
+/*
+ * The dock's actions in two tidy tiers: the main ones (route, end of turn, wheel) share one height and sit on the
+ * right; the powers and the extras of the turn go to a row of their own, all one size, under a small label.
+ */
+.dock-actions {
+  flex: 1 1 auto;
+  gap: 8px 10px;
+}
+
+.dock-actions > .btn,
+.dock-actions > .destination-chips .destination-chip {
+  min-height: 44px;
+  height: 44px;
+  padding: 0 16px;
+  font-size: 1rem;
+}
+
+.dock-actions > .destination-chips {
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+
+/*
+ * Many buttons at once: equal columns that wrap onto as many rows as needed, and a scroll of their own past a third of
+ * the screen, so the dock never grows over the board.
+ */
+.dock-actions > .dock-powers {
+  flex: 1 0 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(172px, 1fr));
+  gap: 6px 8px;
+  max-height: 34vh;
+  padding-top: 8px;
+  overflow-y: auto;
+  border-top: 2px dashed var(--paper-edge);
+}
+
+.dock-powers > .mage-luck,
+.dock-powers > .power-picker {
+  grid-column: 1 / -1;
+}
+
+.dock-powers:empty {
+  display: none;
+}
+
+.dock-actions .dock-powers .btn {
+  width: 100%;
+  min-height: 38px;
+  padding: 4px 10px;
+  font-size: 0.9rem;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
+}
+
+.dock-powers .power-picker {
+  justify-content: flex-end;
+}
+
+/* The dock's two cards, as their icons: a tap opens their rules in the slide-over. */
+.action-dock__cards {
+  display: inline-flex;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.action-dock__card {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  background: var(--grape-light);
+  cursor: pointer;
+  transition: transform 140ms ease-out;
+}
+
+.action-dock__card:active {
+  transform: scale(0.94);
+}
+
+.action-dock__card.is-open {
+  background: var(--cream, #fff4ec);
+  box-shadow: var(--shadow-chunky);
+}
+
+/* Mime: one row for each player, with a chip for the Cups Power and one for the passif. */
+.power-picker__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.power-picker__who {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 96px;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
