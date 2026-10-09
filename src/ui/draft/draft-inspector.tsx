@@ -62,7 +62,7 @@ export function DraftInspector({
       <div className="draft-inspector__stage">
         <ul
           className="draft-inspector__hand"
-          aria-label={kind === "actif" ? "Cartes proposées" : "Talisman tiré"}
+          aria-label={kind === "actif" ? "Cups Power proposés" : "Talisman tiré"}
           style={{ "--lean": lean } as CSSProperties}
         >
           {cards.map((cardId, index) => {
@@ -112,7 +112,7 @@ export function DraftInspector({
         {kind === "actif" && (
           <div className="draft-inspector__bar">
             {cards.length > 1 && (
-              <div className="draft-inspector__choices" role="group" aria-label="Choisir la carte à examiner">
+              <div className="draft-inspector__choices" role="group" aria-label="Choisir le Cups Power à examiner">
                 {cards.map((cardId) => (
                   <button
                     key={cardId}
@@ -147,7 +147,7 @@ export function DraftInspector({
           </span>
           <p className="draft-inspector__tags" style={{ "--i": 1 } as CSSProperties}>
             <span className={`draft-inspector__kind draft-inspector__kind--${kind}`}>
-              {kind === "actif" ? "Actif" : "Passif"}
+              {kind === "actif" ? "Cups Power" : "Passif"}
             </span>
             <span className="draft-inspector__suit">{SUIT_LABELS[suit]}</span>
             <span className="draft-inspector__numeral" aria-hidden="true">

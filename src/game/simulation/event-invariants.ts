@@ -1,5 +1,6 @@
 import { isTableBroke } from "../blessing";
 import { getNeighbors, getOpenBoard } from "../board";
+import { isInvisible } from "../mist";
 import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
@@ -32,7 +33,10 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const flew = flight !== null && flight.seq !== previous.lastBulletFlight?.seq;
   const bullet = previous.bulletBill;
   const due = bullet !== null && (bullet.status === "active" || bullet.spawnRound <= next.round);
-  const reachable = previous.players.some((player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player));
+  // Nobody Mi-vu, Mi-vue hides is chased either.
+  const reachable = previous.players.some(
+    (player) => player.position !== HELL_NODE_ID && !isImmuneToItems(player) && !isInvisible(previous, player),
+  );
   if (next.round > previous.round && due && reachable && !flew) {
     found.push(violation("bullet-charges", `Bullet Bill stayed put at the start of round ${next.round}`));
   }
@@ -163,7 +167,11 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
   // Online, forfeits wait for the table to rest: two players out of chances may leave together.
   const logs = newLogTexts(previous, next);
   const forfeits = gone.filter((player) => logs.includes(`${player.name} déclare forfait : trois tours sans jouer.`));
-  if (gone.length > 1 && forfeits.length === gone.length) return;
+  // A Mage noir out of chances leaves as the table comes to rest, which may be the same moment as a forfeit.
+  const fallenMages = gone.filter((player) =>
+    logs.some((text) => text.startsWith(`${player.name} n’a plus aucune chance`)),
+  );
+  if (gone.length > 1 && forfeits.length + fallenMages.length === gone.length) return;
   if (gone.length !== 1) {
     found.push(violation("abandon-one-seat", `${gone.length} players left in a single action`));
     return;
@@ -188,6 +196,9 @@ export function checkAbandon(previous: GameState, next: GameState, found: RuleVi
   // Online, a forfeit is settled once the table is at rest, right after the action that got it there.
   const forfeit = newLogTexts(previous, next).some((text) => text.startsWith(`${leaver.name} déclare forfait`));
   if (forfeit) return;
+  // A Mage noir who spent their last chance in an answer (to an item, to a wheel) leaves as the table comes to rest.
+  const fallen = newLogTexts(previous, next).some((text) => text.startsWith(`${leaver.name} n’a plus aucune chance`));
+  if (fallen) return;
   if (previousActive.id !== leaver.id) {
     if (nextActive?.id !== previousActive.id || (next.turnStage !== previous.turnStage && !heirDuel)) {
       found.push(violation("abandon-keeps-turn", `${leaver.name} leaving interrupted ${previousActive.name}'s turn`));

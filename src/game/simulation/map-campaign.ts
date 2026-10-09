@@ -1,7 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { MapId } from "../types";
+import type { PassiveId } from "../types";
 import { findCoverageGaps } from "./coverage";
-import { runMapCampaign, summarizeViolations, type BotGameReport } from "./run-bot-game";
+import { mergeCounts, runBotGame, runMapCampaign, summarizeViolations, type BotGameReport } from "./run-bot-game";
 
 /**
  * Test helpers for the bot campaigns. Each map's campaign lives in its own
@@ -13,6 +14,18 @@ import { runMapCampaign, summarizeViolations, type BotGameReport } from "./run-b
 export const CAMPAIGN_TIMEOUT_MS = 300_000;
 /** Enough tables on one map for every passive, item, wheel and mechanic of the map to come up. */
 const GAMES_PER_MAP = 300;
+/** The Cups Power and passifs of patch 0.2.3, each played alone at a table, on every map, locally and online. */
+export const CUP_POWER_STRESS: { cardId: PassiveId; action: string | null }[] = [
+  { cardId: "mime", action: "power:mime-copy" },
+  { cardId: "mole", action: "power:dig-tunnel" },
+  { cardId: "black-mage", action: "power:place-mark" },
+  { cardId: "half-seen", action: null },
+  { cardId: "ghost-sister", action: "power:swap-sister" },
+  { cardId: "hermit", action: null },
+  { cardId: "insurer", action: null },
+];
+const STRESS_GAMES = 30;
+
 /** Games of a map campaign played a second time, which must come out the same. */
 const REPLAYED_GAMES = 12;
 /** Games played in one go before the test worker gets the hand back. */
@@ -64,6 +77,25 @@ export function describeMapCampaign(mapId: MapId): void {
     it("plays every item, wheel, stage and passive, and the map's own mechanics", () => {
       expect(findCoverageGaps(reports, mapId)).toEqual([]);
     });
+
+    it.each(CUP_POWER_STRESS)(
+      "keeps the rules with $cardId alone at the table, locally and online",
+      ({ cardId, action }) => {
+        const stress = Array.from({ length: STRESS_GAMES }, (_, index) =>
+          runBotGame({
+            seed: 70_000 + index,
+            mapId,
+            playerCount: 2 + (index % 7),
+            passives: [cardId],
+            online: index % 2 === 1,
+          }),
+        );
+        expect(summarizeViolations(stress)).toEqual([]);
+        expect(stress.filter((report) => report.blocked)).toHaveLength(0);
+        if (action) expect(mergeCounts(stress, "actionCounts")[action]).toBeGreaterThan(0);
+      },
+      CAMPAIGN_TIMEOUT_MS,
+    );
 
     it(
       "replays a seed exactly, so any failure can be traced back",

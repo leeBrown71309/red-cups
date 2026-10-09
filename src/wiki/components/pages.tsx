@@ -68,8 +68,8 @@ export function HomePage() {
     },
     {
       href: "#/cards",
-      title: "Cartes",
-      blurb: "Actifs et passifs : rôles, victoires propres, exceptions de règle.",
+      title: "Cups Power & passifs",
+      blurb: "Rôles, pouvoirs, victoires propres, exceptions de règle : ce que chacun porte toute la partie.",
       count: WIKI_STATS.cards,
     },
     {
@@ -81,7 +81,7 @@ export function HomePage() {
     {
       href: "#/wheels",
       title: "Roues",
-      blurb: "Secteurs, probabilités réelles, cartes qui les trichent.",
+      blurb: "Secteurs, probabilités réelles, Cups Power et passifs qui les trichent.",
       count: WIKI_STATS.wheels,
     },
     {
@@ -115,14 +115,14 @@ export function HomePage() {
         <GameLogo />
         <h1>Le wiki Red Cups</h1>
         <p className="wiki-hero__lead">
-          Tout ce que le code du jeu sait sur ses éléments : chaque objet, chaque carte, chaque plateau, chaque roue —
-          et exactement comment ils interagissent les uns avec les autres. Les prix, poids et graphes viennent{" "}
-          <strong>directement du moteur</strong> : cette page est toujours à jour avec le jeu.
+          Tout ce que le code du jeu sait sur ses éléments : chaque objet, chaque Cups Power et chaque passif, chaque
+          plateau, chaque roue — et exactement comment ils interagissent les uns avec les autres. Les prix, poids et
+          graphes viennent <strong>directement du moteur</strong> : cette page est toujours à jour avec le jeu.
         </p>
         <div className="wiki-facts">
           <span className="wiki-fact wiki-fact--gold">Règles {WIKI_STATS.rulesVersion}</span>
           <span className="wiki-fact wiki-fact--sky">{WIKI_STATS.items} objets</span>
-          <span className="wiki-fact wiki-fact--cup">{WIKI_STATS.actifs} actifs</span>
+          <span className="wiki-fact wiki-fact--cup">{WIKI_STATS.actifs} Cups Power</span>
           <span className="wiki-fact wiki-fact--mint">{WIKI_STATS.passifs} passifs</span>
           <span className="wiki-fact wiki-fact--grape">{WIKI_STATS.maps} plateaux</span>
           <span className="wiki-fact wiki-fact--neutral">{WIKI_STATS.interactions} interactions recensées</span>
@@ -138,7 +138,7 @@ export function HomePage() {
         ))}
       </div>
       <p className="wiki-note">
-        Astuce : sur chaque fiche, les cartes cliquables d'un paragraphe mènent à la fiche de ce dont il parle. Pour
+        Astuce : sur chaque fiche, les noms soulignés d'un paragraphe mènent à la fiche de ce dont il parle. Pour
         revenir au jeu :{" "}
         <a className="wiki-link" href="./">
           index.html
@@ -159,11 +159,14 @@ export function ListPage({
   title,
   blurb,
   filter,
+  placeholder,
 }: {
   kind: WikiEntry["kind"];
   title: string;
   blurb: string;
   filter?: { options: [string, string][] };
+  /** The search box's hint; the lower-cased title when omitted. */
+  placeholder?: string;
 }) {
   const [active, setActive] = useState<string>("all");
   const [query, setQuery] = useState("");
@@ -207,7 +210,7 @@ export function ListPage({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder={`Filtrer ${title.toLowerCase()}…`}
+          placeholder={placeholder ?? `Filtrer ${title.toLowerCase()}…`}
           type="search"
         />
       </label>
@@ -281,7 +284,7 @@ export function EntryPage({ entry }: { entry: WikiEntry }) {
 
 const PLURAL_LABELS: Record<string, string> = {
   item: "objets",
-  card: "cartes",
+  card: "Cups Power & passifs",
   map: "plateaux",
   wheel: "roues",
   hub: "mécaniques",

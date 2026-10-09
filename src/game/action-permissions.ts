@@ -42,6 +42,12 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "movePlayer":
     case "prepareBoot":
     case "rollDice":
+    case "mimeCopy":
+    case "digTunnel":
+    case "crossTunnel":
+    case "placeMark":
+    case "teleportToMark":
+    case "swapWithSister":
     case "leaveHell":
     case "rescueProtege":
     case "sellItem":

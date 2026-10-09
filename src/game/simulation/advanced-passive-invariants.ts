@@ -1,4 +1,4 @@
-import { hasCard } from "../cards";
+import { hasCard, ownsCard } from "../cards";
 import { ITEM_ORDER } from "../catalog";
 import { isImmuneToItems } from "../passive-rules";
 import { countItemUnits } from "../rules";
@@ -7,6 +7,7 @@ import type { GameState, TurnStage } from "../types";
 import { HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "../types";
 import {
   expectedBalance,
+  insurerCoins,
   newLogTexts,
   slidOnIce,
   touchedByHell,
@@ -37,7 +38,7 @@ export function checkAdvancedPassiveState(state: GameState, found: RuleViolation
   }
   for (const gamble of state.pendingGambles) {
     const holder = findPlayer(state, gamble.playerId);
-    if (!hasCard(holder, "double-or-nothing") || gamble.amount === 0) {
+    if (!(hasCard(holder, "double-or-nothing") || ownsCard(holder, "mime")) || gamble.amount === 0) {
       found.push(violation("gamble-holder", `${holder?.name ?? gamble.playerId} may stake ${gamble.amount} coins`));
     }
   }
@@ -84,7 +85,19 @@ function checkGamble(previous: GameState, next: GameState, found: RuleViolation[
     const caught = logs.some((text) => text.startsWith(`${holder.name} se fait prendre`));
     // Nor is the Corrupteur's toll, which can now sit with Double or nothing on the same player.
     const bribed = logs.some((text) => text.startsWith(`${holder.name} ignore les flèches`));
-    if (!after || after.currency === holder.currency || bought || caught || bribed || next.phase !== "playing")
+    // What the bank pays L'Assureur is income nobody stakes.
+    const insured = logs.reduce((sum, text) => sum + insurerCoins(text, holder.name), 0);
+    if (
+      !after ||
+      // The Mime's copy ended with the turn: a gain that lands afterwards is no longer theirs to stake.
+      !hasCard(after, "double-or-nothing") ||
+      after.currency === holder.currency ||
+      after.currency - holder.currency === insured ||
+      bought ||
+      caught ||
+      bribed ||
+      next.phase !== "playing"
+    )
       continue;
     const queued = (state: GameState) => state.pendingGambles.filter((gamble) => gamble.playerId === holder.id).length;
     if (queued(next) <= queued(previous)) {

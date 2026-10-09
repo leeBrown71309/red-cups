@@ -1,0 +1,98 @@
+/*
+ * Cups Power of patch 0.2.3: the dock's extra buttons, Mage noir's chances, and what the fog of Mi-vu, Mi-vue hides
+ * from the players panel and the details card.
+ */
+
+/* Mime: the players whose Cups Power may be borrowed, one chip each. */
+.power-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.power-picker__title {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.power-picker .destination-chip {
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  font-size: 1rem;
+  background: var(--grape-light);
+  box-shadow:
+    0 4px 0 var(--ink),
+    inset 0 -4px 0 var(--grape);
+}
+
+.power-picker__dot {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+}
+
+/* Mage noir: three pips, one lit for every chance left. */
+.mage-luck {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--grape-light);
+}
+
+.mage-luck__pip {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--cream-3);
+  transition:
+    background-color 200ms ease,
+    transform 200ms var(--ease-bounce);
+}
+
+.mage-luck__pip.is-full {
+  background: var(--cup);
+  transform: scale(1.1);
+}
+
+/* Mi-vu, Mi-vue: a player the fog hides from this device. */
+.player-row__fog {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+.player-details__fog {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 2px dashed var(--ink-faint);
+  border-radius: 12px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.status-token--mage {
+  background: var(--grape-light);
+}
+
+/* The state of the holder's own Cups Power, under their name in the dock: a cooldown, the chances left… */
+.action-dock__power-note {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--grape-deep);
+}

@@ -1,6 +1,7 @@
 import { hasCard } from "./cards";
 import { getStartingCurrency, isMalefactor } from "./passive-rules";
-import { spendAllEnergy } from "./energy";
+import { getCupPowerState } from "./state-utils";
+import { getEnergyCapacity, spendAllEnergy } from "./energy";
 import {
   addLog,
   findPlayer,
@@ -97,12 +98,17 @@ export function replaceLeavingProtege(state: GameState, leaver: Player): GameSta
     inventory: leaver.inventory,
     currency: leaver.currency,
     noThanksReadyRound: leaver.noThanksReadyRound,
+    ...getCupPowerState(leaver),
   });
-  const nextState: GameState = {
+  let nextState: GameState = {
     ...state,
     guardian: null,
     players: state.players.map((player) => (player.id === angel.id ? heir : player)),
   };
+  // The heir's turn may have opened with the angel's gauge (a Dernier de la classe's extra point): it shrinks to theirs.
+  if (getActivePlayer(nextState)?.id === heir.id) {
+    nextState = { ...nextState, energyLeft: Math.min(nextState.energyLeft, getEnergyCapacity(heir, nextState)) };
+  }
   // A leaver left below −300 with a gamble still pending was never knocked out: the heir is, now.
   return settleKnockout(
     addLog(nextState, `${angel.name} reprend la place de ${leaver.name}, mais depuis l’Enfer.`, "event"),

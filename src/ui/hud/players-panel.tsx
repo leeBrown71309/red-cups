@@ -9,6 +9,7 @@ import { VoiceBadge } from "../components/voice-controls";
 import { formatCurrency } from "../display/game-display";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
+import { canSeePlayer, useFog } from "../fog";
 import { prefersCompactHud, usePersistentToggle } from "../use-persistent-toggle";
 import { PlayerDetails, type DetailsAnchor } from "./player-details";
 import { CupPips, getAvatarExpression, getPlayerStatuses, StatusToken } from "./player-status";
@@ -25,6 +26,7 @@ const ROW_STATUS_LIMIT = 2;
  */
 export function PlayersPanel() {
   const game = useGameStore();
+  const fog = useFog();
   const seatOrder = useRoomStore((state) => state.seatOrder);
   const [folded, setFolded] = usePersistentToggle(FOLDED_KEY, prefersCompactHud);
   const [anchor, setAnchor] = useState<DetailsAnchor | null>(null);
@@ -62,14 +64,16 @@ export function PlayersPanel() {
           const active = phase === "playing" && index === activePlayerIndex;
           const cups = countRedCups(player);
           const open = anchor?.playerId === player.id;
-          const statuses = getPlayerStatuses(game, player);
+          // Mi-vu, Mi-vue: a player the fog hides keeps their name and their turn, nothing else.
+          const seen = canSeePlayer(fog, player.id);
+          const statuses = seen ? getPlayerStatuses(game, player) : [];
           const shown = statuses.slice(0, ROW_STATUS_LIMIT);
           const hidden = statuses.length - shown.length;
           const label = [
             player.name,
             active ? "à son tour" : null,
-            `${formatCurrency(player.currency)} pièces`,
-            `${cups} Red Cup`,
+            seen ? `${formatCurrency(player.currency)} pièces` : "hors de vue",
+            seen ? `${cups} Red Cup` : null,
             ...statuses.map((status) => status.label),
           ]
             .filter(Boolean)
@@ -113,11 +117,19 @@ export function PlayersPanel() {
                       </span>
                     </span>
                     <span className="player-row__line">
-                      <span className={`player-row__coins ${player.currency < 0 ? "is-negative" : ""}`}>
-                        <CoinIcon size={14} />
-                        {formatCurrency(player.currency)}
-                      </span>
-                      <CupPips count={cups} size={12} />
+                      {seen ? (
+                        <>
+                          <span className={`player-row__coins ${player.currency < 0 ? "is-negative" : ""}`}>
+                            <CoinIcon size={14} />
+                            {formatCurrency(player.currency)}
+                          </span>
+                          <CupPips count={cups} size={12} />
+                        </>
+                      ) : (
+                        <span className="player-row__fog">
+                          <UiIcon name="eye" size={13} /> hors de vue
+                        </span>
+                      )}
                     </span>
                   </span>
                 )}

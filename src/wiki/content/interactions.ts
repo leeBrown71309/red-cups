@@ -1,12 +1,15 @@
 import type { Interaction } from "../types";
+import { CUPS_POWER_INTERACTIONS } from "./cups-power-interactions";
 
 /**
  * TOUTES les interactions entre éléments du jeu, une par paire. Chaque ligne
  * est vérifiable dans le moteur. Les fiches des deux côtés et la page
- * « Croisements » affichent ces lignes automatiquement.
+ * « Croisements » affichent ces lignes automatiquement. Celles du patch 0.2.3
+ * (Mime, Taupe, Mage noir, Mi-vu Mi-vue, Sœur Fantôme, L'Ermite, L'Assureur)
+ * vivent dans `cups-power-interactions.ts` et sont ajoutées en fin de liste.
  */
 export const INTERACTIONS: Interaction[] = [
-  // ————— Objets ↔ Cartes —————
+  // ————— Objets ↔ Cups Power et passifs —————
   {
     a: "item:rope",
     b: "card:built-like-a-tank",
@@ -358,7 +361,7 @@ export const INTERACTIONS: Interaction[] = [
     b: "system:turn",
     text: "La Tomate est gratuite : elle ne compte pas comme « avoir agi » et ne permet pas de finir son tour sans marcher.",
   },
-  // ————— Cartes ↔ Systèmes / Roues / Plateaux —————
+  // ————— Cups Power et passifs ↔ Systèmes / Roues / Plateaux —————
   {
     a: "card:devil",
     b: "system:hell",
@@ -436,7 +439,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "card:blind-luck",
     b: "card:thief",
-    text: "Combinaison possible (actif + passif) : tenter de voler la Made In Heaven à 1 300 pièces expose au risque de 100 % — coup sûr de se faire prendre.",
+    text: "Combinaison possible (Cups Power + passif) : tenter de voler la Made In Heaven à 1 300 pièces expose au risque de 100 % — coup sûr de se faire prendre.",
   },
   {
     a: "card:blind-luck",
@@ -515,7 +518,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "card:new-cup-new-me",
     b: "system:hell",
-    text: "La carte ne libère plus de l'Enfer (patch 0.2.0) : en peine, seule l'option « rester » reste ouverte.",
+    text: "Le passif ne libère plus de l'Enfer (patch 0.2.0) : en peine, seule l'option « rester » reste ouverte.",
   },
   {
     a: "card:calm-down",
@@ -645,7 +648,7 @@ export const INTERACTIONS: Interaction[] = [
     b: "system:hell",
     text: "Deux joueurs en Enfer au repos de la table : duel automatique (le premier siège avec le suivant) ; le vainqueur part au Départ +200.",
   },
-  // ————— Objets / Cartes ↔ Plateaux —————
+  // ————— Objets / Cups Power et passifs ↔ Plateaux —————
   {
     a: "item:barrier",
     b: "map:banquise",
@@ -705,7 +708,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "map:banquise",
     b: "card:red-light-green-light",
-    text: "Les cases traversées par une glissade comptent pour la carte.",
+    text: "Les cases traversées par une glissade comptent pour le passif.",
   },
   {
     a: "map:banquise",
@@ -737,4 +740,6 @@ export const INTERACTIONS: Interaction[] = [
     b: "map:banquise",
     text: "Un Départ gelé par le blizzard ne paie pas ses 200 pièces — et la glace emporte celui qui y arrive.",
   },
+  // ————— Patch 0.2.3 : Cups Power et passifs —————
+  ...CUPS_POWER_INTERACTIONS,
 ];

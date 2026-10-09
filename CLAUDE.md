@@ -50,5 +50,8 @@ Any change to a game element (item, actif/passif card, map, wheel wedge, shop/du
 ## Conventions worth knowing
 
 - UI text is French and hard-coded (Lingui is not installed); identifiers and comments are English.
+- Since 0.2.3 players read « Cups Power » (CP) where the code says `actif` (`CardKind`, `passiveId`, `CARD_KINDS`: those names stay, saves and online rooms depend on them). Passifs keep their name. « Carte » only ever means the board map, never a CP or a passif.
+- Cups Power with their own state (patch 0.2.3: Mime, Taupe, Mage noir, Mi-vu Mi-vue, Sœur Fantôme) live in one module each (`mime.ts`, `mole.ts`, `black-mage.ts`, `mist.ts`, `sister.ts`); `hasCard` also reads `Player.mimicId` (the Mime's copy), `ownsCard` only the two dealt cards. After every action `applyGameAction` runs the diff steps that follow players around (sister mirror, hermit intrusion, insurer's Hell reward, visited tiles). `GameState.lastPowerEvent` feeds the scene and the audio; `src/ui/fog.ts` is the one place that decides what an invisible player may see. `plans/patch-0.2.3.md` has the exact rules.
+- In dev, `window.redCupsDev.start({ players, mapId, cards: { 0: ["mole"] } })` (src/dev/dev-console.ts) sets a scenario up in the browser.
 - Commit format `<type>(<scope>): message`, no AI attribution in commits, PRs or any Git artifact.
 - Release flow: working branch `patch_<version>` → PR into `pre-prod` (GitHub Pages staging, `BASE_PATH=/red-cups/`) → PR `pre-prod` into `main` (VPS production). Never delete `pre-prod`. Only commit or push when asked.

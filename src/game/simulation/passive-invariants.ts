@@ -3,6 +3,7 @@ import { getOpenBoard, getShortestPath } from "../board";
 import { ITEM_CATALOG } from "../catalog";
 import { findPlayer, getActivePlayer } from "../state-utils";
 import { isThrownItem } from "../turn-actions";
+import { getHermitStartBonus } from "./cups-power-invariants";
 import type { GameState, NodeId } from "../types";
 import {
   CALM_DOWN_DISTANCE,
@@ -48,7 +49,12 @@ export function checkNewCup(previous: GameState, next: GameState, found: RuleVio
   const landed = after.position === START_NODE_ID || touched || slidOnIce(previous, next, holderId);
   if (
     toStart &&
-    (!landed || after.currency !== expectedBalance(before, START_BONUS + hellRewardCoins(logs, before.name)))
+    (!landed ||
+      after.currency !==
+        expectedBalance(
+          before,
+          START_BONUS + getHermitStartBonus(next, before.id) + hellRewardCoins(logs, before.name),
+        ))
   ) {
     found.push(violation("new-cup-start", `${before.name} went to ${after.position} with ${after.currency} coins`));
   }

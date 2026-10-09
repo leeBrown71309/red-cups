@@ -7,7 +7,7 @@ import { BASE_ENERGY, EMPTY_GAME_STATE, FIRST_ROUND, RULES_VERSION } from "./typ
 
 export const GAME_SAVE_KEY = "red-cups-save";
 /** Bump when GameState changes shape, and teach `upgradeSave` the new fields. */
-export const GAME_SAVE_VERSION = 25;
+export const GAME_SAVE_VERSION = 26;
 
 const GAME_STATE_KEYS = Object.keys(EMPTY_GAME_STATE) as (keyof GameState)[];
 
@@ -116,7 +116,8 @@ function upgradePassiveWindows(save: SaveRecord): SaveRecord {
  * (Blackjack hands, Baraqué's arm wrestle), version 21 the host's pause, version
  * 22 le diable's count of turns spent in Hell instead of entries. Version 23
  * (patch 0.1.6) gave every player two cards, an actif and a passif, drafted in two stages. Version 25
- * (patch 0.2.0) added the knocked-out mark that outlives the skipped turns it came from.
+ * (patch 0.2.0) added the knocked-out mark that outlives the skipped turns it came from. Version 26 (patch 0.2.3)
+ * added the tunnels of la Taupe, the pentagrams of le Mage noir and the last deed of the new Cups Power.
  */
 /** Earlier saves queued the wheels still to spin by name, and set the other draw aside: both are dropped. */
 function upgradeWheel(wheel: SaveRecord | null | undefined): SaveRecord | null {
@@ -162,6 +163,9 @@ function upgradeSave(save: SaveRecord): SaveRecord {
     pendingDuelChoice: save.pendingDuelChoice ?? null,
     pendingWheel: upgradeWheel(save.pendingWheel as SaveRecord | null | undefined),
     barriers: save.barriers ?? [],
+    moleTunnels: save.moleTunnels ?? [],
+    blackMarks: save.blackMarks ?? [],
+    lastPowerEvent: save.lastPowerEvent ?? null,
     mudPlacedThisTurn: save.mudPlacedThisTurn ?? false,
     thrownStackId: save.thrownStackId ?? null,
     diceRoll: save.diceRoll ?? null,

@@ -10,6 +10,7 @@ import { createSeededRandom } from "../utils/seeded-random";
 export class SceneKit {
   private readonly materials = new Map<string, THREE.Material>();
   private readonly geometries = new Map<string, THREE.BufferGeometry>();
+  private readonly textures = new Map<string, THREE.Texture>();
 
   /** Faceted, matte material: the core of the low-poly look. */
   flat(color: string, options: { emissive?: string; emissiveIntensity?: number } = {}): THREE.MeshStandardMaterial {
@@ -49,6 +50,21 @@ export class SceneKit {
     );
   }
 
+  /** Additive, depth-free light that adds to what lies under it: rims, glows, pentagram strokes. */
+  glow(color: string, opacity = 1): THREE.MeshBasicMaterial {
+    return this.cached(
+      `glow:${color}:${opacity}`,
+      () =>
+        new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        }),
+    );
+  }
+
   /** Inverted-hull outline material that gives the toon ink contour. */
   outline(color: string = SCENE_COLORS.ink): THREE.MeshBasicMaterial {
     return this.cached(`outline:${color}`, () => new THREE.MeshBasicMaterial({ color, side: THREE.BackSide }));
@@ -62,11 +78,22 @@ export class SceneKit {
     return geometry;
   }
 
+  /** A canvas texture painted once per world, however many props use it. */
+  texture<T extends THREE.Texture>(key: string, create: () => T): T {
+    const existing = this.textures.get(key);
+    if (existing) return existing as T;
+    const texture = create();
+    this.textures.set(key, texture);
+    return texture;
+  }
+
   dispose(): void {
     for (const material of this.materials.values()) material.dispose();
     for (const geometry of this.geometries.values()) geometry.dispose();
+    for (const texture of this.textures.values()) texture.dispose();
     this.materials.clear();
     this.geometries.clear();
+    this.textures.clear();
   }
 
   private cached<T extends THREE.Material>(key: string, create: () => T): T {
@@ -132,6 +159,8 @@ export function addOutline(mesh: THREE.Mesh, kit: SceneKit, thickness = 1.07): T
   const hull = new THREE.Mesh(mesh.geometry, kit.outline());
   hull.scale.setScalar(thickness);
   hull.raycast = () => undefined;
+  // Lets a pawn that turns see-through find its contours and hide them.
+  hull.userData.isOutline = true;
   mesh.add(hull);
   return hull;
 }
@@ -148,4 +177,22 @@ export function easeOutBack(value: number): number {
 
 export function clamp01(value: number): number {
   return Math.min(1, Math.max(0, value));
+}
+
+export function easeOutCubic(value: number): number {
+  return 1 - (1 - value) ** 3;
+}
+
+export function easeInCubic(value: number): number {
+  return value * value * value;
+}
+
+/** Where `value` stands between `start` and `end`, clamped to 0..1: slices one animation into phases. */
+export function phase(value: number, start: number, end: number): number {
+  return clamp01((value - start) / (end - start));
+}
+
+/** Whether the player asked their system for fewer flashes and less motion. */
+export function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }

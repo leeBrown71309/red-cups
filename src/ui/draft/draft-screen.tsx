@@ -105,7 +105,7 @@ function LocalDraft() {
           </p>
           <p className="handover__hint">
             {isActifStage
-              ? "Ses cartes doivent rester secrètes. Tourne l’écran s’il faut."
+              ? "Ses Cups Power doivent rester secrets. Tourne l’écran s’il faut."
               : "Son passif doit rester secret."}
           </p>
           <button type="button" className="btn btn--cup btn--large" onClick={() => setReadyKey(key)} data-autofocus>
@@ -118,7 +118,7 @@ function LocalDraft() {
 
   return (
     <DraftPage>
-      <DraftWho player={chooser} text={isActifStage ? "choisit son actif" : "découvre son passif"}>
+      <DraftWho player={chooser} text={isActifStage ? "choisit son Cups Power" : "découvre son passif"}>
         <DraftRoster players={game.players} doneIds={doneIds} currentId={chooser.id} />
       </DraftWho>
       {isActifStage ? (
@@ -126,8 +126,8 @@ function LocalDraft() {
           kind="actif"
           cards={game.draft.offers[chooser.id] ?? []}
           onPick={(passiveId) => pickPassive(chooser.id, passiveId)}
-          confirmLabel="Choisir cette carte"
-          note="Les autres joueurs ne voient pas ta carte : garde l’écran pour toi."
+          confirmLabel="Choisir ce Cups Power"
+          note="Les autres joueurs ne voient pas ton Cups Power : garde l’écran pour toi."
         />
       ) : (
         <DraftInspector
@@ -137,7 +137,7 @@ function LocalDraft() {
           confirmLabel={remainingIds.size === 1 ? "Lancer la partie" : "J’ai compris"}
           note={
             remainingIds.size === 1
-              ? "Tout le monde a ses cartes : la partie démarre dès que tu valides."
+              ? "Tout le monde a ses atouts : la partie démarre dès que tu valides."
               : "Personne d’autre à la table n’a le même passif que toi."
           }
         />
@@ -162,7 +162,7 @@ function OnlineDraft({ playerId }: { playerId: string }) {
       {me && (
         <DraftWho
           player={me}
-          text={isActifStage ? "choisit son actif" : picked ? "a lu son passif" : "découvre son passif"}
+          text={isActifStage ? "choisit son Cups Power" : picked ? "a lu son passif" : "découvre son passif"}
         >
           <DraftRoster
             players={players}
@@ -177,11 +177,11 @@ function OnlineDraft({ playerId }: { playerId: string }) {
           cards={draft.offers[playerId] ?? []}
           pickedId={picked}
           onPick={(passiveId) => pickPassive(playerId, passiveId)}
-          confirmLabel={picked === undefined ? "Choisir cette carte" : "Changer pour celle-ci"}
+          confirmLabel={picked === undefined ? "Choisir ce Cups Power" : "Changer pour celui-ci"}
           note={
             picked
               ? "Tu peux encore changer d’avis tant que la table n’a pas fini."
-              : "Sans choix à la fin du temps, une de tes cartes est tirée au hasard."
+              : "Sans choix à la fin du temps, un de tes Cups Power est tiré au hasard."
           }
         />
       ) : (

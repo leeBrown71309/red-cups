@@ -11,6 +11,8 @@ import { HELL_NODE_ID, RED_CUP_GOAL } from "../../game/types";
 import { getUserIdOfPlayer } from "../../net/room-protocol";
 import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
 import { useCanSeeBagOf, useVisibleCards } from "../card-visibility";
+import { describeCupPowerState } from "../display/cup-power-state";
+import { canSeePlayer, useFog } from "../fog";
 import { EnergyGauge } from "../components/energy-meter";
 import { KickButton } from "../components/kick-button";
 import { PlayerAvatar } from "../components/player-avatar";
@@ -208,11 +210,14 @@ export function PlayerDetails({
   const cards = useVisibleCards(player);
   const canSeeBag = useCanSeeBagOf(player.id);
   const statuses = getPlayerStatuses(game, player);
+  const fog = useFog();
+  const seen = canSeePlayer(fog, player.id);
   const noThanksStatus = !hasCard(player, "no-thanks")
     ? null
     : player.noThanksReadyRound <= round
       ? "Prêt à servir."
       : `De retour au tour ${player.noThanksReadyRound}.`;
+  const powerNote = cards.actif ? describeCupPowerState(game, player, cards.actif) : null;
   const capacity = getInventoryCapacity(player);
   const empty = Math.max(0, capacity - player.inventory.length);
   const cups = countRedCups(player);
@@ -249,7 +254,12 @@ export function PlayerDetails({
             <UiIcon name="close" size={16} strokeWidth={3} />
           </button>
         </div>
-        {statuses.length > 0 && (
+        {!seen && (
+          <p className="player-details__fog">
+            <UiIcon name="eye" size={16} /> {player.name} est hors de vue : ni sa position, ni ses pièces, ni son sac.
+          </p>
+        )}
+        {seen && statuses.length > 0 && (
           <ul className="player-details__statuses">
             {statuses.map((status) => (
               <li key={status.id}>
@@ -259,29 +269,39 @@ export function PlayerDetails({
             ))}
           </ul>
         )}
-        <div className="player-details__stats">
-          <div className="player-details__stat">
-            <span className="eyebrow">Red Cups</span>
-            <span className="player-details__stat-value">
-              <CupPips count={cups} size={20} />
-              <strong>
-                {cups}/{RED_CUP_GOAL}
-              </strong>
-            </span>
+        {seen && (
+          <div className="player-details__stats">
+            <div className="player-details__stat">
+              <span className="eyebrow">Red Cups</span>
+              <span className="player-details__stat-value">
+                <CupPips count={cups} size={20} />
+                <strong>
+                  {cups}/{RED_CUP_GOAL}
+                </strong>
+              </span>
+            </div>
+            <div className="player-details__stat">
+              <span className="eyebrow">Pièces</span>
+              <span className={`player-details__stat-value ${player.currency < 0 ? "is-negative" : ""}`}>
+                <CoinIcon size={20} />
+                <strong>{formatCurrency(player.currency)}</strong>
+              </span>
+            </div>
+            <EnergyStat player={player} />
+            {online && <ChancesStat player={player} />}
           </div>
-          <div className="player-details__stat">
-            <span className="eyebrow">Pièces</span>
-            <span className={`player-details__stat-value ${player.currency < 0 ? "is-negative" : ""}`}>
-              <CoinIcon size={20} />
-              <strong>{formatCurrency(player.currency)}</strong>
-            </span>
-          </div>
-          <EnergyStat player={player} />
-          {online && <ChancesStat player={player} />}
-        </div>
+        )}
         <CardPager
           entries={[
-            ...(cards.actif ? [{ label: "Actif", cardId: cards.actif }] : []),
+            ...(cards.actif
+              ? [
+                  {
+                    label: "Cups Power",
+                    cardId: cards.actif,
+                    children: powerNote ? <p className="player-details__passive-status">{powerNote}</p> : undefined,
+                  },
+                ]
+              : []),
             ...(cards.passif
               ? [
                   {
@@ -295,7 +315,7 @@ export function PlayerDetails({
               : []),
           ]}
         />
-        {canSeeBag && (
+        {canSeeBag && seen && (
           <div className="player-details__bag">
             <span className="eyebrow">{`Sac · ${player.inventory.length}/${capacity}`}</span>
             <div className="mini-slots">

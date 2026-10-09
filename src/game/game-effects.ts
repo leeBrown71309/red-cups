@@ -6,6 +6,9 @@ import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
+import { regainMageLuck } from "./mage-luck";
+import { advanceMist } from "./mist-cycle";
+import { isInvisible } from "./mist";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { findGameMaster, openDuelChoice } from "./duel-choice";
 import { ITEM_CATALOG, chooseWheelResult, getWheelResultValue } from "./catalog";
@@ -16,6 +19,7 @@ import {
   drawsTwiceKeepingBest,
   getHellTurnLimit,
   getMudOwnerReward,
+  isHermitPrimeActive,
   isImmuneToItems,
   spinsTwice,
 } from "./passive-rules";
@@ -33,8 +37,10 @@ import {
 import {
   addBagLog,
   addLog,
+  addOpenLog,
   appendItem,
   applyCurrencyChange,
+  dropCopies,
   findPlayer,
   getActivePlayer,
   randomChoice,
@@ -65,6 +71,7 @@ import {
   GREEDY_STUN_THEFT,
   HELL_EXIT_TOLL,
   HELL_NODE_ID,
+  HERMIT_START_BONUS,
   JE_NOTE_COPY_CHANCE,
   MAXIMUM_BOOT_PRICE,
   MUD_PENALTY,
@@ -392,7 +399,15 @@ export function addCupCycleEffects(state: GameState): GameState {
   const holderDistance = getDistanceToCup(board, cupNodeId, holder.position);
   const targets = state.players.filter((player) => {
     const distance = getDistanceToCup(board, cupNodeId, player.position);
-    return player.id !== holder.id && distance >= 1 && distance <= 2 && distance < holderDistance;
+    // Nobody picks out a player Mi-vu, Mi-vue hides, nor does the holder if they are hidden themself.
+    return (
+      player.id !== holder.id &&
+      distance >= 1 &&
+      distance <= 2 &&
+      distance < holderDistance &&
+      !isInvisible(state, player) &&
+      !isInvisible(state, holder)
+    );
   });
   if (targets.length === 0) return state;
 
@@ -576,7 +591,13 @@ export function itemCopyForPassive(
 export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
-  return applyCurrencyChange(addLog(state, `${player.name} passe par le départ.`, "good"), playerId, START_BONUS);
+  // L'Ermite: while alone, the start pays them a hundred more.
+  const prime = isHermitPrimeActive(state, player) ? HERMIT_START_BONUS : 0;
+  return applyCurrencyChange(
+    addLog(state, `${player.name} passe par le départ.`, "good"),
+    playerId,
+    START_BONUS + prime,
+  );
 }
 
 /**
@@ -850,6 +871,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
       if (reaction) return askToDodgeBulletBill(nextState, reaction.victimId, reaction.reactorIds);
       nextState = advanceBulletBill(nextState, nextRound, answer === "dodged");
       answer = null;
+      // Mage noir: a chance comes back every fifteen rounds.
+      nextState = regainMageLuck(nextState, nextRound);
       if (isBlizzardRound(nextState, nextRound)) nextState = blowBlizzard(nextState);
       if (nextState.bootFirstPurchased && nextRound > state.bootLastPriceRound) {
         nextState = {
@@ -870,6 +893,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     }));
     nextState = addLog(nextState, `${nextPlayer.name} passe son tour.`, "bad");
     nextState = thawSnowFrozen(nextState, nextPlayer.id);
+    // Mi-vu, Mi-vue: a turn skipped still moves their cycle on.
+    nextState = advanceMist(nextState, nextPlayer.id);
     // A turn skipped in Hell still counts towards the sentence.
     nextState = serveHellTurn(nextState, nextPlayer.id);
     if (hasServedHellSentence(nextState, nextPlayer.id)) {
@@ -885,7 +910,10 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
       knockedOut: false,
     }));
   }
+  nextState = advanceMist(nextState, nextState.players[nextIndex].id);
   nextState = serveHellTurn(nextState, nextState.players[nextIndex].id);
+  // The Mime's copy lasted the turn that ended.
+  nextState = dropCopies(nextState);
   const activePlayer = nextState.players[nextIndex];
   nextState = {
     ...nextState,
@@ -914,7 +942,7 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
   // Le diable's Portails, Black Cup and Doomsday last whole rounds, from turn to turn.
   nextState = expireDevilSpells(nextState);
   nextState = expireBarrier(nextState, activePlayer.id);
-  nextState = thawFrozenSlide(addLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
+  nextState = thawFrozenSlide(addOpenLog(nextState, `Tour de ${activePlayer.name}.`, "event"));
   return rideGhost(nextState);
 }
 

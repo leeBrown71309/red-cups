@@ -22,7 +22,7 @@ export function canAbandon(state: GameState): boolean {
 export function abandonPlayer(
   state: GameState,
   playerId: PlayerId,
-  reason: "abandon" | "forfeit" | "kick" = "abandon",
+  reason: "abandon" | "forfeit" | "kick" | "luck" = "abandon",
 ): GameState {
   const index = state.players.findIndex((player) => player.id === playerId);
   if (!canAbandon(state) || index < 0) return state;
@@ -35,14 +35,20 @@ export function abandonPlayer(
       ...state,
       players,
       abandonedPlayers: [...state.abandonedPlayers, leaver],
-      // Keeps pointing at the same player once the seats before them shift.
-      activePlayerIndex: index < state.activePlayerIndex ? state.activePlayerIndex - 1 : state.activePlayerIndex,
+      // Keeps pointing at the same player once the seats before them shift, and never past the last seat left
+      // (the active player leaving from the last seat, with the turn change then held for Bullet Bill's victim).
+      activePlayerIndex: Math.min(
+        index < state.activePlayerIndex ? state.activePlayerIndex - 1 : state.activePlayerIndex,
+        players.length - 1,
+      ),
     },
     reason === "forfeit"
       ? `${leaver.name} déclare forfait : trois tours sans jouer.`
       : reason === "kick"
         ? `${leaver.name} est exclu de la partie par l’hôte.`
-        : `${leaver.name} abandonne la partie.`,
+        : reason === "luck"
+          ? `${leaver.name} n’a plus aucune chance : le Mage noir est éliminé.`
+          : `${leaver.name} abandonne la partie.`,
     "bad",
   );
   const heirInHell = state.guardian?.protegeId === leaver.id && players.length > 1;

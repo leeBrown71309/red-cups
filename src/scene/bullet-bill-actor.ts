@@ -3,7 +3,7 @@ import type { BulletFlight, NodeId } from "../game/types";
 import { START_NODE_ID } from "../game/types";
 import { BULLET_HOP_MS, BULLET_WINDUP_MS } from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
-import type { EffectsLayer } from "./effects-layer";
+import { SISTER_MIST_COLORS, type EffectsLayer } from "./effects-layer";
 import { createBulletBillModel, type BulletBillVisual } from "./models/bullet-bill-model";
 import { TILE_HEIGHT } from "./models/tile-model";
 import { easeInOutCubic, easeOutBack, type SceneKit } from "./scene-kit";
@@ -11,6 +11,14 @@ import { easeInOutCubic, easeOutBack, type SceneKit } from "./scene-kit";
 export interface BulletView {
   nodeId: NodeId;
   status: "waiting" | "active";
+}
+
+/** Sœur Fantôme: the sister's swap carries Bullet Bill from one tile to another, in an arc. */
+export interface BulletCarry {
+  /** The power event it belongs to, so the actor knows one is about to be played. */
+  seq: number;
+  from: NodeId;
+  to: NodeId;
 }
 
 /** Bullet Bill hovers beside the pawns of its tile rather than inside them. */
@@ -21,6 +29,9 @@ const ARRIVAL_SECONDS = 0.9;
 const ARRIVAL_DROP = 3.5;
 const FLIGHT_ARC_HEIGHT = 0.9;
 const SMOKE_INTERVAL_SECONDS = 0.045;
+/** How high the sister's swap throws Bullet Bill, and how long a carry the board waits for before it gives up. */
+const CARRY_ARC_HEIGHT = 2.2;
+const PENDING_CARRY_TIMEOUT_SECONDS = 6;
 /** Height of the engine above the ground, where the smoke trail starts. */
 const EXHAUST_HEIGHT = 1.35;
 
@@ -38,7 +49,13 @@ interface Charge {
  */
 export class BulletBillActor {
   private readonly visual: BulletBillVisual;
+  /** What the scene shows: the fog may hide Bullet Bill from this viewer without stopping its life on the board. */
+  private readonly root = new THREE.Group();
   private view: BulletView | null = null;
+  private announcedCarry: BulletCarry | null = null;
+  private playedCarrySeq: number | null = null;
+  private pendingCarrySeconds = 0;
+  private carryFlight: { from: THREE.Vector3; to: THREE.Vector3; elapsedMs: number; durationMs: number } | null = null;
   private announcedFlightSeq: number | null = null;
   private playedFlightSeq: number | null = null;
   private charge: Charge | null = null;
@@ -54,25 +71,48 @@ export class BulletBillActor {
   ) {
     this.visual = createBulletBillModel(kit);
     this.visual.group.visible = false;
+    this.root.add(this.visual.group);
   }
 
   get group(): THREE.Group {
-    return this.visual.group;
+    return this.root;
   }
 
-  sync(view: BulletView | null, flightSeq: number | null): void {
+  /** Mi-vu, Mi-vue: an invisible viewer does not see Bullet Bill; it goes on all the same. */
+  setHidden(hidden: boolean): void {
+    this.root.visible = !hidden;
+  }
+
+  sync(view: BulletView | null, flightSeq: number | null, carry: BulletCarry | null = null): void {
     const appeared = this.view === null && view !== null;
     this.view = view;
     this.announcedFlightSeq = flightSeq;
+    this.announcedCarry = carry;
     // A restored game or a fresh table has nothing left to replay.
     if (this.firstSync || flightSeq === null) this.playedFlightSeq = flightSeq;
+    if (this.firstSync || carry === null) this.playedCarrySeq = carry?.seq ?? null;
 
     if (appeared && !this.firstSync && !this.isChargePending()) {
       this.arrival = 0;
       this.effects.spawnPoof(this.restingPoint(view.nodeId).setY(TILE_HEIGHT), "#ff9f43");
     }
     this.firstSync = false;
-    if (!this.charge && !this.isChargePending()) this.settle();
+    if (!this.charge && !this.isChargePending() && !this.carryFlight) this.settle();
+  }
+
+  /** The swap is played: Bullet Bill is thrown from `carry.from` to `carry.to` in an arc, over `durationMs`. */
+  carry(carry: BulletCarry, durationMs: number): void {
+    this.playedCarrySeq = carry.seq;
+    this.pendingCarrySeconds = 0;
+    if (this.charge || !this.view) return;
+    this.carryFlight = {
+      from: this.restingPoint(carry.from),
+      to: this.restingPoint(carry.to),
+      elapsedMs: 0,
+      durationMs,
+    };
+    this.visual.group.visible = true;
+    this.visual.setMood("charging");
   }
 
   launch(flight: BulletFlight): void {
@@ -91,8 +131,15 @@ export class BulletBillActor {
 
   update(elapsed: number, delta: number): void {
     const group = this.visual.group;
+    this.pendingCarrySeconds = this.isCarryPending() ? this.pendingCarrySeconds + delta : 0;
+    if (this.pendingCarrySeconds > PENDING_CARRY_TIMEOUT_SECONDS && this.announcedCarry) {
+      this.playedCarrySeq = this.announcedCarry.seq;
+      this.pendingCarrySeconds = 0;
+      if (!this.charge && !this.carryFlight) this.settle();
+    }
     if (!group.visible) return;
     if (this.charge) this.advanceCharge(delta);
+    if (this.carryFlight) this.advanceCarry(delta);
 
     if (this.arrival < 1) this.arrival = Math.min(1, this.arrival + delta / ARRIVAL_SECONDS);
     const landed = easeOutBack(this.arrival);
@@ -111,12 +158,46 @@ export class BulletBillActor {
     return this.announcedFlightSeq !== null && this.announcedFlightSeq !== this.playedFlightSeq;
   }
 
+  /** The swap that carries Bullet Bill is announced, and not yet played: it stays on the tile it is leaving. */
+  private isCarryPending(): boolean {
+    const carry = this.announcedCarry;
+    return carry !== null && carry.seq !== this.playedCarrySeq;
+  }
+
+  /** Thrown in an arc, turning over as it goes, with a trail of smoke. */
+  private advanceCarry(delta: number): void {
+    const flight = this.carryFlight;
+    if (!flight) return;
+    flight.elapsedMs += delta * 1_000;
+    const progress = Math.min(1, flight.elapsedMs / flight.durationMs);
+    const position = this.visual.group.position;
+    position.lerpVectors(flight.from, flight.to, easeInOutCubic(progress));
+    position.y += Math.sin(progress * Math.PI) * CARRY_ARC_HEIGHT;
+    this.yaw += delta * 6 * Math.sin(progress * Math.PI);
+    this.smokeClock += delta;
+    if (this.smokeClock >= SMOKE_INTERVAL_SECONDS * 1.6) {
+      this.smokeClock = 0;
+      this.effects.spawnGhostMist(
+        position.clone().setY(position.y + EXHAUST_HEIGHT * 0.6),
+        1,
+        SISTER_MIST_COLORS,
+        true,
+      );
+    }
+    if (progress >= 1) {
+      this.carryFlight = null;
+      this.settle();
+    }
+  }
+
   private settle(): void {
     const view = this.view;
     const group = this.visual.group;
     group.visible = view !== null;
     if (!view) return;
-    group.position.copy(this.restingPoint(view.nodeId));
+    // A swap that carries it away is announced but not played: it stays where it was.
+    const carry = this.isCarryPending() ? this.announcedCarry : null;
+    group.position.copy(this.restingPoint(carry ? carry.from : view.nodeId));
     this.visual.setMood(view.status === "waiting" ? "waiting" : "hunting");
   }
 

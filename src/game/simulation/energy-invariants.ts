@@ -4,7 +4,7 @@ import { canUseCorrupter, hasTurnMove } from "../rules";
 import { getActivePlayer } from "../state-utils";
 import type { GameState } from "../types";
 import { MOVE_MINIMUM_ENERGY } from "../types";
-import { newLogTexts, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
+import { newLogTexts, newPowerEvent, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 import type { AppliedItem } from "./rule-invariants";
 
 /**
@@ -18,7 +18,9 @@ export function checkEnergyRange(state: GameState, found: RuleViolation[]): void
   const active = getActivePlayer(state);
   if (!active || state.phase !== "playing") return;
   // Dernier de la classe may stop being last during their own turn (their Cup): the point they began with stays.
-  const capacity = getEnergyCapacity(active, state) + (hasCard(active, "last-in-class") ? 1 : 0);
+  // L'Ermite likewise keeps the point they began with when somebody comes next to them.
+  const capacity =
+    getEnergyCapacity(active, state) + (hasCard(active, "last-in-class") ? 1 : 0) + (hasCard(active, "hermit") ? 1 : 0);
   if (!Number.isInteger(state.energyLeft) || state.energyLeft < 0 || state.energyLeft > capacity) {
     found.push(violation("energy-range", `${active.name} has ${state.energyLeft}/${capacity} energy`));
   }
@@ -41,6 +43,7 @@ export function checkEnergy(
       ? new Set([getEnergyCapacity(nextActive, next), getEnergyCapacity(nextActive)])
       : new Set<number>();
     if (nextActive && hasCard(nextActive, "last-in-class")) allowed.add(getEnergyCapacity(nextActive) + 1);
+    if (nextActive && hasCard(nextActive, "hermit")) allowed.add(getEnergyCapacity(nextActive) + 1);
     if (nextActive && !allowed.has(next.energyLeft)) {
       found.push(violation("energy-refill", `${nextActive.name} starts the turn with ${next.energyLeft} energy`));
     }
@@ -49,7 +52,8 @@ export function checkEnergy(
   }
   if (next.turnStage === "blessing" && previous.turnStage !== "blessing") checkEndOfTurn(previous, next, found);
 
-  if (next.energyLeft > previous.energyLeft) {
+  // The Mime's copy of Red Bull brings its point at once.
+  if (next.energyLeft > previous.energyLeft && newPowerEvent(previous, next)?.kind !== "mime-copy") {
     found.push(violation("energy-no-refill", `energy rose from ${previous.energyLeft} to ${next.energyLeft}`));
   }
   if (appliedItem) checkItemCost(previous, next, appliedItem, found);

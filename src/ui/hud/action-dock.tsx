@@ -9,6 +9,7 @@ import { formatGambleAmount } from "../../game/gamble";
 import { canLeaveHell, DEVIL_HELL_EXIT_ENERGY } from "../../game/devil";
 import { canRescueProtege } from "../../game/guardian";
 import { getTileWheelFor } from "../../game/rules";
+import { CupPowerControls } from "./cup-power-controls";
 import { useGameStore } from "../../game/store";
 import type { Player } from "../../game/types";
 import {
@@ -29,6 +30,8 @@ import { getCorrupterHint } from "../display/item-availability";
 import { commitDestination, useActivePlayer, useDecidingPlayer, useLegalMoves } from "../game-hooks";
 import { CoinIcon } from "../icons/item-icon";
 import { UiIcon } from "../icons/ui-icon";
+import { describeCupPowerState } from "../display/cup-power-state";
+import { canSeePlayer, useFog } from "../fog";
 import { getAvatarExpression } from "./player-status";
 import { TurnTimer } from "./turn-timer";
 
@@ -48,7 +51,10 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
   const game = useGameStore();
   const canAct = useCanActFor([decider?.id]);
   const cards = useVisibleCards(decider ?? undefined);
+  const fog = useFog();
   if (!activePlayer || !decider || phase !== "playing") return null;
+  // Mi-vu, Mi-vue: whoever the fog hides keeps their name and their turn, nothing else.
+  const deciderSeen = canSeePlayer(fog, decider.id);
 
   return (
     <section
@@ -73,21 +79,32 @@ export function ActionDock({ onOpenShop, onCollapse }: ActionDockProps) {
         <PlayerAvatar color={decider.color} size={56} expression={getAvatarExpression(decider)} />
         <div className="action-dock__identity">
           <strong>{decider.name}</strong>
+          {!deciderSeen && (
+            <span className="action-dock__passive">
+              <UiIcon name="eye" size={12} /> Hors de vue
+            </span>
+          )}
           <span
+            hidden={!deciderSeen}
             className="action-dock__passive"
             title={[cards.actif, cards.passif]
               .filter((cardId): cardId is PassiveId => cardId !== null)
               .map((cardId) => `${PASSIVE_CATALOG[cardId].name} : ${PASSIVE_CATALOG[cardId].description}`)
               .join(" — ")}
           >
-            <UiIcon name="sparkle" size={12} /> {cards.actif ? PASSIVE_CATALOG[cards.actif].name : "Actif caché"}
+            <UiIcon name="sparkle" size={12} /> {cards.actif ? PASSIVE_CATALOG[cards.actif].name : "Cups Power caché"}
             {cards.passif ? ` · ${PASSIVE_CATALOG[cards.passif].name}` : ""}
           </span>
-          <span className="action-dock__wallet">
-            <CoinIcon size={15} />
-            {formatCurrency(decider.currency)}
-          </span>
-          {decider.id === activePlayer.id && (
+          {deciderSeen && cards.actif && describeCupPowerState(game, decider, cards.actif) && (
+            <span className="action-dock__power-note">{describeCupPowerState(game, decider, cards.actif)}</span>
+          )}
+          {deciderSeen && (
+            <span className="action-dock__wallet">
+              <CoinIcon size={15} />
+              {formatCurrency(decider.currency)}
+            </span>
+          )}
+          {deciderSeen && decider.id === activePlayer.id && (
             <EnergyGauge left={energyLeft} capacity={getEnergyCapacity(activePlayer, game)} />
           )}
         </div>
@@ -195,6 +212,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
           <button type="button" className="btn btn--cup" onClick={endTurn}>
             Fin du tour <UiIcon name="arrowRight" size={20} />
           </button>
+          <CupPowerControls player={player} stage="after" />
         </DockPrompt>
       );
     case "turn-end": {
@@ -215,6 +233,7 @@ function StageContent({ player, stage, onOpenShop }: { player: Player; stage: st
           <button type="button" className="btn btn--cup btn--pulse" onClick={endTurn} data-autofocus>
             Fin du tour <UiIcon name="arrowRight" size={20} />
           </button>
+          <CupPowerControls player={player} stage="after" />
         </DockPrompt>
       );
     }
@@ -300,6 +319,7 @@ function HellContent({ player }: { player: Player }) {
         <UiIcon name="flame" size={20} /> Tourner la roue
       </button>
       <EndTurnButton primary={tired} />
+      <CupPowerControls player={player} stage="hell" />
     </DockPrompt>
   );
 }
@@ -318,6 +338,7 @@ function MoveContent({ player }: { player: Player }) {
   const protegeName = useGameStore(
     (state) => state.players.find((candidate) => candidate.id === state.guardian?.protegeId)?.name,
   );
+  const digMode = useUiStore((state) => state.digMode);
   const ignoreArrows = useUiStore((state) => state.ignoreArrows);
   const setIgnoreArrows = useUiStore((state) => state.setIgnoreArrows);
   const previewNodeId = useUiStore((state) => state.previewNodeId);
@@ -372,20 +393,23 @@ function MoveContent({ player }: { player: Player }) {
         <button type="button" className="btn btn--cream" onClick={endTurn}>
           Passer mon tour
         </button>
+        <CupPowerControls player={player} stage="move" />
       </DockPrompt>
     );
   }
 
-  const title =
-    previewNodeId !== null
+  const title = digMode
+    ? "Creuse un tunnel"
+    : previewNodeId !== null
       ? `Aller en case ${previewNodeId} ?`
       : diceRoll !== null
         ? `Dé : ${diceRoll} ! Choisis ta route`
         : moveDistance === 2
           ? "Botte chaussée : 2 cases !"
           : "Choisis ta route";
-  const hint =
-    previewNodeId !== null
+  const hint = digMode
+    ? "Touche une case déjà visitée : le tunnel t’y mène aussitôt. Il reste ouvert jusqu’à sa prochaine traversée."
+    : previewNodeId !== null
       ? "Touche à nouveau la case ou confirme."
       : diceRoll !== null
         ? "Sans repasser par une case ; sans route assez longue, tu vas le plus loin possible."
@@ -431,7 +455,8 @@ function MoveContent({ player }: { player: Player }) {
           <UiIcon name="sparkle" size={16} /> Libérer {protegeName}
         </button>
       )}
-      {isCorrupter && (
+      {previewNodeId === null && <CupPowerControls player={player} stage="move" />}
+      {isCorrupter && !digMode && (
         <button
           type="button"
           className={`btn btn--small ${ignoreArrows ? "btn--gold" : "btn--cream"}`}
@@ -474,7 +499,7 @@ function NewCupContent() {
       title={`${holder?.name ?? "New Cup"}, une nouvelle Cup arrive`}
       hint={
         inHell
-          ? "New Cup, New Me : en Enfer, la carte ne libère pas — tu restes où tu es avant qu'elle apparaisse."
+          ? "New Cup, New Me : en Enfer, le passif ne libère pas — tu restes où tu es avant qu'elle apparaisse."
           : "New Cup, New Me : file au Départ pour 200 pièces, ou reste où tu es, avant qu’elle apparaisse."
       }
     >

@@ -14,6 +14,25 @@ export interface PawnVisual {
   activeRing: THREE.Mesh;
   activeArrow: THREE.Group;
   sleepLabel: THREE.Sprite;
+  /**
+   * Fades the pawn's body to `opacity` (1 = solid), and greys it towards ash by `char` (0 to 1). Below 1 it is
+   * see-through: its materials are its own copies, it casts no shadow and its ink contour is hidden. Back to solid
+   * and unburnt it goes back to the shared, opaque materials.
+   */
+  setOpacity: (opacity: number, char?: number) => void;
+  /** Frees the pawn's own copies of the materials. */
+  dispose: () => void;
+}
+
+/** What a burnt pawn turns to. */
+const ASH_COLOR = new THREE.Color("#3b3238");
+
+/** One mesh of the body, remembered with what it looked like when solid. */
+interface BodyPart {
+  mesh: THREE.Mesh;
+  solid: THREE.Material | THREE.Material[];
+  castShadow: boolean;
+  isOutline: boolean;
 }
 
 export function createPawnVisual(look: PlayerLook, kit: SceneKit, seed: number): PawnVisual {
@@ -99,7 +118,78 @@ export function createPawnVisual(look: PlayerLook, kit: SceneKit, seed: number):
   sleepLabel.visible = false;
   root.add(sleepLabel);
 
-  return { root, body, eyes, activeRing, activeArrow, sleepLabel };
+  const fading = createBodyFading(body);
+  return { root, body, eyes, activeRing, activeArrow, sleepLabel, ...fading };
+}
+
+/**
+ * Mi-vu, Mi-vue and the swap of the Sœur Fantôme make a pawn fade: the kit's materials are shared by every pawn,
+ * so a pawn that turns see-through gets its own copies, made the first time it needs them.
+ */
+function createBodyFading(body: THREE.Group): Pick<PawnVisual, "setOpacity" | "dispose"> {
+  const parts: BodyPart[] = [];
+  body.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    parts.push({
+      mesh: object,
+      solid: object.material,
+      castShadow: object.castShadow,
+      isOutline: object.userData.isOutline === true,
+    });
+  });
+  const copies = new Map<THREE.Material, THREE.Material>();
+  let lastOpacity = 1;
+  let lastChar = 0;
+
+  const copyOf = (material: THREE.Material): THREE.Material => {
+    let copy = copies.get(material);
+    if (!copy) {
+      copy = material.clone();
+      copies.set(material, copy);
+    }
+    return copy;
+  };
+
+  return {
+    setOpacity: (opacity, char = 0) => {
+      const next = THREE.MathUtils.clamp(opacity, 0, 1);
+      const charred = THREE.MathUtils.clamp(char, 0, 1);
+      if (Math.abs(next - lastOpacity) < 0.004 && Math.abs(charred - lastChar) < 0.004) return;
+      lastOpacity = next;
+      lastChar = charred;
+      const solidLook = next >= 0.999 && charred < 0.004;
+      const seeThrough = next < 0.999;
+      for (const part of parts) {
+        if (solidLook) {
+          part.mesh.material = part.solid;
+          part.mesh.castShadow = part.castShadow;
+          part.mesh.visible = true;
+          continue;
+        }
+        // The ink contour would show through a see-through body.
+        if (part.isOutline) {
+          part.mesh.visible = !seeThrough;
+          continue;
+        }
+        const solid = Array.isArray(part.solid) ? part.solid : [part.solid];
+        const looks = solid.map((material) => {
+          const copy = copyOf(material);
+          copy.transparent = seeThrough || material.transparent;
+          copy.depthWrite = seeThrough ? false : material.depthWrite;
+          copy.opacity = (material.transparent ? material.opacity : 1) * next;
+          const color = (material as THREE.MeshStandardMaterial).color;
+          if (color) (copy as THREE.MeshStandardMaterial).color.copy(color).lerp(ASH_COLOR, charred);
+          return copy;
+        });
+        part.mesh.material = Array.isArray(part.solid) ? looks : looks[0];
+        part.mesh.castShadow = part.castShadow && !seeThrough;
+      }
+    },
+    dispose: () => {
+      for (const copy of copies.values()) copy.dispose();
+      copies.clear();
+    },
+  };
 }
 
 function createAccessory(accessory: AccessoryId, look: PlayerLook, kit: SceneKit): THREE.Group {

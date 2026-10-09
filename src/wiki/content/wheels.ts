@@ -2,7 +2,7 @@ import type { ContentSection } from "../types";
 
 /**
  * Les trois roues, leurs secteurs (poids réels du moteur), leurs variantes,
- * et ce que les cartes changent à leur tirage. Sources : `catalog.ts`
+ * et ce que les Cups Power et passifs changent à leur tirage. Sources : `catalog.ts`
  * (WHEEL_RESULTS, valeurs), `game-actions.ts` (résolutions), `passive-rules.ts`.
  */
 export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
@@ -24,6 +24,7 @@ export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
         "• « Va au Départ et gagne 200 » (patch 0.2.0) : choix proposé au joueur — y aller (bonus payé, arrivée normale : Boue, Portails, Cup…) OU « Rien ne se passe ». Faute de choix avant le chrono, le sort départage les deux options à 50/50.",
         "• [[card:green-hand|Main verte]] : deux secteurs tirés, le meilleur gardé (le choix Départ/rien de « Va au Départ » est alors remplacé par le choix des deux roues).",
         "• [[card:angelic-touch|Touché angélique]] : deux roues qui s'appliquent TOUS les deux.",
+        "• [[card:black-mage|Mage noir]] : « Avance d'une case » et « Va au Départ » peuvent aussi être remplacés par une téléportation (le Mage renonce alors aux 200 pièces) ; [[card:hermit|L'Ermite]] seul touche 100 pièces de plus avec « Va au Départ ».",
         "• Annulable par la [[item:eraser|Gomme]] ou [[card:no-thanks|Non merci]] après le résultat.",
       ],
     },
@@ -44,6 +45,7 @@ export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
         "• « Retourne d'où tu viens » : la case occupée avant la DERNIÈRE action (pas d'aller-retour en Enfer, et « nulle part où retourner » si on vient d'y être posé).",
         "• « Perds un objet au hasard » : un emplacement part (une pile de Tomates entière !), sac vide : −200 pièces à la place.",
         "• [[card:red-hand|Main rouge]] : deux secteurs tirés, le moins mauvais gardé.",
+        "• [[card:black-mage|Mage noir]] : « Direction l'Enfer » et « Retourne d'où tu viens » peuvent être remplacés par une téléportation sur sa marque (1 chance), la roue étant écartée comme par la Gomme.",
         "• [[card:devils-hand|Touché funeste]] : les DEUX résultats s'appliquent.",
         "• Version Ange-Gardien : deux secteurs seulement (« Passe ton prochain tour » / « Rien du tout »), 50/50.",
         "• La cible d'un Ndoye peut la gommer/annuler elle-même.",
@@ -62,7 +64,8 @@ export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
         "• « Choisis un joueur à affronter » : le DÉFI tire une victime en Enfer avec vous et lance un duel. Ni l'[[card:guardian-angel|Ange]] (jamais en Enfer), ni [[card:blind-luck|Chance aveugle]] (rien ne peut le toucher) ne peuvent être tirés — sans cible possible, le duel tombe.",
         "• « Perds un objet (sinon −100) » : sac vide = 100 pièces, pas 200.",
         "• « Tu sautes ton prochain tour » : classique, Réveil peut annuler.",
-        "• Pas de « Direction l'Enfer » ici, évidemment : on y est déjà.",
+        "• Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) n'est jamais tiré par le défi, et n'en lance pas.",
+        "• Pas de « Direction l'Enfer » ici, évidemment : on y est déjà. Un [[card:black-mage|Mage noir]] peut en revanche se téléporter sur sa marque AVANT de tourner la roue, et sortir ainsi de l'Enfer.",
         "• [[card:devils-hand|Touché funeste]] : deux résultats qui s'appliquent.",
         "• Annulable Gomme / Non merci.",
       ],

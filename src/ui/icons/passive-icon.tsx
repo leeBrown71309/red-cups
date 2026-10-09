@@ -1,5 +1,6 @@
 import type { ReactElement } from "react";
 import type { PassiveId } from "../../game/types";
+import { CUP_POWER_ARTWORK } from "./cup-power-artwork";
 import { IconFrame, INK, OUTLINE, type IconProps } from "./item-icon";
 
 /**
@@ -11,6 +12,8 @@ const HAND_PATH =
   "M17 36 V22 C17 19 22 19 22 22 V12 C22 9 27 9 27 12 V10 C27 7 32 7 32 10 V12 C32 9 37 9 37 12 V30 L41 26 C44 24 48 27 46 31 L38 48 C35 55 31 58 25 58 C19 58 17 52 17 46 Z";
 
 const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
+  // The Cups Power and passifs of patch 0.2.3 are drawn in their own file.
+  ...CUP_POWER_ARTWORK,
   // A flexed arm, biceps bulging: someone built like a tank.
   "built-like-a-tank": () => (
     <>
