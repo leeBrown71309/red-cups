@@ -108,7 +108,17 @@ function createProjection(nodes: { x: number; z: number }[]) {
     x: MARGIN_X + (x - minX) * scale,
     y: MARGIN_Y + ((z - minZ) / spanZ) * (height - MARGIN_Y * 2),
   });
-  return { height, project };
+  // A large map packs its tiles tighter: they shrink so that two neighbours never touch.
+  let closest = Number.POSITIVE_INFINITY;
+  nodes.forEach((node, index) => {
+    const a = project(node.x, node.z);
+    for (const other of nodes.slice(index + 1)) {
+      const b = project(other.x, other.z);
+      closest = Math.min(closest, Math.hypot(a.x - b.x, a.y - b.y));
+    }
+  });
+  const tileRadius = Math.min(TILE_RADIUS, Math.max(10, closest * 0.4));
+  return { height, project, tileRadius };
 }
 
 /** A quadratic curve bowed to one side, so the ghost train does not cross the middle of the plan. */
@@ -139,7 +149,24 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
   const board = resolveBoard(mapId, carouselReversed, iceTileNodeId);
   const theme = getSceneTheme(board.map.themeId);
   const { plan, roads } = theme;
-  const { height, project } = useMemo(() => createProjection(board.nodes), [board.nodes]);
+  const { height, project, tileRadius } = useMemo(() => createProjection(board.nodes), [board.nodes]);
+  const tidal = board.map.tidal;
+  const islandDiscs = useMemo(
+    () =>
+      (tidal?.islands ?? []).map((tiles) => {
+        const points = tiles.flatMap((nodeId) => {
+          const node = getBoardNode(board, nodeId);
+          return node ? [project(node.x, node.z)] : [];
+        });
+        const centre = {
+          x: points.reduce((sum, point) => sum + point.x, 0) / points.length,
+          y: points.reduce((sum, point) => sum + point.y, 0) / points.length,
+        };
+        const reach = Math.max(...points.map((point) => Math.hypot(point.x - centre.x, point.y - centre.y)));
+        return { centre, radius: reach + tileRadius * 1.7 };
+      }),
+    [board, project, tidal, tileRadius],
+  );
   const tunnelStroke = {
     stroke: roads.tunnel,
     strokeWidth: 5,
@@ -165,6 +192,18 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
         stroke={plan.border}
         strokeWidth="8"
       />
+
+      {islandDiscs.map((disc) => (
+        <circle
+          key={`${disc.centre.x}-${disc.centre.y}`}
+          cx={disc.centre.x}
+          cy={disc.centre.y}
+          r={disc.radius}
+          fill="#f3e3b0"
+          stroke="#d9c186"
+          strokeWidth="4"
+        />
+      ))}
 
       {board.edges.map((edge) => {
         const from = getBoardNode(board, edge.from);
@@ -215,6 +254,7 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
           );
         }
 
+        const onWater = from.kind === "causeway" || to.kind === "causeway";
         return (
           <g key={key}>
             <line
@@ -223,9 +263,21 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
               x2={end.x}
               y2={end.y}
               stroke={plan.road}
-              strokeWidth="9"
+              strokeWidth={onWater ? 11 : 9}
               strokeLinecap="round"
             />
+            {onWater && (
+              <line
+                x1={start.x}
+                y1={start.y}
+                x2={end.x}
+                y2={end.y}
+                stroke="#a89a80"
+                strokeWidth="3"
+                strokeDasharray="2 7"
+                strokeLinecap="round"
+              />
+            )}
           </g>
         );
       })}
@@ -236,10 +288,12 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
         const highlighted = node.id === highlightNodeId;
         const radius =
           node.kind === "start"
-            ? TILE_RADIUS + 4
+            ? tileRadius + 4
             : node.kind === "hell" && theme.neonTiles
-              ? TILE_RADIUS + 8
-              : TILE_RADIUS;
+              ? tileRadius + 8
+              : node.kind === "hell" && tidal
+                ? tileRadius * 1.9
+                : tileRadius;
         const arrowDirections = board.edges
           .filter((edge) => edge.arrow && edge.from === node.id)
           .flatMap((edge) => {
@@ -283,8 +337,15 @@ export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null
               fill={colors.top}
               ink={plan.ink}
             />
-            <text className="board-map__label" x={center.x} y={center.y + 7} textAnchor="middle" fill={plan.label}>
-              {node.kind === "hell" ? "☻" : node.id}
+            <text
+              className="board-map__label"
+              x={center.x}
+              y={center.y + radius * 0.34}
+              textAnchor="middle"
+              fill={plan.label}
+              style={tileRadius < TILE_RADIUS ? { fontSize: `${Math.round(tileRadius * 1.05)}px` } : undefined}
+            >
+              {node.kind === "hell" ? (tidal ? "🌀" : "☻") : node.id}
             </text>
           </g>
         );

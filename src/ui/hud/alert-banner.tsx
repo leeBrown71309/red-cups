@@ -36,7 +36,7 @@ export function AlertBannerView() {
           ) : alert.tone === "roller" ? (
             <UiIcon name="dice" size={38} />
           ) : (
-            <UiIcon name={alert.tone === "blizzard" ? "flag" : "sparkle"} size={34} />
+            <UiIcon name={alert.tone === "blizzard" ? "flag" : alert.tone === "tide" ? "waves" : "sparkle"} size={34} />
           )}
         </span>
         <span className="alert-banner__text">

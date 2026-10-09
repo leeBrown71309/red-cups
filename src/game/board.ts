@@ -1,7 +1,8 @@
 import { getBoardMap } from "./maps/map-registry";
+import { getFloodedNodeIds } from "./tide";
 import type { BoardMap } from "./maps/map-types";
 import type { BoardEdge, BoardNode, GameState, MapId, NodeId } from "./types";
-import { HELL_NODE_ID, START_NODE_ID } from "./types";
+import { FIRST_ROUND, HELL_NODE_ID, START_NODE_ID } from "./types";
 
 /**
  * The graph a game is played on right now: the map's tiles and roads, with
@@ -20,6 +21,8 @@ export interface Board {
   iceTileNodeId: NodeId | null;
   /** The roads the Barrières close, as pairs of tiles: nobody walks them. */
   blocked: [NodeId, NodeId][];
+  /** Archipel des Marées: the causeway tiles the tide has drowned: nobody walks onto or across them. */
+  flooded: NodeId[];
 }
 
 const boardCache = new Map<string, Board>();
@@ -29,8 +32,9 @@ export function resolveBoard(
   carouselReversed = false,
   iceTileNodeId: NodeId | null = null,
   blocked: [NodeId, NodeId][] = [],
+  flooded: NodeId[] = [],
 ): Board {
-  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}:${blocked.map((road) => road.join("-")).join(",")}`;
+  const key = `${mapId}:${carouselReversed}:${iceTileNodeId}:${blocked.map((road) => road.join("-")).join(",")}:${flooded.join(",")}`;
   const cached = boardCache.get(key);
   if (cached) return cached;
 
@@ -47,13 +51,19 @@ export function resolveBoard(
     carouselReversed,
     iceTileNodeId,
     blocked,
+    flooded,
   };
   boardCache.set(key, board);
   return board;
 }
 
 type BoardState = Pick<GameState, "mapId" | "carouselReversed" | "iceTileNodeId"> &
-  Partial<Pick<GameState, "barriers">>;
+  Partial<Pick<GameState, "barriers" | "round">>;
+
+/** The tiles the tide has drowned at the round the state is in (none outside the Archipel). */
+function getFloodedFor(state: BoardState): NodeId[] {
+  return getFloodedNodeIds(getBoardMap(state.mapId), state.round ?? FIRST_ROUND);
+}
 
 /** The board as it stands: the Barrière, if there is one, closes its road to every walker. */
 export function getBoard(state: BoardState): Board {
@@ -62,12 +72,13 @@ export function getBoard(state: BoardState): Board {
     state.carouselReversed,
     state.iceTileNodeId,
     (state.barriers ?? []).map((barrier): [NodeId, NodeId] => [barrier.a, barrier.b]),
+    getFloodedFor(state),
   );
 }
 
 /** The board without the Barrière: for what the Barrière does not stop (Bullet Bill, a pull, a draw of Calme-toi). */
 export function getOpenBoard(state: BoardState): Board {
-  return resolveBoard(state.mapId, state.carouselReversed, state.iceTileNodeId);
+  return resolveBoard(state.mapId, state.carouselReversed, state.iceTileNodeId, [], getFloodedFor(state));
 }
 
 /** Whether the road between two tiles is the one a Barrière closes. */
@@ -114,6 +125,11 @@ export function getBoardNode(board: Board, nodeId: NodeId): BoardNode | undefine
   return board.nodes.find((node) => node.id === nodeId);
 }
 
+/** Kind of a tile of a map, whatever the state of the game. */
+export function getNodeKindOf(map: BoardMap, nodeId: NodeId): BoardNode["kind"] | undefined {
+  return map.nodes.find((node) => node.id === nodeId)?.kind;
+}
+
 export function findEdge(board: Board, fromNodeId: NodeId, toNodeId: NodeId): BoardEdge | undefined {
   return board.edges.find(
     (edge) => (edge.from === fromNodeId && edge.to === toNodeId) || (edge.from === toNodeId && edge.to === fromNodeId),
@@ -143,7 +159,10 @@ export function getNeighbors(board: Board, nodeId: NodeId, ignoreArrows = false)
     }
   }
 
-  return [...neighbors].filter((neighbor) => neighbor !== HELL_NODE_ID && !isBlockedRoad(board, nodeId, neighbor));
+  return [...neighbors].filter(
+    (neighbor) =>
+      neighbor !== HELL_NODE_ID && !board.flooded.includes(neighbor) && !isBlockedRoad(board, nodeId, neighbor),
+  );
 }
 
 /** Tiles whose arrow points at the start: entering the start from them completes the loop. */

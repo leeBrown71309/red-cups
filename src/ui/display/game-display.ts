@@ -156,6 +156,48 @@ export function getTileLegend(mapId: MapId): TileLegendEntry[] {
     },
     { kind: "neutral", title: "Case neutre", description: "Aucun effet particulier.", color: TILE_COLORS.neutral.top },
     {
+      kind: "quay",
+      title: "Quai",
+      description:
+        "Une seule place. Marcher sur un Quai tenu par un autre joueur est impossible ; s’y retrouver à deux, c’est " +
+        "être repoussé là d’où l’on vient, et celui qui tient le Quai touche 50 pièces. Le bac s’y amarre.",
+      color: TILE_COLORS.quay.top,
+    },
+    {
+      kind: "causeway",
+      title: "Chaussée",
+      description:
+        "Se noie à la marée : plus personne n’y entre, et qui s’y trouve est déposé sur le Quai voisin. Ni roue, ni boutique.",
+      color: TILE_COLORS.causeway.top,
+    },
+    {
+      kind: "whirlpool",
+      title: "Tourbillon",
+      description: "Arrivé dessus, tu es aspiré vers le Quai d’une autre île. Ni roue, ni boutique.",
+      color: TILE_COLORS.whirlpool.top,
+    },
+    {
+      kind: "oasis",
+      title: "Oasis",
+      description:
+        "La boutique du désert, à une seule place : aucun objet ne peut te viser là et tu gagnes 1 point d’énergie à ton tour suivant. Un second joueur qui y arrive est repoussé.",
+      color: TILE_COLORS.oasis.top,
+    },
+    {
+      kind: "well",
+      title: "Puits",
+      description:
+        "Pour 300 pièces, tu apprends en secret laquelle des deux Red Cups est la vraie (une fois par paire). Ni roue, ni boutique.",
+      color: TILE_COLORS.well.top,
+    },
+    {
+      kind: "pass",
+      title: "Passe",
+      description:
+        "Relie la grande boucle aux dunes. Une tempête de sable la ferme toutes les 4 manches et dépose qui s’y trouve sur la grande boucle.",
+      color: TILE_COLORS.pass.top,
+    },
+    {
       kind: "hell",
       title: `Enfer · case ${HELL_NODE_ID}`,
       description: "On y est envoyé, on n’y marche jamais. Deux joueurs en Enfer : duel.",

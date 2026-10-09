@@ -292,6 +292,28 @@ export class EffectsLayer {
     }
   }
 
+  /** Désert: a wall of sand blown across the whole world, from the left, low over the dunes. */
+  spawnSandstorm(halfWidth: number, halfDepth: number): void {
+    for (let index = 0; index < 190; index += 1) {
+      const material = additive(index % 3 === 0 ? "#f3d9a2" : "#e8c48a", 0.7);
+      const streak = new THREE.Mesh(this.streakGeometry, material);
+      const z = (Math.random() * 2 - 1) * (halfDepth + 2);
+      const y = 0.3 + Math.random() * 3;
+      const speed = 0.7 + Math.random() * 0.8;
+      const start = -halfWidth - 6 - Math.random() * 14;
+      const wave = Math.random() * Math.PI * 2;
+      streak.rotation.y = -0.1;
+      this.push(streak, 2.8, (progress) => {
+        streak.position.set(
+          start + progress * (halfWidth * 2 + 24) * speed,
+          y + Math.sin(progress * 11 + wave) * 0.35,
+          z,
+        );
+        material.opacity = 0.7 * Math.sin(progress * Math.PI);
+      });
+    }
+  }
+
   /** Luna Park: the ghost's violet and green mist, swirling up as it rises from or melts into the ground. */
   spawnGhostMist(
     position: THREE.Vector3,

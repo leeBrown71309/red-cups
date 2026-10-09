@@ -13,6 +13,30 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.2.4",
+    date: "2026-10-09",
+    title: "Les grandes cartes : l’Archipel des Marées et le Désert des Mirages",
+    highlights: [
+      "Les grandes cartes sont des mondes ouverts, sans cadre de plateau : la mer ou le sable continue jusqu’à l’horizon, les cases sont bien espacées et la caméra peut reculer beaucoup plus loin que d’habitude pour tout voir.",
+      "Première « grande carte » du jeu : l’Archipel des Marées, 41 cases pour 6 à 8 joueurs. Cinq îles de six cases en cercle (le Port et son Départ, les Perles, le Phare, les Épaves, Corail), reliées par des chaussées, autour du Maelström, l’Enfer de la carte. À moins de six joueurs elle est grisée dans le choix de carte, et le tirage au sort ne la propose pas.",
+      "Les marées : tous les 2 tours de table la mer monte ou se retire. À marée haute les chaussées Perles–Phare et Épaves–Corail disparaissent sous l’eau, à marée basse ce sont les deux autres (celle du Port est une digue qui reste toujours à sec). Une chaussée noyée est fermée à tout le monde, et qui s’y trouve quand la mer monte est déposé sur le Quai de l’île vers laquelle il allait. Un compteur en haut de l’écran annonce la marée suivante un tour à l’avance, et des bouées bordent chaque chaussée : leur feu dit quand elle émerge.",
+      "Le bac : un bateau fait le tour des cinq Quais, d’un Quai au suivant à chaque nouveau tour de table. Sur son Quai, on le prend à la place de la marche : on traverse la lagune à son bord et on débarque au Quai suivant, sans rien payer en plus.",
+      "Les Quais : une seule place chacun. On ne peut pas finir sa marche sur un Quai tenu ; si une roue, une Corde ou une téléportation y amène un second joueur, il est repoussé là d’où il venait et celui qui tient le Quai touche 50 pièces. Pas de roue, pas de boutique sur un Quai, une chaussée ou un tourbillon.",
+      "Les tourbillons (aux Perles et aux Épaves) aspirent qui y arrive vers le Quai d’une autre île, tirée au hasard : le raccourci du dernier de la table… et le piège de tous les autres.",
+      "La Red Cup suit la carte : elle naît toujours sur une autre île que la précédente, à 5 à 8 pas du joueur le plus proche, jamais sur l’eau. Calme-toi, les Portails de le diable et la Bouteille d’eau évitent eux aussi les cases où personne ne reste.",
+      "Nouveau décor : une lagune turquoise qui écume le long des rives, des îles de sable avec leurs palmiers, le port et sa grue, la palourde à perle, le phare dont le faisceau balaie la mer, l’épave et son coffre, le récif de corail, des mouettes, des voiliers et une montgolfière au loin. Une nouvelle musique de barcarolle accompagne la carte.",
+      "Les animations suivent les règles : la mer qui se retire laisse des remous là où une chaussée disparaît, les pions montent dans le bac et le regardent traverser, tournent et sont avalés par le tourbillon avant de ressurgir à l’autre bout, rebondissent sur un Quai pris. Cornes de brume, éclaboussures et vagues géantes les accompagnent.",
+      "Le menu de choix de carte, la revanche et le salon en ligne tiennent compte du nombre de joueurs : une carte qui en demande plus est signalée, et la partie ne démarre pas à moitié plein.",
+      "Deuxième grande carte : le Désert des Mirages, 41 cases pour 6 à 8 joueurs, à jouer en ligne. Une grande boucle de caravane de 24 cases autour d’une boucle de dunes de 12, quatre passes entre les deux, quatre oasis (les boutiques) et, au centre, le Sable mouvant qui sert d’Enfer.",
+      "Les mirages : deux Red Cups sont toujours sur le sable, une vraie et un mirage, identiques. Arrivé sur le mirage, il se dissipe, et tu as soif : un point d’énergie de moins à ton prochain tour. Quand l’une des deux est prise, les deux disparaissent et deux nouvelles apparaissent ailleurs, sur deux cases neuves, pour que la Cup qui n’a pas bougé ne trahisse rien. Dé du Roller, sac plein, Cupide, Chance aveugle, Mi-vu Mi-vue : tout se passe pareil sur les deux jusqu’à la révélation.",
+      "Les puits : pour 300 pièces, tu apprends en secret laquelle des deux Red Cups est la vraie, une fois par paire. Le journal dit seulement que tu as puisé ; une étoile dorée marque la vraie Cup sur ton écran, et sur le tien seulement.",
+      "Les oasis ont une seule place : un second joueur est repoussé, aucun objet ne peut viser l’occupant, qui gagne un point d’énergie à son tour suivant.",
+      "La caravane de chameaux avance de 2 cases à chaque tour de table sur la grande boucle ; sur sa case, monte à bord à la place de ta marche : elle t’emporte de 4 cases. Toutes les 4 manches, une tempête de sable ferme deux passes et ouvre les deux autres, et dépose qui s’y trouve sur la grande boucle.",
+      "Nouveau décor et nouvelle musique : dunes, cactus et crânes de bœuf, palmiers et bassins des oasis, ruines de grès, grains de sable portés par le vent, vautours, Sable mouvant qui tourne et laisse remonter une main squelettique. Les animations suivent : mirage qui tremble et se dissipe, tempête qui balaie le monde dans une brume ambrée, passe qui disparaît sous une dune.",
+      "Les bots savent prendre le bac, planifient sans compter sur la marée et attendent que la mer se retire. Les campagnes de tests jouent maintenant des tables de 6 à 8 joueurs sur l’Archipel, en local comme en ligne, avec une vérification des règles de la marée, du bac, des Quais et des tourbillons à chaque action.",
+    ],
+  },
+  {
     version: "0.2.3",
     date: "2026-10-09",
     title: "Cups Power : cinq pouvoirs inédits, deux nouveaux passifs",

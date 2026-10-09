@@ -3,6 +3,8 @@ import { createEngineId, drawEngineRandom } from "./engine-random";
 import { earnsStartBonus, getBoard, getOpenBoard, isBlockedRoad, getShortestPath, isIce } from "./board";
 import { launchBulletBill } from "./bullet-bill";
 import { carryOffIce, drawSlide, recordSlide, toPathBumps } from "./ice";
+import { drawCupPair, isCupNode } from "./desert";
+import { getBoardMap } from "./maps/map-registry";
 import { ITEM_CATALOG } from "./catalog";
 import { teleportToMark } from "./black-mage";
 import { canTeleport, findMark } from "./mage-queries";
@@ -72,6 +74,10 @@ export interface MovePlan {
   rebel: boolean;
   /** Taupe: the move is a dig (`dug`) or a crossing of a tunnel, a single hop that follows no road. */
   tunnel?: { id: string; dug: boolean };
+  /** Archipel des Marées: the walk is a ferry crossing from one quay to the next, a single hop that follows no road. */
+  ferry?: boolean;
+  /** Désert des Mirages: the walk is a ride on the caravan, four tiles along the outer loop in one hop. */
+  caravan?: boolean;
 }
 
 export function planMove(state: GameState, destination: NodeId, ignoreArrows: boolean): MovePlan | null {
@@ -121,14 +127,24 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
     nextState,
     plan.tunnel
       ? `${player.name} ${plan.tunnel.dug ? "creuse un tunnel" : "traverse un tunnel"} jusqu’en case ${walkEnd}.`
-      : `${player.name} se déplace en case ${walkEnd}.`,
-    plan.tunnel ? "event" : "neutral",
+      : plan.ferry
+        ? `${player.name} prend le bac jusqu’en case ${walkEnd}.`
+        : plan.caravan
+          ? `${player.name} monte dans la caravane jusqu’en case ${walkEnd}.`
+          : `${player.name} se déplace en case ${walkEnd}.`,
+    plan.tunnel || plan.ferry || plan.caravan ? "event" : "neutral",
   );
   if (slide) nextState = recordSlide(nextState, player.id, slide, destination);
   nextState = addRedGreenBonuses(nextState, player.id, path);
   // Doomsday: the start pays nothing.
   // A tunnel is no road: going down it to the start earns nothing.
-  if (!plan.tunnel && earnsStartBonus(board, player.position, path) && !isDoomed(state, player)) {
+  if (
+    !plan.tunnel &&
+    !plan.ferry &&
+    !plan.caravan &&
+    earnsStartBonus(board, player.position, path) &&
+    !isDoomed(state, player)
+  ) {
     nextState = addStartBonus(nextState, player.id);
   }
 
@@ -146,6 +162,8 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
       ...(slide && slide.bumps.length > 0 ? { bumps: toPathBumps(plan.path.length, slide.bumps) } : {}),
       ...(interruptedTo === null ? {} : { interruptedTo }),
       ...(plan.tunnel ? { tunnel: plan.tunnel } : {}),
+      ...(plan.ferry ? { ferry: true } : {}),
+      ...(plan.caravan ? { caravan: true } : {}),
     },
   };
 
@@ -157,7 +175,7 @@ export function applyMove(state: GameState, walkEnd: NodeId, plan: MovePlan): Ga
   nextState = queueTileWheel(nextState, player.id);
   nextState = triggerMud(nextState, player.id, destination, path[path.length - 2] ?? player.position);
   // Chance aveugle may have stepped back out of the mud: the Red Cup is only reached on its tile.
-  const cupAhead = findPlayer(nextState, player.id)?.position === destination && nextState.redCupNodeId === destination;
+  const cupAhead = findPlayer(nextState, player.id)?.position === destination && isCupNode(nextState, destination);
   // A Portail swallows the player first, and the Red Cup on its tile is picked up on the way down (report 2026-10-08).
   nextState = triggerPortal(nextState, player.id);
   if (cupAhead && nextState.phase === "playing") {
@@ -408,7 +426,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       const destination = randomNormalNode(getBoard(state), undefined, true);
       nextState = updatePlayer(nextState, player.id, (currentPlayer) => ({ ...currentPlayer, position: destination }));
       nextState = addLog(nextState, `${player.name} sort de l’Enfer et atterrit en case ${destination}.`, "good");
-      if (nextState.redCupNodeId === destination) {
+      if (isCupNode(nextState, destination)) {
         nextState = collectCupOrRoll(nextState, player.id, destination);
       }
       break;
@@ -509,6 +527,8 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
  * A Cup never lies on ice: Banquise's blizzard ice on that tile melts.
  */
 function rewindToStart(state: GameState, userId: PlayerId): GameState {
+  // Désert: the Cup is not set on tile 8 (a Cup alone there would be the real one): a fresh pair is drawn instead.
+  if (getBoardMap(state.mapId).desert) return rewindToStartWithPair(state, userId);
   // The tile the Cup leaves becomes its previous one, as when a new Cup appears.
   const cupMoves = state.redCupNodeId !== MADE_IN_HEAVEN_CUP_NODE_ID;
   const meltsIce = state.iceTileNodeId === MADE_IN_HEAVEN_CUP_NODE_ID;
@@ -534,6 +554,32 @@ function rewindToStart(state: GameState, userId: PlayerId): GameState {
   return meltsIce
     ? addLog(nextState, `La glace de la case ${MADE_IN_HEAVEN_CUP_NODE_ID} fond sous la Red Cup.`, "event")
     : nextState;
+}
+
+/** Désert: Made In Heaven sends everybody to the start and draws a new pair of Cups, both far from them. */
+function rewindToStartWithPair(state: GameState, userId: PlayerId): GameState {
+  const rewound: GameState = {
+    ...dropBlackCup(state),
+    players: state.players.map((candidate) =>
+      candidate.id === userId || isImmuneToItems(candidate) || candidate.position === START_NODE_ID
+        ? candidate
+        : { ...candidate, position: START_NODE_ID, hellTurns: 0 },
+    ),
+  };
+  const pair = drawCupPair(rewound, [state.redCupNodeId ?? -1, state.mirageNodeId ?? -1], null);
+  const nextState: GameState = {
+    ...rewound,
+    redCupNodeId: pair.real,
+    mirageNodeId: pair.mirage,
+    cupPairId: rewound.cupPairId + 1,
+    wellKnowledge: {},
+    previousRedCupNodeId: state.redCupNodeId ?? state.previousRedCupNodeId,
+  };
+  return addLog(
+    nextState,
+    "Made In Heaven : le temps s’accélère ! Tout le monde revient au Départ, et deux nouvelles Red Cups apparaissent sur le sable.",
+    "event",
+  );
 }
 
 /** Sets a player down on `nodeId`; Hell goes through the usual trip there. */

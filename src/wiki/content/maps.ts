@@ -1,3 +1,13 @@
+import {
+  CARAVAN_RIDE,
+  CARAVAN_STEP,
+  OASIS_ENERGY,
+  QUAY_HOLDER_REWARD,
+  STORM_ROUNDS,
+  THIRST_ENERGY,
+  TIDE_ROUNDS,
+  WELL_PRICE,
+} from "../../game/types";
 import type { ContentSection } from "../types";
 
 /**
@@ -40,6 +50,82 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
         "• Le [[card:game-master|Meneur de jeu]] choisit le mini-jeu du duel comme d'habitude.",
         "• Le Bouclier volé au fantôme ne se rend qu'à un Ange : les autres le convertissent en 400 pièces.",
         "• Le fantôme ignore les [[item:portal|Portails]] : seule une ARRÊTE de joueur (marche ou roue) déclenche un Portail, pas la dérive du fantôme.",
+      ],
+    },
+  ],
+  archipel: [
+    {
+      title: "Pensé du plateau",
+      body: [
+        "• Première « grande carte » (patch 0.2.4) : 41 cases pour 6 à 8 joueurs. À moins de six, elle est grisée dans le choix de carte et la partie refuse de démarrer ; le tirage au sort ne la propose pas non plus.",
+        "• Cinq îles de six cases en cercle : le Port (Départ en 0), les Perles, le Phare, les Épaves, Corail. Chaque île est une petite boucle : le Quai (par où l'on arrive), la case de passage, la sortie, puis trois cases du côté du large. Elles sont reliées par cinq chaussées de deux cases.",
+        "• L'Enfer est le Maelström, au milieu du cercle (case 11 comme partout).",
+        "• Quatre boutiques : une au Port (4), aux Perles (10), au Phare (17) et à Corail (29). L'île des Épaves n'en a pas — c'est celle des deux tourbillons et des deux cases rouges.",
+        "• Le bonus du Départ : le Quai du Port (1) mène droit au Départ par une flèche — c'est la seule route qui paie les 200 pièces, dans les deux sens du tour.",
+        "• La première Red Cup attend dans la boutique des Perles (10), à six pas du Départ.",
+        "• Quand une Cup est prise, la suivante naît sur UNE AUTRE ÎLE que la précédente, à 5 à 8 pas du joueur le plus proche (la marée ne compte pas) : jamais sur un Quai, une chaussée ou un tourbillon.",
+      ],
+    },
+    {
+      title: "Les marées",
+      body: [
+        `• La marée tourne tous les ${TIDE_ROUNDS} tours de table : tours 1-2 marée basse, 3-4 marée haute, et ainsi de suite. Un compteur en haut de l'écran l'annonce un tour à l'avance.`,
+        "• La chaussée du Port (31-32) est une digue qui ne se noie jamais. Les chaussées Perles–Phare (33-34) et Épaves–Corail (37-38) émergent à marée basse et se noient à marée haute ; Phare–Épaves (35-36) et Corail–Port (39-40) font l'inverse.",
+        "• Une chaussée noyée est fermée comme par une [[item:barrier|Barrière]] pour tout le monde — marche, Botte, Corrupteur, [[item:bullet-bill|Bullet Bill]] — et le joueur qui s'y trouve quand la mer monte est déposé sur le Quai de l'île vers laquelle il allait (sur la case de passage voisine si le Quai est tenu).",
+        "• Jamais deux chaussées voisines noyées en même temps : chaque île garde toujours une sortie. Mais le cercle se coupe en deux groupes d'îles pour deux tours : le bac et les tourbillons servent à passer.",
+        "• Des bouées bordent chaque chaussée : leur feu est vert (digue), bleu (ouverte à marée basse) ou orange (ouverte à marée haute), et elles restent à flot quand la chaussée disparaît.",
+      ],
+    },
+    {
+      title: "Le bac",
+      body: [
+        "• Un bateau fait le tour des cinq Quais dans l'ordre Port → Perles → Phare → Épaves → Corail → Port, d'un Quai au suivant à chaque nouveau tour de table. Le bandeau du haut dit où il est amarré et où il ira.",
+        "• Sur le Quai où il est amarré, tu peux le prendre À LA PLACE de ta marche : tu es déposé au Quai suivant du circuit. C'est un déplacement ordinaire (il prend toute l'énergie restante, et finit le tour) mais sans route : pas de chaussée, pas de Barrière qui compte, pas de bonus du Départ.",
+        "• Impossible si le Quai suivant est tenu ou si la Botte est préparée pour deux cases.",
+      ],
+    },
+    {
+      title: "Les Quais et les tourbillons",
+      body: [
+        `• Un Quai n'accueille qu'un joueur. On ne peut pas finir sa marche sur un Quai tenu ; si autre chose y amène un second joueur (une roue, la Corde, un échange, un tunnel, une téléportation), il est repoussé sur la case d'où il venait et celui qui tient le Quai touche ${QUAY_HOLDER_REWARD} pièces.`,
+        "• Un Quai compte comme une case sans effet : ni roue, ni boutique.",
+        "• Le tourbillon (Perles 9, Épaves 23) aspire qui y arrive vers le Quai d'une autre île tirée au hasard (jamais la sienne, de préférence un Quai libre). C'est une arrivée sur le tourbillon (Boue, Portail et le reste y jouent) puis un voyage sans roue ni boutique à l'autre bout. Personne n'y reste.",
+      ],
+    },
+  ],
+  desert: [
+    {
+      title: "Pensé du plateau",
+      body: [
+        "• Deuxième « grande carte » (patch 0.2.4) : 41 cases pour 6 à 8 joueurs, un monde ouvert sans cadre. Comme l'Archipel, elle est grisée sous six joueurs et le tirage au sort ne la propose pas. Elle se joue en ligne : sur un écran partagé on ne pourrait pas cacher laquelle des deux Red Cups est la vraie.",
+        "• Une grande boucle de caravane de 24 cases (0 à 23, le Départ au sud) autour d'une boucle de dunes de 12 cases, reliées par quatre passes. L'Enfer est le Sable mouvant, au centre (case 11 comme partout).",
+        "• Quatre oasis (3, 9, 16, 22) tiennent lieu de boutiques ; deux puits (27 et 33) sur la boucle intérieure.",
+        "• La grande boucle se parcourt dans le sens horaire : la flèche des oasis et celle de la dernière case avant le Départ imposent la sortie. Le bonus du Départ se paie en entrant en 0 par cette flèche.",
+      ],
+    },
+    {
+      title: "Les mirages",
+      body: [
+        "• Deux Red Cups sont posées en permanence : une vraie et un mirage. Rien ne les distingue : même dessin, même lumière, même ligne dans le journal à l'arrivée.",
+        `• Arriver sur le mirage : il se dissipe (« Ce n'était qu'un mirage ! »). Le joueur finit son tour, perd aucune pièce, mais a soif : ${THIRST_ENERGY} point d'énergie de moins à son prochain tour.`,
+        "• Quand un mirage est pris, les DEUX Cups disparaissent et deux nouvelles apparaissent ailleurs, sur deux cases qu'aucune des deux anciennes occupait : si seule la vraie avait changé de place, ce serait elle qu'on reconnaîtrait. Même chose quand la vraie est prise.",
+        "• Le couple est tiré au hasard du moteur (donc identique chez tous) : la vraie à 5 à 7 pas du joueur le plus proche, le mirage à 4 à 8 pas, au moins 6 pas entre les deux et à 6 pas de qui vient de ramasser. Jamais sur une oasis, un puits, une passe, le Départ, l'Enfer ou une case occupée.",
+        "• Tout ce que la vraie Cup déclenche est déclenché à l'identique sur le mirage jusqu'à la révélation : le dé du [[card:roller|Roller]] (un 6 pour la vraie comme pour le mirage), la question « quel objet jeter ? » d'un sac plein (rien n'est jeté si c'était un mirage), [[card:greedy|Cupide]] qui encaisse, [[card:blind-luck|Chance aveugle]] qui ne voit aucune des deux, [[card:half-seen|Mi-vu, Mi-vue]] qui se découvre à une case de l'une ou de l'autre.",
+        "• [[card:new-cup-new-me|New Cup, New Me]], [[card:calm-down|Calme-toi]] et [[card:goblin|Gobelin]] ne se déclenchent qu'à la prise de la vraie : un mirage dissipé n'est pas une « nouvelle Cup ».",
+      ],
+    },
+    {
+      title: "Puits et oasis",
+      body: [
+        `• Sur un puits, paie ${WELL_PRICE} pièces : tu sais, toi seul, laquelle est la vraie. Une fois par paire de Cups ; la connaissance disparaît quand le couple change. Le journal dit seulement « X puise au puits », la même ligne pour tous. L'information est sur ton écran seulement (comme les sacs, l'état partagé la contient techniquement).`,
+        `• Une oasis est la boutique à une place : un second joueur est repoussé, aucun objet ne peut viser son occupant, et il gagne ${OASIS_ENERGY} point d'énergie à son tour suivant s'il y est toujours.`,
+      ],
+    },
+    {
+      title: "La caravane et les tempêtes",
+      body: [
+        `• La caravane avance de ${CARAVAN_STEP} cases à chaque nouveau tour de table sur la grande boucle, dans le sens horaire. Sur sa case, tu peux y monter À LA PLACE de ta marche : elle t'emporte de ${CARAVAN_RIDE} cases (arrivée normale, sans bonus du Départ). Impossible si l'arrivée est une oasis tenue.`,
+        `• Toutes les ${STORM_ROUNDS} manches une tempête de sable ferme deux passes (38 et 40, puis 37 et 39, en alternance) et ouvre les deux autres. Une passe fermée est une route fermée pour tout le monde ; qui s'y trouve est déposé sur la grande boucle. Les Cups ne bougent pas : aucune information ne se perd ni ne s'ajoute.`,
       ],
     },
   ],

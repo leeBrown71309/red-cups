@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { resolveMapChoice, type MapChoice } from "../../game/maps/map-registry";
+import { isChoicePlayable, resolveMapChoice, type MapChoice } from "../../game/maps/map-registry";
 import { useGameStore } from "../../game/store";
 import { GREEDY_GOAL } from "../../game/types";
 import { useLocalPlayerId, useRoomStore } from "../../net/room-store";
@@ -37,8 +37,11 @@ export function VictoryModal() {
 
   // A rematch replays the same table. Online, the host starts it for whoever is still in the room.
   const canRematch = (isOnline ? isHost && seatedCount >= 2 : players.length >= 2) && winner !== undefined;
+  // The same table replays: a large map needs as many players as it asks for.
+  const rematchPlayers = isOnline ? seatedCount : players.length;
+  const rematchPlayable = isChoicePlayable(rematchChoice, rematchPlayers);
   const startRematch = () => {
-    const nextMapId = resolveMapChoice(rematchChoice);
+    const nextMapId = resolveMapChoice(rematchChoice, Math.random, rematchPlayers);
     if (isOnline) void rematchRoom(nextMapId);
     else
       startGame(
@@ -63,7 +66,7 @@ export function VictoryModal() {
           <h2 id="victory-title" className="victory__title">
             Sur quelle carte ?
           </h2>
-          <MapCarousel value={rematchChoice} onChange={setRematchChoice} compact />
+          <MapCarousel value={rematchChoice} onChange={setRematchChoice} compact playerCount={rematchPlayers} />
           <p className="victory__map-note">
             {isOnline
               ? `${describeMapChoice(rematchChoice)} Tous ceux encore dans le salon rejouent.`
@@ -73,7 +76,13 @@ export function VictoryModal() {
             <button type="button" className="btn btn--cream" onClick={() => setPickingMap(false)}>
               ← Retour
             </button>
-            <button type="button" className="btn btn--cup" onClick={startRematch} disabled={roomBusy} data-autofocus>
+            <button
+              type="button"
+              className="btn btn--cup"
+              onClick={startRematch}
+              disabled={roomBusy || !rematchPlayable}
+              data-autofocus
+            >
               <UiIcon name="play" size={20} /> {roomBusy ? "Lancement…" : "Rejouer"}
             </button>
           </div>

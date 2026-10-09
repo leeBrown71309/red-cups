@@ -115,6 +115,54 @@ export const MAP_THEMES: Record<MapThemeId, SceneTheme> = {
     neonTiles: false,
     plan: { ground: "#e8f1fb", border: "#9fb4cf", road: "#8ea9c9", ink: "#1f2d45", label: "#ffffff" },
   },
+  /** Archipel des Marées: a warm lagoon, sun high over turquoise water. */
+  lagoon: {
+    lights: {
+      sky: "#e6f6ff",
+      ground: "#5cbcc9",
+      ambient: 1.4,
+      sun: "#fff3d6",
+      sunIntensity: 2.4,
+      sunPosition: [-12, 24, 14],
+      fill: "#bfe9ff",
+      fillIntensity: 0.6,
+      shadow: "#1b5d73",
+      shadowOpacity: 0.24,
+    },
+    roads: {
+      stone: "#efe0bd",
+      tunnelStone: "#b7c4d8",
+      carouselStone: "#efe0bd",
+      tunnel: "#7fe3ff",
+      carousel: "#ff4fa3",
+    },
+    neonTiles: false,
+    plan: { ground: "#7fd3df", border: "#e8d6a6", road: "#efe0bd", ink: "#12384a", label: "#ffffff" },
+  },
+  /** Désert des Mirages: a white-hot sun on ochre dunes, long warm shadows. */
+  dunes: {
+    lights: {
+      sky: "#ffeccb",
+      ground: "#d8a26a",
+      ambient: 1.4,
+      sun: "#fff1cf",
+      sunIntensity: 2.7,
+      sunPosition: [-16, 22, 12],
+      fill: "#ffd7a3",
+      fillIntensity: 0.55,
+      shadow: "#7a4a2a",
+      shadowOpacity: 0.3,
+    },
+    roads: {
+      stone: "#f7e6bd",
+      tunnelStone: "#b7c4d8",
+      carouselStone: "#f7e6bd",
+      tunnel: "#7fe3ff",
+      carousel: "#ff4fa3",
+    },
+    neonTiles: false,
+    plan: { ground: "#f0d49a", border: "#c99a5b", road: "#fff1cf", ink: "#4a2e1a", label: "#ffffff" },
+  },
 };
 
 export function getSceneTheme(themeId: MapThemeId): SceneTheme {

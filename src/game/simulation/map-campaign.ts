@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { getBoardMap } from "../maps/map-registry";
 import type { MapId } from "../types";
 import type { PassiveId } from "../types";
 import { findCoverageGaps } from "./coverage";
@@ -81,11 +82,13 @@ export function describeMapCampaign(mapId: MapId): void {
     it.each(CUP_POWER_STRESS)(
       "keeps the rules with $cardId alone at the table, locally and online",
       ({ cardId, action }) => {
+        // A large map only seats full tables.
+        const fewest = getBoardMap(mapId).minPlayers ?? 2;
         const stress = Array.from({ length: STRESS_GAMES }, (_, index) =>
           runBotGame({
             seed: 70_000 + index,
             mapId,
-            playerCount: 2 + (index % 7),
+            playerCount: fewest + (index % (9 - fewest)),
             passives: [cardId],
             online: index % 2 === 1,
           }),

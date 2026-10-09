@@ -51,6 +51,7 @@ import {
   balanceMatches,
   fellIntoHell,
   carriedByIce,
+  carriedByWater,
   hellRewardCoins,
   newLogTexts,
   newPowerEvent,
@@ -355,7 +356,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   const roll = previous.diceRoll;
   const rollerReach = roll === null ? 0 : (getSimplePaths(getBoard(previous), movement.from, roll)[0]?.length ?? 0);
   // Taupe: a dig or a crossing is a single hop that follows no road and pays no start bonus.
-  const viaTunnel = movement.tunnel !== undefined;
+  const viaTunnel = movement.tunnel !== undefined || movement.ferry === true || movement.caravan === true;
   const rolled = !stepForward && !viaTunnel && hasCard(mover, "roller");
   // The Botte, put on just in front of a Barrière that leaves no other way out, hops it in a single step.
   const bootHop =
@@ -415,7 +416,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
   // knocked-out player stopping on their tile.
   const portalFall = fellIntoHell(previous, next, mover.id, destination);
   // Banquise: a move that ends the turn may meet the blizzard, whose ice carries the player on.
-  const carried = carriedByIce(previous, next, mover.id);
+  const carried = carriedByIce(previous, next, mover.id) || carriedByWater(previous, next, mover.id);
   if (moved.position !== destination && !steppedBack && !portalFall && !carried) {
     found.push(violation("move-lands", `${mover.name} should stand on ${destination}, not ${moved.position}`));
   }
@@ -438,7 +439,7 @@ function checkMovement(previous: GameState, next: GameState, found: RuleViolatio
     portalFall ||
     movement.interruptedTo !== undefined ||
     ["discard", "reposition", "passive-choice", "duel", "duel-choice", "finished"].includes(next.turnStage);
-  if (!interrupted) {
+  if (!interrupted && !carriedByWater(previous, next, mover.id)) {
     const expected: TurnStage = getTileWheelFor(previous, mover, destination)
       ? "tile-wheel"
       : opensShop(previous, mover, destination)
@@ -710,7 +711,8 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
     wheel.result.id === "go-back" &&
     after.position !== expectedBack &&
     !fellIntoHell(previous, next, after.id, expectedBack) &&
-    !slidOnIce(previous, next, after.id)
+    !slidOnIce(previous, next, after.id) &&
+    !carriedByWater(previous, next, after.id)
   ) {
     found.push(violation("wheel-back", `${before.name} went back to ${after.position}, not ${expectedBack}`));
   }
@@ -768,7 +770,7 @@ function checkTileWheelSpin(
   for (const player of previous.players) {
     if (logs.some((text) => text.startsWith(`${player.name} glisse dans la Boue et recule`))) exempt.add(player.id);
     // Banquise: carried away by the ice, nobody arrives where it leaves them.
-    if (carriedByIce(previous, next, player.id)) exempt.add(player.id);
+    if (carriedByIce(previous, next, player.id) || carriedByWater(previous, next, player.id)) exempt.add(player.id);
   }
   // Caught by falling ice halfway down a road: nothing is reached until the next turn.
   const movement = next.lastMovement;
@@ -900,7 +902,15 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       // L'Ange-Gardien is never pulled into Hell.
       const spared = target !== undefined && avoidsHell(target) && user.position === HELL_NODE_ID;
       const touched = target !== undefined && fellIntoHell(previous, next, target.id, user.position);
-      if (target && targetAfter && !tank && !spared && !touched && targetAfter.position !== user.position) {
+      if (
+        target &&
+        targetAfter &&
+        !tank &&
+        !spared &&
+        !touched &&
+        !carriedByWater(previous, next, target.id) &&
+        targetAfter.position !== user.position
+      ) {
         found.push(violation("rope", `${label}: target ended on ${targetAfter.position}, not ${user.position}`));
       }
       if (ARRIVAL_STAGES.includes(next.turnStage)) {

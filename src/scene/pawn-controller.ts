@@ -6,6 +6,7 @@ import { emitFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import { getPlayerLook } from "../theme/player-looks";
 import {
   BUMP_MS,
+  FERRY_RIDE_MS,
   FREEZE_MS,
   GHOST_CARRY_MS,
   GHOST_SLAP_IMPACT_MS,
@@ -25,9 +26,11 @@ import {
   SISTER_CONDENSE_MS,
   SISTER_DISSOLVE_MS,
   SISTER_TRANSIT_MS,
+  SURFACE_MS,
   TUNNEL_DIVE_MS,
   TUNNEL_EXTRA_MS,
   TUNNEL_POP_MS,
+  WHIRL_MS,
   WOBBLE_MS,
 } from "../theme/timing";
 import type { BoardLayout } from "./board-layout";
@@ -51,6 +54,12 @@ export interface PawnInput {
   hidden?: boolean;
   /** Mi-vu, Mi-vue: the viewer's own pawn, invisible to the others, is drawn see-through for them alone. */
   ghostly?: boolean;
+}
+
+/** The quays a ferry crossing joins. */
+export interface FerryInfo {
+  from: NodeId;
+  to: NodeId;
 }
 
 /** The tunnel a dive or a pop belongs to. */
@@ -95,6 +104,15 @@ type PawnAction =
   | { type: "emerge"; duration: number; at?: THREE.Vector3 }
   /** Mage noir: caught in the hellfire, scorched and swallowed. */
   | { type: "burn"; duration: number }
+  /**
+   * Archipel: boards the ferry, rides on its deck as it sails, and steps off at `to`. The boat sails between the
+   * first and last sixths of the action; `deckAtLanding` is where the deck was when the pawn stepped off.
+   */
+  | { type: "sail"; to: THREE.Vector3; duration: number; ferry: FerryInfo; deckAtLanding?: THREE.Vector3 }
+  /** Archipel: spun down a whirlpool, thinner and faster. */
+  | { type: "whirl"; duration: number }
+  /** Archipel: comes up out of the sea, on `at`, at the quay another island's whirlpool threw it to. */
+  | { type: "surface"; duration: number; at?: THREE.Vector3 }
   /** Sœur Fantôme: dissolves into mist where it stands. */
   | { type: "dissolve"; duration: number }
   /** Sœur Fantôme: condenses out of mist on the tile the pawn is meant to stand on. */
@@ -118,7 +136,10 @@ export type PawnPhase =
   | "condense"
   | "crumble"
   | "fade-out"
-  | "pop-in";
+  | "pop-in"
+  | "sail"
+  | "whirl"
+  | "surface";
 
 export interface PawnPhaseInfo {
   phase: PawnPhase;
@@ -127,6 +148,8 @@ export interface PawnPhaseInfo {
   position: THREE.Vector3;
   /** For a dive and a pop. */
   tunnel?: TunnelInfo;
+  /** For a ferry crossing. */
+  ferry?: FerryInfo;
   /** The fog hides this pawn from the viewer: whatever it does stays out of sight and out of hearing. */
   hidden: boolean;
 }
@@ -137,6 +160,8 @@ export interface PawnHooks {
   onGhostSlap?: (pawnId: string) => THREE.Vector3 | null;
   /** A pawn's choreography reaches a moment the effects, the tunnel and the sounds follow. */
   onPhase?: (info: PawnPhaseInfo) => void;
+  /** Archipel: where the ferry's deck is right now, and the way the boat heads; null when it is not afloat. */
+  getFerryDeck?: () => { position: THREE.Vector3; heading: THREE.Vector3 } | null;
 }
 
 const TUMBLE_MS = 820;
@@ -219,6 +244,8 @@ const SPINNING_ACTIONS: PawnAction["type"][] = [
   "condense",
   "mimic",
   "crumble",
+  "whirl",
+  "surface",
 ];
 
 /**
@@ -640,7 +667,15 @@ export class PawnController {
     };
 
     let previous = from;
-    if (movement.tunnel && path.length > 0) {
+    if (movement.ferry && path.length > 0) {
+      // Archipel: the walk is a crossing: aboard, over the water, ashore.
+      pawn.actions.push({
+        type: "sail",
+        to: finalSlot,
+        duration: FERRY_RIDE_MS,
+        ferry: { from, to: path[path.length - 1] },
+      });
+    } else if (movement.tunnel && path.length > 0) {
       // Taupe: no road, no hop: the pawn digs down where it stands and bursts out of the ground at the other end.
       const arrival = path[path.length - 1];
       const tunnel: TunnelInfo = { id: movement.tunnel.id, dug: movement.tunnel.dug, from, to: arrival };
@@ -654,7 +689,8 @@ export class PawnController {
       path.forEach((nodeId, index) => {
         // With a Portail at the end, the pawn stands on the tile first: it must be seen walking there.
         // Same for the mud: the pawn must be seen setting foot on it before it slips.
-        const isLast = index === path.length - 1 && !interrupted && !fallsIntoPortal && !slipsInMud;
+        const isLast =
+          index === path.length - 1 && !interrupted && !fallsIntoPortal && !slipsInMud && movement.water === undefined;
         const target = isLast ? finalSlot : this.getStandingPoint(nodeId);
         const edge = findEdge(this.layout.board, previous, nodeId);
 
@@ -696,6 +732,15 @@ export class PawnController {
     }
 
     if (slipsInMud) pawn.actions.push({ type: "mudSlip", to: finalSlot, duration: MUD_SLIP_MS });
+
+    // Archipel: a whirlpool drew the pawn down and threw it up at another quay; a taken quay pushed it back.
+    if (movement.water === "whirlpool") {
+      pawn.actions.push(
+        { type: "whirl", duration: WHIRL_MS },
+        { type: "surface", duration: SURFACE_MS, at: finalSlot.clone() },
+      );
+    }
+    if (movement.water === "bumped") pawn.actions.push({ type: "mudSlip", to: finalSlot, duration: MUD_SLIP_MS });
   }
 
   /** Plays the running action one step further; true when the pawn is done for and leaves the table. */
@@ -885,6 +930,57 @@ export class PawnController {
         body.rotation.y = (1 - easeOutCubic(progress)) * Math.PI * 4;
         break;
       }
+      case "sail": {
+        // Aboard in the first sixth, on deck while the boat sails, ashore in the last sixth.
+        const boarding = phase(progress, 0, 0.14);
+        const landing = phase(progress, 0.86, 1);
+        const deck = this.hooks.getFerryDeck?.() ?? null;
+        if (!deck) {
+          root.position.lerpVectors(pawn.actionStart, action.to, easeInOutCubic(progress));
+          root.position.y += Math.sin(progress * Math.PI) * 0.5;
+          break;
+        }
+        if (landing === 0) {
+          root.position.lerpVectors(pawn.actionStart, deck.position, easeInOutCubic(boarding));
+          root.position.y += Math.sin(boarding * Math.PI) * 0.7;
+        } else {
+          action.deckAtLanding ??= deck.position.clone();
+          root.position.lerpVectors(action.deckAtLanding, action.to, easeInOutCubic(landing));
+          root.position.y += Math.sin(landing * Math.PI) * 0.7;
+        }
+        if (boarding >= 1 && landing === 0) root.position.copy(deck.position);
+        const heading = landing > 0 ? action.to.clone().sub(action.deckAtLanding ?? deck.position) : deck.heading;
+        if (heading.lengthSq() > 0.0004) pawn.targetYaw = Math.atan2(heading.x, heading.z);
+        // A pawn on a boat sways with the waves.
+        body.rotation.z = boarding >= 1 && landing === 0 ? Math.sin(progress * 28) * 0.07 : 0;
+        break;
+      }
+      case "whirl": {
+        // Spun down the whirlpool: faster and thinner, sinking into the water.
+        const pull = easeInCubic(progress);
+        const size = Math.max(0.001, 1 - pull);
+        root.position.y = pawn.actionStart.y - pull * 0.35;
+        body.scale.set(size * (1 + progress * 0.2), size * (1 + pull * 0.6), size * (1 + progress * 0.2));
+        body.rotation.y = pull * Math.PI * 12;
+        body.rotation.z = Math.sin(progress * 36) * 0.15 * (1 - pull);
+        break;
+      }
+      case "surface": {
+        // Up out of the water like a cork: a stretch, a turn, a squash on landing.
+        const rise = easeOutCubic(phase(progress, 0, 0.5));
+        const at = action.at ?? pawn.slot;
+        const size = Math.max(0.001, easeOutBack(phase(progress, 0, 0.45)));
+        const stretch = 1 + Math.sin(phase(progress, 0.1, 0.7) * Math.PI) * 0.3;
+        const squash = progress > 0.82 ? Math.sin(phase(progress, 0.82, 1) * Math.PI) * 0.2 : 0;
+        root.position.set(at.x, at.y - 0.45 * (1 - rise) + Math.sin(phase(progress, 0.2, 1) * Math.PI) * 0.5, at.z);
+        body.scale.set(
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+          size * stretch * (1 - squash),
+          (size / Math.sqrt(stretch)) * (1 + squash * 0.6),
+        );
+        body.rotation.y = (1 - easeOutCubic(progress)) * Math.PI * 4;
+        break;
+      }
       case "burn": {
         // Caught in the column of fire: it shakes, scorches, rises on the heat and is swallowed.
         const gone = easeInCubic(phase(progress, 0.35, 1));
@@ -967,6 +1063,17 @@ export class PawnController {
         pawn.landingTimer = LANDING_MS;
         this.emitHeard(pawn, { type: "pawn-hop" });
       }
+      if (action.type === "sail") {
+        root.position.copy(action.to);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+        this.emitHeard(pawn, { type: "pawn-hop" });
+      }
+      if (action.type === "surface") {
+        root.position.copy(action.at ?? pawn.slot);
+        body.scale.setScalar(1);
+        pawn.landingTimer = LANDING_MS;
+      }
       if (action.type === "emerge" || action.type === "condense") {
         root.position.copy(action.type === "emerge" ? (action.at ?? pawn.slot) : pawn.slot);
         body.scale.setScalar(1);
@@ -976,7 +1083,9 @@ export class PawnController {
         body.scale.setScalar(1);
         pawn.landingTimer = LANDING_MS;
       }
-      if (action.type === "dissolve" || action.type === "suck" || action.type === "burn") body.scale.setScalar(0.001);
+      if (action.type === "dissolve" || action.type === "suck" || action.type === "burn" || action.type === "whirl") {
+        body.scale.setScalar(0.001);
+      }
       if (action.type === "hellDrop") {
         root.position.copy(action.to);
         body.scale.setScalar(1);
@@ -1016,7 +1125,7 @@ export class PawnController {
     const body = pawn.visual.body;
     if (action.type === "appear") root.position.copy(action.at ?? pawn.slot);
     if (action.type === "pop") root.position.set(action.to.x, action.to.y - DIG_DEPTH, action.to.z);
-    if (action.type === "emerge") root.position.copy(action.at ?? pawn.slot);
+    if (action.type === "emerge" || action.type === "surface") root.position.copy(action.at ?? pawn.slot);
     if (action.type === "condense") root.position.copy(pawn.slot);
     if (action.type === "bump")
       this.emitHeard(pawn, { type: "barrier-bump", from: action.from, toward: action.toward });
@@ -1040,8 +1149,10 @@ export class PawnController {
     }
 
     const phaseName = PHASE_OF_ACTION[action.type];
-    if (phaseName)
-      this.hooks.onPhase?.(this.phaseInfo(pawn, phaseName, "tunnel" in action ? action.tunnel : undefined));
+    if (phaseName) {
+      const info = this.phaseInfo(pawn, phaseName, "tunnel" in action ? action.tunnel : undefined);
+      this.hooks.onPhase?.("ferry" in action ? { ...info, ferry: action.ferry } : info);
+    }
   }
 
   /** Shivers in front of the ghost, then the hand lands: the pawn reels away, dazed, and wobbles. */
@@ -1169,6 +1280,9 @@ const PHASE_OF_ACTION: Partial<Record<PawnAction["type"], PawnPhase>> = {
   dissolve: "dissolve",
   condense: "condense",
   crumble: "crumble",
+  sail: "sail",
+  whirl: "whirl",
+  surface: "surface",
 };
 
 /** Yaw that turns a pawn at `from` to face `to`, or null when they stand on the same spot. */

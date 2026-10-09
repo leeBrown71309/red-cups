@@ -62,6 +62,10 @@ const UI_ICON_PATHS = {
   copy: "M10 8h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3",
   logout: "M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4l4-4M6 12h10",
   user: "M12 12a4 4 0 1 0 0-8a4 4 0 1 0 0 8M4 21v-1a8 8 0 0 1 16 0v1",
+  waves: "M3 8c2-2 4-2 6 0s4 2 6 0s4-2 6 0M3 13c2-2 4-2 6 0s4 2 6 0s4-2 6 0M3 18c2-2 4-2 6 0s4 2 6 0s4-2 6 0",
+  anchor:
+    "M12 8a2.5 2.5 0 1 0 0-5a2.5 2.5 0 1 0 0 5M12 8v13M8 12h8M4 15c0 3.5 3.5 6 8 6s8-2.5 8-6M4 15l-2 1.5M20 15l2 1.5",
+  ferry: "M3 15l2.2 5h13.6L21 15H3zM12 3v9M12 3l6 7.5h-6M7 15v-3h2",
 } as const;
 
 export type UiIconName = keyof typeof UI_ICON_PATHS;

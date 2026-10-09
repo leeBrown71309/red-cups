@@ -4,6 +4,15 @@ import type { NodeId, PlayerMovement, PowerEvent } from "../game/types";
 /** Duration of one pawn hop between two neighbouring tiles. */
 export const HOP_MS = 360;
 
+/** Archipel: the ferry going from one quay to the next at a new round, and with a passenger aboard. */
+export const FERRY_MOVE_MS = 2_400;
+export const FERRY_RIDE_MS = 2_000;
+/** Archipel: a pawn spun down a whirlpool, and the same pawn coming up at the other island's quay. */
+export const WHIRL_MS = 900;
+export const SURFACE_MS = 650;
+/** Archipel: a pawn set down by the rising tide, and a pawn thrown back from a taken quay. */
+export const WATER_DROP_MS = 560;
+
 /** Extra time spent disappearing in and popping out of the tunnel. */
 export const TUNNEL_EXTRA_MS = 560;
 
@@ -155,6 +164,8 @@ export function estimateMovementMs(
   if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
   // Taupe: the dive into the ground and the pop out of it replace the hop.
   if (movement.tunnel) return TUNNEL_DIVE_MS + TUNNEL_POP_MS;
+  // Archipel: the crossing replaces the walk.
+  if (movement.ferry) return FERRY_RIDE_MS;
   const slideStart = movement.slideStart ?? movement.path.length;
   let total = 0;
   let previous = movement.from;
@@ -175,5 +186,8 @@ export function estimateMovementMs(
   if (movement.portalNodeId !== undefined) total += PORTAL_SWALLOW_MS + HELL_DROP_MS;
   // Chance aveugle: the slip in the mud, before the mud is gone.
   if (movement.slippedInMud) total += MUD_SLIP_MS;
+  // Archipel: the whirl and the surfacing, or the push back from a taken quay.
+  if (movement.water === "whirlpool") total += WHIRL_MS + SURFACE_MS;
+  if (movement.water === "bumped") total += MUD_SLIP_MS;
   return total;
 }

@@ -737,6 +737,18 @@
     linear-gradient(180deg, #243b6b 0%, #4f78a8 45%, #b8d4ec 100%);
 }
 
+/* The lagoon behind the 3D board: a clear sky that turns turquoise at the horizon. */
+.board-stage[data-map-theme="lagoon"] {
+  background: linear-gradient(180deg, #8fd3ff 0%, #c4ecf5 42%, #7fd0dc 100%);
+}
+
+/* The desert behind the 3D board: a white-hot sky that fades into the sand haze. */
+.board-stage[data-map-theme="dunes"] {
+  background:
+    radial-gradient(40% 24% at 78% 10%, rgba(255, 248, 220, 0.85), transparent 70%),
+    linear-gradient(180deg, #8ec9f0 0%, #f7e9c6 38%, #f2d396 72%, #e6bd82 100%);
+}
+
 .board-stage[data-map-theme="night-fair"] .board-stage__message {
   color: var(--white);
 }

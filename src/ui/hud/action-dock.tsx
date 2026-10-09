@@ -1,3 +1,4 @@
+import { isCupNode } from "../../game/desert";
 import { getHellTurnLimit } from "../../game/passive-rules";
 import { hasCard } from "../../game/cards";
 import { useVisibleCards } from "../card-visibility";
@@ -338,7 +339,7 @@ function MoveContent({ player }: { player: Player }) {
   const mudPlaced = useGameStore((state) => state.mudPlacedThisTurn);
   const tired = useGameStore((state) => state.energyLeft < MOVE_MINIMUM_ENERGY);
   const diceRoll = useGameStore((state) => state.diceRoll);
-  const onRedCup = useGameStore((state) => state.redCupNodeId === player.position);
+  const onRedCup = useGameStore((state) => isCupNode(state, player.position));
   const rollDice = useGameStore((state) => state.rollDice);
   const endTurn = useGameStore((state) => state.endTurn);
   const rescueProtege = useGameStore((state) => state.rescueProtege);

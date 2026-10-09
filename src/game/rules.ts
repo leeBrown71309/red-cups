@@ -19,6 +19,7 @@ import {
   LAST_IN_CLASS_DISCOUNT,
   shopsAnywhere,
 } from "./passive-rules";
+import { isTakenSeat } from "./quay";
 import { findStackWithRoom, getEntryUnits } from "./state-utils";
 import type { BoardNode, GameState, ItemId, NodeId, Player, PlayerId, WheelId } from "./types";
 import { CORRUPTER_COST, FIRST_ROUND, HELL_NODE_ID, MADE_IN_HEAVEN_CUP_NODE_ID, START_NODE_ID } from "./types";
@@ -149,7 +150,9 @@ export function getNodeKind(board: Board, nodeId: NodeId): BoardNode["kind"] | u
 }
 
 export function isShopNode(board: Board, nodeId: NodeId): boolean {
-  return getNodeKind(board, nodeId) === "shop";
+  // An oasis of the Désert is a shop that holds one traveller.
+  const kind = getNodeKind(board, nodeId);
+  return kind === "shop" || kind === "oasis";
 }
 
 /** Stopping on a green tile spins the wheel of fortune, a red tile the wheel of misfortune. */
@@ -201,12 +204,15 @@ export function opensShop(state: GameState, player: Player, nodeId: NodeId = pla
  */
 export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrows = false): NodeId[][] {
   const board = getBoard(state);
+  // Archipel: a walk may not end on a quay somebody else holds.
+  const freeToStop = (walks: NodeId[][]) =>
+    walks.filter((path) => !isTakenSeat(state, path[path.length - 1], player.id));
   if (!hasCard(player, "roller")) {
-    const walks = getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows);
+    const walks = freeToStop(getLegalMoveOptions(board, player, state.moveDistance, ignoreArrows));
     return state.moveDistance > 1 ? [...walks, ...getBarrierJumps(state, player, ignoreArrows)] : walks;
   }
   if (state.diceRoll === null || player.position === HELL_NODE_ID) return [];
-  return getSimplePaths(board, player.position, state.diceRoll);
+  return freeToStop(getSimplePaths(board, player.position, state.diceRoll));
 }
 
 /**

@@ -13,7 +13,7 @@ function formatCooldown(readyRound: number | undefined, round: number, ready: st
 
 /**
  * What a Cups Power of patch 0.2.3 is doing for its holder, in a sentence for the player's details: a cooldown, the
- * chances left, where the sister floats. Null for the cards that keep nothing of the kind.
+ * pentagrams left, where the sister floats. Null for the cards that keep nothing of the kind.
  */
 export function describeCupPowerState(game: GameState, player: Player, cardId: PassiveId): string | null {
   switch (cardId) {

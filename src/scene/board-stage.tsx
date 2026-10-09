@@ -5,11 +5,13 @@ import { isKnockedOut } from "../game/rules";
 import { getSisterNode } from "../game/sister";
 import { getBarrierRoads } from "../game/turn-actions";
 import { getBoardMap } from "../game/maps/map-registry";
+import { getKnownRealCup } from "../game/desert";
+import { getFloodedNodeIds } from "../game/tide";
 import { useGameStore } from "../game/store";
 import type { BlackMark, MapId, MoleTunnel, NodeId } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
 import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves, useRedCupHidden } from "../ui/game-hooks";
-import { getLocalPlayerId } from "../net/room-store";
+import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
 import { getFog, useFog, type Fog } from "../ui/fog";
 import { useMapChoiceStore } from "../ui/lobby/map-choice-store";
 import { BoardWorld, type BoardView, type MarkView, type TunnelView } from "./board-world";
@@ -88,6 +90,8 @@ export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?
           mapId,
         );
         boardCamera.world = created;
+        // Dev only: lets a scenario in the console inspect the scene (`window.__redCupsWorld`).
+        if (import.meta.env.DEV) (window as unknown as { __redCupsWorld?: BoardWorld }).__redCupsWorld = created;
         setWorld(created);
         setStatus("ready");
       } catch (error) {
@@ -142,6 +146,8 @@ export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?
 
 interface LaggedProps {
   redCupNodeId: NodeId | null;
+  /** Désert: the mirage lags with the real Cup, or whichever moved first would be the real one. */
+  mirageNodeId: NodeId | null;
   mudNodeIds: NodeId[];
   portalNodeIds: NodeId[];
   /** Taupe and Mage noir: what was on the board once it last settled, to show what has just gone a while longer. */
@@ -162,6 +168,7 @@ interface LaggedProps {
  */
 function useLaggedProps(): LaggedProps {
   const redCupNodeId = useGameStore((state) => state.redCupNodeId);
+  const mirageNodeId = useGameStore((state) => state.mirageNodeId);
   const mudTraps = useGameStore((state) => state.mudTraps);
   const hellPortals = useGameStore((state) => state.hellPortals);
   const moleTunnels = useGameStore((state) => state.moleTunnels);
@@ -175,6 +182,7 @@ function useLaggedProps(): LaggedProps {
   );
   const [displayed, setDisplayed] = useState<LaggedProps>(() => ({
     redCupNodeId,
+    mirageNodeId,
     mudNodeIds: mudTraps.map((trap) => trap.nodeId),
     portalNodeIds: visiblePortalNodeIds,
     moleTunnels,
@@ -186,13 +194,14 @@ function useLaggedProps(): LaggedProps {
     if (!settled) return;
     setDisplayed({
       redCupNodeId,
+      mirageNodeId,
       mudNodeIds: mudTraps.map((trap) => trap.nodeId),
       portalNodeIds: visiblePortalNodeIds,
       moleTunnels,
       blackMarks,
       fog,
     });
-  }, [settled, redCupNodeId, mudTraps, visiblePortalNodeIds, moleTunnels, blackMarks, fog]);
+  }, [settled, redCupNodeId, mirageNodeId, mudTraps, visiblePortalNodeIds, moleTunnels, blackMarks, fog]);
 
   return displayed;
 }
@@ -222,6 +231,9 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
   // The live fog, not the lagged one: the Red Cup comes back the moment the viewer's own hidden turn is over.
   const liveFog = useFog();
   const redCupBlind = useRedCupHidden();
+  // Online each screen is one player's; on a single screen the player to act is the one looking.
+  const localPlayerId = useLocalPlayerId();
+  const viewerPlayerId = localPlayerId ?? game.players[game.activePlayerIndex]?.id ?? null;
   const cupHidden = redCupBlind || liveFog.viewerHidden;
   const previewNodeId = useUiStore((state) => state.previewNodeId ?? state.hoveredChipNodeId);
   const followActivePlayer = useUiStore((state) => state.followActivePlayer);
@@ -249,6 +261,13 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       mode,
       carouselReversed: playing && game.carouselReversed,
       iceTileNodeId: playing ? game.iceTileNodeId : null,
+      floodedNodeIds: playing ? getFloodedNodeIds(getBoardMap(mapId), game.round) : [],
+      // On show before the game, the ferry waits at its first quay.
+      ferryQuayId: playing ? game.ferryQuayId : (getBoardMap(mapId).tidal?.ferryQuays[0] ?? null),
+      // Désert: both Cups look alike to everybody; only a player who drank sees the marker on the real one.
+      mirageNodeId: playing ? (cupHidden ? null : lagged.mirageNodeId) : null,
+      caravanNodeId: playing ? game.caravanNodeId : (getBoardMap(mapId).desert?.caravanStart ?? null),
+      knownRealNodeId: playing && !cupHidden ? getKnownRealCup(game, viewerPlayerId) : null,
       doomed: playing && game.doomsday !== null,
       pawns: playing
         ? game.players.map((player) => {
@@ -312,7 +331,18 @@ function useBoardView(mode: CameraMode, mapId: MapId): BoardView {
       followActivePlayer,
       activePlayerId: activePlayer?.id ?? null,
     };
-  }, [game, lagged, cupHidden, legalMoves, previewNodeId, followActivePlayer, roadPickEntryId, mode, mapId]);
+  }, [
+    game,
+    lagged,
+    cupHidden,
+    legalMoves,
+    previewNodeId,
+    followActivePlayer,
+    roadPickEntryId,
+    mode,
+    mapId,
+    viewerPlayerId,
+  ]);
 }
 
 /** The same pentagram, whoever holds it: a mage has at most one, so the owner and the tile say which. */

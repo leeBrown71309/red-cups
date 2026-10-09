@@ -168,10 +168,106 @@ const POLAR_MOODS: Record<MusicMood, MoodDefinition> = {
   },
 };
 
+/**
+ * Lagoon: a lazy 6/8 barcarolle, plucked arpeggios over a slow tide of pad chords, like a boat rocking at its quay.
+ * In Hell or a duel the water turns dark: a sparse, minor swell with a distant bell.
+ */
+const LAGOON_MOODS: Record<MusicMood, MoodDefinition> = {
+  calm: {
+    tempo: 92,
+    stepsPerBar: 12,
+    chords: [
+      [57, 61, 64, 68],
+      [54, 57, 61, 66],
+      [52, 56, 59, 64],
+      [56, 59, 63, 66],
+    ],
+    bass: [45, 42, 40, 44],
+    bassSteps: [0, 6],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [],
+    hatSteps: [],
+    melodySteps: [0, 2, 4, 6, 8, 10],
+    melodyWave: "triangle",
+    melodyLength: 0.3,
+    padFilter: 1_250,
+  },
+  tense: {
+    tempo: 62,
+    stepsPerBar: 12,
+    chords: [
+      [53, 56, 60],
+      [52, 55, 59],
+      [50, 53, 57],
+      [52, 55, 58],
+    ],
+    bass: [41, 40, 38, 40],
+    bassSteps: [0],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [0],
+    hatSteps: [],
+    melodySteps: [0, 8],
+    melodyWave: "sine",
+    melodyLength: 0.9,
+    padFilter: 600,
+  },
+};
+
+/**
+ * Dunes: a slow caravan in 6/8, a drone and a reedy tune on a minor scale with a raised sixth, like a oud over
+ * hand drums. In Hell or a duel the drone sinks and the tune thins into a shimmering, uneasy line.
+ */
+const DUNES_MOODS: Record<MusicMood, MoodDefinition> = {
+  calm: {
+    tempo: 88,
+    stepsPerBar: 12,
+    chords: [
+      [57, 60, 64],
+      [57, 60, 63],
+      [55, 58, 62],
+      [57, 61, 64],
+    ],
+    bass: [45, 45, 43, 45],
+    bassSteps: [0, 6],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [0, 6],
+    hatSteps: [3, 9],
+    melodySteps: [0, 3, 4, 6, 9, 10],
+    melodyWave: "triangle",
+    melodyLength: 0.26,
+    padFilter: 1_100,
+  },
+  tense: {
+    tempo: 64,
+    stepsPerBar: 12,
+    chords: [
+      [57, 60, 63],
+      [56, 59, 62],
+      [55, 58, 61],
+      [56, 59, 62],
+    ],
+    bass: [33, 32, 31, 32],
+    bassSteps: [0],
+    stabSteps: [],
+    pad: true,
+    kickSteps: [0],
+    hatSteps: [],
+    melodySteps: [0, 7],
+    melodyWave: "sine",
+    melodyLength: 0.85,
+    padFilter: 560,
+  },
+};
+
 const SOUNDTRACKS: Record<MapThemeId, Record<MusicMood, MoodDefinition>> = {
   "toy-box": TOY_BOX_MOODS,
   "night-fair": NIGHT_FAIR_MOODS,
   polar: POLAR_MOODS,
+  lagoon: LAGOON_MOODS,
+  dunes: DUNES_MOODS,
 };
 
 const LOOKAHEAD_SECONDS = 0.14;

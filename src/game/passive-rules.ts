@@ -1,5 +1,6 @@
 import { hasCard, ownsCard } from "./cards";
-import { getOpenBoard, getShortestPath } from "./board";
+import { getNodeKindOf, getOpenBoard, getShortestPath } from "./board";
+import { getBoardMap } from "./maps/map-registry";
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
 import { isInvisible } from "./mist";
 import type { GameState, ItemId, PassiveId, Player, PlayerId, WheelId } from "./types";
@@ -154,6 +155,8 @@ export type TargetingState = Pick<
  */
 export function canTargetPlayer(state: TargetingState, user: Player, target: Player): boolean {
   if (isImmuneToItems(target) || isInvisible(state, user) || isInvisible(state, target)) return false;
+  // Désert: nobody can aim at a traveller resting on an oasis.
+  if (getNodeKindOf(getBoardMap(state.mapId), target.position) === "oasis") return false;
   return !hasCard(user, "guardian-angel") || state.guardian?.protegeId === target.id;
 }
 

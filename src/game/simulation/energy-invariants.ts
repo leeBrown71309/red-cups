@@ -3,7 +3,8 @@ import { getEnergyCapacity, getItemEnergyCost } from "../energy";
 import { canUseCorrupter, hasTurnMove } from "../rules";
 import { getActivePlayer } from "../state-utils";
 import type { GameState } from "../types";
-import { MOVE_MINIMUM_ENERGY } from "../types";
+import { MOVE_MINIMUM_ENERGY, OASIS_ENERGY } from "../types";
+import { getBoardMap } from "../maps/map-registry";
 import { newLogTexts, newPowerEvent, turnChanged, violation, type RuleViolation } from "./invariant-helpers";
 import type { AppliedItem } from "./rule-invariants";
 
@@ -19,8 +20,12 @@ export function checkEnergyRange(state: GameState, found: RuleViolation[]): void
   if (!active || state.phase !== "playing") return;
   // Dernier de la classe may stop being last during their own turn (their Cup): the point they began with stays.
   // L'Ermite likewise keeps the point they began with when somebody comes next to them.
+  // Désert: the point an oasis gave stays when the player walks off it.
   const capacity =
-    getEnergyCapacity(active, state) + (hasCard(active, "last-in-class") ? 1 : 0) + (hasCard(active, "hermit") ? 1 : 0);
+    getEnergyCapacity(active, state) +
+    (hasCard(active, "last-in-class") ? 1 : 0) +
+    (hasCard(active, "hermit") ? 1 : 0) +
+    (getBoardMap(state.mapId).desert ? OASIS_ENERGY : 0);
   if (!Number.isInteger(state.energyLeft) || state.energyLeft < 0 || state.energyLeft > capacity) {
     found.push(violation("energy-range", `${active.name} has ${state.energyLeft}/${capacity} energy`));
   }
@@ -40,10 +45,19 @@ export function checkEnergy(
     const nextActive = getActivePlayer(next);
     // A Dernier de la classe may stop being last while the turn opens (a Cup picked up): the point stays.
     const allowed = nextActive
-      ? new Set([getEnergyCapacity(nextActive, next), getEnergyCapacity(nextActive)])
+      ? new Set([
+          getEnergyCapacity(nextActive, next),
+          getEnergyCapacity(nextActive),
+          // Désert: the thirst of a mirage was spent as the turn opened, and the point it cost is not in `next`.
+          getEnergyCapacity(nextActive, { ...next, thirstyIds: previous.thirstyIds }),
+        ])
       : new Set<number>();
     if (nextActive && hasCard(nextActive, "last-in-class")) allowed.add(getEnergyCapacity(nextActive) + 1);
     if (nextActive && hasCard(nextActive, "hermit")) allowed.add(getEnergyCapacity(nextActive) + 1);
+    // Désert: an oasis point comes on top of a prime or a rank that was read as the turn opened.
+    if (nextActive && (hasCard(nextActive, "last-in-class") || hasCard(nextActive, "hermit"))) {
+      allowed.add(getEnergyCapacity(nextActive, next) + 1);
+    }
     if (nextActive && !allowed.has(next.energyLeft)) {
       found.push(violation("energy-refill", `${nextActive.name} starts the turn with ${next.energyLeft} energy`));
     }

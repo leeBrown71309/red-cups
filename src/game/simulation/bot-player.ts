@@ -1,7 +1,9 @@
 import { hasCard } from "../cards";
+import { planFerryRide } from "../archipel";
+import { canDrinkAtWell, getCupNodeIds, getKnownRealCup, planCaravanRide } from "../desert";
 import { canAbandon } from "../abandon";
 import { getDuelVoterIds, getHumanDuellistIds, getNextBasketShooterId } from "../duel";
-import { getBoard, getShortestPath } from "../board";
+import { getBoard, getShortestPath, resolveBoard } from "../board";
 import { DEVIL_ITEMS, ITEM_CATALOG } from "../catalog";
 import { canAffordItem, canAffordMove, canEndTurn } from "../energy";
 import { getForwardTiles } from "../game-actions";
@@ -46,7 +48,13 @@ function pick<T>(values: T[], random: Random): T | undefined {
 
 function distanceToCup(store: GameStore, nodeId: NodeId): number {
   if (store.redCupNodeId === null) return 0;
-  return getShortestPath(getBoard(store), nodeId, store.redCupNodeId, false)?.length ?? 99;
+  // Archipel and Désert: a bot plans on the roads without the tide or the sandstorm, and waits if it must.
+  const map = getBoard(store).map;
+  const board = map.tidal || map.desert ? resolveBoard(store.mapId, store.carouselReversed) : getBoard(store);
+  // A bot cannot tell the mirage from the real Cup (unless it drank at a well): it heads for the nearest of the two.
+  const known = getKnownRealCup(store, getActivePlayer(store)?.id ?? null);
+  const targets = known !== null ? [known] : getCupNodeIds(store);
+  return Math.min(...targets.map((target) => getShortestPath(board, nodeId, target, false)?.length ?? 99));
 }
 
 interface ItemOption {
@@ -179,6 +187,28 @@ function chooseMoveTurn(store: GameStore, random: Random): BotAction | null {
   if (!canAffordMove(store)) return endTurnAction("end-turn-tired");
   if (store.turnActionTaken && random() < EARLY_END_CHANCE) return endTurnAction("end-turn-early");
   if (roller && store.diceRoll === null) return { label: "roll-dice", perform: (current) => current.rollDice() };
+
+  // Désert: a bot with the coins drinks at a well it stands on (once for each pair), then goes on.
+  if (canDrinkAtWell(store, player) && random() < 0.7) {
+    return { label: "power:drink-at-well", perform: (current) => current.drinkAtWell() };
+  }
+  // Désert: the caravan is taken when it brings the bot nearer a Red Cup.
+  const ride = planCaravanRide(store, player);
+  if (ride !== null) {
+    const nearer = distanceToCup(store, ride) + 1 < distanceToCup(store, player.position);
+    if (random() < (nearer ? 0.75 : 0.1)) {
+      return { label: "power:board-caravan", perform: (current) => current.boardCaravan() };
+    }
+  }
+
+  // Archipel: the ferry is taken when it brings the bot nearer the Red Cup, and now and then just to see.
+  const crossing = planFerryRide(store, player);
+  if (crossing !== null) {
+    const nearer = distanceToCup(store, crossing) + 1 < distanceToCup(store, player.position);
+    if (random() < (nearer ? 0.75 : 0.12)) {
+      return { label: "power:board-ferry", perform: (current) => current.boardFerry() };
+    }
+  }
 
   const destinationsOf = (ignoreArrows: boolean) => [
     ...new Set(getTurnMoveOptions(store, player, ignoreArrows).map((path) => path[path.length - 1])),

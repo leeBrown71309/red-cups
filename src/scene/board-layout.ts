@@ -33,6 +33,8 @@ export interface CameraBounds {
   halfDepth: number;
   panX: number;
   panZ: number;
+  /** Multiplies the furthest zoom-out the camera allows. */
+  zoomOutFactor: number;
 }
 
 /**
@@ -69,6 +71,7 @@ export class BoardLayout {
       halfDepth: this.halfDepth + 1.8,
       panX: this.halfWidth - 0.7,
       panZ: this.halfDepth - 0.3,
+      zoomOutFactor: this.config.zoomOutFactor ?? 1,
     };
   }
 

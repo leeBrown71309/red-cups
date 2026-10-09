@@ -2,6 +2,8 @@ import { PASSIVE_ORDER } from "../../game/catalog";
 import { CARD_KINDS } from "../../game/cards";
 import {
   BASE_ENERGY,
+  QUAY_HOLDER_REWARD,
+  TIDE_ROUNDS,
   HERMIT_DISTANCE,
   HERMIT_ENERGY_BONUS,
   HERMIT_START_BONUS,
@@ -83,6 +85,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• « Arriver » = finir un déplacement, ou être posé là par une roue (« Avance d'une case », « Va au Départ », « Retourne d'où tu viens ») : la roue de la case, la Boue, le Portail et le bonus s'appliquent. Seul le Portail qui AVALE la case éteint tout le reste : pas de roue, pas de boutique (une Red Cup posée là se ramasse quand même avant la chute). Une boutique ne s'ouvre sur une pose de roue que si c'est ton tour et que tu finissais. La [[item:water-bottle|Bouteille d'eau]] échappe à la règle : sa téléportation donne la roue et la Cup, pas la Boue ni les Portails.",
         "• « Arrivé » ≠ « déplacé » : la [[item:rope|Corde]] qui tire, le [[item:monopoly-man|Monopoly Man]] qui échange, [[card:new-cup-new-me|New Cup, New Me]] et [[card:calm-down|Calme-toi]] POSENT sans déclencher la case, comme le Swap de la [[card:ghost-sister|Sœur Fantôme]]. En revanche, un tunnel de la [[card:mole|Taupe]] et la téléportation du [[card:black-mage|Mage noir]] SONT des arrivées.",
         "• Glace ([[map:banquise|Banquise]]) : personne n'y stationne — on glisse ailleurs; seule la case finale compte.",
+        "• Archipel ([[map:archipel|Archipel des Marées]]) : un Quai, une chaussée et un tourbillon sont des cases sans roue ni boutique ; personne ne reste sur un tourbillon ni sur une chaussée noyée. Voir [[system:tide|Marées, bac et Quais]].",
       ],
     },
   ],
@@ -164,7 +167,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Chaque joueur : 45 s par tour (uniquement ses décisions), les décisions des autres : 20 s (45 s au bras de fer). Le chrono des duels et des roues est remplacé par une sécurité de 120 s.",
         "• Temps écoulé : le choix par défaut s'applique (finir le tour, laisser passer, garder ses pièces… ou un tirage au sort quand il faut choisir : case d'avance, objet à jeter, main, vote).",
-        "• 3 tours écoulés sans RIEN faire = forfait (abandon automatique).",
+        "• Chances : chaque joueur en a 3 (un trèfle à quatre feuilles chacune, affiché sous son nom). Un tour écoulé sans RIEN faire en coûte une ; à la dernière, une alerte prévient au début de son tour ; quand elles sont toutes perdues, c'est le forfait (abandon automatique). Rien ne les rend : jouer simplement ne coûte rien.",
         "• Tout le monde réduit le même jeu d'actions avec la même chance (tire du moteur) : chaque device voit la même roue, le même fantôme, la même explosion.",
         "• L'hôte peut mettre en pause (les horloges se figent et se décalent d'autant) et exclure; un joueur exclu peut demander son retour — il revient avec ce qu'il avait (l'Ange revient en Lambda), en fin d'ordre de passage.",
         "• Rejoindre en retard : possible jusqu'à la fin du 1er tour de table, jamais pour un rôle (diable/Ange).",
@@ -177,6 +180,29 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• [[card:mime|Mime]] : la table lit « X copie le Cups Power de Y jusqu'à la fin de son tour », sans savoir lequel ; seul le Mime le sait.",
         "• [[card:half-seen|Mi-vu, Mi-vue]] : tant que quelqu'un est invisible, chaque écran cache ce qu'il ne doit pas voir. L'invisible, pendant son tour, ne voit plus les autres pions, leurs actions (le journal ne garde que son propre tour), leurs sacs, leurs pièces, les pièges, la Red Cup ni Bullet Bill ; son propre pion est dessiné translucide, pour lui seul. Les autres ne voient plus son pion, ses actions, son sac ni ses pièces. Le journal garde « Tour de X » et les annonces d'invisibilité pour tout le monde.",
         "• Ces voiles sont visuels : chaque appareil rejoue le même jeu, l'état est partagé — comme pour la Red Cup de [[card:blind-luck|Chance aveugle]]. Sur un écran partagé (local), le brouillard suit le joueur qui doit décider.",
+      ],
+    },
+  ],
+  mirage: [
+    {
+      title: "Les deux Red Cups du désert",
+      body: [
+        "• Sur le [[map:desert|Désert des Mirages]], deux Red Cups sont posées en permanence : une vraie et un mirage. Rien ne les distingue avant l'arrivée, ni dans la scène, ni dans le journal.",
+        "• Atteindre le mirage le dissipe : le joueur a soif (1 point d'énergie de moins à son prochain tour) et les DEUX Cups sont retirées pour deux nouvelles, ailleurs, sur deux cases neuves. Atteindre la vraie la ramasse, avec la même relève des deux Cups.",
+        "• Le [[map:desert|puits]] vend en secret la place de la vraie (300 pièces, une fois par paire).",
+      ],
+    },
+  ],
+  tide: [
+    {
+      title: "Marée, bac, Quais et tourbillons",
+      body: [
+        "• Ces règles n'existent que sur l'[[map:archipel|Archipel des Marées]] (patch 0.2.4), la première grande carte : 6 à 8 joueurs.",
+        `• La marée tourne tous les ${TIDE_ROUNDS} tours de table. Une chaussée noyée est une route fermée pour tout le monde, et qui s'y trouve est déposé sur le Quai voisin au moment où la mer monte.`,
+        "• Le bac passe d'un Quai au suivant à chaque nouveau tour de table ; sur son Quai, on le prend à la place de la marche.",
+        `• Un Quai n'accueille qu'un joueur : on ne finit pas sa marche sur un Quai tenu, et un second joueur amené là d'une autre façon est repoussé en rapportant ${QUAY_HOLDER_REWARD} pièces à celui qui le tient.`,
+        "• Un tourbillon aspire vers le Quai d'une autre île, au hasard.",
+        "• Rien de tout cela n'est une case à roue : Quais, chaussées et tourbillons ne déclenchent ni roue ni boutique, et la Red Cup n'y apparaît jamais.",
       ],
     },
   ],
@@ -216,6 +242,8 @@ const SYSTEM_TITLES: Record<string, string> = {
   bag: "Le sac",
   draft: "Le draft des Cups Power",
   online: "Parties en ligne",
+  tide: "Marées, bac et Quais",
+  mirage: "Mirages et puits du désert",
   blessing: "Tour de Bénédiction",
   victory: "Gagner la partie",
 };
@@ -231,6 +259,8 @@ const SYSTEM_SUMMARY: Record<string, string> = {
   draft:
     "Avant la partie : un Cups Power choisi parmi 2 propositions, un passif tiré au sort, jamais deux fois le même.",
   online: "Quarante-cinq secondes par tour, le choix par défaut, le forfait, la pause de l'hôte.",
+  mirage: "Désert : deux Red Cups dont un mirage, un puits qui vend la vérité, une soif qui coûte un point d'énergie.",
+  tide: "Archipel : la mer noie les chaussées, un bac fait le tour des Quais, les tourbillons dispersent.",
   blessing: "Toute la table fauchée ? Chacun tourne la roue du bonheur, dans l'ordre.",
   victory: "3 Cups, 6 000 pièces pour Cupide, le quota d'Enfer du diable, ou la table vidée.",
 };
@@ -245,6 +275,8 @@ const SYSTEM_KEYWORDS: Record<string, string> = {
   bag: "sac inventory slots copies pile stack tomate",
   draft: "draft cups power cp actif passif offre pick cartes tirage hasard",
   online: "clock chrono pause kick forfeit abandon late join host hote retard",
+  mirage: "mirage desert désert puits well soif thirst cup vraie fausse caravane tempete tempête oasis sable",
+  tide: "maree marée bac ferry quai chaussee chaussée tourbillon whirlpool archipel noyee eau",
   blessing: "tour beneuf fortune broke fauchee blessing",
   victory: "win winreason co winner classement standings",
 };

@@ -12,6 +12,8 @@ import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing"
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
 import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, slideOnArrival, toPathBumps } from "./ice";
+import { getInitialFerryQuay, planFerryRide, settleArchipel } from "./archipel";
+import { drinkAtWell, isCupNode, placeCupPair, planCaravanRide, settleDesert } from "./desert";
 import { getBoardMap } from "./maps/map-registry";
 import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { chooseDuelMode } from "./duel-choice";
@@ -184,6 +186,12 @@ export type GameAction =
   | { type: "digTunnel"; destination: NodeId }
   /** Crosses a tunnel from the tile the player stands on; whoever dug it pays less. */
   | { type: "crossTunnel"; tunnelId: string }
+  /** Archipel des Marées: rides the ferry from the quay it is moored at, in place of the walk. */
+  | { type: "boardFerry" }
+  /** Désert des Mirages: climbs aboard the caravan on its tile, in place of the walk. */
+  | { type: "boardCaravan" }
+  /** Désert des Mirages: pays at a well to learn, in secret, which Red Cup is the real one. */
+  | { type: "drinkAtWell" }
   /** Mage noir: lays a pentagram on their tile. */
   | { type: "placeMark" }
   /** Mage noir: teleports to the pentagram during their own turn (the other cases answer a reaction or a wheel). */
@@ -300,8 +308,9 @@ function startGame(
   mapId: MapId | undefined,
   draft: { now: number | undefined } | null,
 ): GameState {
-  if (playerNames.length < 2) return state;
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
+  // The large maps need a full table: they refuse to start below their minimum.
+  if (playerNames.length < Math.max(2, map.minPlayers ?? 2)) return state;
   const build = (): GameState => {
     const players = createPlayers(playerNames, avatarColors);
     const opening: GameState = {
@@ -313,9 +322,13 @@ function startGame(
       startingPlayerCount: players.length,
       energyLeft: getEnergyCapacity(players[0]),
       redCupNodeId: map.initialCupNodeId,
+      ferryQuayId: getInitialFerryQuay(map),
+      caravanNodeId: map.desert?.caravanStart ?? null,
       log: [
         makeLog(
-          `La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`,
+          map.desert
+            ? `La partie commence sur ${map.name}. Deux Red Cups sont posées sur le sable : l’une des deux n’est qu’un mirage.`
+            : `La partie commence sur ${map.name}. La première Red Cup est en case ${map.initialCupNodeId}.`,
           "event",
         ),
       ],
@@ -335,8 +348,10 @@ function startGame(
         ? withRoles
         : // The whole table stands on the start at first: the first ice falls elsewhere.
           { ...withRoles, iceTileNodeId: pickBlizzardTile(withRoles, [START_NODE_ID]) };
+    // Désert: the first pair of Cups is drawn like every other, from where the whole table stands.
+    const withCups = map.desert ? placeCupPair(withIce, [], null) : withIce;
     // Luna Park's ghost waits a round or two before haunting the carousel.
-    return { ...withIce, ghost: createGhost(withIce) };
+    return { ...withCups, ghost: createGhost(withCups) };
   };
   if (seed === undefined) return build();
   const { result, seed: seededRandom } = runWithSeededSource({ rngState: seed >>> 0, nextId: 0 }, build);
@@ -584,7 +599,7 @@ function rollDice(state: GameState): GameState {
   if (!player || !hasCard(player, "roller") || state.turnStage !== "move" || state.diceRoll !== null) return state;
   if (!canAffordMove(state)) return state;
   // Standing on the Red Cup they failed to pick up: this throw is another try at the Cup, not a walk.
-  if (state.redCupNodeId !== null && state.redCupNodeId === player.position && canCollectRedCup(player)) {
+  if (isCupNode(state, player.position) && canCollectRedCup(player)) {
     return retryRedCup(state, player);
   }
   const diceRoll = 1 + Math.floor(drawEngineRandom() * ROLLER_DIE_FACES);
@@ -645,6 +660,22 @@ function crossTunnel(state: GameState, tunnelId: string): GameState {
     rebel: false,
     tunnel: { id: tunnelId, dug: false },
   });
+}
+
+/** Archipel des Marées: the ferry takes the player to the next quay of its circuit, and the turn is spent. */
+function boardFerry(state: GameState): GameState {
+  const player = getActivePlayer(state);
+  const destination = player ? planFerryRide(state, player) : null;
+  if (!player || destination === null) return state;
+  return applyMove(state, destination, { path: [destination], rebel: false, ferry: true });
+}
+
+/** Désert des Mirages: the caravan takes the player four tiles along the loop, and the turn is spent. */
+function boardCaravan(state: GameState): GameState {
+  const player = getActivePlayer(state);
+  const destination = player ? planCaravanRide(state, player) : null;
+  if (!player || destination === null) return state;
+  return applyMove(state, destination, { path: [destination], rebel: false, caravan: true });
 }
 
 /** Mage noir: teleports to their mark during their own turn, out of Hell if they were there. */
@@ -1160,15 +1191,22 @@ function discardInventoryEntry(state: GameState, entryId: string): GameState {
   const entry = player?.inventory.find((candidate) => candidate.id === entryId);
   if (!pending || !player || !entry || entry.kind === "red-cup") return state;
 
-  let nextState = updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
+  // Désert: the question is the same for the mirage, but nothing is thrown away for it (the journal tells nothing yet).
+  const forMirage =
+    pending.reason === "red-cup" && pending.cupNodeId !== undefined && pending.cupNodeId === state.mirageNodeId;
+  let nextState = forMirage
+    ? state
+    : updatePlayer(state, player.id, (current) => removeInventoryEntry(current, entryId));
   nextState = { ...nextState, pendingDiscard: null, turnStage: pending.resumeStage };
-  nextState = addBagLog(
-    nextState,
-    player.id,
-    `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`,
-    `${player.name} abandonne un objet.`,
-    "bad",
-  );
+  if (!forMirage) {
+    nextState = addBagLog(
+      nextState,
+      player.id,
+      `${player.name} abandonne ${ITEM_CATALOG[entry.itemId].name}.`,
+      `${player.name} abandonne un objet.`,
+      "bad",
+    );
+  }
 
   if (pending.reason === "red-cup" && pending.cupNodeId !== undefined) {
     nextState = finishCupCollection(nextState, player.id, pending.cupNodeId);
@@ -1230,6 +1268,8 @@ function resolveNewCup(state: GameState, goToStart: boolean): GameState {
   nextState = {
     ...nextState,
     redCupNodeId: state.pendingCupRevealNodeId,
+    mirageNodeId: state.pendingMirageRevealNodeId ?? state.mirageNodeId,
+    pendingMirageRevealNodeId: null,
     pendingCupRepositionPlayerId: null,
     pendingCupRevealNodeId: null,
     pendingCupRepositionResumeStage: null,
@@ -1310,7 +1350,9 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   // A refused action must hand back the very same object, even if the ghost's memory was touched.
   if (dispatched === prepared) return state;
   // Banquise: nobody stays on ice, whatever set them down there.
-  const result = slideOffIce(prepared, dispatched);
+  const slid = slideOffIce(prepared, dispatched);
+  // Archipel: drowned causeways, whirlpools and crowded quays give their players back.
+  const result = settleDesert(prepared, settleArchipel(prepared, slid));
   // Sœur Fantôme mirrors the walk that was made, then follows her player to the start if they fell into Hell.
   const mirrored = sendSistersHome(prepared, moveSisters(prepared, result));
   // Le diable's own trips to Hell pay them; the turns the others spend there are counted as they begin.
@@ -1360,6 +1402,12 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return digTunnel(state, action.destination);
     case "crossTunnel":
       return crossTunnel(state, action.tunnelId);
+    case "boardFerry":
+      return boardFerry(state);
+    case "boardCaravan":
+      return boardCaravan(state);
+    case "drinkAtWell":
+      return drinkAtWell(state);
     case "placeMark":
       return placeMark(state);
     case "teleportToMark":

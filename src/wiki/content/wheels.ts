@@ -45,7 +45,7 @@ export const WHEEL_SECTIONS: Record<string, ContentSection[]> = {
         "• « Retourne d'où tu viens » : la case occupée avant la DERNIÈRE action (pas d'aller-retour en Enfer, et « nulle part où retourner » si on vient d'y être posé).",
         "• « Perds un objet au hasard » : un emplacement part (une pile de Tomates entière !), sac vide : −200 pièces à la place.",
         "• [[card:red-hand|Main rouge]] : deux secteurs tirés, le moins mauvais gardé.",
-        "• [[card:black-mage|Mage noir]] : « Direction l'Enfer » et « Retourne d'où tu viens » peuvent être remplacés par une téléportation sur sa marque (1 chance), la roue étant écartée comme par la Gomme.",
+        "• [[card:black-mage|Mage noir]] : « Direction l'Enfer » et « Retourne d'où tu viens » peuvent être remplacés par une téléportation sur sa marque (1 pentagramme), la roue étant écartée comme par la Gomme.",
         "• [[card:devils-hand|Touché funeste]] : les DEUX résultats s'appliquent.",
         "• Version Ange-Gardien : deux secteurs seulement (« Passe ton prochain tour » / « Rien du tout »), 50/50.",
         "• La cible d'un Ndoye peut la gommer/annuler elle-même.",
