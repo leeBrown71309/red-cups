@@ -813,10 +813,13 @@ $$;
 -- ------------------------------------------------------------- signalements
 --
 -- The bugs-and-ideas page (feedback.html): any visitor reports a bug or an
--- idea without an account, through `submit_report` only. The admin reads and
--- sorts the reports after signing in with the email+password account listed
--- in `report_admins`. The table is closed like the others: reads and writes
--- go through definer functions, the caller comes from `auth.uid()`.
+-- idea without an account, through `submit_report` only. A visitor signed in
+-- with Google (not a guest) also sees their own reports, follows their status
+-- and corrects them while nobody has looked at them yet (`list_my_reports`,
+-- `update_my_report`). The admin reads and sorts the reports after signing in
+-- with the email+password account listed in `report_admins`, and sees who
+-- sent each one. The table is closed like the others: reads and writes go
+-- through definer functions, the caller comes from `auth.uid()`.
 
 create table if not exists public.reports (
   id            uuid primary key default gen_random_uuid(),
@@ -864,8 +867,19 @@ as $$
   );
 $$;
 
+-- Whether the caller holds a real account: a guest of the game is signed in too, anonymously, and has no
+-- identity worth remembering on a report.
+create or replace function public.is_signed_in_account()
+returns boolean
+language sql
+stable
+as $$
+  select auth.uid() is not null and not coalesce((auth.jwt() ->> 'is_anonymous')::boolean, false);
+$$;
+
 -- A report from anybody, signed in or not. The checks of the table answer
 -- with the database's own words when the form sends something out of bounds.
+-- A guest's report stays anonymous: only an account is recorded as its author.
 create or replace function public.submit_report(
   p_kind text,
   p_element text,
@@ -889,7 +903,7 @@ begin
     btrim(coalesce(p_title, '')),
     btrim(coalesce(p_message, '')),
     lower(nullif(btrim(coalesce(p_contact_email, '')), '')),
-    auth.uid()
+    case when public.is_signed_in_account() then auth.uid() else null end
   );
 exception
   when check_violation then
@@ -897,7 +911,7 @@ exception
 end;
 $$;
 
--- Admin only: every report, the newest arrivals first.
+-- Admin only: every report, the newest arrivals first, with the name of whoever sent it when they were signed in.
 create or replace function public.list_reports()
 returns jsonb
 language plpgsql
@@ -913,10 +927,76 @@ begin
     select jsonb_agg(jsonb_build_object(
       'id', r.id, 'kind', r.kind, 'element', r.element, 'title', r.title, 'message', r.message,
       'contact_email', r.contact_email, 'status', r.status, 'admin_note', r.admin_note,
-      'created_at', r.created_at
+      'created_at', r.created_at, 'updated_at', r.updated_at,
+      'reporter_id', r.reporter_id,
+      'reporter_name', coalesce(pr.display_name, split_part(u.email, '@', 1)),
+      'reporter_email', u.email
     ) order by r.created_at desc)
     from public.reports r
+      left join public.profiles pr on pr.id = r.reporter_id
+      left join auth.users u on u.id = r.reporter_id
   ), '[]'::jsonb);
+end;
+$$;
+
+-- A signed-in account only: its own reports, the newest first.
+create or replace function public.list_my_reports()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_signed_in_account() then
+    raise exception 'Connecte-toi avec Google pour retrouver tes signalements' using errcode = '42501';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'id', r.id, 'kind', r.kind, 'element', r.element, 'title', r.title, 'message', r.message,
+      'status', r.status, 'admin_note', r.admin_note,
+      'created_at', r.created_at, 'updated_at', r.updated_at
+    ) order by r.created_at desc)
+    from public.reports r
+    where r.reporter_id = auth.uid()
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- A signed-in account only: corrects one of its own reports, as long as nobody has taken it up (status « new »).
+create or replace function public.update_my_report(
+  p_id uuid,
+  p_kind text,
+  p_element text,
+  p_title text,
+  p_message text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_signed_in_account() then
+    raise exception 'Connecte-toi avec Google pour modifier un signalement' using errcode = '42501';
+  end if;
+  if p_kind not in ('bug', 'idea', 'other') then
+    raise exception 'Type de signalement inconnu' using errcode = '22023';
+  end if;
+  update public.reports
+     set kind = p_kind,
+         element = nullif(btrim(coalesce(p_element, '')), ''),
+         title = btrim(coalesce(p_title, '')),
+         message = btrim(coalesce(p_message, '')),
+         updated_at = now()
+   where id = p_id and reporter_id = auth.uid() and status = 'new';
+  if not found then
+    raise exception 'Ce signalement ne peut plus être modifié (déjà pris en charge, ou ce n''est pas le tien)'
+      using errcode = 'P0002';
+  end if;
+exception
+  when check_violation then
+    raise exception 'Le titre (3 à 80 caractères) ou le texte (10 à 2000) ne va pas' using errcode = '23514';
 end;
 $$;
 
@@ -948,6 +1028,8 @@ $$;
 -- The visitor's page is anonymous, so its only function opens to `anon` too.
 revoke execute on function public.submit_report(text, text, text, text, text) from public;
 grant execute on function public.submit_report(text, text, text, text, text) to anon, authenticated;
+revoke execute on function public.is_signed_in_account() from public;
+grant execute on function public.is_signed_in_account() to anon, authenticated;
 
 do $$
 declare
@@ -956,6 +1038,8 @@ begin
   foreach fn in array array[
     'public.is_report_admin()',
     'public.list_reports()',
+    'public.list_my_reports()',
+    'public.update_my_report(uuid, text, text, text, text)',
     'public.set_report_status(uuid, text, text)'
   ] loop
     execute format('revoke execute on function %s from public, anon', fn);

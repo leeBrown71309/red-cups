@@ -664,6 +664,7 @@ Les signalements du 14 octobre (choix à valider en 13 nonies) :
 - **Bombe de fumée** (objet, 500 pièces, 2 énergie) : invisible 1 tour.
 - **Mi-vu, Mi-vue** : plus de cycle passif ; pouvoir « Disparaître » (action `vanish`), 2 tours d'invisibilité, recharge de 4 tours. `Player.mistTurns` remplacé par `hiddenTurns` et `vanishReadyRound`, `MIST_CYCLE_TURNS` par `MIST_HIDDEN_TURNS` et `MIST_COOLDOWN_ROUNDS`.
 - **Taupe** : ne creuse que vers les 3 dernières cases visitées (`MOLE_RECENT_TILES`) ; la liste est rangée par dernière visite.
+- **Page des signalements** (`feedback.html`) : onglets Signaler, Mes signalements et Administrateur. Un compte Google (pas un invité) retrouve ses signalements (`list_my_reports`), suit leur statut et corrige les « nouveaux » (`update_my_report`) ; seul un compte est enregistré comme auteur (`is_signed_in_account`), un invité reste anonyme. L'admin voit le nom du profil de l'auteur (`list_reports` : `reporter_name`, `reporter_email`) et la note de l'équipe s'affiche dans la carte. `supabase/schema.sql` rejoué sur la base.
 - **Caméra** : l'option « Suivre le joueur actif » est active par défaut sur tous les écrans (`followActivePlayer`).
 - **Confettis de victoire** : dispersés au hasard (position, taille, durée, balancement, rotation) au lieu de former des lignes.
 - `RULES_VERSION` 0.2.5 (une partie en ligne refuse un appareil resté sur les anciennes règles).

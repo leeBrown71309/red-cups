@@ -21,6 +21,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Nouvel objet : la Bombe de fumée, 500 pièces et 2 points d’énergie. Elle te rend invisible pendant 1 tour : Bullet Bill ne te détecte plus et aucun joueur ne peut te cibler. Comme pour Mi-vu, Mi-vue, tu ne vois plus la table pendant que tu es invisible.",
       "Mi-vu, Mi-vue : l’invisibilité n’est plus passive. Le pouvoir « Disparaître » s’active quand tu veux, avant ton déplacement, et te rend invisible pendant 2 tours, avec un temps de recharge de 4 tours. Il ne s’active pas à une case de la Red Cup ou moins, où tu serais de toute façon visible.",
       "Taupe : elle ne peut plus creuser que vers les 3 dernières cases visitées avant celle où elle se tient, et non plus vers toutes les cases visitées. Une case revisitée redevient la plus récente.",
+      "Page des signalements refaite : trois onglets, l’onglet actif en rouge. Connecté avec Google, tu retrouves « Mes signalements » avec leur statut (reçu, en cours, corrigé ou rejeté) et la note de l’équipe, et tu peux corriger un signalement tant que personne ne l’a pris en charge. Les notes de l’équipe s’affichent dans la carte, et l’admin voit le nom de chaque auteur connecté, avec recherche et statut en un clic.",
       "La caméra suit le joueur actif par défaut, sur tous les écrans (l’option reste désactivable avec le bouton de la caméra).",
       "Confettis de victoire : ils tombent maintenant éparpillés au hasard sur tout l’écran, chacun avec sa taille, sa vitesse et sa rotation, au lieu de former des lignes obliques.",
     ],
