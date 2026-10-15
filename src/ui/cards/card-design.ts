@@ -39,6 +39,15 @@ export const CARD_DESIGNS: Record<PassiveId, CardDesign> = {
     frame: "double",
     ring: "beads",
   },
+  // Le Fou: the inverse of Cupide, a jester's motley with a bell at every point.
+  fool: {
+    pattern: "bells",
+    palette: pal("#2c1448", "#6a2fa8", "#ffd24a", "#e8453c", "#f6ecff"),
+    shape: "squircle",
+    glyph: "star4",
+    frame: "stitch",
+    ring: "beads",
+  },
   // Le diable: crimson flames.
   devil: {
     pattern: "flames",

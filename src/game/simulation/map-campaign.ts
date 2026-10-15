@@ -12,18 +12,20 @@ import { mergeCounts, runBotGame, runMapCampaign, summarizeViolations, type BotG
  */
 
 /** Hundreds of full games take a few seconds; slow CI machines get headroom. */
-export const CAMPAIGN_TIMEOUT_MS = 300_000;
+export const CAMPAIGN_TIMEOUT_MS = 600_000;
 /** Enough tables on one map for every passive, item, wheel and mechanic of the map to come up. */
 const GAMES_PER_MAP = 300;
-/** The Cups Power and passifs of patch 0.2.3, each played alone at a table, on every map, locally and online. */
+/** The Cups Power and passifs of patches 0.2.3 and 0.2.5, each played alone at a table, on every map, locally and online. */
 export const CUP_POWER_STRESS: { cardId: PassiveId; action: string | null }[] = [
   { cardId: "mime", action: "power:mime-copy" },
   { cardId: "mole", action: "power:dig-tunnel" },
   { cardId: "black-mage", action: "power:place-mark" },
-  { cardId: "half-seen", action: null },
+  { cardId: "half-seen", action: "power:vanish" },
   { cardId: "ghost-sister", action: "power:swap-sister" },
   { cardId: "hermit", action: null },
   { cardId: "insurer", action: null },
+  // Patch 0.2.5.
+  { cardId: "fool", action: null },
 ];
 const STRESS_GAMES = 30;
 
@@ -81,18 +83,23 @@ export function describeMapCampaign(mapId: MapId): void {
 
     it.each(CUP_POWER_STRESS)(
       "keeps the rules with $cardId alone at the table, locally and online",
-      ({ cardId, action }) => {
-        // A large map only seats full tables.
-        const fewest = getBoardMap(mapId).minPlayers ?? 2;
-        const stress = Array.from({ length: STRESS_GAMES }, (_, index) =>
-          runBotGame({
-            seed: 70_000 + index,
-            mapId,
-            playerCount: fewest + (index % (9 - fewest)),
-            passives: [cardId],
-            online: index % 2 === 1,
-          }),
-        );
+      async ({ cardId, action }) => {
+        // A large map is played at the table it is made for.
+        const fewest = getBoardMap(mapId).recommendedPlayers ?? 2;
+        const stress: BotGameReport[] = [];
+        for (let index = 0; index < STRESS_GAMES; index += 1) {
+          stress.push(
+            runBotGame({
+              seed: 70_000 + index,
+              mapId,
+              playerCount: fewest + (index % (9 - fewest)),
+              passives: [cardId],
+              online: index % 2 === 1,
+            }),
+          );
+          // Gives the worker back to Vitest between games, as runInBatches does: a long synchronous run misses its calls.
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
         expect(summarizeViolations(stress)).toEqual([]);
         expect(stress.filter((report) => report.blocked)).toHaveLength(0);
         if (action) expect(mergeCounts(stress, "actionCounts")[action]).toBeGreaterThan(0);

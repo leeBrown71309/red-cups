@@ -175,9 +175,9 @@ describe("online permissions", () => {
 
 describe("online turn clock", () => {
   it("lands on the same clock on every device, from the time each action was sent", () => {
-    const { actions } = recordBotGame(42, 3, 120);
+    const { actions } = recordBotGame(43, 3, 120);
     const playerNames = ["Bot 1", "Bot 2", "Bot 3"];
-    const start = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames, seed: 42 }, { now: 1_000 });
+    const start = reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames, seed: 43 }, { now: 1_000 });
     const timed = actions.map((action, index) => ({ action, now: 2_000 + index * 1_500 }));
     const deviceA = timed.reduce((state, { action, now }) => reduceGame(state, action, { now }), start);
     const deviceB = timed.reduce((state, { action, now }) => reduceGame(state, action, { now }), start);

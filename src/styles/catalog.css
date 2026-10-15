@@ -882,3 +882,14 @@
   justify-items: center;
   gap: 10px;
 }
+
+/* A card that turns over when it is clicked. */
+.tilt-card[role="button"] {
+  cursor: pointer;
+}
+
+.tilt-card[role="button"]:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 6px;
+  border-radius: 24px;
+}

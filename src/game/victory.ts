@@ -2,7 +2,7 @@ import { ownsCard } from "./cards";
 import { findDevil, getDevilGoalFor } from "./devil";
 import { addLog, settleKnockout } from "./state-utils";
 import type { GameState, PlayerId, WinReason } from "./types";
-import { GREEDY_GOAL } from "./types";
+import { FOOL_GOAL, GREEDY_GOAL } from "./types";
 
 /**
  * Ends the game for `winnerId`, with L'Ange-Gardien when they protected the
@@ -52,6 +52,11 @@ export function checkVictories(state: GameState): GameState {
   if (greedy) {
     const ended = endGame(state, greedy.id, "greedy");
     return addLog(ended, `${greedy.name} atteint ${GREEDY_GOAL} pièces et remporte la partie !`, "good");
+  }
+  const fool = state.players.find((player) => ownsCard(player, "fool") && player.currency <= FOOL_GOAL);
+  if (fool) {
+    const ended = endGame(state, fool.id, "fool");
+    return addLog(ended, `${fool.name} tombe à ${FOOL_GOAL} pièces et remporte la partie !`, "good");
   }
   const devil = findDevil(state);
   if (devil && state.devilHellTurns >= getDevilGoalFor(state)) {

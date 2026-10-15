@@ -3,7 +3,7 @@ import { ITEM_CATALOG } from "./catalog";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { avoidsHell, getInsurerPayout, offersGamble } from "./passive-rules";
 import type { GameLogEntry, GameState, InventoryEntry, ItemId, Player, PlayerId } from "./types";
-import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "./types";
+import { CURRENCY_RESET_THRESHOLD, FOOL_STUN_FINE, HELL_NODE_ID } from "./types";
 
 /** Small immutable helpers shared by every rule of the engine. */
 
@@ -51,7 +51,8 @@ export function getCupPowerState(
   | "luck"
   | "luckReturnRound"
   | "sisterNodeId"
-  | "mistTurns"
+  | "hiddenTurns"
+  | "vanishReadyRound"
   | "hermitLostUntilRound"
   | "insurerEarned"
 > {
@@ -63,7 +64,8 @@ export function getCupPowerState(
     luck,
     luckReturnRound,
     sisterNodeId,
-    mistTurns,
+    hiddenTurns,
+    vanishReadyRound,
     hermitLostUntilRound,
     insurerEarned,
   } = player;
@@ -77,7 +79,8 @@ export function getCupPowerState(
     ...(luck === undefined || exhausted ? {} : { luck }),
     ...(luckReturnRound === undefined || exhausted ? {} : { luckReturnRound }),
     ...(sisterNodeId === undefined ? {} : { sisterNodeId }),
-    ...(mistTurns === undefined ? {} : { mistTurns }),
+    ...(hiddenTurns === undefined ? {} : { hiddenTurns }),
+    ...(vanishReadyRound === undefined ? {} : { vanishReadyRound }),
     ...(hermitLostUntilRound === undefined ? {} : { hermitLostUntilRound }),
     ...(insurerEarned === undefined ? {} : { insurerEarned }),
   };
@@ -158,8 +161,12 @@ export function findItemEntry(player: Player, itemId: ItemId): (InventoryEntry &
 /**
  * The player loses `amount` of their next turns and carries the knocked-out status until they can
  * play again (patch 0.2.0). A Réveil in the bag cancels the first of them and is used up (patch 0.1.6).
+ * Le Fou cannot be knocked out (patch 0.2.5): every time they should lose turns they lose coins instead.
  */
 export function loseTurns(player: Player, amount = 1): Player {
+  if (amount > 0 && hasCard(player, "fool")) {
+    return { ...player, currency: player.currency - FOOL_STUN_FINE, stunsDodged: (player.stunsDodged ?? 0) + 1 };
+  }
   const alarm = amount > 0 ? findItemEntry(player, "wake-up") : undefined;
   if (!alarm) return { ...player, skippedTurns: player.skippedTurns + amount, knockedOut: true };
   const woken = withSpent(spendItemEntry(player, alarm.id), "wake-up");
@@ -178,17 +185,25 @@ const SPENT_ITEM_LOGS: Partial<Record<ItemId, string>> = {
 
 /** Says in the journal which items acted on their own during the action, and clears the marks. */
 export function announceSpentItems(state: GameState): GameState {
-  if (!state.players.some((player) => player.spentItems?.length)) return state;
+  if (!state.players.some((player) => player.spentItems?.length || player.stunsDodged)) return state;
   let nextState = state;
   for (const player of state.players) {
     for (const itemId of player.spentItems ?? []) {
       const text = SPENT_ITEM_LOGS[itemId];
       if (text) nextState = addLog(nextState, `${player.name} ${text}`, "good");
     }
+    if (player.stunsDodged) {
+      const fine = player.stunsDodged * FOOL_STUN_FINE;
+      nextState = addLog(
+        nextState,
+        `${player.name} ne peut pas être assommé : il perd ${fine} pièces à la place.`,
+        "bad",
+      );
+    }
   }
   return {
     ...nextState,
-    players: nextState.players.map(({ spentItems: _spent, ...player }) => player),
+    players: nextState.players.map(({ spentItems: _spent, stunsDodged: _dodged, ...player }) => player),
   };
 }
 
@@ -270,7 +285,7 @@ export interface CurrencyChangeOptions {
 /** A holder left below −300 while their gamble was pending is knocked out now: balance back to 0, next turn lost. */
 export function settleKnockout(state: GameState, playerId: PlayerId): GameState {
   const player = findPlayer(state, playerId);
-  if (!player || player.currency > CURRENCY_RESET_THRESHOLD) return state;
+  if (!player || player.currency > CURRENCY_RESET_THRESHOLD || hasCard(player, "fool")) return state;
   const nextState = updatePlayer(state, playerId, (current) => loseTurns({ ...current, currency: 0 }));
   return addLog(
     nextState,
@@ -313,7 +328,8 @@ export function applyCurrencyChange(
     lostCoins > 0 ? payInsurer(current, playerId, lostCoins) : current;
 
   // A loss the holder may stake does not knock them out yet: wiping it out lets them play on.
-  const knockedOut = nextCurrency <= CURRENCY_RESET_THRESHOLD;
+  // Le Fou is immune to the reset: the balance is theirs to sink (patch 0.2.5).
+  const knockedOut = nextCurrency <= CURRENCY_RESET_THRESHOLD && !hasCard(player, "fool");
   const awaitsGamble = staked && amount < 0 && knockedOut;
   if (awaitsGamble) {
     const queued = nextState.pendingGambles;

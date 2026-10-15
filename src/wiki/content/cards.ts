@@ -1,5 +1,7 @@
 import {
   BASE_ENERGY,
+  FOOL_GOAL,
+  FOOL_STUN_FINE,
   GREEDY_GOAL,
   HERMIT_DISTANCE,
   HERMIT_ENERGY_BONUS,
@@ -12,11 +14,13 @@ import {
   MARK_HELL_CHANCE,
   MARK_MUD_HELL_CHANCE,
   MIME_COOLDOWN_ROUNDS,
+  MIST_COOLDOWN_ROUNDS,
   MIST_CUP_DISTANCE,
-  MIST_CYCLE_TURNS,
+  MIST_HIDDEN_TURNS,
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
   MOLE_OWN_CROSSING_ENERGY,
+  MOLE_RECENT_TILES,
   SISTER_SWAP_COOLDOWN_ROUNDS,
   SISTER_SWAP_ENERGY,
 } from "../../game/types";
@@ -196,6 +200,19 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       ],
     },
   ],
+  fool: [
+    {
+      title: "Détail",
+      body: [
+        `• Victoire propre, l'inverse de [[card:greedy|Cupide]] : dès que son solde tombe à ${formatCoins(FOOL_GOAL)} pièces ou moins, il gagne — vérifié après CHAQUE action, au tour de qui que ce soit.`,
+        "• Immunisé contre le reset : à −300 pièces, son solde ne revient pas à 0 et il ne saute aucun tour. Il peut donc s'enfoncer sans limite jusqu'à son objectif.",
+        `• Ne peut pas être assommé : chaque fois qu'il devrait perdre un tour (un [[item:middle-finger|Middle Finger]], l'explosion de [[item:bullet-bill|Bullet Bill]], une [[item:tomato|Tomate]] qui assomme, « Passe ton prochain tour » sur les roues, la boule de neige qui gèle à Banquise…), il ne saute rien et perd ${FOOL_STUN_FINE} pièces à la place, une fois par assommement.`,
+        "• Le [[item:wake-up|Réveil]] ne se déclenche pas : il n'y a pas de tour sauté à annuler. Le [[item:hell-touch|Toucher d'Enfer]] du [[card:devil|diable]] et le vol de [[card:greedy|Cupide]] ne le trouvent jamais « assommé ».",
+        "• L'amende de 100 pièces est écrite au journal mais n'est pas une perte « subie » : ni [[card:insurer|L'Assureur]] ni [[card:double-or-nothing|Double or nothing]] ne la voient. Les pertes qui accompagnent l'assommement (les 200 pièces de Bullet Bill, par exemple) restent des pertes comme les autres.",
+        "• Il ramasse les Red Cups comme tout le monde : une victoire par les Cups reste possible, mais son jeu consiste à perdre.",
+      ],
+    },
+  ],
   greedy: [
     {
       title: "Détail",
@@ -282,7 +299,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Qui peut être copié",
       body: [
-        "• Refusés : [[card:devil|le diable]] et [[card:guardian-angel|L'Ange-Gardien]] (des rôles posés au départ, avec leur victoire, leur boutique ou leur protégé), [[card:black-mage|Mage noir]], [[card:ghost-sister|Sœur Fantôme]] et [[card:half-seen|Mi-vu, Mi-vue]] (des états qui vivent d'un tour à l'autre chez leur titulaire), [[card:lambda|Lambda]] (rien à copier) et un autre Mime.",
+        "• Refusés : [[card:devil|le diable]] et [[card:guardian-angel|L'Ange-Gardien]] (des rôles posés au départ, avec leur victoire, leur boutique ou leur protégé), [[card:black-mage|Mage noir]], [[card:ghost-sister|Sœur Fantôme]] et [[card:half-seen|Mi-vu, Mi-vue]] (des états qui vivent d'un tour à l'autre chez leur titulaire), ainsi que [[card:fool|Le Fou]] (son solde pourrait couler sous le reset quand la copie s'arrête), [[card:lambda|Lambda]] (rien à copier) et un autre Mime.",
         "• Passifs refusés : [[card:no-thanks|Non merci]] (son délai appartient à son titulaire), [[card:hermit|L'Ermite]] et [[card:insurer|L'Assureur]] (leur prime et leurs gains se gardent d'un tour à l'autre), et [[card:hell-regular|L'Habitué de l'Enfer]] (il fixe la durée de la peine en cours). Un joueur sans passif n'en offre pas.",
         "• Ta liste ne propose que les joueurs copiables, et pour chacun ce qui peut l'être : celui qui n'y figure pas ne tient que des cartes refusées — ou est invisible.",
         "• Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) ne se copie pas, et un Mime invisible ne copie personne.",
@@ -303,8 +320,8 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Creuser",
       body: [
-        `• Une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours de table, pour ${MOLE_DIG_ENERGY} points d'énergie, avant de te déplacer (ni dé lancé, ni Botte chaussée) : tu creuses un tunnel de ta case vers une case DÉJÀ VISITÉE et tu t'y déplaces aussitôt.`,
-        "• Case visitée = une case où tu t'es arrêté OU que tu as traversée (Botte, glissade de Banquise, long parcours du Roller), le Départ compris. L'Enfer n'en est jamais une.",
+        `• Une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours de table, pour ${MOLE_DIG_ENERGY} points d'énergie, avant de te déplacer (ni dé lancé, ni Botte chaussée) : tu creuses un tunnel de ta case vers l'une des ${MOLE_RECENT_TILES} DERNIÈRES cases visitées avant celle où tu te tiens, et tu t'y déplaces aussitôt (patch 0.2.5 : plus toutes les cases visitées).`,
+        `• Case visitée = une case où tu t'es arrêté OU que tu as traversée (Botte, glissade de Banquise, long parcours du Roller), le Départ compris. L'Enfer n'en est jamais une. Les cases sont rangées par DERNIÈRE visite : une case revisitée redevient la plus récente, et seules les ${MOLE_RECENT_TILES} dernières (celle où tu te tiens exclue) sont à portée.`,
         "• Creuser EST ton déplacement du tour : il prend toute l'énergie qui reste (le surplus est perdu). L'arrivée est une arrivée comme une autre : Boue, Portail, Red Cup, roue de la case, boutique, glace.",
         "• Pas de bonus du Départ en arrivant par un tunnel, même vers le Départ par sa flèche. Seule la case d'arrivée compte pour [[card:red-light-green-light|Red light, Green light]] : une case de tunnel n'est pas « traversée ».",
         `• Le compteur court à partir du tour où tu creuses : creuser au tour 2, c'est être prêt au tour ${2 + MOLE_COOLDOWN_ROUNDS}.`,
@@ -360,8 +377,10 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        `• Cycle de ${MIST_CYCLE_TURNS} tours du joueur : visible, invisible, invisible, puis de nouveau visible. Il est visible avant son premier tour. Le cycle avance au début de chacun de ses tours, joué ou sauté ; l'invisibilité court d'un début de tour à l'autre, donc aussi pendant les tours des autres.`,
-        "• La table est prévenue : « X devient invisible pour deux tours » et « X redevient visible » s'écrivent dans le journal, pour tout le monde.",
+        `• Patch 0.2.5 : l'invisibilité n'est plus passive. « Disparaître » est un pouvoir que tu actives toi-même, sans énergie, avant ton déplacement (ni dé lancé, ni Botte chaussée), à plus d'une case de la Red Cup : tu es invisible ${MIST_HIDDEN_TURNS} de tes tours, celui où tu l'utilises compris, puis tu redeviens visible au début du troisième.`,
+        `• Disparaître est ensuite indisponible pendant ${MIST_COOLDOWN_ROUNDS} tours de table, comptés depuis le tour où tu l'as utilisé : utilisé au tour 2, il revient au tour ${2 + MIST_COOLDOWN_ROUNDS}. Tu ne peux pas le relancer tant que tu es invisible.`,
+        "• Le compte à rebours avance au début de chacun de tes tours, joué ou sauté ; l'invisibilité court donc aussi pendant les tours des autres.",
+        "• La table est prévenue : « X devient invisible pour 2 tours » et « X redevient visible » s'écrivent dans le journal, pour tout le monde.",
         `• À ${MIST_CUP_DISTANCE} case ou moins de la Red Cup (sur sa case ou une voisine, routes dans les deux sens, Barrières ignorées), il est visible quoi qu'il arrive. Ce n'est jamais stocké : c'est recalculé, et la Cup qui bouge le cache ou le montre.`,
       ],
     },

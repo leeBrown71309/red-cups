@@ -26,6 +26,7 @@ interface GarlandSpan {
  * board so they never hide a tile from the camera.
  */
 export function createNightFairScenery(kit: SceneKit, layout: BoardLayout): AnimatedProp {
+  if (layout.openWorld) return createOpenFairScenery(kit, layout);
   const group = new THREE.Group();
   const animated: AnimatedProp[] = [];
   const back = -layout.halfDepth + 0.55;
@@ -98,6 +99,116 @@ export function createNightFairScenery(kit: SceneKit, layout: BoardLayout): Anim
       for (const prop of animated) prop.update(elapsed, delta);
     },
   };
+}
+
+/**
+ * Luna Park without its tray: the fairground is a midway round the carousel. Garland poles stand on a wide ring beyond
+ * the outer road (the back and the sides, never the near side), the Ferris wheel and the big top rise behind it, and
+ * the lamps, balloons and confetti sit wherever the roads leave room.
+ */
+function createOpenFairScenery(kit: SceneKit, layout: BoardLayout): AnimatedProp {
+  const group = new THREE.Group();
+  const animated: AnimatedProp[] = [];
+  const random = createRandom(2_026);
+  const reachX = Math.max(...layout.board.nodes.map((node) => Math.abs(node.x))) + 3.4;
+  const reachZ = Math.max(...layout.board.nodes.map((node) => Math.abs(node.z))) + 3.2;
+
+  const wheel = createFerrisWheel(kit);
+  wheel.group.position.set(-reachX * 0.42, 0, -reachZ - 2.2);
+  group.add(wheel.group);
+  layout.reserve(wheel.group.position.x, wheel.group.position.z, 4.5);
+  animated.push(wheel);
+
+  const bigTop = createBigTop(kit);
+  bigTop.position.set(reachX * 0.45, 0, -reachZ - 1.6);
+  bigTop.rotation.y = 0.4;
+  group.add(bigTop);
+  layout.reserve(bigTop.position.x, bigTop.position.z, 3.6);
+
+  // Poles on a wobbling ring: from the near left side round the back to the near right side.
+  const poles: THREE.Vector3[] = [];
+  const count = 13;
+  for (let index = 0; index < count; index += 1) {
+    const angle = Math.PI * 0.86 + (index / (count - 1)) * Math.PI * 1.28 + (random() - 0.5) * 0.12;
+    const wobble = 1 + (random() - 0.5) * 0.12;
+    poles.push(new THREE.Vector3(Math.cos(angle) * reachX * 1.1 * wobble, 0, Math.sin(angle) * reachZ * 1.1 * wobble));
+  }
+  const spans: GarlandSpan[] = poles.slice(1).map((pole, index) => ({ from: poles[index], to: pole }));
+  for (const pole of poles) {
+    group.add(createPole(kit, pole));
+    layout.reserve(pole.x, pole.z, 1);
+  }
+  const garlands = createGarlands(kit, spans);
+  group.add(garlands.group);
+  animated.push(garlands);
+
+  // Lamps stand just outside the tiles of the outer ring, on the side away from the carousel.
+  const lampTiles = layout.board.nodes.filter((node) => node.kind !== "hell" && Math.hypot(node.x, node.z) > 7);
+  lampTiles.slice(0, 6).forEach((node, index) => {
+    const away = Math.atan2(node.z, node.x) + (index % 2 === 0 ? 0.3 : -0.3);
+    const spot = new THREE.Vector3(node.x + Math.cos(away) * 3, 0, node.z + Math.sin(away) * 3);
+    if (!layout.isClearOfBoard(spot.x, spot.z, 0.2)) return;
+    group.add(createLampPost(kit, spot, index < 2));
+    layout.reserve(spot.x, spot.z, 0.8);
+  });
+
+  [
+    [-6.8, 4.2],
+    [7.2, -4.4],
+    [-6.2, -4.6],
+    [6.4, 4.8],
+  ].forEach(([x, z], index) => {
+    if (!layout.isClearOfBoard(x, z, 0.4)) return;
+    const balloons = createBalloons(kit, 60 + index);
+    balloons.group.position.set(x, 0, z);
+    group.add(balloons.group);
+    animated.push(balloons);
+    layout.reserve(x, z, 1.2);
+  });
+
+  group.add(createOpenConfetti(kit, layout, random, reachX, reachZ));
+  return {
+    group,
+    update: (elapsed, delta) => {
+      for (const prop of animated) prop.update(elapsed, delta);
+    },
+  };
+}
+
+/** Confetti and popcorn on the ground, in an ellipse round the midway, off the roads and the tiles. */
+function createOpenConfetti(
+  kit: SceneKit,
+  layout: BoardLayout,
+  random: () => number,
+  reachX: number,
+  reachZ: number,
+): THREE.InstancedMesh {
+  const confetti = new THREE.InstancedMesh(
+    kit.geometry("confetti", () => new THREE.PlaneGeometry(0.12, 0.08)),
+    new THREE.MeshBasicMaterial({ color: "#ffffff", side: THREE.DoubleSide }),
+    260,
+  );
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  const euler = new THREE.Euler();
+  const color = new THREE.Color();
+  let count = 0;
+  for (let attempt = 0; attempt < 4_000 && count < confetti.count; attempt += 1) {
+    const angle = random() * Math.PI * 2;
+    const radius = Math.sqrt(random());
+    const x = Math.cos(angle) * reachX * 1.05 * radius;
+    const z = Math.sin(angle) * reachZ * 1.05 * radius;
+    if (!layout.isClearOfBoard(x, z, 0.15)) continue;
+    quaternion.setFromEuler(euler.set(-Math.PI / 2, 0, random() * Math.PI));
+    matrix.compose(new THREE.Vector3(x, 0.02, z), quaternion, new THREE.Vector3(1, 1, 1));
+    confetti.setMatrixAt(count, matrix);
+    confetti.setColorAt(count, color.set(BALLOON_COLORS[count % BALLOON_COLORS.length]).multiplyScalar(0.55));
+    count += 1;
+  }
+  confetti.count = count;
+  confetti.instanceMatrix.needsUpdate = true;
+  if (confetti.instanceColor) confetti.instanceColor.needsUpdate = true;
+  return confetti;
 }
 
 function createPole(kit: SceneKit, at: THREE.Vector3): THREE.Group {

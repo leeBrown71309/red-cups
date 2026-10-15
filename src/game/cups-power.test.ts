@@ -5,6 +5,7 @@ import { withPassives } from "./forced-passives";
 import { advanceBulletBill } from "./bullet-bill";
 import { getBoard } from "./board";
 import { canTeleport } from "./mage-queries";
+import { getDigTargets } from "./mole";
 import { regainMageLuck } from "./mage-luck";
 import { getMimeTargets } from "./mime";
 import { isInvisible } from "./mist";
@@ -136,7 +137,7 @@ describe("Mime", () => {
 
   it("on ne copie pas un joueur invisible", () => {
     startTable(["mime", "ghost-sister", "lambda"]);
-    editPlayer(1, { passiveId: "half-seen", mistTurns: 2, position: 4 });
+    editPlayer(1, { passiveId: "half-seen", hiddenTurns: 2, position: 4 });
     edit({ redCupNodeId: 8 });
     expect(isInvisible(store(), player(1))).toBe(true);
     expect(getMimeTargets(store(), player(0)).map((other) => other.id)).toEqual(["p3"].filter(() => false));
@@ -187,6 +188,30 @@ describe("Taupe", () => {
     store().digTunnel(destination());
     expect(store().players).toBe(before);
     expect(store().moleTunnels).toHaveLength(0);
+  });
+
+  it("ne creuse que vers les 3 dernières cases visitées (patch 0.2.5)", () => {
+    startTable(["mole", "lambda", "lambda"]);
+    edit({ redCupNodeId: 5 });
+    editPlayer(0, { position: 4, visitedNodeIds: [9, 0, 2, 7, 4] });
+    openTurn(0);
+    expect(getDigTargets(store(), player(0))).toEqual([0, 2, 7]);
+    const before = store().players;
+    store().digTunnel(9);
+    expect(store().players).toBe(before);
+    store().digTunnel(0);
+    expect(player(0).position).toBe(0);
+  });
+
+  it("une case revisitée redevient la plus récente", () => {
+    startTable(["mole", "lambda"]);
+    edit({ redCupNodeId: 5 });
+    editPlayer(0, { position: 4, visitedNodeIds: [9, 0, 2, 7, 4] });
+    openTurn(0);
+    store().movePlayer(2);
+    const visited = player(0).visitedNodeIds ?? [];
+    expect(visited[visited.length - 1]).toBe(player(0).position);
+    expect(new Set(visited).size).toBe(visited.length);
   });
 
   it("refuse de creuser sans 3 énergie ou pendant l’attente", () => {
@@ -436,39 +461,82 @@ describe("Mage noir", () => {
 });
 
 describe("Mi-vu, Mi-vue", () => {
-  it("est visible un tour sur trois, invisible les deux autres", () => {
+  it("est visible tant qu’il n’a pas disparu", () => {
     startTable(["half-seen", "lambda"]);
     edit({ redCupNodeId: 5 });
     editPlayer(0, { position: 4 });
-    const phases = [0, 1, 2, 3, 4, 5, 6, 7].map((turns) => {
-      editPlayer(0, { mistTurns: turns });
-      return isInvisible(store(), player(0));
-    });
-    expect(phases).toEqual([false, false, true, true, false, true, true, false]);
+    expect(isInvisible(store(), player(0))).toBe(false);
+    editPlayer(0, { hiddenTurns: 1 });
+    expect(isInvisible(store(), player(0))).toBe(true);
+  });
+
+  it("Disparaître le rend invisible 2 tours, puis la compétence attend 4 tours (patch 0.2.5)", () => {
+    startTable(["half-seen", "lambda"]);
+    edit({ redCupNodeId: 5 });
+    editPlayer(0, { position: 4 });
+    openTurn(0);
+    const round = store().round;
+    store().vanish();
+    expect(player(0).hiddenTurns).toBe(2);
+    expect(player(0).vanishReadyRound).toBe(round + 4);
+    expect(isInvisible(store(), player(0))).toBe(true);
+    expect(store().log[0]).toMatchObject({ open: true });
+    expect(store().log[0].text).toContain("devient invisible pour 2 tours");
+    // The second turn is still hidden, the third shows again.
+    const second = advanceMist(store() as GameState, "p1");
+    expect(second.players[0].hiddenTurns).toBe(1);
+    const third = advanceMist(second, "p1");
+    expect(third.players[0].hiddenTurns).toBeUndefined();
+    expect(third.log[0].text).toContain("redevient visible");
+    // Not again before the cooldown is over, nor while hidden.
+    openTurn(0);
+    store().vanish();
+    expect(player(0).vanishReadyRound).toBe(round + 4);
+    editPlayer(0, { hiddenTurns: undefined });
+    const before = store().players;
+    store().vanish();
+    expect(store().players).toBe(before);
+    editPlayer(0, { vanishReadyRound: store().round });
+    store().vanish();
+    expect(player(0).hiddenTurns).toBe(2);
+  });
+
+  it("ne disparaît pas à une case de la Red Cup, ni hors de son tour", () => {
+    startTable(["half-seen", "lambda"]);
+    edit({ redCupNodeId: 7 });
+    editPlayer(0, { position: 4 });
+    openTurn(0);
+    const before = store().players;
+    store().vanish();
+    expect(store().players).toBe(before);
+    edit({ redCupNodeId: 5 });
+    openTurn(1);
+    store().vanish();
+    expect(store().players).toBe(before);
   });
 
   it("à une case de la Red Cup, il redevient visible", () => {
     startTable(["half-seen", "lambda"]);
-    editPlayer(0, { position: 4, mistTurns: 2 });
+    editPlayer(0, { position: 4, hiddenTurns: 2 });
     edit({ redCupNodeId: 7 });
     expect(isInvisible(store(), player(0))).toBe(false);
     edit({ redCupNodeId: 2 });
     expect(isInvisible(store(), player(0))).toBe(true);
   });
 
-  it("annonce à toute la table quand il devient invisible", () => {
+  it("annonce à toute la table quand il redevient visible", () => {
     startTable(["half-seen", "lambda"]);
-    editPlayer(0, { mistTurns: 1 });
+    editPlayer(0, { hiddenTurns: 1 });
     const next = advanceMist(store() as GameState, "p1");
-    expect(next.players[0].mistTurns).toBe(2);
+    expect(next.players[0].hiddenTurns).toBeUndefined();
     expect(next.log[0]).toMatchObject({ open: true });
-    expect(next.log[0].text).toContain("devient invisible");
+    expect(next.log[0].text).toContain("redevient visible");
   });
 
   it("ne cible personne et n’est ciblé par personne", () => {
     startTable(["half-seen", "lambda"]);
     edit({ redCupNodeId: 2 });
-    editPlayer(0, { position: 9, mistTurns: 2 });
+    editPlayer(0, { position: 9, hiddenTurns: 2 });
     editPlayer(1, { inventory: [{ id: "n", kind: "item", itemId: "ndoye" }], currency: 5000 });
     openTurn(1);
     expect(canTargetPlayer(store(), player(1), player(0))).toBe(false);
@@ -483,7 +551,7 @@ describe("Mi-vu, Mi-vue", () => {
   it("Draven l’épargne", () => {
     startTable(["half-seen", "lambda", "lambda"]);
     edit({ redCupNodeId: 2 });
-    editPlayer(0, { position: 9, mistTurns: 2 });
+    editPlayer(0, { position: 9, hiddenTurns: 2 });
     editPlayer(1, { inventory: [{ id: "d", kind: "item", itemId: "draven" }] });
     openTurn(1);
     store().useItem("d");
@@ -495,7 +563,7 @@ describe("Mi-vu, Mi-vue", () => {
     startTable(["half-seen", "lambda", "lambda"]);
     edit({ redCupNodeId: 8 });
     // The invisible player stands next to Bullet Bill, a visible one two tiles away.
-    editPlayer(0, { position: 2, mistTurns: 2 });
+    editPlayer(0, { position: 2, hiddenTurns: 2 });
     editPlayer(1, { position: 5 });
     editPlayer(2, { position: 5 });
     edit({ bulletBill: { status: "active", position: 0, spawnRound: 1 } });
@@ -744,7 +812,7 @@ describe("Mi-vu, Mi-vue : le brouillard", () => {
   it("l'invisible ne voit plus la table pendant son tour seulement", () => {
     startTable(["half-seen", "lambda", "lambda"]);
     edit({ redCupNodeId: 8 });
-    editPlayer(0, { position: 4, mistTurns: 2 });
+    editPlayer(0, { position: 4, hiddenTurns: 2 });
     expect(isInvisible(store(), player(0))).toBe(true);
     // Their own turn: nothing of the table is seen, the Red Cup included.
     openTurn(0);

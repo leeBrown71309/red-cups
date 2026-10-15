@@ -55,7 +55,8 @@ export type PatternId =
   | "umbrellas"
   | "nightsky"
   | "sunburst"
-  | "moonsplit";
+  | "moonsplit"
+  | "bells";
 
 interface TilePattern {
   w: number;
@@ -619,6 +620,19 @@ export const CARD_PATTERNS: Record<PatternId, CardPattern> = {
           ))}
         </g>
         <path d="M100 0 V300" stroke={mid} strokeWidth="3" strokeDasharray="6 5" />
+      </>
+    ),
+  },
+  // Le Fou: a jester's motley, a bell at the point of every diamond.
+  bells: {
+    w: 48,
+    h: 48,
+    draw: ({ mid, hi, accent }) => (
+      <>
+        <path d="M24 2 L46 24 L24 46 L2 24Z" fill={mid} opacity="0.55" />
+        <path d="M24 2 L46 24 L24 24Z M24 46 L2 24 L24 24Z" fill={hi} opacity="0.25" />
+        <circle cx="24" cy="24" r="5" fill={accent} />
+        <path d="M24 17 V19" stroke={hi} strokeWidth="1.6" strokeLinecap="round" />
       </>
     ),
   },

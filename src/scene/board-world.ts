@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement, PowerEvent } from "../game/types";
+import type { BoardEdge, BoardNode, MapId, NodeId, PlayerMovement, PowerEvent, WorldStyle } from "../game/types";
 import { HELL_NODE_ID, START_NODE_ID } from "../game/types";
 import { onFeedback, type FeedbackEvent } from "../feedback/event-bus";
 import type { Fog } from "../ui/fog";
@@ -13,7 +13,7 @@ import { CaravanActor } from "./caravan-actor";
 import { FerryActor } from "./ferry-actor";
 import { EffectsLayer, SISTER_MIST_COLORS } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
-import { createSurroundings } from "./models/surroundings-model";
+import { createSurroundings, GROUND_Y as SURROUNDINGS_GROUND_Y } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
 import { createCarouselHell, createGhostTrainPortal, type CarouselHell } from "./models/night-fair-landmarks-model";
 import { NIGHT_FAIR_TRAY, createNightFairScenery } from "./models/night-fair-scenery-model";
@@ -34,6 +34,7 @@ import {
 import { createMarkProp, type MarkProp } from "./models/mark-model";
 import { createTileArrow } from "./models/tile-arrow-model";
 import { createTunnelProp, type TunnelProp } from "./models/tunnel-model";
+import { createOpenWorld } from "./models/open-world-model";
 import { TOY_BOX_TRAY, createPond, createScenery, createTray } from "./models/scenery-model";
 import { START_TILE_RADIUS, TILE_HEIGHT, TILE_RADIUS, createTileVisual, type TileVisual } from "./models/tile-model";
 import { GHOSTLY_OPACITY, PawnController, type PawnInput, type PawnPhaseInfo } from "./pawn-controller";
@@ -298,8 +299,9 @@ export class BoardWorld {
     private readonly container: HTMLElement,
     private readonly callbacks: BoardWorldCallbacks,
     mapId: MapId,
+    worldStyle: WorldStyle = "boxed",
   ) {
-    this.layout = new BoardLayout(mapId);
+    this.layout = new BoardLayout(mapId, worldStyle);
     this.theme = getSceneTheme(this.layout.map.themeId);
     const coarsePointer = window.matchMedia("(pointer: coarse)").matches;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -539,11 +541,21 @@ export class BoardWorld {
   /** Tray, decorations and Hell follow the map's art direction. */
   private buildSurroundings(): void {
     const { layout } = this;
-    this.addAnimated(createSurroundings(this.kit, layout, layout.map.themeId));
+    const surroundings = createSurroundings(this.kit, layout, layout.map.themeId);
+    // The map's own scenery goes first: it reserves its spots, so the dressing of the open ground stands round it.
+    const polarScenery = layout.map.themeId === "polar" ? createPolarScenery(this.kit, layout) : null;
+    const fairScenery = layout.map.themeId === "night-fair" ? createNightFairScenery(this.kit, layout) : null;
+    // Without its tray, a first-generation map stands on one ground: the far scenery comes up to its level.
+    const openGround = layout.openWorld ? createOpenWorld(this.kit, layout, layout.map.themeId) : null;
+    if (openGround) {
+      surroundings.group.position.y = -SURROUNDINGS_GROUND_Y;
+      this.addAnimated(openGround);
+    }
+    this.addAnimated(surroundings);
     switch (layout.map.themeId) {
       case "night-fair":
-        this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
-        this.addAnimated(createNightFairScenery(this.kit, layout));
+        if (!openGround) this.scene.add(createTray(this.kit, layout, NIGHT_FAIR_TRAY));
+        if (fairScenery) this.addAnimated(fairScenery);
         return;
       case "dunes":
         // The desert has no tray either: sand as far as the eye sees, and the horizon's haze.
@@ -555,16 +567,15 @@ export class BoardWorld {
         this.addAnimated(createLagoonScenery(this.kit, layout));
         return;
       case "polar":
-        this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
-        {
-          const scenery = createPolarScenery(this.kit, layout);
-          this.addAnimated(scenery);
-          this.penguins = scenery.penguins;
+        if (!openGround) this.scene.add(createTray(this.kit, layout, POLAR_TRAY));
+        if (polarScenery) {
+          this.addAnimated(polarScenery);
+          this.penguins = polarScenery.penguins;
         }
         return;
       default:
-        this.scene.add(createTray(this.kit, layout, TOY_BOX_TRAY));
-        this.scene.add(createScenery(this.kit, layout));
+        if (!openGround) this.scene.add(createTray(this.kit, layout, TOY_BOX_TRAY));
+        if (!openGround) this.scene.add(createScenery(this.kit, layout));
         if (layout.config.pond) this.addAnimated(createPond(this.kit, layout.config.pond));
     }
   }

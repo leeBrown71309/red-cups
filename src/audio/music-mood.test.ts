@@ -22,8 +22,10 @@ describe("music mood", () => {
   });
 
   it.each(MAP_ORDER)("darkens on %s while the player whose turn it is sits in Hell", (mapId) => {
-    // A large map only seats a full table.
-    const seats = Array.from({ length: getBoardMap(mapId).minPlayers ?? 2 }, (_, index) => `Joueur ${index + 1}`);
+    const seats = Array.from(
+      { length: getBoardMap(mapId).recommendedPlayers ?? 2 },
+      (_, index) => `Joueur ${index + 1}`,
+    );
     store().startGame(seats, undefined, mapId);
     expect(getMusicMood(store())).toBe("calm");
 

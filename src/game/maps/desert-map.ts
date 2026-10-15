@@ -119,7 +119,8 @@ const PASSES: PassConfig[] = PASS_PLAN.map(([pass, outer, inner]) => ({
 export const DESERT_MAP: BoardMap = {
   id: "desert",
   name: "Désert des Mirages",
-  tagline: "Deux Red Cups sur le sable : une vraie, un mirage. Six joueurs au moins, et la soif au bout du doute.",
+  tagline:
+    "Deux Red Cups sur le sable : une vraie, un mirage. Idéal à six joueurs ou plus, et la soif au bout du doute.",
   highlights: [
     "Mirage : une des deux Red Cups n’existe pas, et les deux changent de place à chaque prise",
     "Puits : 300 pièces pour savoir, en secret, laquelle est la vraie",
@@ -129,7 +130,7 @@ export const DESERT_MAP: BoardMap = {
   themeId: "dunes",
   tunnelStyle: "wrap-around",
   tunnelName: "Tunnel",
-  minPlayers: 6,
+  recommendedPlayers: 6,
   nodes: buildNodes(),
   edges: buildEdges(),
   // The real Cup of the first pair is drawn when the game opens (see `placeCupPair`); this is only a fallback.

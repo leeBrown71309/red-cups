@@ -62,11 +62,6 @@ interface UiState {
 
 const MAX_TOASTS = 4;
 
-/** Big screens show the whole board anyway; phones benefit from the camera following the turn. */
-function prefersFollowCamera(): boolean {
-  return typeof window !== "undefined" && window.matchMedia("(max-height: 520px)").matches;
-}
-
 /** Presentation-only state. Nothing here affects the rules of the game. */
 export const useUiStore = create<UiState>((set) => ({
   boardBusyUntil: 0,
@@ -74,7 +69,8 @@ export const useUiStore = create<UiState>((set) => ({
   toasts: [],
   splash: null,
   alert: null,
-  followActivePlayer: prefersFollowCamera(),
+  // The camera follows the active player from the start, on every screen (patch 0.2.5); the button turns it off.
+  followActivePlayer: true,
   ghostLootOpen: false,
   roadPickEntryId: null,
   digMode: false,

@@ -1,6 +1,6 @@
 import { getLuck } from "../../game/mage-luck";
 import { findMark } from "../../game/mage-queries";
-import { isInvisible } from "../../game/mist";
+import { isHidden, isInvisible } from "../../game/mist";
 import { PASSIVE_CATALOG } from "../../game/catalog";
 import { getSisterNode } from "../../game/sister";
 import type { GameState, PassiveId, Player } from "../../game/types";
@@ -29,7 +29,10 @@ export function describeCupPowerState(game: GameState, player: Player, cardId: P
       return mark ? `${reserve} Pentagramme posé en case ${mark.nodeId}.` : `${reserve} Aucun pentagramme posé.`;
     }
     case "half-seen":
-      return isInvisible(game, player) ? "Invisible en ce moment." : "Visible en ce moment.";
+      if (isInvisible(game, player))
+        return `Invisible encore ${player.hiddenTurns} tour${(player.hiddenTurns ?? 0) > 1 ? "s" : ""}.`;
+      if (isHidden(player)) return "Invisible, mais trop près de la Red Cup : visible en ce moment.";
+      return formatCooldown(player.vanishReadyRound, game.round, "Prêt à disparaître.");
     case "ghost-sister":
       return `Sa sœur flotte en case ${getSisterNode(player)}. ${formatCooldown(player.swapReadyRound, game.round, "Swap prêt.")}`;
     default:

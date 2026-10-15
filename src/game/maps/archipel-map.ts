@@ -228,7 +228,7 @@ const CAUSEWAYS: CausewayConfig[] = ISLANDS.map((_, index) => ({
 export const ARCHIPEL_MAP: BoardMap = {
   id: "archipel",
   name: "Archipel des Marées",
-  tagline: "Cinq îles, des chaussées que la mer avale, un bac et des tourbillons : à six joueurs au moins.",
+  tagline: "Cinq îles, des chaussées que la mer avale, un bac et des tourbillons : idéale à six joueurs ou plus.",
   highlights: [
     "Marée : les chaussées se noient et se découvrent tous les 2 tours",
     "Bac : il fait le tour des Quais, un Quai à la fois",
@@ -238,7 +238,7 @@ export const ARCHIPEL_MAP: BoardMap = {
   themeId: "lagoon",
   tunnelStyle: "wrap-around",
   tunnelName: "Tunnel",
-  minPlayers: 6,
+  recommendedPlayers: 6,
   nodes: buildNodes(),
   edges: buildEdges(),
   // The first Red Cup waits on the shop of the Perles island: six steps from the start, past a causeway that never drowns.

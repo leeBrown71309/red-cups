@@ -1,5 +1,6 @@
 import { drawEngineRandom } from "./engine-random";
 import { getBoardMap } from "./maps/map-registry";
+import { hasCard } from "./cards";
 import { addLog, findPlayer, loseTurns, randomChoice, updatePlayer } from "./state-utils";
 import type { GameState, PlayerId } from "./types";
 import { HELL_NODE_ID, SNOWBALL_HIT_CHANCE, SNOWBALL_HITS_TO_FREEZE } from "./types";
@@ -50,6 +51,9 @@ export function throwSnowball(state: GameState): GameState {
   }
   const frozenTurns = findPlayer(nextState, target.id)?.skippedTurns ?? 0;
   nextState = updatePlayer(nextState, target.id, (player) => loseTurns(player));
+  // Le Fou cannot freeze solid: the fine is announced on its own.
+  if (hasCard(target, "fool"))
+    return addLog(nextState, `Troisième boule de neige : ${target.name} ne gèle pas.`, "event");
   // A Réveil woke them: no lost turn, so no ice to melt later.
   if ((findPlayer(nextState, target.id)?.skippedTurns ?? 0) === frozenTurns) {
     return addLog(nextState, `Troisième boule de neige : ${target.name} se réveille à temps.`, "good");

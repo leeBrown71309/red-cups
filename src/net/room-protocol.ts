@@ -1,6 +1,6 @@
 import { canPlayerSendAction } from "../game/action-permissions";
 import { getSeatPlayerId, reduceGame, type GameAction } from "../game/game-actions";
-import type { GameState, MapId, PlayerColor, PlayerId } from "../game/types";
+import type { GameState, MapId, PlayerColor, PlayerId, WorldStyle } from "../game/types";
 import { EMPTY_GAME_STATE, PLAYER_COLORS, RULES_VERSION } from "../game/types";
 import type { RoomPlayer } from "./room-api";
 
@@ -102,6 +102,7 @@ export function buildOnlineGame(
   mapId: MapId,
   now?: number,
   hostUserId?: string | null,
+  worldStyle?: WorldStyle,
 ): { state: GameState; seatOrder: string[] } {
   const avatarColors: PlayerColor[] = players.map((player) => PLAYER_COLORS[player.avatar] ?? PLAYER_COLORS[0]);
   const action: GameAction = {
@@ -110,6 +111,7 @@ export function buildOnlineGame(
     seed,
     avatarColors,
     mapId,
+    ...(worldStyle ? { worldStyle } : {}),
     // Online games open on the passive draft, under the table's minute.
     draft: true,
   };

@@ -15,6 +15,7 @@ import { getLuck } from "../mage-luck";
 import { canPlaceMark, canTeleportFromWheel, canTeleportInTurn, findMark } from "../mage-queries";
 import { getCopyableKinds, getMimeTargets } from "../mime";
 import { getCrossings, getDigTargets } from "../mole";
+import { canVanish } from "../mist-cycle";
 import { canSwap, getSisterNode } from "../sister";
 import { canBeChallenged, canBuyItemKind, getShopItems, isBlindToRedCup } from "../passive-rules";
 import { canAddItem, canUseCorrupter, canUseNoThanks, getPriceFor, getTurnMoveOptions, isOnSale } from "../rules";
@@ -153,6 +154,9 @@ function choosePower(store: GameStore, random: Random): BotAction | null {
   const sisterIsCloser = distanceToCup(store, getSisterNode(player)) < distanceToCup(store, player.position);
   if (canSwap(store, player) && random() < (sisterIsCloser ? 0.8 : 0.05)) {
     return { label: "power:swap-sister", perform: (current) => current.swapWithSister() };
+  }
+  if (canVanish(store, player) && random() < 0.35) {
+    return { label: "power:vanish", perform: (current) => current.vanish() };
   }
   return null;
 }

@@ -40,19 +40,24 @@ const KEYS_ADDED_BY_PATCH_0_1_6: (keyof GameState)[] = ["pendingDuelChoice", "ba
 /** Patch 0.2.3 added the tunnels of la Taupe, the pentagrams of le Mage noir and the last deed of the new Cups Power. */
 const KEYS_ADDED_BY_PATCH_0_2_3: (keyof GameState)[] = ["moleTunnels", "blackMarks", "lastPowerEvent"];
 
+/** Patch 0.2.4 added the version of the board (boxed or open), picked with the map. */
+const KEYS_ADDED_BY_PATCH_0_2_4: (keyof GameState)[] = ["worldStyle"];
+
 describe("game save upgrade", () => {
   const saved = pickGameState(reduceGame(EMPTY_GAME_STATE, { type: "startGame", playerNames: ["A", "B"] }));
 
-  it.each([...KEYS_ADDED_BY_PATCH_0_1_4, ...KEYS_ADDED_BY_PATCH_0_1_6, ...KEYS_ADDED_BY_PATCH_0_2_3])(
-    "restores a save from before %s",
-    (key) => {
-      const legacy: Partial<GameState> = { ...saved };
-      delete legacy[key];
-      const upgraded = migrateGameSave(legacy, GAME_SAVE_VERSION - 1);
-      expect(isRestorableGame(upgraded)).toBe(true);
-      expect(key in upgraded).toBe(true);
-    },
-  );
+  it.each([
+    ...KEYS_ADDED_BY_PATCH_0_1_4,
+    ...KEYS_ADDED_BY_PATCH_0_1_6,
+    ...KEYS_ADDED_BY_PATCH_0_2_3,
+    ...KEYS_ADDED_BY_PATCH_0_2_4,
+  ])("restores a save from before %s", (key) => {
+    const legacy: Partial<GameState> = { ...saved };
+    delete legacy[key];
+    const upgraded = migrateGameSave(legacy, GAME_SAVE_VERSION - 1);
+    expect(isRestorableGame(upgraded)).toBe(true);
+    expect(key in upgraded).toBe(true);
+  });
 
   it("restores a game saved before the Barrière took its final shape, with no barriers", () => {
     const legacy = { ...saved, barrier: { ownerId: "p1", a: 0, b: 1 } } as Record<string, unknown>;
@@ -66,6 +71,7 @@ describe("game save upgrade", () => {
       ...KEYS_ADDED_BY_PATCH_0_1_4,
       ...KEYS_ADDED_BY_PATCH_0_1_6,
       ...KEYS_ADDED_BY_PATCH_0_2_3,
+      ...KEYS_ADDED_BY_PATCH_0_2_4,
     ]);
     // A key added later must be listed above and filled in by `upgradeSave`.
     const unknown = Object.keys(EMPTY_GAME_STATE).filter(

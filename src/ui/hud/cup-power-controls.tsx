@@ -1,20 +1,29 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { PASSIVE_CATALOG } from "../../game/catalog";
-import { getCopyableCard, getCopyableKinds, getMimeTargets } from "../../game/mime";
+import { getMimeTargets } from "../../game/mime";
 import { PentagramIcon } from "../icons/pentagram-icon";
 import { hasCard, ownsCard } from "../../game/cards";
 import { canPlaceMark, canTeleportInTurn, findMark } from "../../game/mage-queries";
+import { canVanish } from "../../game/mist-cycle";
+import { isHidden } from "../../game/mist";
 import { canDig, getCrossingEnergy, getCrossings, getDigTargets } from "../../game/mole";
 import { canSwap, getSisterNode } from "../../game/sister";
 import { useGameStore } from "../../game/store";
 import type { GameState, Player } from "../../game/types";
-import { MAGE_MAX_LUCK, MOLE_DIG_ENERGY, SISTER_SWAP_ENERGY, WELL_PRICE } from "../../game/types";
+import {
+  MAGE_MAX_LUCK,
+  MIST_COOLDOWN_ROUNDS,
+  MIST_HIDDEN_TURNS,
+  MOLE_DIG_ENERGY,
+  SISTER_SWAP_ENERGY,
+  WELL_PRICE,
+} from "../../game/types";
 import { planFerryRide } from "../../game/archipel";
 import { canDrinkAtWell, planCaravanRide } from "../../game/desert";
 import { getBoardMap } from "../../game/maps/map-registry";
 import { getNodeKindOf } from "../../game/board";
 import { useUiStore } from "../../feedback/ui-store";
 import { UiIcon } from "../icons/ui-icon";
+import { MimeModal } from "../modals/mime-modal";
 
 /**
  * The buttons of the Cups Power of patch 0.2.3 that play in the dock: Mime's copy, Taupe's dig and everybody's
@@ -27,7 +36,7 @@ function formatReturn(readyRound: number, round: number): string | null {
   return readyRound > round ? `de retour au tour ${readyRound}` : null;
 }
 
-/** Mime: pick the player whose Cups Power is borrowed for the turn. */
+/** Mime: the button opens a window to pick the player, then the Cups Power or the passif to borrow for the turn. */
 function MimeControl({ game, player }: { game: GameState; player: Player }) {
   const [open, setOpen] = useState(false);
   const copy = useGameStore((state) => state.mimeCopy);
@@ -35,56 +44,35 @@ function MimeControl({ game, player }: { game: GameState; player: Player }) {
   const waiting = formatReturn(player.mimeReadyRound ?? 0, game.round);
   if (player.mimicId) return null;
 
-  if (open && targets.length > 0) {
-    return (
-      <div className="power-picker" role="group" aria-label="Copier un joueur">
-        <span className="power-picker__title">Copier pour ce tour…</span>
-        {targets.map((target) => (
-          <div key={target.id} className="power-picker__row">
-            <span className="power-picker__who">
-              <span className="power-picker__dot" style={{ background: target.color }} /> {target.name}
-            </span>
-            {getCopyableKinds(target).map((kind) => {
-              const passifId = getCopyableCard(target, "passif");
-              return (
-                <button
-                  key={kind}
-                  type="button"
-                  className="destination-chip"
-                  onClick={() => {
-                    setOpen(false);
-                    copy(target.id, kind);
-                  }}
-                >
-                  {kind === "actif" ? "Cups Power" : `Passif · ${passifId ? PASSIVE_CATALOG[passifId].name : ""}`}
-                </button>
-              );
-            })}
-          </div>
-        ))}
-        <button type="button" className="btn btn--small btn--cream" onClick={() => setOpen(false)}>
-          Annuler
-        </button>
-      </div>
-    );
-  }
   const disabled = targets.length === 0;
   return (
-    <button
-      type="button"
-      className="btn btn--small btn--grape"
-      onClick={() => setOpen(true)}
-      disabled={disabled}
-      title={
-        waiting
-          ? `Mime : ${waiting}`
-          : disabled
-            ? "Personne dont le Cups Power ou le passif puisse être copié pour l’instant"
-            : "Copie le Cups Power ou le passif d’un autre joueur jusqu’à la fin de ton tour, sans énergie"
-      }
-    >
-      <UiIcon name="sparkle" size={16} /> Copier un joueur{waiting ? ` · ${waiting}` : ""}
-    </button>
+    <>
+      <button
+        type="button"
+        className="btn btn--small btn--grape"
+        onClick={() => setOpen(true)}
+        disabled={disabled}
+        title={
+          waiting
+            ? `Mime : ${waiting}`
+            : disabled
+              ? "Personne dont le Cups Power ou le passif puisse être copié pour l’instant"
+              : "Copie le Cups Power ou le passif d’un autre joueur jusqu’à la fin de ton tour, sans énergie"
+        }
+      >
+        <UiIcon name="sparkle" size={16} /> Copier un joueur{waiting ? ` · ${waiting}` : ""}
+      </button>
+      {open && targets.length > 0 && (
+        <MimeModal
+          targets={targets}
+          onClose={() => setOpen(false)}
+          onCopy={(targetId, kind) => {
+            setOpen(false);
+            copy(targetId, kind);
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -111,7 +99,7 @@ function DigControl({ game, player }: { game: GameState; player: Player }) {
       aria-pressed={digMode}
       title={
         reason ??
-        `Creuse un tunnel vers une case déjà visitée et t’y déplace : ${MOLE_DIG_ENERGY} points d’énergie, une fois tous les 3 tours`
+        `Creuse un tunnel vers l’une des dernières cases visitées et t’y déplace : ${MOLE_DIG_ENERGY} points d’énergie, une fois tous les 3 tours`
       }
     >
       <UiIcon name="target" size={16} /> {digMode ? "Choisis la case d’arrivée" : `Creuser · ${MOLE_DIG_ENERGY}`}
@@ -236,6 +224,31 @@ function SisterControl({ game, player }: { game: GameState; player: Player }) {
   );
 }
 
+/** Mi-vu, Mi-vue: disappear for a couple of turns, then wait for the power to come back. */
+function VanishControl({ game, player }: { game: GameState; player: Player }) {
+  const vanish = useGameStore((state) => state.vanish);
+  const possible: boolean = canVanish(game, player);
+  const waiting = formatReturn(player.vanishReadyRound ?? 0, game.round);
+  if (isHidden(player) && !possible) return null;
+  return (
+    <button
+      type="button"
+      className="btn btn--small btn--grape"
+      onClick={vanish}
+      disabled={!possible}
+      title={
+        possible
+          ? `Disparais pendant ${MIST_HIDDEN_TURNS} tours : personne ne te voit ni ne peut te cibler. Une fois tous les ${MIST_COOLDOWN_ROUNDS} tours`
+          : waiting
+            ? `Disparaître : ${waiting}`
+            : "Disparaître se joue avant le déplacement, à plus d’une case de la Red Cup"
+      }
+    >
+      <UiIcon name="eye" size={16} /> Disparaître{waiting && !possible ? ` · ${waiting}` : ""}
+    </button>
+  );
+}
+
 /**
  * Archipel des Marées: the ferry, for whoever stands on a quay. On the quay it is moored at, the button takes it to the
  * next one in place of walking; on any other quay it says where the ferry is.
@@ -342,6 +355,7 @@ export function CupPowerControls({
       {stage === "move" && <FerryControl game={game} player={player} />}
       {stage === "move" && <CaravanControl game={game} player={player} />}
       {stage !== "hell" && <WellControl game={game} player={player} />}
+      {beforeMove && ownsCard(player, "half-seen") && <VanishControl game={game} player={player} />}
       {ownsCard(player, "black-mage") && <MageControl game={game} player={player} />}
       {stage === "move" && ownsCard(player, "ghost-sister") && <SisterControl game={game} player={player} />}
       {children}

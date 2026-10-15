@@ -3,40 +3,6 @@
  * from the players panel and the details card.
  */
 
-/* Mime: the players whose Cups Power may be borrowed, one chip each. */
-.power-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.power-picker__title {
-  width: 100%;
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.power-picker .destination-chip {
-  gap: 6px;
-  min-width: 0;
-  height: 36px;
-  font-size: 1rem;
-  background: var(--grape-light);
-  box-shadow:
-    0 4px 0 var(--ink),
-    inset 0 -4px 0 var(--grape);
-}
-
-.power-picker__dot {
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--ink);
-  border-radius: 50%;
-}
-
 /* Mage noir: three pips, one lit for every chance left. */
 .mage-luck {
   display: inline-flex;
@@ -116,8 +82,7 @@
   border-top: 2px dashed var(--paper-edge);
 }
 
-.dock-powers > .mage-luck,
-.dock-powers > .power-picker {
+.dock-powers > .mage-luck {
   grid-column: 1 / -1;
 }
 
@@ -133,10 +98,6 @@
   line-height: 1.1;
   text-align: center;
   white-space: normal;
-}
-
-.dock-powers .power-picker {
-  justify-content: flex-end;
 }
 
 /* The dock's two cards, as their icons: a tap opens their rules in the slide-over. */
@@ -168,19 +129,114 @@
   box-shadow: var(--shadow-chunky);
 }
 
-/* Mime: one row for each player, with a chip for the Cups Power and one for the passif. */
-.power-picker__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+/* Mime's window: the players to copy, then the Cups Power (a gamble) or the passif (known) to take from one of them. */
+.mime-targets {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.power-picker__who {
-  display: inline-flex;
+.mime-target,
+.mime-option {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  min-width: 96px;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  border: var(--border);
+  border-radius: 18px;
+  background: var(--cream);
+  box-shadow: 0 4px 0 var(--ink);
+  color: var(--ink);
+  text-align: left;
+  transition: transform 140ms var(--ease-out);
+}
+
+button.mime-target:active,
+button.mime-option:active,
+.mime-option__main:active {
+  transform: translateY(2px);
+}
+
+.mime-target__text,
+.mime-option__text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mime-target__text strong,
+.mime-option__text strong {
   font-family: var(--font-display);
-  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.mime-target small,
+.mime-option small {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mime-choice {
+  display: grid;
+  gap: 12px;
+}
+
+.mime-choice__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mime-choice__who p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mime-option__icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--grape-light);
+}
+
+.mime-option--secret {
+  cursor: pointer;
+}
+
+.mime-option--secret .mime-option__icon {
+  background: repeating-linear-gradient(45deg, var(--grape-light) 0 6px, var(--white) 6px 12px);
+}
+
+.mime-option--passif {
+  padding: 0 14px 0 0;
+}
+
+.mime-option__main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 10px 0 10px 14px;
+  border-radius: 18px;
+  color: inherit;
+  text-align: left;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  button.mime-target:hover,
+  button.mime-option:hover,
+  .mime-option--passif:hover {
+    background: var(--gold-light);
+  }
 }

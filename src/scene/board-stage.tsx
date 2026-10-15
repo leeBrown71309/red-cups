@@ -5,10 +5,11 @@ import { isKnockedOut } from "../game/rules";
 import { getSisterNode } from "../game/sister";
 import { getBarrierRoads } from "../game/turn-actions";
 import { getBoardMap } from "../game/maps/map-registry";
+import { resolveWorldStyle } from "../game/maps/world-style";
 import { getKnownRealCup } from "../game/desert";
 import { getFloodedNodeIds } from "../game/tide";
 import { useGameStore } from "../game/store";
-import type { BlackMark, MapId, MoleTunnel, NodeId } from "../game/types";
+import type { BlackMark, MapId, MoleTunnel, NodeId, WorldStyle } from "../game/types";
 import { useBoardSettled, useUiStore } from "../feedback/ui-store";
 import { getDecidingPlayer, selectDestinationFromBoard, useLegalMoves, useRedCupHidden } from "../ui/game-hooks";
 import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
@@ -62,12 +63,21 @@ function useDisplayedMapId(mode: CameraMode): MapId {
   return mode === "play" && phase !== "setup" ? gameMapId : previewMapId;
 }
 
+/** The version of the map on screen: the game's once it starts, the lobby's pick before. */
+function useDisplayedWorldStyle(mode: CameraMode, mapId: MapId): WorldStyle {
+  const gameStyle = useGameStore((state) => state.worldStyle);
+  const phase = useGameStore((state) => state.phase);
+  const wanted = useMapChoiceStore((state) => state.worldStyle);
+  return mode === "play" && phase !== "setup" ? gameStyle : resolveWorldStyle(mapId, wanted);
+}
+
 /** `paused`: a full-screen page covers the board, so it is kept alive but not drawn. */
 export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [world, setWorld] = useState<BoardWorld | null>(null);
   const [status, setStatus] = useState<StageStatus>("loading");
   const mapId = useDisplayedMapId(mode);
+  const worldStyle = useDisplayedWorldStyle(mode, mapId);
 
   // Each map has its own scene: switching maps rebuilds the world from scratch.
   useEffect(() => {
@@ -88,6 +98,7 @@ export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?
             readFog,
           },
           mapId,
+          worldStyle,
         );
         boardCamera.world = created;
         // Dev only: lets a scenario in the console inspect the scene (`window.__redCupsWorld`).
@@ -106,7 +117,7 @@ export function BoardStage({ mode, paused = false }: { mode: CameraMode; paused?
       created?.dispose();
       setWorld(null);
     };
-  }, [mapId]);
+  }, [mapId, worldStyle]);
 
   useEffect(() => {
     world?.setPaused(paused);

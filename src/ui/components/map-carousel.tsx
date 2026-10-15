@@ -1,14 +1,11 @@
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import {
-  MAP_CHOICES,
-  getBoardMap,
-  getPlayableMapIds,
-  isChoicePlayable,
-  type MapChoice,
-} from "../../game/maps/map-registry";
+import { MAP_CHOICES, getBoardMap, getDrawableMapIds, type MapChoice } from "../../game/maps/map-registry";
 import { UiIcon } from "../icons/ui-icon";
+import { resolveWorldStyle } from "../../game/maps/world-style";
+import { useMapChoiceStore } from "../lobby/map-choice-store";
 import { BoardMap } from "./board-map";
+import { WorldStyleSwitch } from "./world-style-switch";
 
 /** Horizontal drag, in pixels, that turns a touch into a swipe to the next map. */
 const SWIPE_THRESHOLD_PX = 40;
@@ -104,6 +101,8 @@ export function MapCarousel({ value, onChange, compact = false, playerCount }: M
 
 /** One option of the carousel: the flat plan (or the dice) beside the name and the specialities. */
 function MapSlide({ choice, current, playerCount }: { choice: MapChoice; current: boolean; playerCount?: number }) {
+  const worldStyle = useMapChoiceStore((state) => state.worldStyle);
+  const setWorldStyle = useMapChoiceStore((state) => state.setWorldStyle);
   const className = `map-slide ${current ? "is-current" : ""}`;
   if (choice === "random") {
     return (
@@ -114,11 +113,11 @@ function MapSlide({ choice, current, playerCount }: { choice: MapChoice; current
         <span className="map-slide__text">
           <strong>Aléatoire</strong>
           <small>
-            Le jeu tire la carte au sort au lancement de la partie, parmi {getPlayableMapIds(playerCount ?? 8).length}{" "}
+            Le jeu tire la carte au sort au lancement de la partie, parmi {getDrawableMapIds(playerCount ?? 8).length}{" "}
             plateaux.
           </small>
           <span className="map-slide__highlights">
-            {getPlayableMapIds(playerCount ?? 8).map((mapId) => (
+            {getDrawableMapIds(playerCount ?? 8).map((mapId) => (
               <span key={mapId}>{getBoardMap(mapId).name}</span>
             ))}
           </span>
@@ -131,14 +130,18 @@ function MapSlide({ choice, current, playerCount }: { choice: MapChoice; current
   return (
     <div className={className} aria-hidden={!current}>
       <span className="map-slide__preview">
-        <BoardMap mapId={choice} />
+        <BoardMap mapId={choice} worldStyle={resolveWorldStyle(choice, worldStyle)} />
       </span>
       <span className="map-slide__text">
         <strong>{map.name}</strong>
         <small>{map.tagline}</small>
-        {playerCount !== undefined && !isChoicePlayable(choice, playerCount) && (
+        <WorldStyleSwitch mapId={choice} value={resolveWorldStyle(choice, worldStyle)} onChange={setWorldStyle} />
+        {map.recommendedPlayers !== undefined && (
           <small className="map-slide__lock">
-            Il faut {map.minPlayers} joueurs au moins ({playerCount} à table).
+            Grande carte, idéale à {map.recommendedPlayers} joueurs ou plus
+            {playerCount !== undefined && playerCount < map.recommendedPlayers
+              ? ` : à ${playerCount}, on s’y croise peu, mais on peut y jouer.`
+              : "."}
           </small>
         )}
         <span className="map-slide__highlights">

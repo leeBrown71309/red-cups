@@ -9,7 +9,8 @@ import { ITEM_CATALOG } from "./catalog";
 import { teleportToMark } from "./black-mage";
 import { canTeleport, findMark } from "./mage-queries";
 import { castBlackCup, dropBlackCup, openPortals, passSentence, startDoomsday, triggerPortal } from "./devil";
-import { isInvisible } from "./mist";
+import { isHidden, isInvisible } from "./mist";
+import { hidePlayer } from "./mist-cycle";
 import { startArmWrestle } from "./arm-wrestle";
 import { canAffordItem, canAffordMove, getItemEnergyCost, spendAllEnergy, spendEnergy } from "./energy";
 import {
@@ -58,6 +59,7 @@ import {
   MAX_BARRIERS,
   MADE_IN_HEAVEN_CUP_NODE_ID,
   NO_THANKS_COOLDOWN_ROUNDS,
+  SMOKE_BOMB_HIDDEN_TURNS,
   START_NODE_ID,
 } from "./types";
 
@@ -262,6 +264,8 @@ export function planItemUse(
     return null;
   // A single Bullet Bill flies at a time.
   if (itemId === "bullet-bill" && state.bulletBill) return null;
+  // The smoke would be wasted on somebody already invisible.
+  if (itemId === "smoke-bomb" && isHidden(player)) return null;
 
   // Only a stack can be thrown several at a time, and never more than it holds.
   const entry = player.inventory.find((candidate) => candidate.id === entryId);
@@ -396,7 +400,8 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
     case "middle-finger":
       if (!target || !victim) return state;
       nextState = updatePlayer(nextState, victim.id, (currentPlayer) => loseTurns(currentPlayer));
-      nextState = addLog(nextState, `${victim.name} devra passer son prochain tour.`, "bad");
+      if (!hasCard(victim, "fool"))
+        nextState = addLog(nextState, `${victim.name} devra passer son prochain tour.`, "bad");
       if (!plan.reflected) nextState = itemCopyForPassive(nextState, target.id, itemId, player.id);
       // Sent back by a Miroir, it leaves its user nothing but the end of their turn: no other item, no move.
       if (plan.reflected) nextState = { ...nextState, turnStage: "turn-end", turnActionTaken: true };
@@ -456,6 +461,10 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
       break;
     }
 
+    case "smoke-bomb":
+      nextState = hidePlayer(nextState, player.id, SMOKE_BOMB_HIDDEN_TURNS);
+      break;
+
     case "made-in-heaven":
       nextState = rewindToStart(nextState, player.id);
       break;
@@ -514,6 +523,9 @@ function throwTomatoes(state: GameState, thrower: Player, target: Player, count:
   }
   if (!stunned) return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
   nextState = updatePlayer(nextState, target.id, (current) => loseTurns(current));
+  // Le Fou cannot be knocked out: the fine is announced on its own.
+  if (hasCard(target, "fool"))
+    return addLog(nextState, `${thrower.name} lance ${volley} sur ${target.name}. Splat !`, "event");
   return addLog(
     nextState,
     `${thrower.name} lance ${volley} sur ${target.name}, qui est assommé : il passera son prochain tour !`,

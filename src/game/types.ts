@@ -28,6 +28,10 @@ export const RED_GREEN_PENALTY = 50;
 export const GOBLIN_THEFT = 150;
 /** Cupide wins as soon as their balance reaches this. */
 export const GREEDY_GOAL = 6_000;
+/** Le Fou (patch 0.2.5) wins as soon as their balance falls to this or below. */
+export const FOOL_GOAL = -2_500;
+/** Le Fou: what each knock-out they would have suffered costs them instead of a turn. */
+export const FOOL_STUN_FINE = 100;
 /** Cupide: what a Red Cup pays them instead of taking a bag slot. */
 export const GREEDY_CUP_REWARD = 1_000;
 /** Cupide: taken from every knocked-out player on the tile they walk onto. */
@@ -133,6 +137,8 @@ export const MOLE_DIG_ENERGY = 3;
 export const MOLE_OWN_CROSSING_ENERGY = 2;
 /** Taupe: rounds to wait after digging before digging again. */
 export const MOLE_COOLDOWN_ROUNDS = 3;
+/** Taupe: a tunnel only leads to one of the last tiles visited before the one the player stands on (patch 0.2.5). */
+export const MOLE_RECENT_TILES = 3;
 /** Taupe: a tunnel holds one crossing after the dig that opens it (the dig is its first use, the crossing its second). */
 export const TUNNEL_CROSSINGS = 1;
 /** Mage noir: chances at the start, and the most they may hold. */
@@ -145,8 +151,12 @@ export const MARK_HELL_CHANCE = 0.2;
 export const MARK_MUD_HELL_CHANCE = 0.2;
 /** Sœur Fantôme: energy that swapping with the sister costs. */
 export const SISTER_SWAP_ENERGY = 3;
-/** Mi-vu, Mi-vue: own turns in a cycle; the first is visible, the others are not. */
-export const MIST_CYCLE_TURNS = 3;
+/** Mi-vu, Mi-vue: own turns the invisibility of « Disparaître » lasts, the turn it is used in counting as the first. */
+export const MIST_HIDDEN_TURNS = 2;
+/** Mi-vu, Mi-vue: rounds to wait after « Disparaître » before using it again (patch 0.2.5). */
+export const MIST_COOLDOWN_ROUNDS = 4;
+/** Bombe de fumée: own turns the invisibility lasts, the turn it is used in counting as the only one. */
+export const SMOKE_BOMB_HIDDEN_TURNS = 1;
 /** Mi-vu, Mi-vue: standing this close to the Red Cup (in steps) makes them visible again. */
 export const MIST_CUP_DISTANCE = 1;
 /** L'Ermite: no other player within this many steps. */
@@ -206,7 +216,9 @@ export type ItemId =
   | "wake-up"
   | "parachute"
   | "barrier"
-  | "mirror";
+  | "mirror"
+  // Added in patch 0.2.5.
+  | "smoke-bomb";
 
 export type PassiveId =
   | "built-like-a-tank"
@@ -246,7 +258,9 @@ export type PassiveId =
   | "half-seen"
   | "ghost-sister"
   | "hermit"
-  | "insurer";
+  | "insurer"
+  // Added in patch 0.2.5.
+  | "fool";
 
 export type WheelId = "misfortune" | "fortune" | "hell";
 export type DuelMode = "coin-flip" | "rock-paper-scissors" | "player-vote" | "basket" | "blackjack";
@@ -303,8 +317,15 @@ export interface Player {
   luckReturnRound?: number;
   /** Sœur Fantôme: the tile the little ghost floats on. */
   sisterNodeId?: NodeId;
-  /** Mi-vu, Mi-vue: own turns begun so far, which tell where the player stands in the cycle of three. */
-  mistTurns?: number;
+  /**
+   * Invisibility (Mi-vu, Mi-vue's « Disparaître », the Bombe de fumée): own turns left, the one in progress included.
+   * It counts down as each of the player's turns begins, played or skipped; invisible while above zero.
+   */
+  hiddenTurns?: number;
+  /** Mi-vu, Mi-vue: first round in which they may disappear again. */
+  vanishReadyRound?: number;
+  /** Le Fou: knock-outs they dodged during the action in progress, paid in coins and announced in the journal. */
+  stunsDodged?: number;
   /** L'Ermite: the prime is lost up to and including this round (someone arrived on their tile). */
   hermitLostUntilRound?: number;
   /** L'Assureur: what the bank paid them for lost coins during `round`. */
@@ -667,7 +688,7 @@ export interface BulletFlight {
 }
 
 /** "greedy": Cupide reached its balance goal; "devil": le diable sent enough players to Hell. */
-export type WinReason = "red-cups" | "forfeit" | "greedy" | "devil";
+export type WinReason = "red-cups" | "forfeit" | "greedy" | "devil" | "fool";
 
 /**
  * An effect of le diable that lasts whole rounds: it ends as the caster's
@@ -747,7 +768,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.4";
+export const RULES_VERSION = "0.2.5";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {
@@ -993,6 +1014,9 @@ export interface SeededRandomState {
   nextId: number;
 }
 
+/** How a map sits in its world for this game: its original tray, or the open version (chosen with the map). */
+export type WorldStyle = "boxed" | "open";
+
 export interface GameState {
   /** "draft": the players pick their passive before the first turn (patch 0.1.4). */
   phase: "setup" | "draft" | "playing" | "finished";
@@ -1000,6 +1024,8 @@ export interface GameState {
   draft: PassiveDraft | null;
   /** Board the game is played on. */
   mapId: MapId;
+  /** The version of the board in play: boxed (the original) or open; picked with the map, fixed for the game. */
+  worldStyle: WorldStyle;
   /** Luna Park: the carousel turns the other way, flipped at every new Red Cup. */
   carouselReversed: boolean;
   turnStage: TurnStage;
@@ -1139,6 +1165,7 @@ export const EMPTY_GAME_STATE: GameState = {
   phase: "setup",
   draft: null,
   mapId: "classic",
+  worldStyle: "boxed",
   carouselReversed: false,
   turnStage: "move",
   players: [],

@@ -200,7 +200,7 @@ function renderPage(route: string[]) {
         <ListPage
           kind="map"
           title="Plateaux"
-          blurb="Trois tabliers, trois lois physiques : coffre à jouets, fête foraine et lac gelé."
+          blurb="Cinq plateaux, cinq lois physiques : coffre à jouets, fête foraine, lac gelé, archipel des marées et désert des mirages."
         />
       );
     if (name === "wheels")

@@ -1,13 +1,9 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import {
-  MAP_CHOICES,
-  getBoardMap,
-  getPlayableMapIds,
-  isChoicePlayable,
-  type MapChoice,
-} from "../../game/maps/map-registry";
+import { MAP_CHOICES, getBoardMap, getDrawableMapIds, type MapChoice } from "../../game/maps/map-registry";
+import { resolveWorldStyle } from "../../game/maps/world-style";
 import { BoardMap } from "../components/board-map";
+import { WorldStyleSwitch } from "../components/world-style-switch";
 import { FlowFooter } from "../components/flow-shell";
 import { UiIcon } from "../icons/ui-icon";
 import { drawChosenMap, useMapChoiceStore } from "../lobby/map-choice-store";
@@ -24,18 +20,23 @@ interface MapStepProps {
 function describeChoice(
   choice: MapChoice,
   playerCount: number,
-): { name: string; tagline: string; highlights: string[]; minPlayers: number } {
+): { name: string; tagline: string; highlights: string[]; recommendedPlayers: number | null } {
   if (choice === "random") {
-    const playable = getPlayableMapIds(playerCount);
+    const playable = getDrawableMapIds(playerCount);
     return {
       name: "Aléatoire",
       tagline: `Le jeu tire la carte au sort au lancement de la partie, parmi ${playable.length} plateaux.`,
       highlights: playable.map((mapId) => getBoardMap(mapId).name),
-      minPlayers: 2,
+      recommendedPlayers: null,
     };
   }
   const map = getBoardMap(choice);
-  return { name: map.name, tagline: map.tagline, highlights: map.highlights, minPlayers: map.minPlayers ?? 2 };
+  return {
+    name: map.name,
+    tagline: map.tagline,
+    highlights: map.highlights,
+    recommendedPlayers: map.recommendedPlayers ?? null,
+  };
 }
 
 /**
@@ -46,12 +47,11 @@ function describeChoice(
 export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
   const choice = useMapChoiceStore((state) => state.choice);
   const setChoice = useMapChoiceStore((state) => state.setChoice);
+  const worldStyle = useMapChoiceStore((state) => state.worldStyle);
+  const setWorldStyle = useMapChoiceStore((state) => state.setWorldStyle);
   const swipeStartX = useRef<number | null>(null);
   const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const currentIndex = Math.max(0, MAP_CHOICES.indexOf(choice));
-  // A large map can be looked at with any table, but only starts once enough players are seated.
-  const launchable = isChoicePlayable(choice, playerCount);
-  const missingPlayers = choice === "random" || launchable ? 0 : (getBoardMap(choice).minPlayers ?? 2) - playerCount;
 
   // The music follows the option on show, and hands back to the game's once the page closes.
   useEffect(() => useMapAuditionStore.setState({ choice }), [choice]);
@@ -112,7 +112,6 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
         {MAP_CHOICES.map((option, index) => {
           const info = describeChoice(option, playerCount);
           const isCurrent = index === currentIndex;
-          const locked = !isChoicePlayable(option, playerCount);
           return (
             <button
               key={option}
@@ -123,7 +122,7 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               role="radio"
               aria-checked={isCurrent}
               tabIndex={isCurrent ? 0 : -1}
-              className={`mapopt${isCurrent ? " is-current" : ""}${locked ? " is-locked" : ""}`}
+              className={`mapopt${isCurrent ? " is-current" : ""}`}
               style={{ "--order": index } as CSSProperties}
               onClick={() => setChoice(option)}
             >
@@ -131,14 +130,18 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
                 className={`mapopt__thumb${option === "random" ? " mapopt__thumb--random" : ""}`}
                 aria-hidden="true"
               >
-                {option === "random" ? <UiIcon name="dice" size={26} /> : <BoardMap mapId={option} />}
+                {option === "random" ? (
+                  <UiIcon name="dice" size={26} />
+                ) : (
+                  <BoardMap mapId={option} worldStyle={resolveWorldStyle(option, worldStyle)} />
+                )}
               </span>
               <span className="mapopt__text">
                 <strong>{info.name}</strong>
                 <small>
-                  {option === "random" ? `${getPlayableMapIds(playerCount).length} plateaux` : info.tagline}
+                  {option === "random" ? `${getDrawableMapIds(playerCount).length} plateaux` : info.tagline}
                 </small>
-                {locked && <em className="mapopt__lock">{info.minPlayers} joueurs minimum</em>}
+                {info.recommendedPlayers !== null && <em className="mapopt__lock">Grande carte</em>}
               </span>
             </button>
           );
@@ -165,13 +168,13 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               <div className="mapshow__plan">
                 {option === "random" ? (
                   <span className="mapshow__fan">
-                    {getPlayableMapIds(playerCount).map((mapId, fanIndex) => (
+                    {getDrawableMapIds(playerCount).map((mapId, fanIndex) => (
                       <span
                         key={mapId}
                         className="mapshow__fan-card"
-                        style={{ "--f": fanIndex - (getPlayableMapIds(playerCount).length - 1) / 2 } as CSSProperties}
+                        style={{ "--f": fanIndex - (getDrawableMapIds(playerCount).length - 1) / 2 } as CSSProperties}
                       >
-                        <BoardMap mapId={mapId} />
+                        <BoardMap mapId={mapId} worldStyle={resolveWorldStyle(mapId, worldStyle)} />
                       </span>
                     ))}
                     <span className="mapshow__dice">
@@ -179,16 +182,26 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
                     </span>
                   </span>
                 ) : (
-                  <BoardMap mapId={option} />
+                  <BoardMap mapId={option} worldStyle={resolveWorldStyle(option, worldStyle)} />
                 )}
               </div>
               <div className="mapshow__text">
                 <h2>{info.name}</h2>
                 <p>{info.tagline}</p>
-                {info.minPlayers > 2 && (
+                {info.recommendedPlayers !== null && (
                   <p className="mapshow__min">
-                    <UiIcon name="users" size={16} /> De {info.minPlayers} à 8 joueurs
+                    <UiIcon name="users" size={16} /> Grande carte : idéale à {info.recommendedPlayers} joueurs ou plus
+                    {playerCount < info.recommendedPlayers
+                      ? ` (vous êtes ${playerCount} : on s’y croise peu, mais on peut y jouer)`
+                      : ""}
                   </p>
+                )}
+                {option !== "random" && (
+                  <WorldStyleSwitch
+                    mapId={option}
+                    value={resolveWorldStyle(option, worldStyle)}
+                    onChange={setWorldStyle}
+                  />
                 )}
                 <ul className="mapshow__chips">
                   {info.highlights.map((highlight, chip) => (
@@ -218,11 +231,10 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
           type="button"
           className="btn btn--cup btn--large flow-foot__next"
           onClick={() => onLaunch(drawChosenMap(playerCount))}
-          disabled={!launchable}
           data-autofocus
         >
           <UiIcon name="hand" size={22} />
-          {launchable ? "Distribuer les cartes" : `Encore ${missingPlayers} joueur${missingPlayers > 1 ? "s" : ""}`}
+          Distribuer les cartes
         </button>
       </FlowFooter>
     </section>

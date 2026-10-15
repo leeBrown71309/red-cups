@@ -29,6 +29,8 @@ export const UNCOPYABLE_CARDS: PassiveId[] = [
   "black-mage",
   "ghost-sister",
   "half-seen",
+  // Its balance may sink below the reset when the copy ends (patch 0.2.5).
+  "fool",
 ];
 
 /**

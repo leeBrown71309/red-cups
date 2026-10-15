@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { onFeedback, type FeedbackEvent } from "../../feedback/event-bus";
 import { useUiStore, type AlertBanner, type Toast } from "../../feedback/ui-store";
 import { useGameStore } from "../../game/store";
-import { isInMistPhase } from "../../game/mist";
+import { isHidden } from "../../game/mist";
 import { BULLET_BILL_DAMAGE } from "../../game/types";
 import { canSeePlayer, getFogNow, isLogEntryVisible } from "../fog";
 
@@ -174,10 +174,10 @@ export function useHudFeedback(): void {
         if (event.type === "turn-start") showSplash(event.playerId);
         const alert = describeAlert(event);
         if (alert) showAlert(alert);
-        // Mi-vu, Mi-vue: the Red Cup too close shows the player again, whatever the cycle says.
+        // Mi-vu, Mi-vue: the Red Cup too close shows the player again, whatever turns of invisibility are left.
         if (event.type === "invisibility" && !event.hidden) {
           const hiddenOne = useGameStore.getState().players.find((candidate) => candidate.id === event.playerId);
-          if (hiddenOne && isInMistPhase(hiddenOne) && canSeePlayer(getFogNow(), hiddenOne.id)) {
+          if (hiddenOne && isHidden(hiddenOne) && canSeePlayer(getFogNow(), hiddenOne.id)) {
             pushToast({
               id: `mist-${event.playerId}-${performance.now()}`,
               text: `${hiddenOne.name} se découvre : la Red Cup est trop près.`,

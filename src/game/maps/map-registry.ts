@@ -38,19 +38,14 @@ export function getBoardMap(mapId: MapId): BoardMap {
   return MAPS[mapId] ?? MAPS[DEFAULT_MAP_ID];
 }
 
-/** Whether a table of `playerCount` may play on this map: the large ones need a full table. */
-export function canPlayMap(mapId: MapId, playerCount: number): boolean {
-  return playerCount >= (getBoardMap(mapId).minPlayers ?? 2);
+/** The table a large map is made for (it says so to the players, but any table may play it), or null. */
+export function getRecommendedPlayers(mapId: MapId): number | null {
+  return getBoardMap(mapId).recommendedPlayers ?? null;
 }
 
-/** Whether the lobby's pick can start with `playerCount` players: a draw always can, it only picks fitting maps. */
-export function isChoicePlayable(choice: MapChoice, playerCount: number): boolean {
-  return choice === "random" || canPlayMap(choice, playerCount);
-}
-
-/** Maps a table of `playerCount` may play, in the picker's order. */
-export function getPlayableMapIds(playerCount: number): MapId[] {
-  return MAP_ORDER.filter((mapId) => canPlayMap(mapId, playerCount));
+/** Maps a random pick may draw for `playerCount` players: a large map only comes up for the table it is made for. */
+export function getDrawableMapIds(playerCount: number): MapId[] {
+  return MAP_ORDER.filter((mapId) => playerCount >= (getBoardMap(mapId).recommendedPlayers ?? 2));
 }
 
 /**
@@ -64,7 +59,7 @@ export function resolveMapChoice(
   playerCount = Number.POSITIVE_INFINITY,
 ): MapId {
   if (choice !== "random") return choice;
-  const playable = getPlayableMapIds(playerCount);
+  const playable = getDrawableMapIds(playerCount);
   const pool = playable.length > 0 ? playable : MAP_ORDER;
   const index = Math.min(pool.length - 1, Math.floor(random() * pool.length));
   return pool[index];

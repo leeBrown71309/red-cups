@@ -321,6 +321,26 @@ const ITEM_ARTWORK: Record<ItemId, () => ReactElement> = {
       <path d="M40 30 L44 34" stroke="#ffffff" strokeWidth="3" strokeLinecap="round" />
     </>
   ),
+  // A round bomb with its fuse lit, half hidden in the puffs of smoke it lets out.
+  "smoke-bomb": () => (
+    <>
+      <circle cx="28" cy="40" r="17" fill="#5b4d63" {...OUTLINE} />
+      <path
+        d="M17 34 C19 28 24 25 29 25"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="4"
+        strokeLinecap="round"
+        opacity="0.6"
+      />
+      <rect x="24" y="19" width="9" height="7" rx="2" fill="#8d7a96" {...OUTLINE} strokeWidth={3} />
+      <path d="M30 19 C30 12 36 11 38 6" fill="none" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+      <path d="M38 2 V10 M34 6 H42" stroke="#ffc94d" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="46" cy="46" r="9" fill="#f1ecf5" {...OUTLINE} strokeWidth={3} />
+      <circle cx="53" cy="36" r="7" fill="#f1ecf5" {...OUTLINE} strokeWidth={3} />
+      <circle cx="40" cy="55" r="6" fill="#f1ecf5" {...OUTLINE} strokeWidth={3} />
+    </>
+  ),
 };
 
 export function ItemIcon({ itemId, size, className }: IconProps & { itemId: ItemId }) {

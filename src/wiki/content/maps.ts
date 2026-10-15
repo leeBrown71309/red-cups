@@ -26,6 +26,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
         "• Le bonus du Départ se touche en entrant en 0 PAR LA FLÈCHE depuis 8 (8 → 0). Entrer en 0 depuis 4 à contresens ne paie rien.",
         "• Trois boutiques : 3, 8 et 9 — la 8 porte la première Red Cup : la boutique et la Cup au même endroit, le carrefour du début de partie.",
         "• L'Enfer est la case 11, nichée dans la boucle (accès : uniquement les effets).",
+        "• Version ouverte (au choix avec la carte, au lancement) : le même plateau sans sa boîte, les mêmes cases et les mêmes routes posées plus loin les unes des autres et hors de la grille, des routes qui serpentent autour de rochers, dans une prairie qui s'étend jusqu'à l'horizon. Aucune règle ne change.",
       ],
     },
   ],
@@ -38,6 +39,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
         "• Le Train fantôme (tunnel) file de 7 à 12, d'un coin à l'autre — le seul moyen de rattraper une Cup posée loin sans faire le tour.",
         "• La case 8 n'est atteignable QUE depuis 6 : un goulot pour les Boues et les embuscades ; la première Cup l'attend là, à sept pas du Départ (cinq après le premier carrousel inversé).",
         "• Quatre carrefours à rayons autour de l'Enfer (1, 2, 3, 4 chacun relié à l'anneau extérieur).",
+        "• Version ouverte (au choix avec la carte, au lancement) : la même fête foraine sans sa boîte, en promenade circulaire autour du manège : un anneau extérieur qui ondule, des rayons de longueurs inégales, des guirlandes, une grande roue et un chapiteau au fond. Aucune règle ne change.",
       ],
     },
     {
@@ -57,7 +59,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Pensé du plateau",
       body: [
-        "• Première « grande carte » (patch 0.2.4) : 41 cases pour 6 à 8 joueurs. À moins de six, elle est grisée dans le choix de carte et la partie refuse de démarrer ; le tirage au sort ne la propose pas non plus.",
+        "• Première « grande carte » (patch 0.2.4) : 41 cases, pensée pour six joueurs ou plus. Elle se joue à n'importe quelle table, même à deux (on s'y croise alors peu) ; seul le tirage au sort ne la propose pas sous six joueurs.",
         "• Cinq îles de six cases en cercle : le Port (Départ en 0), les Perles, le Phare, les Épaves, Corail. Chaque île est une petite boucle : le Quai (par où l'on arrive), la case de passage, la sortie, puis trois cases du côté du large. Elles sont reliées par cinq chaussées de deux cases.",
         "• L'Enfer est le Maelström, au milieu du cercle (case 11 comme partout).",
         "• Quatre boutiques : une au Port (4), aux Perles (10), au Phare (17) et à Corail (29). L'île des Épaves n'en a pas — c'est celle des deux tourbillons et des deux cases rouges.",
@@ -97,7 +99,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Pensé du plateau",
       body: [
-        "• Deuxième « grande carte » (patch 0.2.4) : 41 cases pour 6 à 8 joueurs, un monde ouvert sans cadre. Comme l'Archipel, elle est grisée sous six joueurs et le tirage au sort ne la propose pas. Elle se joue en ligne : sur un écran partagé on ne pourrait pas cacher laquelle des deux Red Cups est la vraie.",
+        "• Deuxième « grande carte » (patch 0.2.4) : 41 cases, pensée pour six joueurs ou plus, un monde ouvert sans cadre. Comme l'Archipel, elle se joue à n'importe quelle table mais le tirage au sort ne la propose pas sous six joueurs. Elle se joue en ligne : sur un écran partagé on ne pourrait pas cacher laquelle des deux Red Cups est la vraie.",
         "• Une grande boucle de caravane de 24 cases (0 à 23, le Départ au sud) autour d'une boucle de dunes de 12 cases, reliées par quatre passes. L'Enfer est le Sable mouvant, au centre (case 11 comme partout).",
         "• Quatre oasis (3, 9, 16, 22) tiennent lieu de boutiques ; deux puits (27 et 33) sur la boucle intérieure.",
         "• La grande boucle se parcourt dans le sens horaire : la flèche des oasis et celle de la dernière case avant le Départ imposent la sortie. Le bonus du Départ se paie en entrant en 0 par cette flèche.",
@@ -136,6 +138,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
         "• Deux côtés parfaitement symétriques : la grande boucle extérieure (0-1-5-6-13-8 et 0-2-12-10-9-8) mène à la Cup en 5 marches sûres, le raccourci gelé par 3 ou 7 en 2 marches... au hasard.",
         "• La glace 3 et 7 et la temporaires du blizzard : personne n'y stationne, on glisse vers une autre route (imposée s'il n'y en a qu'une, jamais par la route d'où on vient).",
         "• Glisser en direction de la Red Cup : 80 % de chance que la GLACE TOMBE — pris au piège à mi-chemin, on brise la glace au début de son prochain tour pour finir le trajet.",
+        "• Version ouverte (au choix avec la carte, au lancement) : la même banquise sans sa boîte, en méandre : les rangées se courbent autour d'un lac gelé irrégulier, l'Enfer mordant son bord du fond, dans un champ de neige et de pins. Les routes qui mènent à la glace restent droites (on y glisse), les autres serpentent. Aucune règle ne change.",
         "• La case 4 (trésor vert) n'est atteignable QUE par glissade ; sa flèche 4 → 0 est la seule route qui paie le bonus du Départ.",
         "• Un blizzard tous les 2 tours de table déplace la troisième case gelée (jamais sous la Cup ; le Départ peut geler — gelé, il ne paie plus).",
         "• Dès la première Cup ramassée, les pingouins entrent en scène : une boule de neige par passage de tour sur un joueur au hasard (ni en Enfer, ni déjà gelé, ni pris dans la glace) ; 2/3 de touche, 3 touches = gelé un tour (le Réveil peut annuler).",

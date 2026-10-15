@@ -4,7 +4,7 @@ import type { GameAction } from "../game/game-actions";
 import { pickGameState } from "../game/game-save";
 import { canReinstatePlayer } from "../game/reinstate";
 import { setActionRelay, useGameStore } from "../game/store";
-import type { MapId, PlayerId } from "../game/types";
+import type { MapId, PlayerId, WorldStyle } from "../game/types";
 import { PLAYER_COLORS } from "../game/types";
 import { EXPIRY_MARGIN_MS, getClockDeadline, getClockOwnerIds } from "../game/turn-clock";
 import { useUiStore } from "../feedback/ui-store";
@@ -94,9 +94,9 @@ interface RoomState {
   updateSeat: (name: string, avatar: number) => Promise<void>;
   shuffleOrder: () => Promise<void>;
   /** Host only: opens the room's game on the given map. */
-  startGame: (mapId: MapId) => Promise<void>;
+  startGame: (mapId: MapId, worldStyle?: WorldStyle) => Promise<void>;
   /** Host only, once the game is over: a new game for whoever is still at the table. */
-  rematch: (mapId: MapId) => Promise<void>;
+  rematch: (mapId: MapId, worldStyle?: WorldStyle) => Promise<void>;
   /** Host only: sends a player away from the lobby or the game. */
   kick: (userId: string) => Promise<void>;
   /** Sent away: asks the host to be let back into the room looked up in `preview`. */
@@ -585,19 +585,26 @@ export const useRoomStore = create<RoomState>((set, get) => {
         broadcast({ kind: "roster" });
       }),
 
-    startGame: (mapId) =>
+    startGame: (mapId, worldStyle) =>
       run(async () => {
         const { code, players, myUserId, hostId } = get();
         if (!code || myUserId !== hostId) return;
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs.");
         await measureServerOffset();
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
+        const { state, seatOrder } = buildOnlineGame(
+          players,
+          createRandomSeed(),
+          mapId,
+          getServerNow(),
+          hostId,
+          worldStyle,
+        );
         await openRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });
       }),
 
-    rematch: (mapId) =>
+    rematch: (mapId, worldStyle) =>
       run(async () => {
         const { code, myUserId, hostId } = get();
         if (!code || myUserId !== hostId) return;
@@ -612,7 +619,14 @@ export const useRoomStore = create<RoomState>((set, get) => {
           .filter((player) => !player.absent || player.userId === myUserId)
           .sort((left, right) => rank(left.userId) - rank(right.userId));
         if (players.length < 2) throw new Error("Il faut au moins deux joueurs encore à table.");
-        const { state, seatOrder } = buildOnlineGame(players, createRandomSeed(), mapId, getServerNow(), hostId);
+        const { state, seatOrder } = buildOnlineGame(
+          players,
+          createRandomSeed(),
+          mapId,
+          getServerNow(),
+          hostId,
+          worldStyle,
+        );
         await rematchRoom(code, state, seatOrder);
         await resync();
         broadcast({ kind: "start" });

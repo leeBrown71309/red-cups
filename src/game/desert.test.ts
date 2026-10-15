@@ -3,7 +3,7 @@ import { canDrinkAtWell, drawCupPair, drinkAtWell, getKnownRealCup, planCaravanR
 import { getNeighbors, resolveBoard } from "./board";
 import { getEnergyCapacity } from "./energy";
 import { reduceGame } from "./game-actions";
-import { getBoardMap, getPlayableMapIds } from "./maps/map-registry";
+import { getBoardMap, getDrawableMapIds } from "./maps/map-registry";
 import { canTargetPlayer } from "./passive-rules";
 import { getTurnMoveOptions } from "./rules";
 import { getClosedPasses, getFloodedNodeIds, getRoundsUntilStorm, getStormPhase } from "./tide";
@@ -50,9 +50,9 @@ describe("the map", () => {
     expect(desert.oases).toEqual([3, 9, 16, 22]);
     expect(desert.wells).toEqual([27, 33]);
     expect(desert.passes.map((pass) => pass.node)).toEqual([37, 38, 39, 40]);
-    expect(map.minPlayers).toBe(6);
-    expect(getPlayableMapIds(5)).not.toContain("desert");
-    expect(getPlayableMapIds(6)).toContain("desert");
+    expect(map.recommendedPlayers).toBe(6);
+    expect(getDrawableMapIds(5)).not.toContain("desert");
+    expect(getDrawableMapIds(6)).toContain("desert");
   });
 
   it("sends everybody on clockwise from an oasis, and pays the lap through the last tile's arrow", () => {

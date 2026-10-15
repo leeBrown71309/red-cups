@@ -51,6 +51,7 @@ export function getActionActorIds(state: GameState, action: GameAction): PlayerI
     case "placeMark":
     case "teleportToMark":
     case "swapWithSister":
+    case "vanish":
     case "leaveHell":
     case "rescueProtege":
     case "sellItem":

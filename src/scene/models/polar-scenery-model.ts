@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import type { NodeId } from "../../game/types";
 import type { BoardLayout } from "../board-layout";
 import { BANQUISE_LAKE } from "../map-layouts";
 import { addOutline, createRandom, createRoundedRectShape, jitterGeometry, type SceneKit } from "../scene-kit";
@@ -38,6 +39,7 @@ export interface PolarScenery extends AnimatedProp {
 }
 
 export function createPolarScenery(kit: SceneKit, layout: BoardLayout): PolarScenery {
+  if (layout.openWorld) return createOpenPolarScenery(kit, layout);
   const group = new THREE.Group();
   const animated: AnimatedProp[] = [];
   const random = createRandom(4_711);
@@ -99,24 +101,174 @@ export function createPolarScenery(kit: SceneKit, layout: BoardLayout): PolarSce
   };
 }
 
-/** Pale, glossy ice under the lake row, with a few cracks and a snowy shore. */
-function createFrozenLake(kit: SceneKit): THREE.Group {
-  const lake = new THREE.Group();
-  lake.position.set(BANQUISE_LAKE.x, 0, BANQUISE_LAKE.z);
-  const width = BANQUISE_LAKE.halfWidth * 2;
-  const depth = BANQUISE_LAKE.halfDepth * 2;
+/** The four penguins of the open Banquise, each walking in the space between four tiles (their numbers). */
+const PENGUIN_ZONES: NodeId[][] = [
+  [6, 3, 8, 13],
+  [8, 7, 10, 9],
+  [1, 3, 4, 0],
+  [7, 2, 0, 4],
+];
 
-  const shore = new THREE.Mesh(
-    new THREE.ShapeGeometry(createRoundedRectShape(width + 0.7, depth + 0.7, 1.6), 6),
+type Lake = { x: number; z: number; halfWidth: number; halfDepth: number };
+
+/**
+ * Banquise without its tray: the lake is an irregular pool between two banks, and what stands round it (snowmen, an
+ * igloo, penguins, drifts, a few pines near the tiles) is placed wherever the roads and the tiles leave room. The
+ * farther snowfield is dressed by `open-world-model.ts`.
+ */
+function createOpenPolarScenery(kit: SceneKit, layout: BoardLayout): PolarScenery {
+  const group = new THREE.Group();
+  const animated: AnimatedProp[] = [];
+  const penguins: THREE.Object3D[] = [];
+  const random = createRandom(4_711);
+  const lake: Lake = layout.config.lake ?? BANQUISE_LAKE;
+  group.add(createFrozenLake(kit, lake, true));
+
+  const insideLake = (x: number, z: number, margin: number) =>
+    Math.hypot((x - lake.x) / (lake.halfWidth + margin), (z - lake.z) / (lake.halfDepth + margin)) < 1;
+  /** A spot off the tiles, the roads and the lake, in the ring round the board; `behind` keeps it off the near side. */
+  const freeSpot = (
+    margin: number,
+    behind: boolean,
+    minRadius = 0,
+    accept: (x: number, z: number) => boolean = () => true,
+  ): THREE.Vector3 | null => {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      const x = (random() * 2 - 1) * (layout.halfWidth + 1);
+      const z = (random() * 2 - 1) * (layout.halfDepth + 1);
+      if (Math.hypot(x / (layout.halfWidth + 1), z / (layout.halfDepth + 1)) > 1 || Math.hypot(x, z) < minRadius)
+        continue;
+      if (behind && z > 1) continue;
+      if (!accept(x, z)) continue;
+      if (!layout.isClearOfBoard(x, z, margin) || insideLake(x, z, 0.8)) continue;
+      return new THREE.Vector3(x, 0, z);
+    }
+    return null;
+  };
+
+  for (let index = 0; index < 14; index += 1) {
+    const spot = freeSpot(1.8, true, 6);
+    if (!spot) continue;
+    const pine = createSnowyPine(kit, Math.round(spot.x * 13 + spot.z * 7));
+    pine.position.copy(spot);
+    pine.scale.setScalar(0.85 + random() * 0.35);
+    pine.rotation.y = random() * Math.PI * 2;
+    group.add(pine);
+    layout.reserve(spot.x, spot.z, 1.3);
+  }
+
+  [0.4, -0.4].forEach((turn) => {
+    const spot = freeSpot(1, false, 5);
+    if (!spot) return;
+    const snowman = createSnowman(kit);
+    snowman.position.copy(spot);
+    snowman.rotation.y = turn;
+    group.add(snowman);
+    layout.reserve(spot.x, spot.z, 1.1);
+  });
+
+  const iglooSpot = freeSpot(2.4, true, 9);
+  if (iglooSpot) {
+    const igloo = createIgloo(kit);
+    igloo.position.copy(iglooSpot);
+    igloo.rotation.y = 0.3;
+    group.add(igloo);
+    layout.reserve(iglooSpot.x, iglooSpot.z, 2.4);
+  }
+
+  // One penguin in each of four zones, each the space between four tiles: it waddles back and forth in the clear.
+  PENGUIN_ZONES.forEach((tileIds, index) => {
+    const corners = tileIds.flatMap((id) => {
+      const node = layout.getNode(id);
+      return node ? [new THREE.Vector3(node.x, 0, node.z)] : [];
+    });
+    if (corners.length < 3) return;
+    const centre = corners.reduce((sum, corner) => sum.add(corner), new THREE.Vector3()).divideScalar(corners.length);
+    // In the order round the centre, so mixing the corners always lands inside the zone.
+    corners.sort((a, b) => Math.atan2(a.z - centre.z, a.x - centre.x) - Math.atan2(b.z - centre.z, b.x - centre.x));
+    const inside = () => {
+      const weights = corners.map(() => 0.4 + random());
+      const total = weights.reduce((sum, weight) => sum + weight, 0);
+      return corners.reduce(
+        (point, corner, cornerIndex) => point.addScaledVector(corner, weights[cornerIndex] / total),
+        new THREE.Vector3(),
+      );
+    };
+    for (let attempt = 0; attempt < 500; attempt += 1) {
+      // Room is asked for first, and given up bit by bit if the zone is tight.
+      const margin = attempt < 160 ? 1.3 : attempt < 340 ? 0.9 : 0.6;
+      const from = inside();
+      const to = inside();
+      const walk = from.distanceTo(to);
+      if (walk < 1.2 || walk > 3.6) continue;
+      if (!layout.isClearOfBoard(from.x, from.z, margin) || !layout.isClearOfBoard(to.x, to.z, margin)) continue;
+      layout.reserve(from.x, from.z, 1);
+      layout.reserve(to.x, to.z, 1);
+      const penguin = createPenguin(kit, from, to, index * 1.7);
+      group.add(penguin.group);
+      animated.push(penguin);
+      penguins.push(penguin.group);
+      return;
+    }
+  });
+
+  const snowfall = createSnowfall(layout);
+  group.add(snowfall.group);
+  animated.push(snowfall);
+
+  const drift = new THREE.InstancedMesh(
+    kit.geometry("snow-drift", () =>
+      jitterGeometry(new THREE.SphereGeometry(0.5, 7, 4, 0, Math.PI * 2, 0, Math.PI / 2), 0.08, 6),
+    ),
     kit.flat("#ffffff"),
+    60,
   );
+  const matrix = new THREE.Matrix4();
+  const quaternion = new THREE.Quaternion();
+  let drifts = 0;
+  for (let index = 0; index < drift.count; index += 1) {
+    const spot = freeSpot(0.5, false);
+    if (!spot) continue;
+    quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), random() * Math.PI);
+    const size = 0.6 + random() * 0.9;
+    matrix.compose(spot, quaternion, new THREE.Vector3(size, size * 0.45, size));
+    drift.setMatrixAt(drifts, matrix);
+    drifts += 1;
+  }
+  drift.count = drifts;
+  drift.instanceMatrix.needsUpdate = true;
+  drift.receiveShadow = true;
+  group.add(drift);
+
+  return {
+    group,
+    penguins,
+    update: (elapsed, delta) => {
+      for (const prop of animated) prop.update(elapsed, delta);
+    },
+  };
+}
+
+/** Pale, glossy ice under the lake row, with a few cracks and a snowy shore. */
+function createFrozenLake(kit: SceneKit, area: Lake = BANQUISE_LAKE, organic = false): THREE.Group {
+  const lake = new THREE.Group();
+  lake.position.set(area.x, 0, area.z);
+  const width = area.halfWidth * 2;
+  const depth = area.halfDepth * 2;
+  // Boxed: a rounded rectangle. Open: a pool with an uneven shore.
+  const outline = (grow: number) =>
+    organic
+      ? createPoolShape(width + grow, depth + grow)
+      : createRoundedRectShape(width + grow, depth + grow, grow > 0 ? 1.6 : 1.3);
+
+  const shore = new THREE.Mesh(new THREE.ShapeGeometry(outline(0.7), organic ? 24 : 6), kit.flat("#ffffff"));
   shore.rotation.x = -Math.PI / 2;
   shore.position.y = 0.012;
   shore.receiveShadow = true;
   lake.add(shore);
 
   const ice = new THREE.Mesh(
-    new THREE.ShapeGeometry(createRoundedRectShape(width, depth, 1.3), 6),
+    new THREE.ShapeGeometry(outline(0), organic ? 24 : 6),
     new THREE.MeshStandardMaterial({ color: "#a9dcf5", roughness: 0.12, metalness: 0.15, flatShading: true }),
   );
   ice.rotation.x = -Math.PI / 2;
@@ -149,6 +301,22 @@ function createFrozenLake(kit: SceneKit): THREE.Group {
     lake.add(shine);
   }
   return lake;
+}
+
+/** An uneven oval: the shore of a lake that nobody drew with a ruler. */
+function createPoolShape(width: number, depth: number): THREE.Shape {
+  const shape = new THREE.Shape();
+  const steps = 48;
+  for (let step = 0; step <= steps; step += 1) {
+    const angle = (step / steps) * Math.PI * 2;
+    const wobble =
+      1 + 0.07 * Math.sin(angle * 3 + 1.1) + 0.045 * Math.sin(angle * 5 + 2.3) + 0.03 * Math.sin(angle * 8);
+    const x = (Math.cos(angle) * width * wobble) / 2;
+    const y = (Math.sin(angle) * depth * wobble) / 2;
+    if (step === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  return shape;
 }
 
 function createSnowyPine(kit: SceneKit, seed: number): THREE.Group {
