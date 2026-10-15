@@ -15,7 +15,7 @@ import { applyRemoteAction, buildOnlineGame, getPlayerIdOfUser, prepareLocalActi
 /**
  * The real `supabase/schema.sql`, run in PGlite (Postgres inside the test
  * process) behind a stand-in for what Supabase provides: `auth.users`,
- * `auth.uid()` answering whoever the test says is calling, and the Realtime
+ * `auth.uid()` answering whoever the test says is calling, `auth.jwt()` telling whether that caller is a guest, and the Realtime
  * messages table its channel policies are written against.
  */
 
@@ -89,6 +89,8 @@ beforeAll(async () => {
     create table auth.users (id uuid primary key, is_anonymous boolean not null default false, email text);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.uid', true), '')::uuid $$;
+    create function auth.jwt() returns jsonb language sql stable as
+      $$ select jsonb_build_object('is_anonymous', coalesce((select is_anonymous from auth.users where id = auth.uid()), false)) $$;
     create schema realtime;
     create table realtime.messages (id serial primary key, topic text not null, extension text not null);
     create function realtime.topic() returns text language sql stable as
@@ -619,7 +621,8 @@ describe("reports", () => {
   }
 
   it("accepts a report from anybody, but shows it only to the admin", async () => {
-    const visitor = await person();
+    // A signed-in account is recorded as the author; a guest of the game stays anonymous.
+    const visitor = await person("google");
     await as(
       visitor,
       `select submit_report('bug', 'Barrière', 'La Botte saute la Barrière deux fois', 'Achetée au tour 3, la Botte a passé la Barrière puis le tour a continué normalement.', null)`,
@@ -672,6 +675,76 @@ describe("reports", () => {
       status: "fixed",
       admin_note: "idée retenue pour plus tard",
     });
+  });
+
+  it("keeps a guest's report anonymous", async () => {
+    const guest = await person("guest");
+    await as(
+      guest,
+      `select submit_report('other', '', 'Un invité signale', 'Un invité du jeu ne laisse aucune identité sur son signalement.', null)`,
+    );
+    const { rows } = await db.query<{ reporter_id: string | null }>(
+      `select reporter_id from reports where title = 'Un invité signale'`,
+    );
+    expect(rows[0].reporter_id).toBeNull();
+    expect(await refusal(guest, `select list_my_reports()`)).toMatch(/Google/);
+  });
+
+  it("lets an account follow its own reports and correct them while they are new", async () => {
+    const author = await person("google");
+    const other = await person("google");
+    await db.query(`insert into profiles (id, display_name) values ($1, 'Léa')`, [author]);
+    await as(
+      author,
+      `select submit_report('bug', 'Taupe', 'Titre avec une faute', 'Un message assez long pour être accepté.', null)`,
+    );
+    await as(
+      other,
+      `select submit_report('idea', '', 'Une autre idée', 'Le signalement d''une autre personne, invisible pour Léa.', null)`,
+    );
+
+    const [mine] = await as<{ r: { id: string; title: string; status: string }[] }>(
+      author,
+      `select list_my_reports() r`,
+    );
+    expect(mine.r).toHaveLength(1);
+    expect(mine.r[0]).toMatchObject({ title: "Titre avec une faute", status: "new" });
+    const id = mine.r[0].id;
+
+    // Somebody else cannot touch it; the author can.
+    expect(
+      await refusal(
+        other,
+        `select update_my_report($1, 'bug', '', 'Titre pris', 'Un message assez long pour passer.')`,
+        [id],
+      ),
+    ).toMatch(/plus être modifié/);
+    await as(
+      author,
+      `select update_my_report($1, 'idea', 'Cupide', 'Titre corrigé', 'Un message corrigé, assez long pour passer.')`,
+      [id],
+    );
+    const [corrected] = await as<{ r: { title: string; kind: string; element: string }[] }>(
+      author,
+      `select list_my_reports() r`,
+    );
+    expect(corrected.r[0]).toMatchObject({ title: "Titre corrigé", kind: "idea", element: "Cupide" });
+    expect(await refusal(author, `select update_my_report($1, 'bug', '', 'Ok', 'Trop court !')`, [id])).toMatch(
+      /titre|texte/,
+    );
+
+    // The admin sees who sent it, and once the team takes it up it is no longer editable.
+    const admin = await makeAdmin("chief3@example.com");
+    const [listed] = await as<{ r: { id: string; reporter_name: string | null }[] }>(admin, `select list_reports() r`);
+    expect(listed.r.find((report) => report.id === id)?.reporter_name).toBe("Léa");
+    await as(admin, `select set_report_status($1, 'in_progress', 'On regarde ça')`, [id]);
+    expect(
+      await refusal(author, `select update_my_report($1, 'bug', '', 'Encore', 'Un message assez long pour passer.')`, [
+        id,
+      ]),
+    ).toMatch(/plus être modifié/);
+    const [followed] = await as<{ r: { status: string; admin_note: string }[] }>(author, `select list_my_reports() r`);
+    expect(followed.r[0]).toMatchObject({ status: "in_progress", admin_note: "On regarde ça" });
   });
 
   it("refuses a report with nothing to read", async () => {
