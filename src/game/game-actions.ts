@@ -8,6 +8,7 @@ import { mimeCopy, type MimeCopyKind } from "./mime";
 import { getMoleReadyRound, planCrossing, planDig, recordVisitedTiles } from "./mole";
 import { withPowerEvent } from "./power-event";
 import { moveSisters, sendSistersHome, swapWithSister } from "./sister";
+import { vanish } from "./mist-cycle";
 import { isTableBroke, spinBlessingWheel, startBlessingRound } from "./blessing";
 import { earnsStartBonus, getBoard, isIce } from "./board";
 import { createGhost, spareHellPlayers } from "./ghost";
@@ -15,6 +16,7 @@ import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, sli
 import { getInitialFerryQuay, planFerryRide, settleArchipel } from "./archipel";
 import { drinkAtWell, isCupNode, placeCupPair, planCaravanRide, settleDesert } from "./desert";
 import { getBoardMap } from "./maps/map-registry";
+import { resolveWorldStyle } from "./maps/world-style";
 import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { chooseDuelMode } from "./duel-choice";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
@@ -136,6 +138,7 @@ import type {
   GameState,
   ItemId,
   MapId,
+  WorldStyle,
   NodeId,
   PassiveId,
   PendingWheel,
@@ -171,6 +174,8 @@ export type GameAction =
       seed?: number;
       avatarColors?: PlayerColor[];
       mapId?: MapId;
+      /** The open version of the map, when it has one (picked with the map). */
+      worldStyle?: WorldStyle;
       draft?: boolean;
     }
   /** The passive draft: a player's pick, which may change until the draft closes. */
@@ -198,6 +203,8 @@ export type GameAction =
   | { type: "teleportToMark" }
   /** Sœur Fantôme: swaps places with the little ghost. */
   | { type: "swapWithSister" }
+  /** Mi-vu, Mi-vue: disappears for two turns (patch 0.2.5). */
+  | { type: "vanish" }
   /** Le diable walks out of Hell, whenever they please. */
   | { type: "leaveHell" }
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
@@ -306,11 +313,11 @@ function startGame(
   seed: number | undefined,
   avatarColors: PlayerColor[] | undefined,
   mapId: MapId | undefined,
+  worldStyle: WorldStyle | undefined,
   draft: { now: number | undefined } | null,
 ): GameState {
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
-  // The large maps need a full table: they refuse to start below their minimum.
-  if (playerNames.length < Math.max(2, map.minPlayers ?? 2)) return state;
+  if (playerNames.length < 2) return state;
   const build = (): GameState => {
     const players = createPlayers(playerNames, avatarColors);
     const opening: GameState = {
@@ -318,6 +325,7 @@ function startGame(
       phase: "playing",
       turnStage: "move",
       mapId: map.id,
+      worldStyle: resolveWorldStyle(map.id, worldStyle),
       players,
       startingPlayerCount: players.length,
       energyLeft: getEnergyCapacity(players[0]),
@@ -445,6 +453,8 @@ function applyWheelOutcome(
     case "skip-turn":
     case "hell-skip": {
       const nextState = updatePlayer(state, player.id, (current) => loseTurns(current));
+      // Le Fou is fined instead, and the journal says so on its own.
+      if (hasCard(player, "fool")) return nextState;
       return addLog(nextState, `${player.name} devra passer son prochain tour.`, "bad");
     }
     case "go-to-hell":
@@ -844,9 +854,10 @@ function resolveBulletReaction(
     const from = findPlayer(state, victimId)?.position;
     const gone = teleportToMark(state, victimId, "reaction", { arrive: false });
     if (gone === state || from === undefined) return state;
+    const markNodeId = findPlayer(gone, victimId)?.position;
     // The mage arrives on their mark like anywhere else, but only once the next turn is seated: seating it wipes
     // whatever the tile would have left pending (a wheel, a discard, a Calme-toi offer).
-    return arriveOnceSeated(resumeAfterBulletReaction(gone, false), victimId, from);
+    return arriveOnceSeated(resumeAfterBulletReaction(gone, false), victimId, from, markNodeId);
   }
   const reactor = findPlayer(state, reactorId);
   const victim = findPlayer(state, victimId);
@@ -869,8 +880,11 @@ function resolveBulletReaction(
 }
 
 /** A mage who teleported while the round turned arrives on their mark, in the turn that was just seated. */
-function arriveOnceSeated(state: GameState, mageId: PlayerId, from: NodeId): GameState {
+function arriveOnceSeated(state: GameState, mageId: PlayerId, from: NodeId, markNodeId?: NodeId): GameState {
   if (state.phase !== "playing") return state;
+  // The round that turned may have carried them off the mark (the blizzard froze it, the ice swept them away): they
+  // stand somewhere else now, which is no arrival.
+  if (markNodeId !== undefined && findPlayer(state, mageId)?.position !== markNodeId) return state;
   const arrived = arriveOnMark(state, mageId, from);
   let nextState = arrived.state;
   if (arrived.mudHell && nextState.lastPowerEvent?.kind === "mark-teleport") {
@@ -1384,6 +1398,7 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
         action.seed,
         action.avatarColors,
         action.mapId,
+        action.worldStyle,
         action.draft ? { now } : null,
       );
     case "pickPassive":
@@ -1414,6 +1429,8 @@ function dispatchGameAction(state: GameState, action: GameAction, now?: number):
       return teleportInTurn(state);
     case "swapWithSister":
       return swapWithSister(state);
+    case "vanish":
+      return vanish(state);
     case "leaveHell":
       return leaveHellAndSettle(state);
     case "rescueProtege":

@@ -16,8 +16,11 @@ import {
   INSURER_RATE,
   MAGE_MAX_LUCK,
   MIME_COOLDOWN_ROUNDS,
+  MIST_COOLDOWN_ROUNDS,
+  MIST_HIDDEN_TURNS,
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
+  MOLE_RECENT_TILES,
   SISTER_SWAP_ENERGY,
   START_BONUS,
 } from "../../game/types";
@@ -34,6 +37,7 @@ import { formatCurrency, getTileLegend } from "../display/game-display";
 import { getMapMechanics, type MapMechanic } from "../display/map-mechanics";
 import { CoinIcon, ItemIcon } from "../icons/item-icon";
 import { UiIcon, type UiIconName } from "../icons/ui-icon";
+import { resolveWorldStyle } from "../../game/maps/world-style";
 import { useMapChoiceStore } from "../lobby/map-choice-store";
 
 type HelpTab = "rules" | "board" | "items" | "passives";
@@ -190,13 +194,15 @@ function getRuleSections(mapId: MapId): RuleSection[] {
           "talisman tiré au sort). Leur détail est dans l’onglet Cups Power & passifs ; voici les nouveaux.",
         `Mime : une fois tous les ${MIME_COOLDOWN_ROUNDS} tours, copie le Cups Power ou le passif d’un autre joueur jusqu’à la fin ` +
           "de ton tour, avantages et défauts compris.",
-        `Taupe : une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours, creuse un tunnel vers une case déjà visitée ; les ` +
+        `Taupe : une fois tous les ${MOLE_COOLDOWN_ROUNDS} tours, creuse un tunnel vers l’une des ${MOLE_RECENT_TILES} dernières cases visitées ; les ` +
           "autres le traversent une fois, puis il se referme.",
         `Mage noir : pose un pentagramme et téléporte-toi dessus, à ton tour, contre un objet ou Bullet Bill, ou à ` +
           `la place d’une roue qui te déplace. ${MAGE_MAX_LUCK} pentagrammes, un de moins à chaque téléportation : à zéro, ` +
           "plus de téléportation, mais tu continues de jouer, et un pentagramme revient tous les 15 tours.",
-        "Mi-vu, Mi-vue : invisible deux de tes tours sur trois, tu ne peux plus être ciblé et tu ne vois plus la table ; " +
-          "à une case de la Red Cup, tu redeviens visible.",
+        `Mi-vu, Mi-vue : « Disparaître » te rend invisible ${MIST_HIDDEN_TURNS} tours (tu ne peux plus être ciblé et tu ne vois plus la table), ` +
+          `puis il revient au bout de ${MIST_COOLDOWN_ROUNDS} tours ; à une case de la Red Cup, tu es visible.`,
+        "Le Fou : l’inverse de Cupide. Il gagne à −2 500 pièces, le reset à −300 ne l’atteint pas et il ne peut pas être " +
+          "assommé : il perd 100 pièces à chaque fois qu’il devrait l’être.",
         "Sœur Fantôme : une petite sœur fait en miroir chacun de tes pas, et le Swap te fait changer de place avec elle, " +
           "avec ce qu’elle porte (pièges, Red Cup, Bullet Bill).",
         `L’Ermite : tant que personne n’est à ${HERMIT_DISTANCE} cases ou moins de toi, +${HERMIT_ENERGY_BONUS} point ` +
@@ -251,6 +257,9 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
   const carouselReversed = useGameStore((state) => state.carouselReversed);
   const iceTileNodeId = useGameStore((state) => state.iceTileNodeId);
   const inGame = phase !== "setup";
+  const gameWorldStyle = useGameStore((state) => state.worldStyle);
+  const wantedWorldStyle = useMapChoiceStore((state) => state.worldStyle);
+  const shownWorldStyle = inGame ? gameWorldStyle : resolveWorldStyle(shownMapId, wantedWorldStyle);
   const shownMap = getBoardMap(shownMapId);
 
   return (
@@ -277,6 +286,7 @@ export function HelpModal({ onClose }: { onClose: () => void }) {
               <h3 className="help-board__title">{shownMap.name}</h3>
               <BoardMap
                 mapId={shownMapId}
+                worldStyle={shownWorldStyle}
                 carouselReversed={inGame && carouselReversed}
                 iceTileNodeId={inGame ? iceTileNodeId : null}
               />
@@ -444,13 +454,6 @@ function CardsCatalog() {
             >
               <PassiveCard passiveId={passiveId} />
             </TiltCard>
-            <button
-              type="button"
-              className="btn btn--cream btn--small"
-              onClick={() => setFlippedId(flippedId === passiveId ? null : passiveId)}
-            >
-              <UiIcon name="rotate" size={18} /> {flippedId === passiveId ? "Voir la face" : "Voir le dos"}
-            </button>
           </div>
         ) : (
           <PassiveTalisman key={passiveId} passiveId={passiveId} />

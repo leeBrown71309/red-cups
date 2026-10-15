@@ -313,7 +313,7 @@ export function createScenery(kit: SceneKit, layout: BoardLayout): THREE.Group {
   return scenery;
 }
 
-function createTuftGeometry(): THREE.BufferGeometry {
+export function createTuftGeometry(): THREE.BufferGeometry {
   const blades = [
     { x: 0, z: 0, tilt: 0, height: 0.34 },
     { x: 0.08, z: 0.03, tilt: 0.35, height: 0.26 },

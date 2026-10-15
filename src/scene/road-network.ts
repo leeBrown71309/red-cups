@@ -21,6 +21,25 @@ interface Chevron {
   to: THREE.Vector3;
 }
 
+/** The point `distance` along a line of points, and the way across the line there. */
+function pointAlong(
+  points: THREE.Vector3[],
+  lengths: number[],
+  distance: number,
+): { position: THREE.Vector3; side: THREE.Vector3 } {
+  let index = 1;
+  while (index < points.length - 1 && lengths[index] < distance) index += 1;
+  const from = points[index - 1];
+  const to = points[index];
+  const span = lengths[index] - lengths[index - 1] || 1;
+  const t = THREE.MathUtils.clamp((distance - lengths[index - 1]) / span, 0, 1);
+  const direction = to.clone().sub(from).normalize();
+  return {
+    position: from.clone().lerp(to, t),
+    side: new THREE.Vector3(-direction.z, 0, direction.x),
+  };
+}
+
 function edgeKey(first: NodeId, second: NodeId): string {
   return first < second ? `${first}-${second}` : `${second}-${first}`;
 }
@@ -59,22 +78,23 @@ export class RoadNetwork {
     const carouselStoneColor = new THREE.Color(colors.carouselStone);
 
     for (const segment of layout.getRoadSegments()) {
-      const direction = segment.end.clone().sub(segment.start);
-      const length = direction.length();
-      direction.normalize();
+      // A road is a line of points: two for a straight one, many for one that winds.
+      const points = layout.getRoadPoints(segment);
+      const lengths = [0];
+      for (let index = 1; index < points.length; index += 1) {
+        lengths.push(lengths[index - 1] + points[index].distanceTo(points[index - 1]));
+      }
+      const length = lengths[lengths.length - 1];
       const startClearance = this.getClearance(segment.edge.from, segment.start);
       const endClearance = this.getClearance(segment.edge.to, segment.end);
       const usable = length - startClearance - endClearance;
       const count = Math.max(1, Math.round(usable / STONE_SPACING));
-      const side = new THREE.Vector3(-direction.z, 0, direction.x);
       const color = segment.tunnel ? tunnelStoneColor : segment.carousel ? carouselStoneColor : stoneColor;
 
       for (let index = 0; index <= count; index += 1) {
         const distance = startClearance + (usable * index) / count;
-        const position = segment.start
-          .clone()
-          .addScaledVector(direction, distance)
-          .addScaledVector(side, (random() - 0.5) * 0.12);
+        const { position, side } = pointAlong(points, lengths, distance);
+        position.addScaledVector(side, (random() - 0.5) * 0.12);
         placements.push({ position, key: edgeKey(segment.edge.from, segment.edge.to), color });
       }
 

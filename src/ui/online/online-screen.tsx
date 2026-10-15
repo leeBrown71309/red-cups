@@ -11,6 +11,7 @@ import { PlayerAvatar } from "../components/player-avatar";
 import { VoiceBadge, VoiceMicButton } from "../components/voice-controls";
 import { EventToasts } from "../hud/event-toasts";
 import { UiIcon } from "../icons/ui-icon";
+import { getChosenWorldStyle } from "../lobby/map-choice-store";
 import { MapStep } from "../setup/map-step";
 import { PlayersTable } from "../setup/players-table";
 import { AccountPanel } from "./account-panel";
@@ -343,7 +344,7 @@ function RoomLobby() {
           playerCount={players.length}
           onBack={() => setPickingMap(false)}
           onLaunch={(mapId) => {
-            if (enoughPlayers && !busy) void startGame(mapId);
+            if (enoughPlayers && !busy) void startGame(mapId, getChosenWorldStyle(mapId));
           }}
         />
         <EventToasts />

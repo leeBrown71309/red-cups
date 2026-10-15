@@ -1,5 +1,6 @@
 import type { Interaction } from "../types";
 import { CUPS_POWER_INTERACTIONS } from "./cups-power-interactions";
+import { PATCH_025_INTERACTIONS } from "./patch-0-2-5-interactions";
 
 /**
  * TOUTES les interactions entre éléments du jeu, une par paire. Chaque ligne
@@ -829,7 +830,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "system:online",
     b: "map:archipel",
-    text: "En ligne, la marée est une pure fonction du tour de table et le bac avance à chaque nouveau tour : chaque appareil rejoue la même mer. Il faut six joueurs assis au lancement.",
+    text: "En ligne, la marée est une pure fonction du tour de table et le bac avance à chaque nouveau tour : chaque appareil rejoue la même mer. La carte est pensée pour six joueurs ou plus.",
   },
   {
     a: "system:hell",
@@ -944,4 +945,6 @@ export const INTERACTIONS: Interaction[] = [
   },
   // ————— Patch 0.2.3 : Cups Power et passifs —————
   ...CUPS_POWER_INTERACTIONS,
+  // ————— Patch 0.2.5 : Le Fou, Bombe de fumée, Disparaître —————
+  ...PATCH_025_INTERACTIONS,
 ];

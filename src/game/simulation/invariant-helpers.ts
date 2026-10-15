@@ -1,6 +1,6 @@
 import { hasCard } from "../cards";
 import type { GameState, NodeId, Player, PowerEvent } from "../types";
-import { CURRENCY_RESET_THRESHOLD, HELL_NODE_ID } from "../types";
+import { CURRENCY_RESET_THRESHOLD, FOOL_STUN_FINE, HELL_NODE_ID } from "../types";
 
 /** Building blocks shared by the rule checks run after every bot action. */
 
@@ -53,12 +53,12 @@ export function newPowerEvent(previous: GameState, next: GameState): PowerEvent 
   return event && event.seq !== previous.lastPowerEvent?.seq ? event : null;
 }
 
-/** Expected balance after a single coin change, including the Casque and the −300 reset. */
+/** Expected balance after a single coin change, including the Casque and the −300 reset (Le Fou is immune to it). */
 export function expectedBalance(player: Player, delta: number): number {
   let balance = player.currency + delta;
   const hasHelmet = player.inventory.some((entry) => entry.kind === "item" && entry.itemId === "helmet");
   if (delta < 0 && balance < 0 && hasHelmet) balance = 0;
-  if (balance <= CURRENCY_RESET_THRESHOLD) balance = 0;
+  if (balance <= CURRENCY_RESET_THRESHOLD && !hasCard(player, "fool")) balance = 0;
   return balance;
 }
 
@@ -136,6 +136,11 @@ export function touchedByHell(previous: GameState, next: GameState, playerId: st
   return (
     player?.position === HELL_NODE_ID && newLogTexts(previous, next).some((text) => text.includes("Toucher d’Enfer"))
   );
+}
+
+/** What a knock-out costs a player in coins: Le Fou pays a fine instead of losing the turn. */
+export function stunFine(player: Player): number {
+  return hasCard(player, "fool") ? FOOL_STUN_FINE : 0;
 }
 
 /** Compares players, not seats: a seat emptied before the active one shifts its index without a turn change. */

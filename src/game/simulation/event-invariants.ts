@@ -1,13 +1,15 @@
 import { isTableBroke } from "../blessing";
 import { getNeighbors, getOpenBoard, getShortestPath } from "../board";
+import { hasCard } from "../cards";
 import { isInvisible } from "../mist";
 import { getMudOwnerReward, isImmuneToItems } from "../passive-rules";
 import { findPlayer } from "../state-utils";
 import type { GameState } from "../types";
-import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, START_NODE_ID } from "../types";
+import { BULLET_BILL_CHARGE_STEPS, BULLET_BILL_DAMAGE, HELL_NODE_ID, MUD_PENALTY, START_NODE_ID } from "../types";
 import {
   balanceMatches,
   hellRewardCoins,
+  stunFine,
   newLogTexts,
   slidOnIce,
   turnChanged,
@@ -112,19 +114,28 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   const wheelPaidToo = previous.pendingWheel !== null;
   // Sent to Hell by Toucher d'Enfer, the victim may find the Black Cup there, and Goblins steal at the new Cup.
   const cupFound = next.redCupCycle !== previous.redCupCycle;
+  // A mage who slipped away from the blast lands on their mark, where a Boue may lie: it costs them its price too.
+  const mudFalls = logs.filter((text) => text === `${before.name} tombe dans la Boue.`).length;
   if (
     !releasedFromHell &&
     !thawed &&
     !wheelPaidToo &&
     !cupFound &&
     // Le diable, hit by the blast, may send a bystander of it to Hell: the 50 coins of that fall are his.
-    !balanceMatches(before, -BULLET_BILL_DAMAGE, after.currency, hellRewardCoins(logs, before.name))
+    // Le Fou's fine comes after the blast, outside the Casque and the reset: it is added to the settled balance.
+    !balanceMatches(
+      before,
+      -BULLET_BILL_DAMAGE - mudFalls * MUD_PENALTY,
+      after.currency,
+      hellRewardCoins(logs, before.name) - stunFine(before),
+    )
   ) {
     found.push(violation("bullet-damage", `${before.name} went from ${before.currency} to ${after.currency}`));
   }
   // The victim may be next to play, in which case the stun is spent at once.
   const stunSpent = logs.includes(`${before.name} passe son tour.`);
-  if (after.skippedTurns <= before.skippedTurns && !stunSpent) {
+  // Le Fou cannot be knocked out: they pay the fine instead.
+  if (after.skippedTurns <= before.skippedTurns && !stunSpent && !hasCard(before, "fool")) {
     found.push(violation("bullet-stuns", `${before.name} was hit but keeps their next turn`));
   }
 }

@@ -459,7 +459,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:half-seen",
     b: "system:turn",
-    text: "Le cycle avance au début de chaque tour du joueur, même un tour sauté (K.O., Middle Finger…) : visible, invisible, invisible.",
+    text: "Le compte à rebours de l'invisibilité avance au début de chaque tour du joueur, même un tour sauté (K.O., Middle Finger…) : Disparaître (2 tours) puis de nouveau visible.",
   },
   {
     a: "card:half-seen",

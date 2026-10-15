@@ -72,7 +72,8 @@ export interface TunnelInfo {
 }
 
 type PawnAction =
-  | { type: "hop"; to: THREE.Vector3; duration: number }
+  /** `road` is the road it follows: when roads wind, the hop follows the bend instead of the straight line. */
+  | { type: "hop"; to: THREE.Vector3; duration: number; road?: [NodeId, NodeId] }
   | { type: "slide"; to: THREE.Vector3; duration: number }
   | { type: "glide"; to: THREE.Vector3; duration: number }
   | { type: "wobble"; duration: number }
@@ -710,7 +711,7 @@ export class PawnController {
           );
         }
 
-        pawn.actions.push({ type: "hop", to: target, duration: HOP_MS });
+        pawn.actions.push({ type: "hop", to: target, duration: HOP_MS, road: [previous, nodeId] });
         previous = nodeId;
         pushBumps(index);
       });
@@ -768,7 +769,9 @@ export class PawnController {
 
     switch (action.type) {
       case "hop": {
-        root.position.lerpVectors(pawn.actionStart, action.to, easeInOutCubic(progress));
+        const eased = easeInOutCubic(progress);
+        root.position.lerpVectors(pawn.actionStart, action.to, eased);
+        if (action.road) root.position.add(this.layout.getRoadBend(action.road[0], action.road[1], eased));
         root.position.y += Math.sin(progress * Math.PI) * 1.05;
         const direction = action.to.clone().sub(pawn.actionStart);
         if (direction.lengthSq() > 0.001) pawn.targetYaw = Math.atan2(direction.x, direction.z);

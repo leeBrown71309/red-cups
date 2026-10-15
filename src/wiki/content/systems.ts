@@ -70,7 +70,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• [[item:boot|Botte]] : deux cases au lieu d'une (ou un saut par-dessus une [[item:barrier|Barrière]]).",
         "• [[card:corrupter|Corrupteur]] : 400 pièces pour ignorer flèches et sens uniques — jamais les Barrières.",
         "• [[card:roller|Roller]] : dé de 1 à 6, chemin sans repasser par une case déjà foulée.",
-        "• [[card:mole|Taupe]] : un tunnel creusé vers une case déjà visitée, que tout joueur peut traverser une fois — un déplacement de plus, sans bonus du Départ.",
+        "• [[card:mole|Taupe]] : un tunnel creusé vers l'une des 3 dernières cases visitées, que tout joueur peut traverser une fois — un déplacement de plus, sans bonus du Départ.",
         "• [[card:black-mage|Mage noir]] : la téléportation sur son pentagramme n'est pas un pas : routes, Barrières et flèches sont ignorées.",
         "• [[card:ghost-sister|Sœur Fantôme]] : chaque pas du joueur est reflété par la petite sœur, qui suit les vraies routes.",
         "• [[item:barrier|Barrière]] : route fermée, personne n'y passe à pied.",
@@ -132,6 +132,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• Tout le monde démarre à 2 000 — sauf [[card:nepo-baby|Nepo Baby]] (+1 000), [[card:eshop|eShop]] (−1 000) et l'[[card:guardian-angel|Ange]] (−1 200) : les deltas se cumulent entre ton Cups Power et ton passif.",
         "• Un solde qui passe SOUS zéro n'arrive jamais : le [[item:helmet|Casque]] le premier l'absorbe (il se consume), sinon le solde continue en négatif.",
         "• À −300 : K.O. — solde remis à 0 et prochain tour sauté (un [[item:wake-up|Réveil]] peut sauver le tour). Les gains par-dessus un solde négatif sont possibles.",
+        "• Le [[card:fool|Fou]] échappe au K.O. (patch 0.2.5) : pas de reset à −300, et chaque assommement lui coûte 100 pièces au lieu d'un tour.",
         "• K.O. et gains/pertes peuvent être SUSPENDUS/MISÉS par [[card:double-or-nothing|Double or nothing]] : la mise passe avant le K.O.",
         `• [[card:insurer|L'Assureur]] touche ${percent(INSURER_RATE)} de chaque perte subie par un autre, versés par la banque (au plus ${INSURER_ROUND_CAP} pièces par tour de table), et ${INSURER_HELL_REWARD} pièces par descente d'un autre en Enfer : jamais pour les achats, le Corrupteur ou l'amende du Voleur, et au moment de la perte, même si un 50/50 l'annule ensuite.`,
         `• [[card:hermit|L'Ermite]] seul touche ${HERMIT_START_BONUS} pièces de plus à chaque bonus du Départ.`,
@@ -197,7 +198,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Marée, bac, Quais et tourbillons",
       body: [
-        "• Ces règles n'existent que sur l'[[map:archipel|Archipel des Marées]] (patch 0.2.4), la première grande carte : 6 à 8 joueurs.",
+        "• Ces règles n'existent que sur l'[[map:archipel|Archipel des Marées]] (patch 0.2.4), la première grande carte : pensée pour 6 joueurs ou plus.",
         `• La marée tourne tous les ${TIDE_ROUNDS} tours de table. Une chaussée noyée est une route fermée pour tout le monde, et qui s'y trouve est déposé sur le Quai voisin au moment où la mer monte.`,
         "• Le bac passe d'un Quai au suivant à chaque nouveau tour de table ; sur son Quai, on le prend à la place de la marche.",
         `• Un Quai n'accueille qu'un joueur : on ne finit pas sa marche sur un Quai tenu, et un second joueur amené là d'une autre façon est repoussé en rapportant ${QUAY_HOLDER_REWARD} pièces à celui qui le tient.`,
@@ -222,6 +223,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• 3 Red Cups (la voie royale).",
         "• 6 000 pièces pour [[card:greedy|Cupide]] — vérifié après CHAQUE action, même hors de son tour.",
+        "• −2 500 pièces pour [[card:fool|Le Fou]] (patch 0.2.5) — vérifié après CHAQUE action, lui aussi.",
         "• Le quota d'Enfer pour le [[card:devil|diable]] (⌊4N − N/2⌋).",
         "• L'[[card:guardian-angel|Ange-Gardien]] gagne avec son protégé (peu importe comment le protégé gagne).",
         "• Un [[card:black-mage|Mage noir]] sans aucun pentagramme n'est pas éliminé : il ne peut simplement plus se téléporter, et en retrouve un tous les 15 tours.",

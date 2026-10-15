@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { planFerryRide, settleArchipel } from "./archipel";
 import { getNeighbors, getShortestPath, resolveBoard } from "./board";
 import { reduceGame } from "./game-actions";
-import { getBoardMap, getPlayableMapIds, resolveMapChoice } from "./maps/map-registry";
+import { getBoardMap, getDrawableMapIds, resolveMapChoice } from "./maps/map-registry";
 import { getTurnMoveOptions } from "./rules";
 import { getFloodedNodeIds, getNextFerryQuay, getRoundsUntilTideTurns, getTideLevel } from "./tide";
 import type { GameState, NodeId } from "./types";
@@ -203,20 +203,18 @@ describe("the Red Cup", () => {
 });
 
 describe("the table", () => {
-  it("needs six players", () => {
-    expect(map.minPlayers).toBe(6);
-    expect(startArchipel(5).phase).toBe("setup");
-    expect(startArchipel(6).phase).toBe("playing");
-    expect(startArchipel(8).phase).toBe("playing");
+  it("is made for six players, and any table may play it", () => {
+    expect(map.recommendedPlayers).toBe(6);
+    for (const players of [2, 5, 6, 8]) expect(startArchipel(players).phase).toBe("playing");
   });
 
-  it("is drawn by a random pick only for a table that is big enough", () => {
-    expect(getPlayableMapIds(5)).not.toContain("archipel");
-    expect(getPlayableMapIds(6)).toContain("archipel");
+  it("is drawn by a random pick only for the table it is made for", () => {
+    expect(getDrawableMapIds(5)).not.toContain("archipel");
+    expect(getDrawableMapIds(6)).toContain("archipel");
     expect(resolveMapChoice("random", () => 0.999, 4)).not.toBe("archipel");
-    // The draw only picks among the maps a table of that size may play (the last of them for a roll near 1).
-    expect(getPlayableMapIds(7)).toContain(resolveMapChoice("random", () => 0.999, 7));
-    expect(resolveMapChoice("random", () => 0, 7)).toBe(getPlayableMapIds(7)[0]);
+    // The draw picks among the maps fitting the table (the last of them for a roll near 1).
+    expect(getDrawableMapIds(7)).toContain(resolveMapChoice("random", () => 0.999, 7));
+    expect(resolveMapChoice("random", () => 0, 7)).toBe(getDrawableMapIds(7)[0]);
   });
 
   it("keeps Hell on tile 11 and the start on tile 0, like every map", () => {

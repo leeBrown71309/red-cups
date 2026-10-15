@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getWheelResults } from "../../game/catalog";
 import type { MapId, WheelId } from "../../game/types";
 import { getBoardMap } from "../../game/maps/map-registry";
+import { hasOpenVersion } from "../../game/maps/world-style";
 import { BoardMap } from "../../ui/components/board-map";
 import { UiIcon } from "../../ui/icons/ui-icon";
 import { CoinIcon } from "../../ui/icons/item-icon";
@@ -314,6 +315,19 @@ function MapExtras({ refValue }: { refValue: Ref }) {
         <div className="wiki-board-wrap">
           <BoardMap mapId={mapId} carouselReversed={false} />
         </div>
+        {hasOpenVersion(mapId) && (
+          <>
+            <h3>Version ouverte</h3>
+            <p className="wiki-blurb">
+              Ce plateau se joue aussi sans sa boîte : les mêmes cases et les mêmes routes, posées plus loin les unes
+              des autres et hors de la grille, dans un décor qui s’étend jusqu’à l’horizon. À choisir avec la carte, au
+              lancement.
+            </p>
+            <div className="wiki-board-wrap">
+              <BoardMap mapId={mapId} carouselReversed={false} worldStyle="open" />
+            </div>
+          </>
+        )}
         <p className="wiki-blurb">{map.tagline} Le plan est dessiné avec les coordonnées réelles du plateau de jeu.</p>
       </section>
       <section className="wiki-section panel">

@@ -28,7 +28,7 @@ import type { AnimatedProp } from "./props-model";
  */
 
 /** Ground of the table the tray stands on, just below its shadow plane. */
-const GROUND_Y = -1.7;
+export const GROUND_Y = -1.7;
 const GROUND_RADIUS = 70;
 /** Where the visitors walk, in units beyond the rim. */
 const LANE_MIN = 2.4;
@@ -117,6 +117,16 @@ class Placer {
    */
   spot(minGap: number, maxGap: number, frontSafe = true): { x: number; z: number; gap: number } {
     const gap = this.keepOffLane(this.between(minGap, maxGap));
+    if (this.layout.openWorld) {
+      // No tray, no rectangle: a ring of any outline round the board; the near side stays free when asked.
+      const angle = frontSafe ? Math.PI + this.random() * Math.PI : this.random() * Math.PI * 2;
+      const wobble = 1 + (this.random() - 0.5) * 0.25;
+      return {
+        x: Math.cos(angle) * (this.outerWidth * 1.15 + gap * 1.1) * wobble,
+        z: Math.sin(angle) * (this.outerDepth * 1.15 + gap * 1.1) * wobble,
+        gap,
+      };
+    }
     const alongWidth = this.outerWidth * 2;
     const alongDepth = this.outerDepth * 2;
     const horizontal = this.random() < alongWidth / (alongWidth + alongDepth);
@@ -140,6 +150,18 @@ class Placer {
 
   /** A closed walking path round the tray, `gap` units beyond its rim, corners cut. `reversed` walks the other way. */
   loop(gap: number, reversed = false): THREE.Vector3[] {
+    if (this.layout.openWorld) {
+      // Without a tray the visitors stroll round the board along an ellipse.
+      const around = Array.from({ length: 12 }, (_, index) => {
+        const angle = (index / 12) * Math.PI * 2;
+        return new THREE.Vector3(
+          Math.cos(angle) * (this.outerWidth * 1.1 + gap),
+          GROUND_Y,
+          Math.sin(angle) * (this.outerDepth * 1.1 + gap),
+        );
+      });
+      return reversed ? around.reverse() : around;
+    }
     const width = this.outerWidth + gap;
     const depth = this.outerDepth + gap;
     const cut = 3;
@@ -321,54 +343,60 @@ function buildToyBox(kit: SceneKit, world: Placer): Surroundings {
     }),
   );
 
-  // Trees beyond the tray: round crowns and pines on a shared trunk.
-  const crown = kit.geometry("far-crown", () => jitterGeometry(new THREE.IcosahedronGeometry(1, 0), 0.18, 31));
-  const cone = kit.geometry("far-pine", () => new THREE.ConeGeometry(0.9, 2.2, 6));
-  const trunk = kit.geometry("far-trunk", () => new THREE.CylinderGeometry(0.12, 0.17, 1, 5));
-  const crowns: Parameters<typeof instance>[2] = [];
-  const pines: Parameters<typeof instance>[2] = [];
-  const trunks: Parameters<typeof instance>[2] = [];
-  for (let index = 0; index < 46; index += 1) {
-    const spot = world.spot(2.4, 15);
-    const size = world.between(0.9, 1.7) * (spot.gap < 5 ? 0.8 : 1);
-    const pine = index % 3 === 0;
-    const leaf = world.tint(SCENE_COLORS.leaves[index % SCENE_COLORS.leaves.length], spot.gap);
-    trunks.push({
-      position: new THREE.Vector3(spot.x, GROUND_Y + 0.5 * size, spot.z),
-      scale: scale(size, size * 1.1, size),
-      color: world.tint(SCENE_COLORS.trunk, spot.gap),
-    });
-    (pine ? pines : crowns).push({
-      position: new THREE.Vector3(spot.x, GROUND_Y + (pine ? 1.6 : 1.5) * size, spot.z),
-      scale: pine ? scale(size) : scale(size * 0.95, size * 0.85, size * 0.95),
-      rotation: world.rand() * 3,
-      color: leaf,
-    });
+  // The open world has its own groves (open-world-model.ts): only a boxed board gets a ring of trees round its tray.
+  if (!world.layout.openWorld) {
+    // Trees beyond the tray: round crowns and pines on a shared trunk.
+    const crown = kit.geometry("far-crown", () => jitterGeometry(new THREE.IcosahedronGeometry(1, 0), 0.18, 31));
+    const cone = kit.geometry("far-pine", () => new THREE.ConeGeometry(0.9, 2.2, 6));
+    const trunk = kit.geometry("far-trunk", () => new THREE.CylinderGeometry(0.12, 0.17, 1, 5));
+    const crowns: Parameters<typeof instance>[2] = [];
+    const pines: Parameters<typeof instance>[2] = [];
+    const trunks: Parameters<typeof instance>[2] = [];
+    for (let index = 0; index < 46; index += 1) {
+      const spot = world.spot(2.4, 15);
+      const size = world.between(0.9, 1.7) * (spot.gap < 5 ? 0.8 : 1);
+      const pine = index % 3 === 0;
+      const leaf = world.tint(SCENE_COLORS.leaves[index % SCENE_COLORS.leaves.length], spot.gap);
+      trunks.push({
+        position: new THREE.Vector3(spot.x, GROUND_Y + 0.5 * size, spot.z),
+        scale: scale(size, size * 1.1, size),
+        color: world.tint(SCENE_COLORS.trunk, spot.gap),
+      });
+      (pine ? pines : crowns).push({
+        position: new THREE.Vector3(spot.x, GROUND_Y + (pine ? 1.6 : 1.5) * size, spot.z),
+        scale: pine ? scale(size) : scale(size * 0.95, size * 0.85, size * 0.95),
+        rotation: world.rand() * 3,
+        color: leaf,
+      });
+    }
+    group.add(instance(trunk, tintable(), trunks));
+    group.add(instance(crown, tintable(), crowns));
+    group.add(instance(cone, tintable(), pines));
   }
-  group.add(instance(trunk, tintable(), trunks));
-  group.add(instance(crown, tintable(), crowns));
-  group.add(instance(cone, tintable(), pines));
 
-  // Lamp posts along the back and sides, their bulbs warm in the daylight too.
-  const post = kit.geometry("lamp-post", () => new THREE.CylinderGeometry(0.06, 0.08, 2.4, 5));
-  const bulb = kit.geometry("lamp-bulb", () => new THREE.IcosahedronGeometry(0.2, 0));
-  const posts: Parameters<typeof instance>[2] = [];
-  const bulbs: Parameters<typeof instance>[2] = [];
-  for (let index = 0; index < 8; index += 1) {
-    const spot = world.spot(1.0, 2.2);
-    posts.push({
-      position: new THREE.Vector3(spot.x, GROUND_Y + 1.2, spot.z),
-      scale: scale(1),
-      color: new THREE.Color("#8a6a52"),
-    });
-    bulbs.push({
-      position: new THREE.Vector3(spot.x, GROUND_Y + 2.5, spot.z),
-      scale: scale(1),
-      color: new THREE.Color("#ffe29a"),
-    });
+  // Lamp posts along the back and sides, their bulbs warm in the daylight too. They line the tray's edge, so a board
+  // without a tray (the open world) has none.
+  if (!world.layout.openWorld) {
+    const post = kit.geometry("lamp-post", () => new THREE.CylinderGeometry(0.06, 0.08, 2.4, 5));
+    const bulb = kit.geometry("lamp-bulb", () => new THREE.IcosahedronGeometry(0.2, 0));
+    const posts: Parameters<typeof instance>[2] = [];
+    const bulbs: Parameters<typeof instance>[2] = [];
+    for (let index = 0; index < 8; index += 1) {
+      const spot = world.spot(1.0, 2.2);
+      posts.push({
+        position: new THREE.Vector3(spot.x, GROUND_Y + 1.2, spot.z),
+        scale: scale(1),
+        color: new THREE.Color("#8a6a52"),
+      });
+      bulbs.push({
+        position: new THREE.Vector3(spot.x, GROUND_Y + 2.5, spot.z),
+        scale: scale(1),
+        color: new THREE.Color("#ffe29a"),
+      });
+    }
+    group.add(instance(post, tintable(), posts));
+    group.add(instance(bulb, new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }), bulbs));
   }
-  group.add(instance(post, tintable(), posts));
-  group.add(instance(bulb, new THREE.MeshBasicMaterial({ color: "#ffffff", toneMapped: false }), bulbs));
 
   // A windmill turning on a far hill.
   const windmill = createWindmill(kit);

@@ -256,6 +256,17 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     target: "road",
     energyCost: 2,
   },
+  "smoke-bomb": {
+    id: "smoke-bomb",
+    name: "Bombe de fumée",
+    price: 500,
+    symbol: "☁",
+    description:
+      "Te rend invisible pendant 1 tour : Bullet Bill ne te détecte plus et aucun joueur ne peut te cibler. " +
+      "Comme tout invisible, tu ne vois plus la table non plus.",
+    target: "self",
+    energyCost: 2,
+  },
   mirror: {
     id: "mirror",
     name: "Miroir",
@@ -285,6 +296,7 @@ export const ITEM_ORDER: ItemId[] = [
   "parachute",
   "barrier",
   "mirror",
+  "smoke-bomb",
   "draven",
   "made-in-heaven",
   "shield",
@@ -413,6 +425,14 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
       "Pour ramasser la Red Cup, il te faut un 6 : deux essais, visibles de toute la table. Raté deux fois, " +
       "elle t’attend à ton prochain tour, sans déplacement.",
   },
+  fool: {
+    id: "fool",
+    name: "Le Fou",
+    shortName: "Fou",
+    description:
+      "L’inverse de Cupide : tu gagnes à −2 500 pièces. Le reset à −300 ne t’atteint pas (ni solde remis à 0, ni " +
+      "tour sauté), et tu ne peux pas être assommé : chaque fois que tu devrais l’être, tu perds 100 pièces à la place.",
+  },
   greedy: {
     id: "greedy",
     name: "Cupide",
@@ -527,14 +547,14 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
       "Une fois tous les 3 tours, avant ton déplacement, tu copies entièrement le Cups Power d’un autre joueur " +
       "visible pour la durée de ton tour (son Cups Power ou son passif, au choix), avec tous ses atouts et tous ses défauts. Copier ne coûte aucune énergie. " +
       "Tu ne peux copier ni un rôle (le diable, L’Ange-Gardien), ni un Cups Power qui garde un état propre (Mime, " +
-      "Mage noir, Sœur Fantôme, Mi-vu Mi-vue, Lambda), ni les passifs Non merci, L’Ermite, L’Assureur et L’Habitué de l’Enfer. La table sait de qui tu copies, pas ce que tu as copié.",
+      "Mage noir, Sœur Fantôme, Mi-vu Mi-vue, Le Fou, Lambda), ni les passifs Non merci, L’Ermite, L’Assureur et L’Habitué de l’Enfer. La table sait de qui tu copies, pas ce que tu as copié.",
   },
   mole: {
     id: "mole",
     name: "Taupe",
     shortName: "Taupe",
     description:
-      "Une fois tous les 3 tours, tu creuses (3 énergie) un tunnel entre ta case et une case déjà visitée, et tu t’y " +
+      "Une fois tous les 3 tours, tu creuses (3 énergie) un tunnel entre ta case et l’une des 3 dernières cases visitées, et tu t’y " +
       "déplaces aussitôt : c’est ton déplacement du tour. Tout le monde voit le tunnel : les autres le traversent " +
       "pour 3 énergie, toi pour 2, et il se referme après une traversée de plus. Pas de tunnel depuis ou vers la " +
       "Red Cup, l’Enfer, une case de glace, un piège ou un autre tunnel.",
@@ -556,7 +576,8 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     name: "Mi-vu, Mi-vue",
     shortName: "Mi-vu",
     description:
-      "Tu es invisible deux de tes tours sur trois (visible, invisible, invisible). Invisible, personne ne te voit : " +
+      "Disparaître (sans énergie, avant ton déplacement) te rend invisible 2 tours, puis il revient au bout de 4 tours. " +
+      "Invisible, personne ne te voit : " +
       "ni ton pion, ni tes actions, ni ton sac, ni tes pièces. Pendant ton tour, tu ne vois plus rien de la table non " +
       "plus (ni joueurs, ni pièges, ni Red Cup, ni Bullet Bill). Tu ne peux cibler personne et nul ne peut te " +
       "cibler (objets, Calme-toi, défi de l’Enfer, copie du Mime) ; Draven t’épargne, et Bullet Bill ne te traque " +
@@ -628,6 +649,7 @@ export const PASSIVE_ORDER: PassiveId[] = [
   "ghost-sister",
   "hermit",
   "insurer",
+  "fool",
 ];
 
 export interface WeightedWheelResult {

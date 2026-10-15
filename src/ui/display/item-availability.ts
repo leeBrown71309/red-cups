@@ -15,6 +15,7 @@ import {
   isOnSale,
   type CorrupterBlocker,
 } from "../../game/rules";
+import { isHidden } from "../../game/mist";
 import { findStackWithRoom } from "../../game/state-utils";
 import { canPlaceBarrier } from "../../game/turn-actions";
 import type { GameState, ItemId, Player } from "../../game/types";
@@ -161,6 +162,9 @@ export function getItemAvailability(
   }
   if (itemId === "bullet-bill" && state.bulletBill) {
     return { usable: false, kind, actionLabel, reason: "Un Bullet Bill est déjà sur le plateau." };
+  }
+  if (itemId === "smoke-bomb" && isHidden(player)) {
+    return { usable: false, kind, actionLabel, reason: "Tu es déjà invisible." };
   }
   const otherStackThrown = state.thrownStackId !== null && entryId !== state.thrownStackId;
   if (itemId === "tomato" && otherStackThrown && throwsOneStackPerTurn(player)) {

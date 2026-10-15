@@ -3,7 +3,7 @@ import { getActionActorIds } from "../action-permissions";
 import { CARD_KINDS, getCards, withCard } from "../cards";
 import { PASSIVE_ORDER } from "../catalog";
 import { getRefusedPassifs } from "../draft";
-import { getBoardMap, getPlayableMapIds } from "../maps/map-registry";
+import { getBoardMap, getDrawableMapIds } from "../maps/map-registry";
 import { getEnergyCapacity } from "../energy";
 import { runWithSeededSource } from "../engine-random";
 import { assignGuardian } from "../guardian";
@@ -152,7 +152,7 @@ function cloneThroughJson(state: GameState): GameState {
 
 /** Seeds alternate between the maps a table of that size may play, so every campaign plays all of them. */
 function mapForSeed(seed: number, playerCount: number): MapId {
-  const playable = getPlayableMapIds(playerCount);
+  const playable = getDrawableMapIds(playerCount);
   return playable[Math.abs(seed) % playable.length];
 }
 
@@ -398,7 +398,7 @@ export function runMapCampaign(options: MapCampaignOptions): BotGameReport[] {
       seed: firstSeed + index,
       mapId: options.mapId,
       maxSteps: options.maxSteps,
-      ...getTableSetup(firstSeed + index, getBoardMap(options.mapId).minPlayers),
+      ...getTableSetup(firstSeed + index, getBoardMap(options.mapId).recommendedPlayers),
     }),
   );
 }

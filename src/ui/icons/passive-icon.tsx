@@ -240,6 +240,22 @@ const PASSIVE_ARTWORK: Record<PassiveId, () => ReactElement> = {
       <path d="M8 14 V22 M4 18 H12 M54 6 V12 M51 9 H57" stroke="#ffd166" strokeWidth="3.5" strokeLinecap="round" />
     </>
   ),
+  // A jester's cap, its two bells hanging low over a coin sinking away: wins at minus two thousand five hundred.
+  fool: () => (
+    <>
+      <path
+        d="M8 38 C8 22 16 14 24 10 C20 20 22 26 32 28 C42 26 44 20 40 10 C48 14 56 22 56 38 Z"
+        fill="#8a4dd6"
+        {...OUTLINE}
+      />
+      <path d="M8 38 H56 V45 C56 48 52 50 48 50 H16 C12 50 8 48 8 45 Z" fill="#ffd166" {...OUTLINE} />
+      <path d="M32 28 V38" stroke={INK} strokeWidth="3" strokeLinecap="round" />
+      <circle cx="22" cy="8" r="5" fill="#e8453c" {...OUTLINE} strokeWidth={3} />
+      <circle cx="42" cy="8" r="5" fill="#e8453c" {...OUTLINE} strokeWidth={3} />
+      <circle cx="32" cy="57" r="5.5" fill="#ffc44d" {...OUTLINE} strokeWidth={3} />
+      <path d="M32 54 V60 M29.5 57 H34.5" stroke="#b97a10" strokeWidth="2" strokeLinecap="round" />
+    </>
+  ),
   // A coin cut half and half: fifty, fifty.
   "double-or-nothing": () => (
     <>

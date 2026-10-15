@@ -97,7 +97,10 @@ export interface BoardMap {
   tidal?: TidalConfig;
   /** Désert des Mirages: the loops, the passes, the wells, the oases, the caravan. Two Red Cups, one a mirage. */
   desert?: DesertConfig;
-  /** Fewest players this map can be played with: the picker greys it out below, the engine refuses to start. */
-  minPlayers?: number;
+  /**
+   * The table a large map is made for: any table may play it, but it is best with this many players or more, and a
+   * random pick only draws it for such a table.
+   */
+  recommendedPlayers?: number;
   roadLegend: RoadLegendEntry[];
 }

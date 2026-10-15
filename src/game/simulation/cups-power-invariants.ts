@@ -16,6 +16,7 @@ import {
   MIME_COOLDOWN_ROUNDS,
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
+  MOLE_RECENT_TILES,
   SISTER_SWAP_ENERGY,
 } from "../types";
 import { newLogTexts, newPowerEvent, violation, type RuleViolation } from "./invariant-helpers";
@@ -122,12 +123,15 @@ function checkPowerEvent(
       break;
     }
     case "tunnel-dig": {
-      const visited = getVisitedNodeIds(before);
+      // Patch 0.2.5: only the last tiles visited before the one the mole stood on are in reach.
+      const recent = getVisitedNodeIds(before)
+        .filter((nodeId) => nodeId !== before.position)
+        .slice(-MOLE_RECENT_TILES);
       if (
         !hasCard(before, "mole") ||
         previous.energyLeft < MOLE_DIG_ENERGY ||
         previous.round < (before.moleReadyRound ?? 0) ||
-        !visited.includes(event.to)
+        !recent.includes(event.to)
       ) {
         found.push(violation("tunnel-dig", `${before.name} dug ${event.from} → ${event.to} out of the rules`));
       }
@@ -182,7 +186,7 @@ function checkPowerEvent(
         found.push(violation("mark-teleport", `${before.name} teleported without a mark or a chance`));
       }
       // A chance may come back in the very action that spends one: the round turns on a Bullet Bill dodge.
-      const regained = newLogTexts(previous, next).some((text) => text.includes("regagne une chance"));
+      const regained = newLogTexts(previous, next).some((text) => text.includes("regagne un pentagramme"));
       if (after && getLuck(after) !== getLuck(before) - 1 + (regained ? 1 : 0)) {
         found.push(
           violation("mage-luck-spent", `${before.name}'s chances went ${getLuck(before)} → ${getLuck(after)}`),

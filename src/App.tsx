@@ -94,7 +94,7 @@ export default function App() {
         ) : (
           <SetupScreen
             // Every game opens on the passive draft (patch 0.1.4).
-            onStart={(names, mapId) => startGame(names, undefined, mapId, true)}
+            onStart={(names, mapId, worldStyle) => startGame(names, undefined, mapId, true, worldStyle)}
             onPlayOnline={onlineAvailable ? () => openOnlineMenu() : undefined}
             onBack={() => setHomeView("menu")}
           />

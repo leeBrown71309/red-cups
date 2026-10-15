@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { getBoardNode, resolveBoard } from "../../game/board";
-import type { MapId, NodeId } from "../../game/types";
+import { moveNodes } from "../../game/maps/open-layouts";
+import type { MapId, NodeId, WorldStyle } from "../../game/types";
 import { getSceneTheme } from "../../theme/map-themes";
 import { SCENE_COLORS, TILE_COLORS } from "../../theme/palette";
 
@@ -137,6 +138,8 @@ interface BoardMapProps {
   /** Banquise: the blizzard's temporary ice tile, drawn like the permanent ice. */
   iceTileNodeId?: NodeId | null;
   highlightNodeId?: NodeId;
+  /** The open version of a map that has one has its tiles laid out differently. */
+  worldStyle?: WorldStyle;
 }
 
 /**
@@ -145,8 +148,18 @@ interface BoardMapProps {
  * train at Luna Park) and the pink ring is the carousel with its current
  * direction.
  */
-export function BoardMap({ mapId, carouselReversed = false, iceTileNodeId = null, highlightNodeId }: BoardMapProps) {
-  const board = resolveBoard(mapId, carouselReversed, iceTileNodeId);
+export function BoardMap({
+  mapId,
+  carouselReversed = false,
+  iceTileNodeId = null,
+  highlightNodeId,
+  worldStyle = "boxed",
+}: BoardMapProps) {
+  const resolved = resolveBoard(mapId, carouselReversed, iceTileNodeId);
+  const board = useMemo(
+    () => ({ ...resolved, nodes: moveNodes(mapId, resolved.nodes, worldStyle) }),
+    [resolved, mapId, worldStyle],
+  );
   const theme = getSceneTheme(board.map.themeId);
   const { plan, roads } = theme;
   const { height, project, tileRadius } = useMemo(() => createProjection(board.nodes), [board.nodes]);

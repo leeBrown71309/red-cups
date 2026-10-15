@@ -8,6 +8,7 @@ import type {
   GameState,
   ItemId,
   MapId,
+  WorldStyle,
   NodeId,
   PassiveId,
   PlayerId,
@@ -30,7 +31,7 @@ interface GameActions {
    * game passes the room's seed so every device draws the same.
    */
   /** `draft`: the players pick their passive before the first turn. */
-  startGame: (playerNames: string[], seed?: number, mapId?: MapId, draft?: boolean) => void;
+  startGame: (playerNames: string[], seed?: number, mapId?: MapId, draft?: boolean, worldStyle?: WorldStyle) => void;
   /** The passive draft: this player's card, until the draft closes. */
   pickPassive: (playerId: PlayerId, passiveId: PassiveId) => void;
   resetGame: () => void;
@@ -57,6 +58,8 @@ interface GameActions {
   teleportToMark: () => void;
   /** Sœur Fantôme: swaps places with the little ghost. */
   swapWithSister: () => void;
+  /** Mi-vu, Mi-vue: disappears for two turns. */
+  vanish: () => void;
   /** Le diable walks out of Hell, back on the start. */
   leaveHell: () => void;
   /** L'Ange-Gardien gives up two turns to pull their protégé out of Hell. */
@@ -150,8 +153,15 @@ export const useGameStore = create<GameStore>()(
       adoptGame: (state) => set({ ...EMPTY_GAME_STATE, ...pickGameState(state) }),
 
       // Setting up and leaving a game stay on this device: an online room builds its own start.
-      startGame: (playerNames, seed, mapId, draft) =>
-        get().applyLocally({ type: "startGame", playerNames, seed, mapId, ...(draft ? { draft } : {}) }),
+      startGame: (playerNames, seed, mapId, draft, worldStyle) =>
+        get().applyLocally({
+          type: "startGame",
+          playerNames,
+          seed,
+          mapId,
+          ...(worldStyle ? { worldStyle } : {}),
+          ...(draft ? { draft } : {}),
+        }),
       pickPassive: (playerId, passiveId) => dispatch({ type: "pickPassive", playerId, passiveId }),
       resetGame: () => set({ ...EMPTY_GAME_STATE }),
 
@@ -167,6 +177,7 @@ export const useGameStore = create<GameStore>()(
       placeMark: () => dispatch({ type: "placeMark" }),
       teleportToMark: () => dispatch({ type: "teleportToMark" }),
       swapWithSister: () => dispatch({ type: "swapWithSister" }),
+      vanish: () => dispatch({ type: "vanish" }),
       leaveHell: () => dispatch({ type: "leaveHell" }),
       rescueProtege: () => dispatch({ type: "rescueProtege" }),
       sellItem: (entryId) => dispatch({ type: "sellItem", entryId }),

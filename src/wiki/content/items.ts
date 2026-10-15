@@ -363,6 +363,24 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       ],
     },
   ],
+  "smoke-bomb": [
+    {
+      title: "Utilisation",
+      body: [
+        "500 pièces, 2 points d'énergie, avant ton déplacement (ni dé lancé) : la fumée te rend invisible pendant 1 tour. Inutile — et refusée — si tu es déjà invisible.",
+      ],
+    },
+    {
+      title: "Effet",
+      body: [
+        "• Invisible, tu ne peux ni être détecté par [[item:bullet-bill|Bullet Bill]], ni ciblé par les autres joueurs (objets à cible joueur, [[card:calm-down|Calme-toi]], défi de la roue de l'Enfer, copie du [[card:mime|Mime]]). [[item:draven|Draven]] t'épargne.",
+        "• Comme tout invisible, tu ne cibles personne non plus, et l'écran te cache la table jusqu'à la fin de ton tour : les autres ne voient plus ton pion, tes actions, ton sac ni tes pièces. Le journal annonce « X devient invisible pour un tour » à toute la table.",
+        "• Le tour où tu la lances compte : l'invisibilité dure jusqu'au début de ton tour suivant, donc à travers tous les tours des autres. Elle couvre aussi un tour sauté.",
+        "• Contrairement à [[card:half-seen|Mi-vu, Mi-vue]], la Red Cup ne te révèle pas. Ce qui ne vise personne t'atteint quand même : [[item:sentence|Sentence]], [[item:portal|Portails]], [[item:doomsday|Doomsday]], cases piégées, roues, explosion de Bullet Bill sur ta case…",
+        "• L'[[card:guardian-angel|Ange-Gardien]] peut en acheter : elle ne nuit à personne.",
+      ],
+    },
+  ],
   mirror: [
     {
       title: "Utilisation",

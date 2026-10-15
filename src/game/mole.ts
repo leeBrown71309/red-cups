@@ -8,6 +8,7 @@ import {
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
   MOLE_OWN_CROSSING_ENERGY,
+  MOLE_RECENT_TILES,
   TUNNEL_CROSSINGS,
 } from "./types";
 
@@ -27,7 +28,7 @@ export interface TunnelUse {
   dug: boolean;
 }
 
-/** Tiles the player stood on or walked through, in the order they were first reached. */
+/** Tiles the player stood on or walked through, the one reached last at the end (a tile visited again moves there). */
 export function getVisitedNodeIds(player: Pick<Player, "visitedNodeIds">): NodeId[] {
   return player.visitedNodeIds ?? [];
 }
@@ -78,10 +79,16 @@ export function canDig(state: GameState, player: Player): boolean {
   );
 }
 
-/** The tiles a Taupe standing here may dig a tunnel to: visited, other than the one they stand on, and diggable. */
+/**
+ * The tiles a Taupe standing here may dig a tunnel to: one of the last `MOLE_RECENT_TILES` tiles they visited before
+ * this one (the list is kept in order of last visit), and diggable.
+ */
 export function getDigTargets(state: GameState, player: Player): NodeId[] {
   if (!canDig(state, player)) return [];
-  return getVisitedNodeIds(player).filter((nodeId) => nodeId !== player.position && isDiggable(state, nodeId));
+  return getVisitedNodeIds(player)
+    .filter((nodeId) => nodeId !== player.position)
+    .slice(-MOLE_RECENT_TILES)
+    .filter((nodeId) => isDiggable(state, nodeId));
 }
 
 /** What crossing `tunnel` costs `player`: the tunnels they dug themselves are cheaper. */
@@ -137,11 +144,14 @@ export function recordVisitedTiles(before: GameState, after: GameState): GameSta
     const reached = [
       ...(walk && walk.playerId === player.id ? [walk.from, ...walk.path] : []),
       ...(player.position === HELL_NODE_ID ? [] : [player.position]),
-    ].filter((nodeId) => nodeId !== HELL_NODE_ID && !known.includes(nodeId));
-    const fresh = [...new Set(reached)];
-    if (fresh.length === 0) return player;
+    ].filter((nodeId) => nodeId !== HELL_NODE_ID);
+    // Only the order of the last visits matters (the Taupe digs towards the most recent ones): a tile reached again
+    // leaves its old place and goes to the end, and the tile the player stands on always comes last.
+    const reachedInOrder = [...new Set(reached)];
+    const next = [...known.filter((nodeId) => !reachedInOrder.includes(nodeId)), ...reachedInOrder];
+    if (next.length === known.length && next.every((nodeId, index) => nodeId === known[index])) return player;
     changed = true;
-    return { ...player, visitedNodeIds: [...known, ...fresh] };
+    return { ...player, visitedNodeIds: next };
   });
   return changed ? { ...after, players } : after;
 }

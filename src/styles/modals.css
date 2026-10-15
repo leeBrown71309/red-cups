@@ -1430,6 +1430,9 @@
   border-radius: 3px;
   background: var(--cup);
   animation: confetti-fall 3.2s linear infinite;
+  /* Each piece sets its own sway and spin (see victory-modal.tsx), so the fall never lines up in rows. */
+  --confetti-sway: 0px;
+  --confetti-spin: 720deg;
 }
 
 .victory__confetti i:nth-child(4n + 1) {
@@ -1446,7 +1449,7 @@
 
 @keyframes confetti-fall {
   to {
-    transform: translateY(110vh) rotate(720deg);
+    transform: translate(var(--confetti-sway), 110vh) rotate(var(--confetti-spin));
   }
 }
 

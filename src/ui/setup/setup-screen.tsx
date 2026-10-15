@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import type { MapId } from "../../game/types";
+import type { MapId, WorldStyle } from "../../game/types";
 import { FlowShell } from "../components/flow-shell";
 import { UiIcon } from "../icons/ui-icon";
+import { getChosenWorldStyle } from "../lobby/map-choice-store";
 import { HelpModal } from "../modals/help-modal";
 import { MapStep } from "./map-step";
 import { PlayersStep, type TableEntry } from "./players-step";
@@ -37,7 +38,7 @@ function rememberTable(entries: TableEntry[]): void {
 
 interface SetupScreenProps {
   /** Every local game opens on the passive draft (patch 0.1.4). */
-  onStart: (names: string[], mapId: MapId) => void;
+  onStart: (names: string[], mapId: MapId, worldStyle: WorldStyle) => void;
   /** Offered only when the build has an online backend. */
   onPlayOnline?: () => void;
   /** Back to the game's menu. */
@@ -60,6 +61,7 @@ export function SetupScreen({ onStart, onPlayOnline, onBack }: SetupScreenProps)
     onStart(
       entries.map((entry, index) => entry.name.trim() || `Joueur ${index + 1}`),
       mapId,
+      getChosenWorldStyle(mapId),
     );
 
   return (

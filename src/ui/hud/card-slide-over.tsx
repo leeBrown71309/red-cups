@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { PASSIVE_CATALOG } from "../../game/catalog";
-import { hasCard } from "../../game/cards";
+import { CARD_KINDS, hasCard } from "../../game/cards";
 import type { GameState, PassiveId, Player } from "../../game/types";
 import { describeCupPowerState } from "../display/cup-power-state";
 import { PassiveIcon } from "../icons/passive-icon";
@@ -26,11 +26,24 @@ export function buildCardEntries(
     : player.noThanksReadyRound <= game.round
       ? "Prêt à servir."
       : `De retour au tour ${player.noThanksReadyRound}.`;
+  // The Mime's copy takes the place of the card of its kind while it lasts. A passif is public; the Cups Power copied
+  // only shows to a viewer who may see the Mime's own Cups Power (it stays a secret of theirs for the table).
+  const copied = player.mimicId ?? null;
+  const copiedKind = copied ? CARD_KINDS[copied] : null;
+  const copyNote = copied ? "Copié par le Mime jusqu’à la fin du tour." : null;
+  const actif = copiedKind === "actif" && cards.actif ? copied : cards.actif;
+  const passif = copiedKind === "passif" ? copied : cards.passif;
   return [
-    ...(cards.actif
-      ? [{ label: "Cups Power", cardId: cards.actif, note: describeCupPowerState(game, player, cards.actif) }]
+    ...(actif
+      ? [
+          {
+            label: "Cups Power",
+            cardId: actif,
+            note: actif === copied ? copyNote : describeCupPowerState(game, player, actif),
+          },
+        ]
       : []),
-    ...(cards.passif ? [{ label: "Passif", cardId: cards.passif, note: noThanksNote }] : []),
+    ...(passif ? [{ label: "Passif", cardId: passif, note: passif === copied ? copyNote : noThanksNote }] : []),
   ];
 }
 

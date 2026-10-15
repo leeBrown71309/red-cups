@@ -27,6 +27,7 @@ export const CARD_KINDS: Record<PassiveId, CardKind> = {
   "black-mage": "actif",
   "half-seen": "actif",
   "ghost-sister": "actif",
+  fool: "actif",
   // The card of a player with no actif: never dealt, only used to fill the slot.
   lambda: "actif",
   // Passifs.

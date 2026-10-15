@@ -26,6 +26,7 @@ import {
   BOOT_STARTING_PRICE,
   BOOT_PRICE_STEP,
   CURRENCY_RESET_THRESHOLD,
+  FOOL_GOAL,
   FIRST_ROUND,
   GREEDY_GOAL,
   HELL_NODE_ID,
@@ -127,7 +128,8 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
     }
     if (itemId === "eraser" && copies > 1) found.push(violation("single-eraser", `${name} has ${copies} Gommes`));
   }
-  if (player.currency <= CURRENCY_RESET_THRESHOLD && !awaitsKnockout(state, player.id)) {
+  // Le Fou is immune to the reset: their balance may sink to their goal.
+  if (player.currency <= CURRENCY_RESET_THRESHOLD && !awaitsKnockout(state, player.id) && !hasCard(player, "fool")) {
     found.push(violation("negative-reset", `${name} sits at ${player.currency} coins`));
   }
   if (!Number.isInteger(player.skippedTurns) || player.skippedTurns < 0) {
@@ -264,10 +266,23 @@ export function checkState(state: GameState): RuleViolation[] {
     greedyWinner !== undefined &&
     ownsCard(greedyWinner, "greedy") &&
     greedyWinner.currency >= GREEDY_GOAL;
+  const foolWinner = findPlayer(state, state.winnerId);
+  const wonByFool =
+    state.winReason === "fool" &&
+    foolWinner !== undefined &&
+    ownsCard(foolWinner, "fool") &&
+    foolWinner.currency <= FOOL_GOAL;
   const devil = findDevil(state);
   const wonByDevil =
     state.winReason === "devil" && devil?.id === state.winnerId && state.devilHellTurns >= getDevilGoalFor(state);
-  if (state.phase === "finished" && champions.length === 0 && !wonByForfeit && !wonByGreed && !wonByDevil) {
+  if (
+    state.phase === "finished" &&
+    champions.length === 0 &&
+    !wonByForfeit &&
+    !wonByGreed &&
+    !wonByFool &&
+    !wonByDevil
+  ) {
     found.push(violation("victory-needs-cups", "the game ended without a 3-Cup winner, a forfeit or a role's goal"));
   }
   const rich = state.players.find((player) => ownsCard(player, "greedy") && player.currency >= GREEDY_GOAL);
@@ -558,7 +573,7 @@ function checkSnowballs(previous: GameState, next: GameState, found: RuleViolati
   const skipsGained = (after?.skippedTurns ?? 0) - (target?.skippedTurns ?? 0);
   // When every seat skips, the frozen player may spend the new skip, and an older one, in the same action.
   const spent = newLogTexts(previous, next).filter((text) => text === `${target?.name} passe son tour.`).length;
-  if (snowball.frozen && skipsGained + spent < 1) {
+  if (snowball.frozen && skipsGained + spent < 1 && !hasCard(target, "fool")) {
     found.push(violation("snowball-frozen-skip", `${snowball.targetId} froze but kept their turn`));
   }
 }
@@ -681,7 +696,11 @@ function checkWheelResolution(previous: GameState, next: GameState, found: RuleV
   if (wheel.result.id === "go-to-hell" && after.position !== HELL_NODE_ID) {
     found.push(violation("wheel-hell", `${before.name} dodged the trip to Hell`));
   }
-  if (["skip-turn", "hell-skip"].includes(wheel.result.id) && after.skippedTurns !== before.skippedTurns + 1) {
+  const skipsExpected = hasCard(before, "fool") ? 0 : 1;
+  if (
+    ["skip-turn", "hell-skip"].includes(wheel.result.id) &&
+    after.skippedTurns !== before.skippedTurns + skipsExpected
+  ) {
     found.push(violation("wheel-skip", `${before.name} did not get a skipped turn`));
   }
   const escapedOnIce = slidOnIce(previous, next, before.id);
@@ -894,7 +913,11 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       }
       break;
     case "middle-finger":
-      if (target && targetAfter && targetAfter.skippedTurns !== target.skippedTurns + 1) {
+      if (
+        target &&
+        targetAfter &&
+        targetAfter.skippedTurns !== target.skippedTurns + (hasCard(target, "fool") ? 0 : 1)
+      ) {
         found.push(violation("middle-finger", `${label}: target keeps its next turn`));
       }
       break;
@@ -959,7 +982,7 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       }
       const stunned = next.lastTomatoThrow?.stunned === true;
       const skipped = (targetAfter?.skippedTurns ?? 0) - (target?.skippedTurns ?? 0);
-      if (target?.id === user.id || skipped !== (stunned ? 1 : 0)) {
+      if (target?.id === user.id || skipped !== (stunned && !hasCard(target, "fool") ? 1 : 0)) {
         found.push(violation("tomato", `${label}: target skipped ${skipped} turn(s), stunned ${stunned}`));
       }
       break;

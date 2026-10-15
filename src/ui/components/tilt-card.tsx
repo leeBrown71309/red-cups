@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type PointerEvent, type ReactNode } from "react";
+import { useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import type { PassiveId } from "../../game/types";
 import { CardBack } from "../cards/card-art";
 
@@ -55,6 +55,17 @@ export function TiltCard({
     element.classList.remove("is-leaning");
   };
 
+  // A click turns the card over, unless it ends a text selection (the rules on the card can be selected and scrolled).
+  const flipOnClick = () => {
+    if (!onFlip || window.getSelection()?.toString()) return;
+    onFlip();
+  };
+  const flipOnKey = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!onFlip || event.target !== event.currentTarget || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    onFlip();
+  };
+
   return (
     <div
       className={`tilt-card ${scrollable ? "tilt-card--scrollable" : ""}`}
@@ -63,7 +74,14 @@ export function TiltCard({
       onPointerLeave={rest}
       onPointerCancel={rest}
       onPointerUp={rest}
-      onDoubleClick={onFlip}
+      onClick={flipOnClick}
+      onKeyDown={flipOnKey}
+      role={onFlip ? "button" : undefined}
+      tabIndex={onFlip ? 0 : undefined}
+      aria-pressed={onFlip ? flipped : undefined}
+      aria-label={
+        onFlip ? (flipped ? "Retourner la carte : voir la face" : "Retourner la carte : voir le dos") : undefined
+      }
     >
       <div
         className="tilt-card__surface"

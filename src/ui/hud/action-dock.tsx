@@ -417,7 +417,7 @@ function MoveContent({ player }: { player: Player }) {
           ? "Botte chaussée : 2 cases !"
           : "Choisis ta route";
   const hint = digMode
-    ? "Touche une case déjà visitée : le tunnel t’y mène aussitôt. Il reste ouvert jusqu’à sa prochaine traversée."
+    ? "Touche l’une des dernières cases visitées : le tunnel t’y mène aussitôt. Il reste ouvert jusqu’à sa prochaine traversée."
     : previewNodeId !== null
       ? "Touche à nouveau la case ou confirme."
       : diceRoll !== null

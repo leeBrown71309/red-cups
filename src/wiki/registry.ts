@@ -9,6 +9,8 @@ import {
 import { CARD_KINDS, type CardKind } from "../game/cards";
 import { MAP_ORDER, getBoardMap } from "../game/maps/map-registry";
 import {
+  FOOL_GOAL,
+  FOOL_STUN_FINE,
   HERMIT_DISTANCE,
   HERMIT_ENERGY_BONUS,
   HERMIT_START_BONUS,
@@ -18,9 +20,11 @@ import {
   MAGE_LUCK_RETURN_ROUNDS,
   MAGE_MAX_LUCK,
   MIME_COOLDOWN_ROUNDS,
-  MIST_CYCLE_TURNS,
+  MIST_COOLDOWN_ROUNDS,
+  MIST_HIDDEN_TURNS,
   MOLE_COOLDOWN_ROUNDS,
   MOLE_DIG_ENERGY,
+  MOLE_RECENT_TILES,
   RULES_VERSION,
   SISTER_SWAP_COOLDOWN_ROUNDS,
   SISTER_SWAP_ENERGY,
@@ -94,12 +98,20 @@ const PATCH_FACTS: Partial<Record<PassiveId, Fact[]>> = {
   mole: [
     { label: `Creuser : ${MOLE_DIG_ENERGY} points d'énergie`, tone: "sky" },
     { label: `Tous les ${MOLE_COOLDOWN_ROUNDS} tours`, tone: "grape" },
+    { label: `Vers l'une des ${MOLE_RECENT_TILES} dernières cases visitées`, tone: "mint" },
   ],
   "black-mage": [
     { label: `${MAGE_MAX_LUCK} pentagrammes`, tone: "mint" },
     { label: `Un pentagramme rendu tous les ${MAGE_LUCK_RETURN_ROUNDS} tours`, tone: "grape" },
   ],
-  "half-seen": [{ label: `Invisible ${MIST_CYCLE_TURNS - 1} tours sur ${MIST_CYCLE_TURNS}`, tone: "grape" }],
+  "half-seen": [
+    { label: `Disparaître : invisible ${MIST_HIDDEN_TURNS} tours`, tone: "grape" },
+    { label: `Tous les ${MIST_COOLDOWN_ROUNDS} tours`, tone: "grape" },
+  ],
+  fool: [
+    { label: `Gagne à −${Math.abs(FOOL_GOAL).toLocaleString("fr-FR")} pièces`, tone: "gold" },
+    { label: `Jamais assommé : −${FOOL_STUN_FINE} pièces à la place`, tone: "cup" },
+  ],
   "ghost-sister": [
     {
       label: `Swap : ${SISTER_SWAP_ENERGY} points d'énergie, tous les ${SISTER_SWAP_COOLDOWN_ROUNDS} tours`,
@@ -149,7 +161,7 @@ function mapFacts(mapId: MapId): Fact[] {
     facts.push({ label: "Deux Red Cups dont un mirage", tone: "cup" });
     facts.push({ label: "Tempête de sable tous les 4 tours", tone: "sky" });
   }
-  if (map.minPlayers) facts.push({ label: `${map.minPlayers} à 8 joueurs`, tone: "cup" });
+  if (map.recommendedPlayers) facts.push({ label: `Idéale à ${map.recommendedPlayers} joueurs ou plus`, tone: "cup" });
   return facts;
 }
 

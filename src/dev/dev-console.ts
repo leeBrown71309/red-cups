@@ -3,7 +3,7 @@ import type { GameAction } from "../game/game-actions";
 import { getStartingCurrency } from "../game/passive-rules";
 import { useGameStore } from "../game/store";
 import { pickGameState } from "../game/game-save";
-import type { GameState, MapId, NodeId, PassiveId } from "../game/types";
+import type { GameState, MapId, NodeId, PassiveId, WorldStyle } from "../game/types";
 import { getEnergyCapacity } from "../game/energy";
 
 /**
@@ -18,6 +18,8 @@ import { getEnergyCapacity } from "../game/energy";
 export interface StartOptions {
   players?: number;
   mapId?: MapId;
+  /** The open version of the map, when it has one. */
+  worldStyle?: WorldStyle;
   seed?: number;
   /** Cards forced on a seat (0-based): the actif and/or the passif, in any order. */
   cards?: Record<number, PassiveId[]>;
@@ -48,12 +50,14 @@ export function installDevConsole(): void {
   };
 
   window.redCupsDev = {
-    start: ({ players = 3, mapId = "classic", seed = 7, cards = {}, positions = {} } = {}) => {
+    start: ({ players = 3, mapId = "classic", worldStyle, seed = 7, cards = {}, positions = {} } = {}) => {
       store.getState().resetGame();
       store.getState().startGame(
         Array.from({ length: players }, (_, index) => `Joueur ${index + 1}`),
         seed,
         mapId,
+        undefined,
+        worldStyle,
       );
       const started = snapshot();
       const forced = started.players.map((player, seat) => {

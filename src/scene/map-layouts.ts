@@ -38,6 +38,24 @@ export interface MapLayoutConfig {
   openWorld?: boolean;
   /** How much further than the usual view the camera may zoom out; the large maps are wider than the screen is. */
   zoomOutFactor?: number;
+  /** In the open world, plain roads wind between their tiles instead of running straight. */
+  windingRoads?: boolean;
+  /**
+   * The same map laid out for the open world (no tray): the same tiles and the same roads, but placed further apart and
+   * off the grid. Its numbers replace the usual ones when the open world is on; the boxed look keeps the map's own.
+   */
+  open?: Partial<MapLayoutConfig>;
+  /** Banquise: the frozen lake, as the middle of an ellipse in the open version (half sizes along x and z). */
+  lake?: { x: number; z: number; halfWidth: number; halfDepth: number };
+}
+
+/** A booth `distance` beside its tile, on the side `away` points to (an angle), facing the tile. */
+function boothAt(away: number, distance = 2.3): StallPlacement {
+  return {
+    x: Math.cos(away) * distance,
+    z: Math.sin(away) * distance,
+    rotation: Math.atan2(-Math.cos(away), -Math.sin(away)),
+  };
 }
 
 const CLASSIC_LAYOUT: MapLayoutConfig = {
@@ -54,6 +72,16 @@ const CLASSIC_LAYOUT: MapLayoutConfig = {
   hellFloorY: 0.14,
   portalReach: 0,
   clearZones: [],
+  windingRoads: true,
+  // The open world spreads the same eleven tiles out and takes them off the grid: arcs and zigzags instead of rows
+  // and columns (9-4-7 bends round the left, 9-5-2 zigzags along the back, 8-10-1 bulges on the right).
+  open: {
+    groundWidth: 31,
+    groundDepth: 21,
+    shopStalls: { 9: boothAt(-2.35), 8: boothAt(-0.78), 3: boothAt(1.57) },
+    pond: { x: 5.6, z: -7.6, radius: 1.8 },
+    hellClearance: 2.6,
+  },
 };
 
 const LUNA_PARK_LAYOUT: MapLayoutConfig = {
@@ -71,6 +99,13 @@ const LUNA_PARK_LAYOUT: MapLayoutConfig = {
   hellFloorY: 0.36,
   portalReach: 2.1,
   clearZones: [],
+  windingRoads: true,
+  // The open fair is a midway: a ring road wobbling round the carousel hub, with spokes of unequal length.
+  open: {
+    groundWidth: 32,
+    groundDepth: 25,
+    shopStalls: { 5: boothAt(-1.57), 8: boothAt(2.36), 12: boothAt(1.5) },
+  },
 };
 
 /** The frozen lake spans the ice row, bank to bank; the crevasse of Hell bites into its back edge. */
@@ -90,6 +125,17 @@ const BANQUISE_LAYOUT: MapLayoutConfig = {
   hellFloorY: 0.12,
   portalReach: 0,
   clearZones: [BANQUISE_LAKE],
+  windingRoads: true,
+  // The open lake is a long ellipse between the banks, the crevasse biting into its back edge.
+  open: {
+    groundWidth: 36,
+    groundDepth: 27,
+    shopStalls: { 5: boothAt(2.5), 8: boothAt(-1.57), 12: boothAt(0.6) },
+    startFlagOffset: { x: -1.05, z: 1 },
+    hellClearance: 2.4,
+    lake: { x: 0.2, z: -0.4, halfWidth: 11.8, halfDepth: 3.9 },
+    clearZones: [{ x: 0.2, z: -0.4, halfWidth: 11.8, halfDepth: 3.9 }],
+  },
 };
 
 /**
