@@ -13,6 +13,22 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.3.0",
+    date: "2026-10-18",
+    title: "Les signalements de la semaine : Le Fou, la Black Cup, la Bombe de fumée et la Banquise",
+    highlights: [
+      "Le Fou ne garde plus la Red Cup : arriver dessus lui coûte 1 000 pièces, elle ne prend aucune place de son sac et une nouvelle Cup apparaît. Trois Cups, et son solde passe sous −2 500 : il gagne.",
+      "Red Bull passe à 5 points d’énergie par tour, au lieu de 4.",
+      "Bombe de fumée : seul son utilisateur devient invisible et inciblable pendant un tour. Contrairement à Mi-vu, Mi-vue, il continue de voir toute la table et de viser les autres : son pion est seulement translucide pour lui.",
+      "Red light, Green light sous Doomsday : toutes les cases sont rouges, une case verte qui rapportait 100 pièces en coûte maintenant 50.",
+      "Black Cup, en images : une brume ténébreuse porte la Red Cup jusqu’en Enfer, où elle devient noire. À sa sortie, la même brume la ramène et la Cup redevient rouge en arrivant.",
+      "Banquise : un joueur pris dans la glace rejoue toute sa glissade au dégel, case par case, y compris le choc contre une Barrière posée entre-temps et le retour vers la case d’où il glissait, au lieu de sauter directement à l’arrivée.",
+      "Déplacement : quand tes objets ont pris toute ton énergie, plus aucune flèche ne t’indique des cases où tu ne peux pas aller.",
+      "Boutique : un Miroir déjà utilisé ne se rachète pas, et le bouton le dit (« Déjà utilisé ») au lieu de rester cliquable sans rien faire.",
+      "Son : l’audio démarre dès le lancement du site ou de l’appli quand le navigateur le permet, et sinon au premier geste de n’importe quel type (toucher, clic, touche du clavier), plus seulement au clic.",
+    ],
+  },
+  {
     version: "0.2.5",
     date: "2026-10-15",
     title: "Le Fou, la Bombe de fumée et des Cups Power rééquilibrés",

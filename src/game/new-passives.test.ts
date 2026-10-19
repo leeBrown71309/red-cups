@@ -41,11 +41,11 @@ describe("Nepo Baby, eShop and Red Bull", () => {
     expect(getStartingCurrency("lambda")).toBe(STARTING_CURRENCY);
   });
 
-  it("gives Red Bull four points of energy on its turn", () => {
+  it("gives Red Bull five points of energy on its turn (patch 0.3.0)", () => {
     startTable(["lambda", "red-bull"]);
     useGameStore.setState({ turnStage: "turn-end" });
     store().endTurn();
-    expect(store()).toMatchObject({ activePlayerIndex: 1, energyLeft: BASE_ENERGY + 1 });
+    expect(store()).toMatchObject({ activePlayerIndex: 1, energyLeft: BASE_ENERGY + 2 });
   });
 
   it("opens eShop's shop wherever its move ends", () => {

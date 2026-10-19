@@ -2,7 +2,7 @@ import { hasCard, ownsCard } from "./cards";
 import { getNodeKindOf, getOpenBoard, getShortestPath } from "./board";
 import { getBoardMap } from "./maps/map-registry";
 import { DEVIL_ITEMS, ITEM_CATALOG, ITEM_ORDER } from "./catalog";
-import { isInvisible } from "./mist";
+import { isBlinded, isInvisible } from "./mist";
 import type { GameState, ItemId, PassiveId, Player, PlayerId, WheelId } from "./types";
 import {
   BASE_INVENTORY_CAPACITY,
@@ -151,10 +151,11 @@ export type TargetingState = Pick<
 
 /**
  * Whether `user` may aim an item at `target`: never Chance aveugle, nobody in the dark of Mi-vu, Mi-vue (they aim at
- * nobody, nobody aims at them), and L'Ange-Gardien only at their protégé.
+ * nobody, nobody aims at them; the Bombe de fumée only hides its user, who still sees the table), and
+ * L'Ange-Gardien only at their protégé.
  */
 export function canTargetPlayer(state: TargetingState, user: Player, target: Player): boolean {
-  if (isImmuneToItems(target) || isInvisible(state, user) || isInvisible(state, target)) return false;
+  if (isImmuneToItems(target) || isBlinded(state, user) || isInvisible(state, target)) return false;
   // Désert: nobody can aim at a traveller resting on an oasis.
   if (getNodeKindOf(getBoardMap(state.mapId), target.position) === "oasis") return false;
   return !hasCard(user, "guardian-angel") || state.guardian?.protegeId === target.id;
@@ -184,7 +185,7 @@ export function canBeChallenged(
   if (!state) return true;
   return (
     !isInvisible(state, target) &&
-    !isInvisible(
+    !isBlinded(
       state,
       state.players.find((player) => player.id === challengerId),
     )
@@ -244,13 +245,14 @@ function holdsCups(player: Player): number {
 
 /**
  * Dernier de la classe: the player holds strictly fewer Red Cups than every
- * other player who can collect them. Le diable, L'Ange-Gardien and Cupide
+ * other player who can collect them. Le diable, L'Ange-Gardien, Cupide and Le Fou
  * never keep a Cup, so they stay out of the comparison.
  */
 export function isLastInClass(state: Pick<GameState, "players">, player: Player): boolean {
   if (!hasCard(player, "last-in-class")) return false;
   const rivals = state.players.filter(
-    (other) => other.id !== player.id && canCollectRedCup(other) && !hasCard(other, "greedy"),
+    (other) =>
+      other.id !== player.id && canCollectRedCup(other) && !hasCard(other, "greedy") && !hasCard(other, "fool"),
   );
   return rivals.length > 0 && rivals.every((other) => holdsCups(player) < holdsCups(other));
 }

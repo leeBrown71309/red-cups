@@ -118,7 +118,7 @@ const SYSTEM_SECTIONS: Record<string, ContentSection[]> = {
         "• Une Cup est posée sur une case du plateau (ni Départ, ni Enfer, ni la case de la Cup précédente, jamais la glace). Marchez dessus pour la ramasser : 3 Cups = victoire.",
         "• Ramassée, elle occupe une place du sac; sac plein : défausse obligée d'un objet (jamais d'une Cup).",
         "• À la prise : une nouvelle Cup apparaît ailleurs et le cycle redémarre — compteurs [[card:red-light-green-light|Red light, Green light]] remis à zéro, vols du [[card:goblin|Goblin]], choix [[card:new-cup-new-me|New Cup, New Me]], triage [[card:calm-down|Calme-toi]], et le carrousel de [[map:luna-park|Luna Park]] change de sens.",
-        "• Le [[card:greedy|Cupide]] la convertit en +1 000 pièces; le [[card:devil|diable]] et [[card:guardian-angel|l'Ange]] passent dessus sans la voir (aucun effet).",
+        "• Le [[card:greedy|Cupide]] la convertit en +1 000 pièces et [[card:fool|Le Fou]] la paie 1 000 pièces (patch 0.3.0), sans la garder; le [[card:devil|diable]] et [[card:guardian-angel|l'Ange]] passent dessus sans la voir (aucun effet).",
         "• [[card:blind-luck|Chance aveugle]] ne la voit JAMAIS à l'écran.",
         "• [[item:black-cup|Black Cup]] et [[item:made-in-heaven|Made In Heaven]] la déplacent par des voies détournées ; le Swap de la [[card:ghost-sister|Sœur Fantôme]] peut aussi l'emporter.",
         "• Patch 0.2.3 : on ne creuse jamais vers elle ([[card:mole|Taupe]]), un [[card:black-mage|Mage noir]] qui se téléporte sur elle la ramasse, et [[card:half-seen|Mi-vu, Mi-vue]] redevient visible à une case d'elle.",

@@ -1,6 +1,7 @@
 import {
   BASE_ENERGY,
   FOOL_GOAL,
+  FOOL_CUP_FINE,
   FOOL_STUN_FINE,
   GREEDY_GOAL,
   HERMIT_DISTANCE,
@@ -65,6 +66,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       body: [
         "• Par cycle de Cup : tes DEUX premières cases vertes touchées en marchant paient +100 chacun, tes deux premières rouges coûtent −50 chacun.",
         "• Le compteur se remet à zéro à chaque nouvelle Cup.",
+        "• Sous [[item:doomsday|Doomsday]], toutes les cases comptent comme rouges pour toi (patch 0.3.0) : une case verte qui rapporte d'habitude 100 pièces en coûte 50, dans la limite de deux rouges par Cup.",
         "• Toutes les cases du chemin comptent, pas seulement l'arrivée : saut de Botte (2 cases), glissade de Banquise, « Avance d'une case » de la roue du bonheur.",
         "• Une téléportation ou un remplacement (Corde, Calme-toi) ne traverse rien : rien à payer, rien à gagner.",
       ],
@@ -156,8 +158,8 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• 4 points d'énergie par tour au lieu de 3.",
-        "• Cumulable avec le +1 de Dernier de la classe : 5 dans les bons jours.",
+        "• 5 points d'énergie par tour au lieu de 3 (patch 0.3.0 : c'était 4).",
+        "• Cumulable avec le +1 de Dernier de la classe : 6 dans les bons jours.",
         "• Le déplacement prend toujours TOUT ce qui reste : le surplus se dépense en objets avant de marcher.",
       ],
     },
@@ -209,7 +211,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         `• Ne peut pas être assommé : chaque fois qu'il devrait perdre un tour (un [[item:middle-finger|Middle Finger]], l'explosion de [[item:bullet-bill|Bullet Bill]], une [[item:tomato|Tomate]] qui assomme, « Passe ton prochain tour » sur les roues, la boule de neige qui gèle à Banquise…), il ne saute rien et perd ${FOOL_STUN_FINE} pièces à la place, une fois par assommement.`,
         "• Le [[item:wake-up|Réveil]] ne se déclenche pas : il n'y a pas de tour sauté à annuler. Le [[item:hell-touch|Toucher d'Enfer]] du [[card:devil|diable]] et le vol de [[card:greedy|Cupide]] ne le trouvent jamais « assommé ».",
         "• L'amende de 100 pièces est écrite au journal mais n'est pas une perte « subie » : ni [[card:insurer|L'Assureur]] ni [[card:double-or-nothing|Double or nothing]] ne la voient. Les pertes qui accompagnent l'assommement (les 200 pièces de Bullet Bill, par exemple) restent des pertes comme les autres.",
-        "• Il ramasse les Red Cups comme tout le monde : une victoire par les Cups reste possible, mais son jeu consiste à perdre.",
+        `• Il ne garde aucune Red Cup (patch 0.3.0) : arriver sur la Red Cup lui coûte ${formatCoins(FOOL_CUP_FINE)} pièces au lieu d'occuper une place de sac, et une nouvelle Cup apparaît comme d'habitude. Trois Cups lui font donc gagner ; la victoire par les Cups lui est fermée. Il reste hors de la comparaison pour [[card:last-in-class|Dernier de la classe]].`,
       ],
     },
   ],
@@ -312,7 +314,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         `• Taupe copiée : tu creuses avec TON compteur de ${MOLE_COOLDOWN_ROUNDS} tours et TES cases visitées (le Mime les note dès le début de la partie, comme une Taupe) ; le tunnel est à toi (traversée à ${MOLE_OWN_CROSSING_ENERGY} énergie).`,
         `• Cupide copié : sa victoire à ${formatCoins(GREEDY_GOAL)} pièces se vérifie après chaque action, copie comprise — un Mime qui a déjà ces pièces gagne dès qu'il le copie.`,
         "• Roller copié : le dé se lance avant de bouger, plus d'objet ensuite, la Red Cup se mérite par un 6, et la Botte est interdite (chaussée comme achetée) jusqu'à la fin du tour.",
-        "• Red Bull copié : le point d'énergie est versé tout de suite, la jauge de ce tour passe à 4.",
+        "• Red Bull copié : les 2 points d'énergie sont versés tout de suite, la jauge de ce tour passe à 5.",
       ],
     },
   ],

@@ -277,7 +277,14 @@ function collectEvents(
   if (newTurn && (state.idleStrikes[opening.id] ?? 0) >= IDLE_STRIKES_WARNING) {
     events.push({ type: "last-chance", playerId: opening.id });
   }
-  if (state.blackCup && !previous.blackCup) events.push({ type: "black-cup-cast" });
+  if (state.blackCup && !previous.blackCup) {
+    events.push({ type: "black-cup-cast", from: state.blackCup.returnNodeId });
+  } else if (!state.blackCup && previous.blackCup && state.redCupNodeId !== null) {
+    // Back from Hell, and not picked up there: a pickup (a bag, Cupide's coins, Le Fou's fine) starts a new Cup cycle.
+    const surfaced = previous.redCupNodeId === HELL_NODE_ID && state.redCupNodeId !== HELL_NODE_ID;
+    const gained = state.redCupCycle !== previous.redCupCycle;
+    if (surfaced && !gained) events.push({ type: "black-cup-return", to: state.redCupNodeId });
+  }
   if (state.lastBlizzard && state.lastBlizzard.seq !== previous.lastBlizzard?.seq && previous.phase === "playing") {
     events.push({ type: "blizzard", from: state.lastBlizzard.from, to: state.lastBlizzard.to });
   }

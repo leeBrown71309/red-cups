@@ -1,6 +1,7 @@
 import type { Interaction } from "../types";
 import { CUPS_POWER_INTERACTIONS } from "./cups-power-interactions";
 import { PATCH_025_INTERACTIONS } from "./patch-0-2-5-interactions";
+import { PATCH_030_INTERACTIONS } from "./patch-0-3-0-interactions";
 
 /**
  * TOUTES les interactions entre éléments du jeu, une par paire. Chaque ligne
@@ -452,7 +453,7 @@ export const INTERACTIONS: Interaction[] = [
     b: "system:hell",
     text: "+150 pièces à chaque descente, quelle que soit la porte (le Parachute qui évite la descente ne paie pas) ; sortie au bout de 3 tours de peine au lieu de 5, péage de 500.",
   },
-  { a: "card:red-bull", b: "system:turn", text: "+1 point d'énergie par tour." },
+  { a: "card:red-bull", b: "system:turn", text: "+2 points d'énergie par tour (5 au total, patch 0.3.0)." },
   { a: "card:last-in-class", b: "system:turn", text: "+1 point d'énergie tant qu'il est le dernier en Cups." },
   {
     a: "card:last-in-class",
@@ -947,4 +948,5 @@ export const INTERACTIONS: Interaction[] = [
   ...CUPS_POWER_INTERACTIONS,
   // ————— Patch 0.2.5 : Le Fou, Bombe de fumée, Disparaître —————
   ...PATCH_025_INTERACTIONS,
+  ...PATCH_030_INTERACTIONS,
 ];

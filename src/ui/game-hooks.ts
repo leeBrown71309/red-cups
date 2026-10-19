@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { canAffordMove } from "../game/energy";
 import { getForwardTiles } from "../game/game-actions";
 import { getCalmDownTiles } from "../game/game-effects";
 import { getDigTargets } from "../game/mole";
@@ -50,6 +51,8 @@ export function computeLegalMoves(state: GameState, ignoreArrows: boolean, digMo
     for (const nodeId of getDigTargets(state, activePlayer)) paths.set(nodeId, [nodeId]);
     return { origin: activePlayer.position, paths };
   }
+  // An item left too little energy to walk: no arrow may promise a move the rules would refuse.
+  if (!canAffordMove(state)) return { origin: null, paths };
   const canIgnoreArrows = ignoreArrows && canUseCorrupter(activePlayer, state.round);
   for (const path of getTurnMoveOptions(state, activePlayer, canIgnoreArrows)) {
     const destination = path[path.length - 1];

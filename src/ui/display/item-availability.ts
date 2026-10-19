@@ -3,6 +3,7 @@ import { ITEM_CATALOG } from "../../game/catalog";
 import { canAffordItem, getItemEnergyCost } from "../../game/energy";
 import { canWalkWithBoot } from "../../game/game-actions";
 import {
+  canBuyItemKind,
   getCopyLimit,
   getTheftRisk,
   throwsOneStackPerTurn,
@@ -184,8 +185,12 @@ export interface PurchaseStatus {
 /** Why an item cannot leave the shelf for this player, whatever they pay: their passive, the bag, the Cup. */
 function getShelfBlocker(itemId: ItemId, state: GameState, player: Player): string | null {
   if (itemId === "boot" && hasCard(player, "roller")) return "Pas pour le Roller";
+  // The Miroir is sold once to each player, however it ended (report 2026-10-16: the button did nothing).
+  if (itemId === "mirror" && player.mirrorUsed) return "Déjà utilisé";
   // Chance aveugle is not told where the Red Cup stands.
   if (!isOnSale(state, itemId)) return "Pas en vente pour l’instant";
+  // Whatever else the engine's shelf refuses must be said too: a button that does nothing explains nothing.
+  if (!canBuyItemKind(player, itemId)) return "Pas pour toi";
 
   // A stack with room takes one more without a new slot; a new stack counts as a copy.
   if (findStackWithRoom(player, itemId)) return null;

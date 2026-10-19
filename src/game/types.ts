@@ -32,6 +32,8 @@ export const GREEDY_GOAL = 6_000;
 export const FOOL_GOAL = -2_500;
 /** Le Fou: what each knock-out they would have suffered costs them instead of a turn. */
 export const FOOL_STUN_FINE = 100;
+/** Le Fou (patch 0.3.0): what a Red Cup costs them instead of taking a bag slot, the inverse of Cupide's reward. */
+export const FOOL_CUP_FINE = 1_000;
 /** Cupide: what a Red Cup pays them instead of taking a bag slot. */
 export const GREEDY_CUP_REWARD = 1_000;
 /** Cupide: taken from every knocked-out player on the tile they walk onto. */
@@ -322,6 +324,11 @@ export interface Player {
    * It counts down as each of the player's turns begins, played or skipped; invisible while above zero.
    */
   hiddenTurns?: number;
+  /**
+   * The Bombe de fumée hides its user without blinding them (patch 0.3.0): nobody sees or targets them, but they
+   * still watch the table and play as usual. Mi-vu, Mi-vue's invisibility leaves it unset: they see nothing.
+   */
+  hiddenSighted?: boolean;
   /** Mi-vu, Mi-vue: first round in which they may disappear again. */
   vanishReadyRound?: number;
   /** Le Fou: knock-outs they dodged during the action in progress, paid in coins and announced in the journal. */
@@ -768,7 +775,7 @@ export interface PassiveDraft {
 export const GAME_COUNTDOWN_MS = 5_000;
 
 /** Rules this game runs on: an online room refuses a device on other rules. */
-export const RULES_VERSION = "0.2.5";
+export const RULES_VERSION = "0.3.0";
 
 /** L'Ange-Gardien and the player they protect, known to the whole table. */
 export interface Guardian {

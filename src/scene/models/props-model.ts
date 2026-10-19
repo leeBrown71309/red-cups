@@ -7,14 +7,23 @@ export interface AnimatedProp {
   update: (elapsed: number, delta: number) => void;
 }
 
+/** The Red Cup, which can be darkened into the Black Cup that le diable's spell drops in Hell. */
+export interface RedCupProp extends AnimatedProp {
+  /** 0 is the red plastic cup under its golden light, 1 the Black Cup under its violet one; in between, a blend. */
+  setDarkness: (amount: number) => void;
+}
+
 /** A Portail that can widen over its tile and swallow what stands on it. */
 export interface HellPortalProp extends AnimatedProp {
   /** Start the swallow; it runs for `seconds`, then the prop is the world's to remove. */
   swallow: (seconds: number) => void;
 }
 
+const BLACK_CUP_COLOR = new THREE.Color("#1c1124");
+const BLACK_CUP_BEAM_COLOR = new THREE.Color("#8a4dff");
+
 /** The iconic red plastic cup, floating above its tile with a light pillar. */
-export function createRedCup(kit: SceneKit): AnimatedProp {
+export function createRedCup(kit: SceneKit): RedCupProp {
   const group = new THREE.Group();
   const floating = new THREE.Group();
   group.add(floating);
@@ -42,43 +51,57 @@ export function createRedCup(kit: SceneKit): AnimatedProp {
   addOutline(cup, kit, 1.07);
   floating.add(cup);
 
-  const inside = new THREE.Mesh(new THREE.CircleGeometry(0.37, 12), kit.flat(SCENE_COLORS.cupInner));
+  const lightInner = kit.flat(SCENE_COLORS.cupInner);
+  const darkInner = kit.flat("#2a1a3a");
+  const inside = new THREE.Mesh(new THREE.CircleGeometry(0.37, 12), lightInner);
   inside.rotation.x = -Math.PI / 2;
   inside.position.y = 0.7;
   floating.add(inside);
 
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.035, 5, 14), kit.flat(SCENE_COLORS.cupInner));
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.035, 5, 14), lightInner);
   rim.rotation.x = Math.PI / 2;
   rim.position.y = 0.78;
   floating.add(rim);
   floating.scale.setScalar(1.25);
 
-  const beam = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 0.95, 6, 14, 1, true),
-    new THREE.MeshBasicMaterial({
-      color: "#ffcf8a",
-      transparent: true,
-      opacity: 0.32,
-      alphaMap: createVerticalFadeTexture(),
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    }),
-  );
+  const beamMaterial = new THREE.MeshBasicMaterial({
+    color: "#ffcf8a",
+    transparent: true,
+    opacity: 0.32,
+    alphaMap: createVerticalFadeTexture(),
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.95, 6, 14, 1, true), beamMaterial);
   beam.position.y = 3;
   beam.raycast = () => undefined;
   group.add(beam);
 
   const sparkles: THREE.Mesh[] = [];
   const sparkleGeometry = kit.geometry("sparkle", () => new THREE.OctahedronGeometry(0.08, 0));
+  // The kit's materials are shared between props: the sparkles swap between two of them, never recolour one.
+  const goldSparkle = kit.unlit("#fff1a8");
+  const violetSparkle = kit.unlit("#b48cff");
   for (let index = 0; index < 5; index += 1) {
-    const sparkle = new THREE.Mesh(sparkleGeometry, kit.unlit("#fff1a8"));
+    const sparkle = new THREE.Mesh(sparkleGeometry, goldSparkle);
     sparkles.push(sparkle);
     group.add(sparkle);
   }
 
+  const redColor = new THREE.Color(SCENE_COLORS.cupRed);
+  const goldBeamColor = new THREE.Color("#ffcf8a");
   return {
     group,
+    setDarkness: (amount) => {
+      const blend = Math.min(1, Math.max(0, amount));
+      cupMaterial.color.copy(redColor).lerp(BLACK_CUP_COLOR, blend);
+      beamMaterial.color.copy(goldBeamColor).lerp(BLACK_CUP_BEAM_COLOR, blend);
+      const dark = blend > 0.5;
+      inside.material = dark ? darkInner : lightInner;
+      rim.material = dark ? darkInner : lightInner;
+      for (const sparkle of sparkles) sparkle.material = dark ? violetSparkle : goldSparkle;
+    },
     update: (elapsed) => {
       floating.position.y = 0.85 + Math.sin(elapsed * 2.2) * 0.12;
       floating.rotation.y = elapsed * 0.7;

@@ -16,14 +16,14 @@ import {
   resolveBoard,
   type Board,
 } from "./board";
-import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide } from "./ice";
+import { blowBlizzard, carryOffIce, drawSlide, isBlizzardRound, recordSlide, toPathBumps } from "./ice";
 import { advanceBulletBill, findBulletReactors } from "./bullet-bill";
 import { createDuel, DUEL_MODE_LOG_NAMES, getDuelModes } from "./duel-setup";
 import { getEnergyCapacity } from "./energy";
 import { advanceGhost, findGhostOpponent, startGhostDuel } from "./ghost";
 import { regainMageLuck } from "./mage-luck";
 import { advanceMist } from "./mist-cycle";
-import { isInvisible } from "./mist";
+import { isBlinded, isInvisible } from "./mist";
 import { thawSnowFrozen, throwSnowball } from "./snowballs";
 import { findGameMaster, openDuelChoice } from "./duel-choice";
 import { ITEM_CATALOG, chooseWheelResult, getWheelResultValue } from "./catalog";
@@ -34,6 +34,7 @@ import {
   drawsTwiceKeepingBest,
   getHellTurnLimit,
   getMudOwnerReward,
+  isDoomed,
   isHermitPrimeActive,
   isImmuneToItems,
   spinsTwice,
@@ -79,6 +80,7 @@ import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
   GOBLIN_THEFT,
+  FOOL_CUP_FINE,
   GREEDY_CUP_REWARD,
   RED_GREEN_GAIN,
   RED_GREEN_PENALTY,
@@ -450,14 +452,14 @@ export function addCupCycleEffects(state: GameState): GameState {
   const holderDistance = getDistanceToCup(board, cupNodeId, holder.position);
   const targets = state.players.filter((player) => {
     const distance = getDistanceToCup(board, cupNodeId, player.position);
-    // Nobody picks out a player Mi-vu, Mi-vue hides, nor does the holder if they are hidden themself.
+    // Nobody picks out an invisible player, nor does the holder if Mi-vu, Mi-vue blinds them.
     return (
       player.id !== holder.id &&
       distance >= 1 &&
       distance <= 2 &&
       distance < holderDistance &&
       !isInvisible(state, player) &&
-      !isInvisible(state, holder)
+      !isBlinded(state, holder)
     );
   });
   if (targets.length === 0) return state;
@@ -496,15 +498,47 @@ export function finishCupCollection(state: GameState, playerId: PlayerId, cupNod
   return placeNextCup(nextState, cupNodeId, state.turnStage, playerId);
 }
 
-/** Cupide: a Red Cup pays coins instead of taking a bag slot, and the next one appears as usual. */
-function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
+/**
+ * Cupide and Le Fou never keep a Red Cup: it settles in coins instead of taking a bag slot, and the next one appears
+ * as usual. In the desert, the mirage dissipates exactly as it does for everybody else.
+ */
+function settleCupInCoins(
+  state: GameState,
+  playerId: PlayerId,
+  cupNodeId: NodeId,
+  amount: number,
+  announcement: string,
+): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
   if (state.mirageNodeId !== null && state.mirageNodeId === cupNodeId)
     return dissipateMirage(state, playerId, cupNodeId);
-  let nextState = addLog(state, `${player.name} encaisse la Red Cup : +${GREEDY_CUP_REWARD} pièces.`, "good");
-  nextState = applyCurrencyChange(nextState, playerId, GREEDY_CUP_REWARD);
-  return placeNextCup(nextState, cupNodeId, state.turnStage, playerId);
+  const nextState = addLog(state, announcement, amount > 0 ? "good" : "bad");
+  return placeNextCup(applyCurrencyChange(nextState, playerId, amount), cupNodeId, state.turnStage, playerId);
+}
+
+/** Cupide: a Red Cup pays coins instead of taking a bag slot. */
+function cashInCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
+  const name = findPlayer(state, playerId)?.name ?? "";
+  return settleCupInCoins(
+    state,
+    playerId,
+    cupNodeId,
+    GREEDY_CUP_REWARD,
+    `${name} encaisse la Red Cup : +${GREEDY_CUP_REWARD} pièces.`,
+  );
+}
+
+/** Le Fou (patch 0.3.0), the inverse of Cupide: a Red Cup is not theirs to keep, it costs them coins. */
+function forfeitCup(state: GameState, playerId: PlayerId, cupNodeId: NodeId): GameState {
+  const name = findPlayer(state, playerId)?.name ?? "";
+  return settleCupInCoins(
+    state,
+    playerId,
+    cupNodeId,
+    -FOOL_CUP_FINE,
+    `${name} ne peut pas garder la Red Cup : −${FOOL_CUP_FINE} pièces.`,
+  );
 }
 
 /**
@@ -591,6 +625,7 @@ export function collectCupOrRequestDiscard(state: GameState, playerId: PlayerId,
   // the last moment: the same die, the same question about a full bag, the same line in the journal.
   if (!player || !isCupNode(state, nodeId) || !canCollectRedCup(player)) return state;
   if (hasCard(player, "greedy")) return cashInCup(state, playerId, nodeId);
+  if (hasCard(player, "fool")) return forfeitCup(state, playerId, nodeId);
 
   if (player.inventory.length >= getInventoryCapacity(player)) {
     return {
@@ -706,16 +741,19 @@ export function addStartBonus(state: GameState, playerId: PlayerId): GameState {
 
 /**
  * Red light, Green light: per Red Cup, the first two green tiles walked on pay
- * 100 coins and the first two red ones cost 50 (patch 0.1.5).
+ * 100 coins and the first two red ones cost 50 (patch 0.1.5). During Doomsday
+ * every tile counts as red (patch 0.3.0).
  */
 export function addRedGreenBonuses(state: GameState, playerId: PlayerId, path: NodeId[]): GameState {
   const player = findPlayer(state, playerId);
   if (!player || !hasCard(player, "red-light-green-light")) return state;
 
   const board = getBoard(state);
+  const doomed = isDoomed(state, player);
   let nextState = state;
   for (const nodeId of path) {
-    const kind = getNodeKind(board, nodeId);
+    // Doomsday turns every tile red for the player (the same wheel of misfortune spins on all of them).
+    const kind = doomed && nodeId !== HELL_NODE_ID ? "red" : getNodeKind(board, nodeId);
     if (kind !== "green" && kind !== "red") continue;
     if (nextState.redGreenTriggers[kind] >= RED_GREEN_TRIGGERS_PER_CUP) continue;
     nextState = {
@@ -1137,6 +1175,12 @@ function thawFrozenSlide(state: GameState): GameState {
   }
   const end = path[path.length - 1];
   nextState = updatePlayer(nextState, active.id, (player) => ({ ...player, position: end }));
+  // The scene replays the whole slide tile by tile (patch 0.3.0): every step is slid on, and a Barrière bumped into
+  // is told by its index, `-1` being the tile the player breaks free on, before the first step.
+  const bumps = [
+    ...(barred ? [{ index: -1, toward: frozen.to }] : []),
+    ...toPathBumps(barred ? 0 : 1, onward?.bumps ?? []),
+  ];
   nextState = {
     ...nextState,
     lastMovement: {
@@ -1144,6 +1188,8 @@ function thawFrozenSlide(state: GameState): GameState {
       playerId: active.id,
       from: frozen.from,
       path,
+      slideStart: 0,
+      ...(bumps.length > 0 ? { bumps } : {}),
       thawed: true,
     },
   };

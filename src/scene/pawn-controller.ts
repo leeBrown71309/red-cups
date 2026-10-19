@@ -12,6 +12,7 @@ import {
   GHOST_SLAP_IMPACT_MS,
   GHOST_SLAP_MS,
   GLIDE_MS,
+  getSlideStart,
   HELL_DROP_MS,
   INVISIBILITY_FADE_MS,
   INVISIBILITY_POP_MS,
@@ -26,6 +27,7 @@ import {
   SISTER_CONDENSE_MS,
   SISTER_DISSOLVE_MS,
   SISTER_TRANSIT_MS,
+  skipsWobble,
   SURFACE_MS,
   TUNNEL_DIVE_MS,
   TUNNEL_EXTRA_MS,
@@ -622,7 +624,7 @@ export class PawnController {
    */
   private queueWalk(pawn: Pawn, movement: PlayerMovement, finalSlot: THREE.Vector3): void {
     const { from, path } = movement;
-    const slideStart = movement.slideStart ?? path.length;
+    const slideStart = getSlideStart(movement);
     const interrupted = movement.interruptedTo !== undefined;
 
     // Slapped by the ghost, then carried through the air: no hops, the ghost does the travelling.
@@ -637,19 +639,8 @@ export class PawnController {
     const fallsIntoPortal = movement.portalNodeId !== undefined && !movement.interruptedTo;
     const slipsInMud = movement.slippedInMud === true && !movement.interruptedTo && !fallsIntoPortal;
 
-    if (movement.thawed) {
-      pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
-      if (fallsIntoPortal && movement.portalNodeId !== undefined) {
-        pawn.actions.push(
-          { type: "glide", to: this.getStandingPoint(movement.portalNodeId), duration: GLIDE_MS },
-          { type: "portalSwallow", nodeId: movement.portalNodeId, duration: PORTAL_SWALLOW_MS },
-          { type: "hellDrop", to: finalSlot, duration: HELL_DROP_MS },
-        );
-      } else {
-        pawn.actions.push({ type: "glide", to: finalSlot, duration: GLIDE_MS });
-      }
-      return;
-    }
+    // Banquise: breaking free bursts the block of ice, then the slide that was on hold is played tile by tile.
+    if (movement.thawed) pawn.actions.push({ type: "shatter", duration: SHATTER_MS });
 
     // A slide that ran into a Barrière stood on `path[index]`: it bumps there, then slides on another way.
     const pushBumps = (index: number) => {
@@ -666,6 +657,9 @@ export class PawnController {
         });
       }
     };
+
+    // A barred road met on the tile the pawn stood on before its first step (`index` -1, a thawed slide).
+    pushBumps(-1);
 
     let previous = from;
     if (movement.ferry && path.length > 0) {
@@ -696,7 +690,8 @@ export class PawnController {
         const edge = findEdge(this.layout.board, previous, nodeId);
 
         if (index >= slideStart) {
-          pawn.actions.push({ type: "wobble", duration: WOBBLE_MS }, { type: "glide", to: target, duration: GLIDE_MS });
+          if (!skipsWobble(movement, index)) pawn.actions.push({ type: "wobble", duration: WOBBLE_MS });
+          pawn.actions.push({ type: "glide", to: target, duration: GLIDE_MS });
           previous = nodeId;
           pushBumps(index);
           return;

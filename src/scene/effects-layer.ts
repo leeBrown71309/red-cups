@@ -17,6 +17,8 @@ const SMOKE_COLOR = "#4a3d45";
 const GHOST_MIST_COLORS = ["#b77bff", "#7dffc8", "#8a4dff", "#c9fff0"];
 /** Sœur Fantôme: her mist is pale blue and white, a gentler cousin of the carousel ghost's. */
 export const SISTER_MIST_COLORS = ["#cfe9ff", "#9fd0ff", "#ffffff", "#bfe0ff"];
+/** Le diable's Black Cup: the dark mist that carries the Red Cup down to Hell and back up. */
+export const DARK_MIST_COLORS = ["#1b1030", "#2d1b4e", "#3d2266", "#120a1f"];
 const SOIL_COLORS = ["#8a5a3c", "#6b4529", "#a87a52", "#5a3820"];
 const DUST_COLOR = "#d3bc9c";
 const VORTEX_COLORS = ["#b05cff", "#ff3b7a", "#7a35d6", "#e23cff"];
