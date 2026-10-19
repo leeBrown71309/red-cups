@@ -50,7 +50,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
         "• Le croiser = DUEL pour son butin : perdu, il vous emporte en Enfer (ou vole jusqu'à 300 pièces, ou un objet du sac — une seule Tomate d'une pile) ; gagné, vous reprenez pièces ou objet du butin (butin vide : 300 pièces), et il s'évapore 3 tours.",
         "• Les joueurs en Enfer sont hors d'atteinte (marqués « déjà rencontrés » en sortant). Un joueur invisible ([[card:half-seen|Mi-vu, Mi-vue]]) ne lui échappe pas ; un joueur arrivé par tunnel ([[card:mole|Taupe]]) ou téléportation ([[card:black-mage|Mage noir]]) sur sa case le rencontre.",
         "• Le [[card:game-master|Meneur de jeu]] choisit le mini-jeu du duel comme d'habitude.",
-        "• Le Bouclier volé au fantôme ne se rend qu'à un Ange : les autres le convertissent en 400 pièces.",
+        "• Un objet propre à un Cups Power ou à un passif (Bouclier de l'Ange, objets du diable, Made In Heaven de Chance aveugle) volé au fantôme ne se rend qu'à celui à qui il appartient : les autres gagnent sa valeur en pièces et l'objet disparaît.",
         "• Le fantôme ignore les [[item:portal|Portails]] : seule une ARRÊTE de joueur (marche ou roue) déclenche un Portail, pas la dérive du fantôme.",
       ],
     },
@@ -59,6 +59,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Pensé du plateau",
       body: [
+        "• En préparation (patch 0.3.0) : cette carte n'est jouable qu'en développement. Dans la version publique elle est grisée et n'est ni choisie ni tirée au sort, le temps de retravailler son équilibre et ses mécaniques.",
         "• Première « grande carte » (patch 0.2.4) : 41 cases, pensée pour six joueurs ou plus. Elle se joue à n'importe quelle table, même à deux (on s'y croise alors peu) ; seul le tirage au sort ne la propose pas sous six joueurs.",
         "• Cinq îles de six cases en cercle : le Port (Départ en 0), les Perles, le Phare, les Épaves, Corail. Chaque île est une petite boucle : le Quai (par où l'on arrive), la case de passage, la sortie, puis trois cases du côté du large. Elles sont reliées par cinq chaussées de deux cases.",
         "• L'Enfer est le Maelström, au milieu du cercle (case 11 comme partout).",
@@ -99,6 +100,7 @@ export const MAP_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Pensé du plateau",
       body: [
+        "• En préparation (patch 0.3.0) : cette carte n'est jouable qu'en développement. Dans la version publique elle est grisée et n'est ni choisie ni tirée au sort, le temps de retravailler son équilibre et ses mécaniques.",
         "• Deuxième « grande carte » (patch 0.2.4) : 41 cases, pensée pour six joueurs ou plus, un monde ouvert sans cadre. Comme l'Archipel, elle se joue à n'importe quelle table mais le tirage au sort ne la propose pas sous six joueurs. Elle se joue en ligne : sur un écran partagé on ne pourrait pas cacher laquelle des deux Red Cups est la vraie.",
         "• Une grande boucle de caravane de 24 cases (0 à 23, le Départ au sud) autour d'une boucle de dunes de 12 cases, reliées par quatre passes. L'Enfer est le Sable mouvant, au centre (case 11 comme partout).",
         "• Quatre oasis (3, 9, 16, 22) tiennent lieu de boutiques ; deux puits (27 et 33) sur la boucle intérieure.",

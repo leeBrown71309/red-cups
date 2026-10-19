@@ -123,7 +123,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:mime",
     b: "card:goblin",
-    text: "Un passif se copie aussi, au choix : le Mime qui copie Goblin vole 150 pièces à chacun à la nouvelle Cup arrivée pendant son tour. Le journal dit quel passif a été emprunté.",
+    text: "Un passif se copie aussi, au choix : le Mime qui copie Goblin vole 150 pièces à deux joueurs tirés au hasard à la nouvelle Cup arrivée pendant son tour. Le journal dit quel passif a été emprunté.",
   },
   {
     a: "item:boot",
@@ -610,7 +610,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:insurer",
     b: "card:goblin",
-    text: `Le vol du Goblin est une perte de ${GOBLIN_THEFT} pièces pour chacune de ses victimes : ${payout(GOBLIN_THEFT)} pièces par victime pour l'Assureur, à chaque nouvelle Red Cup (sauf s'il est lui-même volé).`,
+    text: `Le vol du Goblin est une perte de ${GOBLIN_THEFT} pièces pour chacune de ses deux victimes : ${payout(GOBLIN_THEFT)} pièces par victime pour l'Assureur, à chaque nouvelle Red Cup (sauf s'il est lui-même volé).`,
   },
   {
     a: "card:insurer",

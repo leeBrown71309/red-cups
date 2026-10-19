@@ -2,6 +2,7 @@ import type { Interaction } from "../types";
 import { CUPS_POWER_INTERACTIONS } from "./cups-power-interactions";
 import { PATCH_025_INTERACTIONS } from "./patch-0-2-5-interactions";
 import { PATCH_030_INTERACTIONS } from "./patch-0-3-0-interactions";
+import { PATCH_030_MORE_INTERACTIONS } from "./patch-0-3-0-more-interactions";
 
 /**
  * TOUTES les interactions entre éléments du jeu, une par paire. Chaque ligne
@@ -143,7 +144,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "item:shield",
     b: "card:guardian-angel",
-    text: "Son objet exclusif ; volé par le fantôme, il ne se rend qu'à un Ange (les autres le convertissent en 400 pièces).",
+    text: "Son objet exclusif ; volé par le fantôme, il ne se rend qu'à un Ange (les autres le convertissent en pièces, sa valeur).",
   },
   {
     a: "item:hollow-purple",
@@ -510,7 +511,7 @@ export const INTERACTIONS: Interaction[] = [
   {
     a: "card:goblin",
     b: "system:cups",
-    text: "À chaque nouvelle Cup : −150 à chaque autre joueur, +150 au Goblin (plusieurs Goblins passent tous).",
+    text: "À chaque nouvelle Cup : −150 à deux autres joueurs tirés au hasard, +150 au Goblin pour chacun (plusieurs Goblins passent tous).",
   },
   {
     a: "card:new-cup-new-me",
@@ -949,4 +950,5 @@ export const INTERACTIONS: Interaction[] = [
   // ————— Patch 0.2.5 : Le Fou, Bombe de fumée, Disparaître —————
   ...PATCH_025_INTERACTIONS,
   ...PATCH_030_INTERACTIONS,
+  ...PATCH_030_MORE_INTERACTIONS,
 ];

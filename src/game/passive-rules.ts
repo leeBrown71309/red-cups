@@ -52,6 +52,15 @@ const EXCLUSIVE_ITEMS: Partial<Record<ItemId, PassiveId>> = {
   shield: "guardian-angel",
 };
 
+/**
+ * Whether the item belongs to a passive the player does not have: Made In Heaven, le diable's items, the Bouclier. Such an
+ * item is of no use to them and the shop does not sell it to them.
+ */
+export function isForeignExclusiveItem(player: Player, itemId: ItemId): boolean {
+  const owner = EXCLUSIVE_ITEMS[itemId];
+  return owner !== undefined && !hasCard(player, owner);
+}
+
 /** L'Ange-Gardien may harm nobody: these never reach their bag through the shop, nor leave it. */
 const GUARDIAN_FORBIDDEN_ITEMS: ItemId[] = [
   "ndoye",

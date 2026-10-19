@@ -1,4 +1,4 @@
-import { BLACKJACK_TARGET, getHandValue } from "../../game/blackjack";
+import { BLACKJACK_TARGET, getHandValue, hasSoftAce } from "../../game/blackjack";
 import { useGameStore } from "../../game/store";
 import type { PendingDuel, PlayingCard } from "../../game/types";
 import { useCanActFor } from "../../net/room-store";
@@ -52,10 +52,14 @@ export function BlackjackGame({ duel, first, second }: { duel: PendingDuel; firs
 function Hand({ duellist, cards, active }: { duellist: Duellist; cards: PlayingCard[]; active: boolean }) {
   const value = getHandValue(cards);
   const bust = value > BLACKJACK_TARGET;
+  // An ace that falls from 11 to 1 lowers the total: said on screen, it does not look like a subtraction.
+  const hasAce = cards.some((card) => card.rank === 1);
+  const soft = hasSoftAce(cards);
   return (
     <div className={`blackjack-hand ${active ? "is-active" : ""}`}>
       <span className="blackjack-hand__who">
         {duellist.name} · <strong className={bust ? "is-bust" : ""}>{bust ? `${value}, sauté !` : value}</strong>
+        {hasAce && !bust && <small className="blackjack-hand__ace"> (l’as vaut {soft ? 11 : 1})</small>}
       </span>
       <span className="blackjack-hand__cards">
         {cards.map((card, index) => (

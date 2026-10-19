@@ -50,15 +50,16 @@ function angularDistance(left: number, right: number): number {
 
 /**
  * The tile the sister reaches from `sisterAt` when the player stepped `from` → `to`: the road that goes the
- * opposite way (within the tolerance, the closest one when several do), along the board's real roads, arrows and
- * Barrières obeyed. Null when no road does: she stays.
+ * opposite way (within the tolerance, the closest one when several do), along the board's real roads, whatever way the
+ * arrows point (patch 0.3.0). Null when no road does: she stays.
  */
 export function mirrorStep(board: Board, sisterAt: NodeId, from: NodeId, to: NodeId): NodeId | null {
   const walked = angleBetween(board, from, to);
   if (walked === null) return null;
   const wanted = walked + Math.PI;
   let best: { nodeId: NodeId; gap: number } | null = null;
-  for (const neighbor of getNeighbors(board, sisterAt)) {
+  // The arrows do not bind her (patch 0.3.0): she floats along any road, whichever way it points.
+  for (const neighbor of getNeighbors(board, sisterAt, true)) {
     const heading = angleBetween(board, sisterAt, neighbor);
     if (heading === null) continue;
     const gap = angularDistance(heading, wanted);

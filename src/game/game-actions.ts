@@ -16,7 +16,7 @@ import { carryOffIce, drawSlide, pickBlizzardTile, recordSlide, slideOffIce, sli
 import { getInitialFerryQuay, planFerryRide, settleArchipel } from "./archipel";
 import { drinkAtWell, isCupNode, placeCupPair, planCaravanRide, settleDesert } from "./desert";
 import { getBoardMap } from "./maps/map-registry";
-import { resolveWorldStyle } from "./maps/world-style";
+import { isOpenWorld, resolveWorldStyle } from "./maps/world-style";
 import { FREE_ITEM_POOL, ITEM_CATALOG } from "./catalog";
 import { chooseDuelMode } from "./duel-choice";
 import { castDuelVote, flipDuelCoin, pickDuelHand, resolveDuel, startBasketRound, submitBasketScore } from "./duel";
@@ -273,12 +273,12 @@ export type GameActionType = GameAction["type"];
 const MAX_PLAYERS = 8;
 
 /** Online players pick their avatar in the lobby; a local table takes the palette in seat order. */
-function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | undefined): Player[] {
+function createPlayers(playerNames: string[], avatarColors: PlayerColor[] | undefined, openWorld: boolean): Player[] {
   const names = playerNames.slice(0, MAX_PLAYERS).map((name, index) => name.trim() || `Joueur ${index + 1}`);
   // One actif and one passif each, drawn at random; L'Ange-Gardien only joins a table of four or more.
   const ids = names.map((_, index) => getSeatPlayerId(index));
-  const actifs = dealOffers(ids, getDraftPool("actif", names.length), 1);
-  const passifs = dealUniquePassifs(ids, getDraftPool("passif", names.length), (playerId) =>
+  const actifs = dealOffers(ids, getDraftPool("actif", names.length, openWorld), 1);
+  const passifs = dealUniquePassifs(ids, getDraftPool("passif", names.length, openWorld), (playerId) =>
     getRefusedPassifs(actifs[playerId][0]),
   );
   return names.map((name, index) => ({
@@ -318,14 +318,16 @@ function startGame(
 ): GameState {
   const map = getBoardMap(mapId ?? EMPTY_GAME_STATE.mapId);
   if (playerNames.length < 2) return state;
+  const style = resolveWorldStyle(map.id, worldStyle);
+  const openWorld = isOpenWorld(map.id, style);
   const build = (): GameState => {
-    const players = createPlayers(playerNames, avatarColors);
+    const players = createPlayers(playerNames, avatarColors, openWorld);
     const opening: GameState = {
       ...EMPTY_GAME_STATE,
       phase: "playing",
       turnStage: "move",
       mapId: map.id,
-      worldStyle: resolveWorldStyle(map.id, worldStyle),
+      worldStyle: style,
       players,
       startingPlayerCount: players.length,
       energyLeft: getEnergyCapacity(players[0]),
@@ -347,7 +349,7 @@ function startGame(
       ? {
           ...opening,
           phase: "draft" as const,
-          draft: createDraft(players, draft.now === undefined ? null : draft.now + DRAFT_TIME_MS),
+          draft: createDraft(players, draft.now === undefined ? null : draft.now + DRAFT_TIME_MS, openWorld),
         }
       : assignGuardian(opening);
     // Banquise opens with its third ice tile already laid; blizzards move it later on.
@@ -799,7 +801,17 @@ function useItem(
 ): GameState {
   const plan = planItemUse(state, entryId, targetPlayerId, count, targetRoad);
   if (!plan) return state;
-  if (isThrownItem(plan.itemId)) return applyItemUse(state, entryId, plan);
+  // Tomates: nothing but L'Ange-Gardien's Bouclier may answer them (patch 0.3.0), for however many are thrown.
+  if (isThrownItem(plan.itemId)) {
+    const waiting = openReactionWindow(state, {
+      type: "item",
+      entryId,
+      itemId: plan.itemId,
+      ...(plan.target ? { targetPlayerId: plan.target.id } : {}),
+      count: plan.count,
+    });
+    return waiting ?? applyItemUse(state, entryId, plan);
+  }
   // A Miroir answers before anybody else may: it sends the item back to its user.
   const mirror =
     plan.target && REFLECTABLE_ITEMS.includes(plan.itemId) ? findItemEntry(plan.target, "mirror") : undefined;
@@ -1058,6 +1070,17 @@ function resolveWheel(state: GameState): GameState {
   }
   nextState = queueRepeats(nextState, pending);
   if (nextState.pendingDiscard) return nextState;
+  // Freed from Hell onto the start, a player whose shop opens wherever they stand (eShop, even copied by the Mime)
+  // shops there, as after any other move (patch 0.3.0).
+  const freedFromHell = findPlayer(nextState, player.id)?.position !== HELL_NODE_ID;
+  if (
+    pending.wheelId === "hell" &&
+    player.position === HELL_NODE_ID &&
+    freedFromHell &&
+    nextState.turnStage === "turn-end"
+  ) {
+    nextState = { ...nextState, turnStage: getWheelArrivalStage(nextState, player.id, nextState.turnStage) };
+  }
   // A wheel that moved its player onto a blue tile has opened its shop in place of the stage it came from.
   return settleBoard(nextState, nextState.turnStage);
 }
@@ -1378,7 +1401,9 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   const settled = recordVisitedTiles(
     prepared,
     announceSpentItems(
-      offerGamble(checkVictories(skipBenchedTurns(releaseQueuedWheels(clearOrphanedMarks(forfeited))))),
+      offerGamble(
+        checkVictories(skipBenchedTurns(releaseQueuedWheelsSettled(prepared, clearOrphanedMarks(forfeited)))),
+      ),
     ),
   );
   // Online, the clocks follow every action, at the time it was sent; the first turn's waits for the
@@ -1387,6 +1412,16 @@ function applyGameAction(state: GameState, action: GameAction, now: number | und
   const countdown = prepared.phase === "draft" && settled.phase === "playing" ? GAME_COUNTDOWN_MS : 0;
   // A player leaving during the pause leaves at the time the clocks stopped, so the resume restores them whole.
   return updateClocks(settled, (state.pause ? state.pause.since : now) + countdown);
+}
+
+/**
+ * A wheel that was waiting its turn may set its player down somewhere (« Retourne d’où tu viens »): the nets that give
+ * back whoever stands on ice, a drowned causeway or a crowded quay or oasis then run again, as they do for any move.
+ */
+function releaseQueuedWheelsSettled(prepared: GameState, state: GameState): GameState {
+  const released = releaseQueuedWheels(state);
+  if (released === state) return state;
+  return settleDesert(prepared, settleArchipel(prepared, slideOffIce(prepared, released)));
 }
 
 function dispatchGameAction(state: GameState, action: GameAction, now?: number): GameState {

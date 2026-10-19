@@ -6,7 +6,7 @@ import { createDuel, drawGhostShots, getDuelModes } from "./duel-setup";
 import { createEngineId, drawEngineRandom } from "./engine-random";
 import { settleBoard, sendPlayerToHell } from "./game-effects";
 import { getBoardMap } from "./maps/map-registry";
-import { avoidsHell } from "./passive-rules";
+import { avoidsHell, isForeignExclusiveItem } from "./passive-rules";
 import { canAddItem, canReceiveItem } from "./rules";
 import {
   addBagLog,
@@ -35,7 +35,6 @@ import {
   GHOST_EMPTY_LOOT_REWARD,
   GHOST_ID,
   GHOST_LOOT_COINS,
-  GHOST_SHIELD_COINS,
   GHOST_MAX_DRIFT_STEPS,
   GHOST_STEAL_COINS,
   GHOST_TELEPORT_CHANCE,
@@ -206,11 +205,11 @@ function drawPenalty(player: Player): GhostPenalty {
 }
 
 /**
- * The Bouclier belongs to L'Ange-Gardien: stolen by the ghost, nobody else may
- * get it back, and wins its worth in coins instead.
+ * An item that belongs to somebody else's passive (the Bouclier of L'Ange-Gardien, le diable's items, Made In Heaven of
+ * Chance aveugle): stolen by the ghost, the winner may not get it, and wins its worth in coins instead; the item is gone.
  */
 function isPaidInCoins(player: Player, itemId: ItemId): boolean {
-  return itemId === "shield" && !hasCard(player, "guardian-angel");
+  return isForeignExclusiveItem(player, itemId);
 }
 
 /** One piece of loot at a time: coins or one item, drawn; a reward of its own when the loot is empty. */
@@ -225,7 +224,7 @@ function drawReward(ghost: GhostState, player: Player): GhostReward {
   if (kind === "coins") return { kind: "coins", amount: Math.min(GHOST_LOOT_COINS, ghost.loot.coins), fromLoot: true };
   const item = kind === "item" ? randomChoice(items) : undefined;
   if (item && isPaidInCoins(player, item.itemId)) {
-    return { kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: item.id };
+    return { kind: "coins", amount: ITEM_CATALOG[item.itemId].price, fromLoot: false, replacesEntryId: item.id };
   }
   if (item) return { kind: "item", entryId: item.id, itemId: item.itemId };
   return { kind: "coins", amount: GHOST_EMPTY_LOOT_REWARD, fromLoot: false };
@@ -262,7 +261,7 @@ export function startGhostDuel(state: GameState, playerId: PlayerId, resumeStage
 /** The coins a winner takes from the ghost, in words: from its loot, for an empty loot, or for the Bouclier. */
 export function describeCoinReward(winnerName: string, reward: GhostReward & { kind: "coins" }): string {
   if (reward.replacesEntryId) {
-    return `Le Bouclier du butin reste à l’Ange-Gardien : ${winnerName} gagne ${reward.amount} pièces à la place.`;
+    return `Cet objet du butin n’est pas pour ${winnerName} : il disparaît et lui rapporte ${reward.amount} pièces, sa valeur.`;
   }
   return reward.fromLoot
     ? `${winnerName} reprend ${reward.amount} pièces dans le butin du fantôme.`

@@ -59,6 +59,7 @@ import {
   findPlayer,
   getActivePlayer,
   randomChoice,
+  shuffle,
   sendPlayerToHell,
   updatePlayer,
   loseTurns,
@@ -80,6 +81,7 @@ import {
   BOOT_PRICE_STEP,
   CALM_DOWN_DISTANCE,
   GOBLIN_THEFT,
+  GOBLIN_VICTIMS,
   FOOL_CUP_FINE,
   GREEDY_CUP_REWARD,
   RED_GREEN_GAIN,
@@ -407,8 +409,9 @@ function flipCarousel(state: GameState): GameState {
 function applyGoblinEffects(state: GameState): GameState {
   let nextState = state;
   for (const goblin of state.players.filter((player) => hasCard(player, "goblin"))) {
-    // Every other player, 150 coins each (patch 0.1.6).
-    for (const target of state.players.filter((player) => player.id !== goblin.id)) {
+    // Two other players drawn at random, 150 coins each (patch 0.3.0: it was every other player).
+    const victims = shuffle(state.players.filter((player) => player.id !== goblin.id)).slice(0, GOBLIN_VICTIMS);
+    for (const target of victims) {
       nextState = applyCurrencyChange(nextState, target.id, -GOBLIN_THEFT);
       nextState = applyCurrencyChange(nextState, goblin.id, GOBLIN_THEFT);
     }
@@ -1042,6 +1045,8 @@ function seatNextPlayer(state: GameState, fromIndex: number, bulletAnswer: "hit"
     nextState = thawSnowFrozen(nextState, nextPlayer.id);
     // Mi-vu, Mi-vue: a turn skipped still moves their cycle on.
     nextState = advanceMist(nextState, nextPlayer.id);
+    // A Barrière wears down at its owner's skipped turn too: a stunned owner does not keep it standing (patch 0.3.0).
+    nextState = expireBarrier(nextState, nextPlayer.id);
     // A turn skipped in Hell still counts towards the sentence.
     nextState = serveHellTurn(nextState, nextPlayer.id);
     if (hasServedHellSentence(nextState, nextPlayer.id)) {

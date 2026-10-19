@@ -20,7 +20,7 @@ export function placeMark(state: GameState): GameState {
   if (!player || !canPlaceMark(state, player)) return state;
   const mark: BlackMark = { ownerId: player.id, nodeId: player.position };
   const nextState = withPowerEvent(
-    { ...state, blackMarks: [...state.blackMarks, mark], turnActionTaken: true },
+    { ...state, blackMarks: [...state.blackMarks, mark] },
     { kind: "mark-place", playerId: player.id, nodeId: mark.nodeId },
   );
   return addLog(nextState, `${player.name} trace un pentagramme sur la case ${mark.nodeId}.`, "event");

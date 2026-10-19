@@ -574,6 +574,14 @@
   opacity: 0.62;
 }
 
+/* A map still in preparation: shown so that players know it is coming, greyed out and not pickable. */
+.mapopt.is-unavailable,
+.mapopt.is-unavailable:not(.is-current):hover {
+  opacity: 0.5;
+  filter: grayscale(1);
+  cursor: not-allowed;
+}
+
 .mapopt__lock {
   width: fit-content;
   padding: 1px 8px;

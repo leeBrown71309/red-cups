@@ -8,7 +8,7 @@ import { canEndTurn, getEnergyCapacity } from "../../game/energy";
 import { formatGambleAmount } from "../../game/gamble";
 import { canLeaveHell, DEVIL_HELL_EXIT_ENERGY } from "../../game/devil";
 import { canRescueProtege } from "../../game/guardian";
-import { getTileWheelFor } from "../../game/rules";
+import { doArrowsRestrictMove, getTileWheelFor } from "../../game/rules";
 import { CupPowerControls, MageLuck } from "./cup-power-controls";
 import { buildCardEntries, CardSlideOver } from "./card-slide-over";
 import { PassiveIcon } from "../icons/passive-icon";
@@ -355,7 +355,9 @@ function MoveContent({ player }: { player: Player }) {
   const setHoveredChipNodeId = useUiStore((state) => state.setHoveredChipNodeId);
   const legalMoves = useLegalMoves();
   const destinations = [...legalMoves.paths.keys()].sort((left, right) => left - right);
-  const isCorrupter = hasCard(player, "corrupter");
+  // The Corrupteur's button only appears where an arrow actually stands in the way.
+  const arrowsRestrict = useGameStore((state) => doArrowsRestrictMove(state, player));
+  const isCorrupter = hasCard(player, "corrupter") && arrowsRestrict;
   const corrupterHint = getCorrupterHint(player, round);
 
   if (tired) {

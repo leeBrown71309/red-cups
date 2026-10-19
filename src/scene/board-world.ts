@@ -977,9 +977,18 @@ export class BoardWorld {
   private pickNode(event: PointerEvent): NodeId | null {
     this.aimRaycaster(event);
     const pickMeshes = [...this.tiles.values()].map((tile) => tile.pickMesh);
-    const hit = this.raycaster.intersectObjects(pickMeshes, false)[0];
-    const nodeId = hit?.object.userData.nodeId;
-    return typeof nodeId === "number" ? nodeId : null;
+    // The pick volumes are tall, so those of nearer tiles overlap the tile behind them on screen: of every tile the ray
+    // crosses, the one whose centre sits closest to the pointer is the one under it (report: tiles that only answered
+    // on their top surface).
+    let best: { nodeId: NodeId; gap: number } | null = null;
+    for (const hit of this.raycaster.intersectObjects(pickMeshes, false)) {
+      const nodeId = hit.object.userData.nodeId;
+      if (typeof nodeId !== "number") continue;
+      const centre = this.layout.getNodePosition(nodeId).setY(TILE_HEIGHT).project(this.rig.camera);
+      const gap = Math.hypot(centre.x - this.pointer.x, centre.y - this.pointer.y);
+      if (best === null || gap < best.gap) best = { nodeId, gap };
+    }
+    return best?.nodeId ?? null;
   }
 
   private readonly handlePointerDown = (event: PointerEvent) => {
@@ -1240,7 +1249,12 @@ export class BoardWorld {
         this.ghost?.teleported(event.to);
         return;
       case "ghost-attack":
-        if (!this.isUnseen(fog, event.playerId)) this.ghost?.attacked(event.playerId);
+        if (this.isUnseen(fog, event.playerId)) return;
+        this.ghost?.attacked(event.playerId);
+        // The camera watches the attack before it turns to the next player.
+        if (this.view?.mode === "play" && this.view.followActivePlayer) {
+          this.rig.focusOn(this.layout.getNodePosition(event.nodeId), 0.78);
+        }
         return;
       case "ghost-vanished":
         this.ghost?.vanished();

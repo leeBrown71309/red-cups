@@ -93,6 +93,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Un déplacement contre une flèche, un tunnel ou le sens du carrousel : 400 pièces, payées seulement quand la destination l'exige vraiment.",
         "• Au premier tour, impossible de sortir du Départ à contresens.",
         "• Sans les 400 pièces, l'option reste verrouillée.",
+        "• Le bouton « Ignorer les flèches » n'apparaît que là où une flèche ou un sens unique ferme vraiment une route (patch 0.3.0) : sur un carrefour libre, il n'est pas proposé.",
         "• Ne lève PAS les Barrières, et ne rend jamais l'Enfer atteignable à pied.",
         "• Le paiement du Corrupteur n'est jamais mis en jeu par Double or nothing.",
       ],
@@ -102,8 +103,8 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
-        "• À chaque nouvelle Red Cup apparue : −150 pièces pour CHACUN des autres joueurs, +150 pour toi à chaque vol.",
-        "• Deux Goblins à table ? Les deux passent, dans l'ordre des sièges — et se volent mutuellement.",
+        "• À chaque nouvelle Red Cup apparue : −150 pièces pour DEUX des autres joueurs tirés au hasard (patch 0.3.0 : c'était tous), +150 pour toi à chaque vol. À trois joueurs, les deux autres y passent.",
+        "• Deux Goblins à table ? Les deux passent, dans l'ordre des sièges, chacun avec son tirage — et peuvent se voler mutuellement.",
         "• Ces pièces sont des gains/pertes comme les autres : Double or nothing peut les miser, un Casque peut absorber la chute sous zéro.",
         "• Un joueur qui part à −300 sur un vol de Goblin tombe K.O. comme d'habitude.",
       ],
@@ -172,6 +173,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
         "• Jamais en Enfer, et Doomsday la ferme comme les autres boutiques.",
         "• 1 000 pièces au départ au lieu de 2 000 : le commerce se finance à crédit.",
         "• Une case bleue classique t'ouvre la boutique normalement aussi (l'un n'empêche pas l'autre).",
+        "• Libéré de l'Enfer par la roue (case 0), la boutique s'ouvre aussi, pour toi comme pour un [[card:mime|Mime]] qui t'a copié (patch 0.3.0).",
       ],
     },
   ],
@@ -345,7 +347,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       title: "Détail",
       body: [
         `• Commence avec ${MAGE_MAX_LUCK} pentagrammes en réserve, jamais plus. Un pentagramme revient tous les ${MAGE_LUCK_RETURN_ROUNDS} tours de table : l'horloge démarre au premier dépensé et court tant qu'il lui en manque.`,
-        "• Poser le pentagramme : sur sa case, pendant son tour (avant ou après son déplacement), sans énergie. Un seul à la fois, jamais sur une case de Boue ni en Enfer. Visible de tous.",
+        "• Poser le pentagramme : sur sa case, pendant son tour (avant ou après son déplacement), sans énergie. Un seul à la fois, jamais sur une case de Boue ni en Enfer. Visible de tous. Le poser ne suffit pas à finir son tour (patch 0.3.0) : il ne compte pas comme une action.",
         "• Poser ou se téléporter compte comme avoir joué : le Mage peut finir son tour sans marcher.",
         "• Se téléporter sur le pentagramme coûte 1 pentagramme de la réserve et ignore routes, Barrières et flèches.",
       ],
@@ -408,8 +410,9 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Détail",
       body: [
+        "• Pour l'instant, elle n'est distribuée que sur une carte fermée (version « En boîte ») : sur les cartes ouvertes, où les routes serpentent, son pas en miroir n'est pas au point.",
         "• Une petite fille fantôme démarre avec toi sur le Départ. À chaque PAS que tu fais, elle fait le pas OPPOSÉ si une route part dans cette direction depuis sa case (haut ↔ bas, gauche ↔ droite, diagonales, à 40° près ; la route la plus proche de l'exact opposé l'emporte) ; sinon elle reste.",
-        "• Elle suit les vraies routes : flèches, sens uniques et [[item:barrier|Barrières]] la retiennent comme toi. Une marche de plusieurs pas ([[item:boot|Botte]], [[card:roller|Roller]], glissade de [[map:banquise|Banquise]]) lui donne un pas en miroir par pas.",
+        "• Elle suit les vraies routes : les [[item:barrier|Barrières]] la retiennent comme toi, mais pas les flèches ni les sens uniques (patch 0.3.0) : elle suit n'importe quelle route, dans le sens qu'elle veut. Une marche de plusieurs pas ([[item:boot|Botte]], [[card:roller|Roller]], glissade de [[map:banquise|Banquise]]) lui donne un pas en miroir par pas.",
         "• Elle ne peut pas être ciblée et n'active rien : ni piège, ni case, ni Red Cup.",
         "• Déplacé par autre chose qu'un pas (téléportation, échange, [[item:rope|Corde]], « Va au Départ », tunnel de la [[card:mole|Taupe]], [[item:made-in-heaven|Made In Heaven]]…), tu la laisses où elle est : elle ne vient pas te chercher.",
         "• Tombé en Enfer, ta sœur retourne au Départ.",
@@ -427,7 +430,7 @@ export const CARD_SECTIONS: Record<string, ContentSection[]> = {
       title: "À savoir",
       body: [
         "• Le miroir se lit sur les coordonnées du plan : sur le plateau classique, petit et très fléché, elle reste souvent sur place.",
-        "• Un pas à contresens payé par le [[card:corrupter|Corrupteur]] est reflété en miroir comme les autres, mais elle, elle respecte les flèches de sa propre case.",
+        "• Un pas à contresens payé par le [[card:corrupter|Corrupteur]] est reflété en miroir comme les autres, et elle n'est de toute façon retenue par aucune flèche.",
       ],
     },
   ],

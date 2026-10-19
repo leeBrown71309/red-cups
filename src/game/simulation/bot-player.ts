@@ -453,7 +453,13 @@ export function chooseBotAction(store: GameStore, random: Random): BotAction | n
       const { action, actorId } = pending;
       const item =
         action.type === "item" && actorId
-          ? { itemId: action.itemId, userId: actorId, targetPlayerId: action.targetPlayerId }
+          ? {
+              itemId: action.itemId,
+              userId: actorId,
+              targetPlayerId: action.targetPlayerId,
+              entryId: action.entryId,
+              ...(action.count ? { count: action.count } : {}),
+            }
           : undefined;
       // A Mage noir who may slip away does so now and then, with a mark and a chance to spare.
       const slipper = pending.reactorIds.find((id) => {

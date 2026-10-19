@@ -32,6 +32,15 @@ export function getHandValue(cards: PlayingCard[]): number {
   return total;
 }
 
+/**
+ * Whether an ace is currently counted 11 (a « soft » hand). Drawing a card can bring such a total down by ten: the ace
+ * then counts 1, which is not a subtraction of the new card but the usual rule, and the screen says so.
+ */
+export function hasSoftAce(cards: PlayingCard[]): boolean {
+  const hard = cards.reduce((total, card) => total + Math.min(card.rank, 10), 0);
+  return cards.some((card) => card.rank === 1) && getHandValue(cards) !== hard;
+}
+
 export function createBlackjack(firstId: PlayerId, secondId: PlayerId): BlackjackDuel {
   const deck = shuffle(createDeck());
   const hands = { [firstId]: [deck[0], deck[2]], [secondId]: [deck[1], deck[3]] };

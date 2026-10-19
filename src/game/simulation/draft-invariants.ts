@@ -1,4 +1,5 @@
 import { hasCard } from "../cards";
+import { isOpenWorld } from "../maps/world-style";
 import { getDraftPool, getStageOfferSize } from "../draft";
 import { getStartingCurrency } from "../passive-rules";
 import { findPlayer } from "../state-utils";
@@ -19,7 +20,7 @@ export function checkDraftState(state: GameState): RuleViolation[] {
   const draft = state.draft;
   if (!draft) return [violation("draft-state", "a draft phase without a draft")];
   const size = getStageOfferSize(draft.stage);
-  const pool = getDraftPool(draft.stage, state.players.length);
+  const pool = getDraftPool(draft.stage, state.players.length, isOpenWorld(state.mapId, state.worldStyle));
   const dealt = state.players.flatMap((player) => draft.offers[player.id] ?? []);
   // Cards are only repeated at the table once the pool ran out; a role never is. The passifs never are: one each, all different.
   const mustBeUnique = draft.stage === "passif" || dealt.length <= pool.length;

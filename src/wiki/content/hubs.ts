@@ -66,7 +66,7 @@ export const HUB_SECTIONS: Record<string, ContentSection[]> = {
         "• Pierre-Feuille-Ciseaux : choix secrets simultanés ; égalité = on rejoue (jusqu'à ce que ça cède).",
         "• Vote de la table : les autres votent en secret ; égalité = la pièce départage. Uniquement s'il reste des votants (3+ joueurs).",
         "• Basket : 15 secondes chacun pour mettre le plus de paniers ; le fantôme tire avec un modèle « chaud-froid » moyen de ~6 paniers ; égalité = pièce.",
-        "• Blackjack : 2 cartes chacun, tire ou reste au plus proche de 21 sans dépasser ; le fantôme joue en croupier (tire jusqu'à 17) ; mains à égalité = pièce.",
+        "• Blackjack : 2 cartes chacun, tire ou reste au plus proche de 21 sans dépasser ; le fantôme joue en croupier (tire jusqu'à 17) ; mains à égalité = pièce. L'as vaut 11 tant que ça ne dépasse pas 21, sinon 1 : le total peut donc baisser en tirant, l'écran dit combien vaut l'as.",
         "• Le mini-jeu est tiré au sort parmi les jeux disponibles — sauf si un [[card:game-master|Meneur de jeu]] est dans le duel : il tire deux jeux et choisit.",
       ],
     },

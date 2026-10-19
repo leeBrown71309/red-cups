@@ -25,6 +25,27 @@ export type MapChoice = MapId | "random";
 /** Every choice in the order the picker offers them: the draw always comes first. */
 export const MAP_CHOICES: MapChoice[] = ["random", ...MAP_ORDER];
 
+/**
+ * The two large maps are not playable yet (patch 0.3.0: badly balanced, a system not worth playing). Until they are
+ * reworked they only exist in development; the pre-prod and the production builds show them greyed out, « en
+ * préparation », and never pick them, in a draw or otherwise.
+ */
+export const UNFINISHED_MAP_IDS: MapId[] = ["archipel", "desert"];
+
+/** Whether this build lets the unfinished maps be played: a development build only (`vite`, and the tests). */
+const unfinishedMapsPlayable = !import.meta.env?.PROD;
+
+export function isMapAvailable(mapId: MapId): boolean {
+  return unfinishedMapsPlayable || !UNFINISHED_MAP_IDS.includes(mapId);
+}
+
+export function isChoiceAvailable(choice: MapChoice): boolean {
+  return choice === "random" || isMapAvailable(choice);
+}
+
+/** The choices a player may actually pick in this build; the others are listed greyed out. */
+export const SELECTABLE_MAP_CHOICES: MapChoice[] = MAP_CHOICES.filter(isChoiceAvailable);
+
 export function isMapId(value: unknown): value is MapId {
   return typeof value === "string" && MAP_ORDER.includes(value as MapId);
 }
@@ -45,7 +66,9 @@ export function getRecommendedPlayers(mapId: MapId): number | null {
 
 /** Maps a random pick may draw for `playerCount` players: a large map only comes up for the table it is made for. */
 export function getDrawableMapIds(playerCount: number): MapId[] {
-  return MAP_ORDER.filter((mapId) => playerCount >= (getBoardMap(mapId).recommendedPlayers ?? 2));
+  return MAP_ORDER.filter(
+    (mapId) => isMapAvailable(mapId) && playerCount >= (getBoardMap(mapId).recommendedPlayers ?? 2),
+  );
 }
 
 /**
@@ -58,9 +81,10 @@ export function resolveMapChoice(
   random: () => number = Math.random,
   playerCount = Number.POSITIVE_INFINITY,
 ): MapId {
-  if (choice !== "random") return choice;
+  // A choice remembered from a build that had more maps falls back to the classic board.
+  if (choice !== "random") return isMapAvailable(choice) ? choice : DEFAULT_MAP_ID;
   const playable = getDrawableMapIds(playerCount);
-  const pool = playable.length > 0 ? playable : MAP_ORDER;
+  const pool = playable.length > 0 ? playable : MAP_ORDER.filter(isMapAvailable);
   const index = Math.min(pool.length - 1, Math.floor(random() * pool.length));
   return pool[index];
 }

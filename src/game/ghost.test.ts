@@ -5,6 +5,7 @@ import { reduceGame, type GameAction } from "./game-actions";
 import { settleBoard } from "./game-effects";
 import { advanceGhost, startGhostDuel } from "./ghost";
 import { getBoard } from "./board";
+import { ITEM_CATALOG } from "./catalog";
 import type { GameState, GhostState, MapId, PendingDuel, Player } from "./types";
 import {
   BASKET_MAX_SCORE,
@@ -14,7 +15,6 @@ import {
   GHOST_ID,
   GHOST_LOOT_COINS,
   GHOST_MAX_DRIFT_STEPS,
-  GHOST_SHIELD_COINS,
   HELL_NODE_ID,
 } from "./types";
 
@@ -241,7 +241,12 @@ describe("the Luna Park ghost", () => {
     const loot = { coins: 0, items: [{ id: "shield-1", itemId: "shield" as const }] };
     const state = editPlayer(withGhostOn(startOn("luna-park"), 1, loot), 1, { position: 1 });
     const reward = startGhostDuel(state, "p2", "turn-end").pendingDuel?.ghost?.reward;
-    expect(reward).toEqual({ kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" });
+    expect(reward).toEqual({
+      kind: "coins",
+      amount: ITEM_CATALOG.shield.price,
+      fromLoot: false,
+      replacesEntryId: "shield-1",
+    });
 
     const angel = editPlayer(state, 1, { passiveId: "guardian-angel" });
     expect(startGhostDuel(angel, "p2", "turn-end").pendingDuel?.ghost?.reward).toEqual({
@@ -252,11 +257,11 @@ describe("the Luna Park ghost", () => {
 
     const decided = decidedGhostDuel(editPlayer(state, 0, { position: 1 }), "p1", {
       penalty: { kind: "hell" },
-      reward: { kind: "coins", amount: GHOST_SHIELD_COINS, fromLoot: false, replacesEntryId: "shield-1" },
+      reward: { kind: "coins", amount: ITEM_CATALOG.shield.price, fromLoot: false, replacesEntryId: "shield-1" },
     });
     const after = act(decided, { type: "resolveDuel", winnerId: "p1" });
     expect(after.ghost?.loot.items).toEqual([]);
-    expect(after.players[0].currency).toBe(decided.players[0].currency + GHOST_SHIELD_COINS);
+    expect(after.players[0].currency).toBe(decided.players[0].currency + ITEM_CATALOG.shield.price);
     expect(after.players[0].inventory).toEqual([]);
   });
 
