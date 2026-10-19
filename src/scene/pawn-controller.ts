@@ -29,6 +29,7 @@ import {
   SISTER_TRANSIT_MS,
   skipsWobble,
   SURFACE_MS,
+  THAW_RETURN_MS,
   TUNNEL_DIVE_MS,
   TUNNEL_EXTRA_MS,
   TUNNEL_POP_MS,
@@ -647,7 +648,10 @@ export class PawnController {
       for (const bump of movement.bumps ?? []) {
         if (bump.index !== index) continue;
         const standing = this.layout.getNodePosition(path[index] ?? from);
-        const aimed = standing.clone().lerp(this.layout.getNodePosition(bump.toward), 0.5);
+        // A pawn breaking free of the ice hangs halfway down the road: it knocks on the Barrière from there, a little
+        // further along, then slides back to the tile before taking the other road.
+        const reach = movement.thawed && index < 0 ? 0.7 : 0.5;
+        const aimed = standing.clone().lerp(this.layout.getNodePosition(bump.toward), reach);
         pawn.actions.push({
           type: "bump",
           to: aimed.setY(standing.y),
@@ -655,6 +659,9 @@ export class PawnController {
           toward: bump.toward,
           duration: BUMP_MS,
         });
+        if (movement.thawed && index < 0) {
+          pawn.actions.push({ type: "glide", to: this.getStandingPoint(from), duration: THAW_RETURN_MS });
+        }
       }
     };
 

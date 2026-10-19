@@ -98,6 +98,8 @@ export const SISTER_CARRY_MS = 850;
  * Le diable's Black Cup: the dark mist gathers around the Red Cup, then carries it down to Hell (or back up from it),
  * the cup darkening (or turning red again) as it goes.
  */
+/** Banquise: a thawed pawn that knocked on a Barrière slides back to the tile it was heading away from. */
+export const THAW_RETURN_MS = 450;
 export const BLACK_CUP_MIST_MS = 450;
 export const BLACK_CUP_TRANSIT_MS = 1_350;
 /** Sœur Fantôme: a move nobody explains (a trip to Hell sends her back to the start) is a quick fade out and in. */
@@ -198,6 +200,7 @@ export function estimateMovementMs(
   });
 
   total += (movement.bumps?.length ?? 0) * BUMP_MS;
+  if (movement.thawed && (movement.bumps ?? []).some((bump) => bump.index < 0)) total += THAW_RETURN_MS;
   if (movement.interruptedTo !== undefined) total += WOBBLE_MS + GLIDE_MS / 2;
   // A Portail at the walk's end: the pawn lands on the tile, is swallowed, then drops into Hell.
   if (movement.portalNodeId !== undefined) total += PORTAL_SWALLOW_MS + HELL_DROP_MS;
