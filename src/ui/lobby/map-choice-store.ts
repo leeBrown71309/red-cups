@@ -1,5 +1,12 @@
 import { create } from "zustand";
-import { DEFAULT_MAP_ID, isMapChoice, isMapId, resolveMapChoice, type MapChoice } from "../../game/maps/map-registry";
+import {
+  DEFAULT_MAP_ID,
+  isChoiceAvailable,
+  isMapChoice,
+  isMapId,
+  resolveMapChoice,
+  type MapChoice,
+} from "../../game/maps/map-registry";
 import { DEFAULT_WORLD_STYLE, isWorldStyle, resolveWorldStyle } from "../../game/maps/world-style";
 import type { MapId, WorldStyle } from "../../game/types";
 import { readStorage, writeStorage } from "../../utils/safe-local-storage";
@@ -22,7 +29,7 @@ interface MapChoiceState {
 
 function readSavedChoice(): MapChoice {
   const saved = readStorage(MAP_CHOICE_KEY);
-  return isMapChoice(saved) ? saved : DEFAULT_MAP_ID;
+  return isMapChoice(saved) && isChoiceAvailable(saved) ? saved : DEFAULT_MAP_ID;
 }
 
 function readSavedWorldStyle(): WorldStyle {
@@ -42,6 +49,8 @@ export const useMapChoiceStore = create<MapChoiceState>((set) => ({
     set({ worldStyle });
   },
   setChoice: (choice) => {
+    // A map still in preparation cannot be picked: the picker greys it out, and a stale call changes nothing.
+    if (!isChoiceAvailable(choice)) return;
     writeStorage(MAP_CHOICE_KEY, choice);
     set((state) => ({ choice, previewMapId: isMapId(choice) ? choice : state.previewMapId }));
   },

@@ -27,6 +27,7 @@ import { TopBar } from "./top-bar";
 import { DesertPanel } from "./desert-panel";
 import { TidePanel } from "./tide-panel";
 import { TurnSplash } from "./turn-splash";
+import { useAutoEndTurn } from "./use-auto-end-turn";
 import { useClockBeeps } from "./use-clock-beeps";
 
 /** The longest the victory screen waits for the last moves to land. */
@@ -56,6 +57,7 @@ export function GameHud() {
   // Keyed on the player rather than the seat: seats shift when an earlier player abandons.
   const activePlayerId = game.players[game.activePlayerIndex]?.id;
   const isOwnTurn = useCanActFor([activePlayerId]);
+  useAutoEndTurn(game, settled, isOwnTurn);
 
   useEffect(() => {
     setShopClosed(false);

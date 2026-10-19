@@ -975,7 +975,10 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
       const copyDiscard = next.turnStage === "discard" && next.pendingDiscard?.itemId === "tomato";
       // Knocked out on le diable's tile, the target may go to Hell at once, and meet a duel there.
       const touched = target !== undefined && fellIntoHell(previous, next, target.id, target.position);
-      if (next.turnStage !== previous.turnStage && !copyDiscard && !touched) {
+      // A volley held up by L'Ange-Gardien's Bouclier resumes the stage it was thrown from.
+      const stageBefore =
+        previous.turnStage === "reaction" ? previous.pendingReaction?.resumeStage : previous.turnStage;
+      if (next.turnStage !== stageBefore && !copyDiscard && !touched) {
         found.push(
           violation("tomato-keeps-turn", `${label}: the turn went from ${previous.turnStage} to ${next.turnStage}`),
         );

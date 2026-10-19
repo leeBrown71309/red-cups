@@ -368,7 +368,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "goblin",
     name: "Goblin",
     shortName: "Goblin",
-    description: "À chaque nouvelle Cup, vole 150 pièces à chacun des autres joueurs.",
+    description: "À chaque nouvelle Cup, vole 150 pièces à deux autres joueurs tirés au hasard.",
   },
   "i-take-notes": {
     id: "i-take-notes",

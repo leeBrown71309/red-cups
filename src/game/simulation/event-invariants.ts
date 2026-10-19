@@ -104,7 +104,9 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   // Banquise: the blizzard may freeze the victim's tile as the round begins, and the ice carry them away.
   // Banquise: the ice may carry the victim away (blizzard) or, held in it, they break free as their turn begins.
   const thawedVictim = next.lastMovement?.thawed === true && next.lastMovement.playerId === before.id;
-  if (after.position !== landing && !touched && !slidOnIce(previous, next, before.id) && !thawedVictim) {
+  // Archipel, Désert: the victim landed on a quay or an oasis somebody else holds, and is pushed back at once.
+  const pushedBack = logs.some((text) => text.includes(`${before.name} est repoussé`));
+  if (after.position !== landing && !touched && !slidOnIce(previous, next, before.id) && !thawedVictim && !pushedBack) {
     found.push(violation("bullet-hits-target", `${before.name} was hit from afar`));
   }
   // Whoever just served their Hell sentence lands on the start, paying the toll, right before the charge.

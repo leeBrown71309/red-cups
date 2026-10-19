@@ -216,6 +216,16 @@ export function getTurnMoveOptions(state: GameState, player: Player, ignoreArrow
 }
 
 /**
+ * Whether ignoring the arrows would open a walk this turn that they forbid: a Corrupteur with nothing to gain (a free
+ * crossroads, a Roller's die) is not offered the choice (patch 0.3.0).
+ */
+export function doArrowsRestrictMove(state: GameState, player: Player): boolean {
+  const walkKey = (path: NodeId[]) => path.join(">");
+  const obeyed = new Set(getTurnMoveOptions(state, player, false).map(walkKey));
+  return getTurnMoveOptions(state, player, true).some((path) => !obeyed.has(walkKey(path)));
+}
+
+/**
  * The Botte hops over a Barrière set on the very road ahead: one tile only, the boots are spent on the jump.
  * Roads that lead into Hell are never taken.
  */

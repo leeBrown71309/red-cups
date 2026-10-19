@@ -1,6 +1,11 @@
 import { useEffect, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import { MAP_CHOICES, getBoardMap, getDrawableMapIds, type MapChoice } from "../../game/maps/map-registry";
+import {
+  SELECTABLE_MAP_CHOICES as MAP_CHOICES,
+  getBoardMap,
+  getDrawableMapIds,
+  type MapChoice,
+} from "../../game/maps/map-registry";
 import { UiIcon } from "../icons/ui-icon";
 import { resolveWorldStyle } from "../../game/maps/world-style";
 import { useMapChoiceStore } from "../lobby/map-choice-store";

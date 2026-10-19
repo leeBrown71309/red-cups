@@ -165,7 +165,12 @@ export function checkNoThanksUsage(previous: GameState, next: GameState, found: 
       next.guardian?.angelId === reactorId && next.guardian.protegeId === targetPlayerId && itemId !== "draven";
     const ownTarget = (reactorId: string) => itemId === "draven" || reactorId === targetPlayerId || guards(reactorId);
     const hurtsSomeone = itemId === "draven" || ITEM_CATALOG[itemId].target === "player";
-    if (isThrownItem(itemId) || !hurtsSomeone || !opened.reactorIds.every(ownTarget)) {
+    // A Tomate is answered by nothing but the Bouclier of the angel guarding its target (patch 0.3.0).
+    const answeredByShieldOnly = isThrownItem(itemId) && opened.reactorIds.every(guards);
+    if (
+      (isThrownItem(itemId) && !answeredByShieldOnly) ||
+      (!isThrownItem(itemId) && (!hurtsSomeone || !opened.reactorIds.every(ownTarget)))
+    ) {
       found.push(violation("no-thanks-own-target", `Non merci offered on ${itemId} aimed at someone else`));
     }
   }

@@ -6,6 +6,7 @@ import { getStartingCurrency } from "./passive-rules";
 import { addLog, randomChoice, shuffle } from "./state-utils";
 import type { GameState, PassiveDraft, PassiveId, Player, PlayerId } from "./types";
 import { GUARDIAN_MIN_PLAYERS } from "./types";
+import { isOpenWorld } from "./maps/world-style";
 
 /**
  * The draft (patch 0.1.4, two stages since patch 0.1.6): before the game,
@@ -44,15 +45,23 @@ export function getStageOfferSize(stage: PassiveDraft["stage"]): number {
 }
 
 /**
- * Cards of one kind that may be dealt at a table this size. Lambda only fills
- * an empty slot; L'Ange-Gardien only joins a table of four or more.
+ * Cups Power that only work on a closed map (patch 0.3.0): Sœur Fantôme mirrors the player's steps by the direction of
+ * the roads, which wind on an open map, so she is not dealt there until her behaviour is reworked.
  */
-export function getDraftPool(kind: CardKind, playerCount: number): PassiveId[] {
+export const CLOSED_MAP_ONLY_CARDS: PassiveId[] = ["ghost-sister"];
+
+/**
+ * Cards of one kind that may be dealt at a table this size. Lambda only fills
+ * an empty slot; L'Ange-Gardien only joins a table of four or more; on an open map, the cards that need a closed one
+ * stay in the box.
+ */
+export function getDraftPool(kind: CardKind, playerCount: number, openWorld = false): PassiveId[] {
   return PASSIVE_ORDER.filter(
     (cardId) =>
       CARD_KINDS[cardId] === kind &&
       cardId !== "lambda" &&
-      (cardId !== "guardian-angel" || playerCount >= GUARDIAN_MIN_PLAYERS),
+      (cardId !== "guardian-angel" || playerCount >= GUARDIAN_MIN_PLAYERS) &&
+      !(openWorld && CLOSED_MAP_ONLY_CARDS.includes(cardId)),
   );
 }
 
@@ -114,12 +123,12 @@ export function dealUniquePassifs(
 }
 
 /** Deals the actifs to open the draft. */
-export function createDraft(players: Player[], deadline: number | null): PassiveDraft {
+export function createDraft(players: Player[], deadline: number | null, openWorld = false): PassiveDraft {
   return {
     stage: "actif",
     offers: dealOffers(
       players.map((player) => player.id),
-      getDraftPool("actif", players.length),
+      getDraftPool("actif", players.length, openWorld),
     ),
     picks: {},
     actifs: {},
@@ -159,7 +168,7 @@ export function closeDraft(state: GameState, now?: number): GameState {
     // L'Ange-Gardien may harm nobody: no passif of theft, of mud or of any other harm for them.
     const offers = dealUniquePassifs(
       state.players.map((player) => player.id),
-      getDraftPool("passif", state.players.length),
+      getDraftPool("passif", state.players.length, isOpenWorld(state.mapId, state.worldStyle)),
       (playerId) => getRefusedPassifs(picks[playerId]),
     );
     const deadline = draft.deadline === null ? null : (now ?? draft.deadline) + PASSIF_REVEAL_TIME_MS;

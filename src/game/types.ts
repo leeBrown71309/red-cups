@@ -26,6 +26,8 @@ export const RED_GREEN_GAIN = 100;
 export const RED_GREEN_PENALTY = 50;
 /** Coins the Goblin takes from each other player at every new Red Cup. */
 export const GOBLIN_THEFT = 150;
+/** Players the Goblin steals from at every new Red Cup, drawn at random among the others (patch 0.3.0). */
+export const GOBLIN_VICTIMS = 2;
 /** Cupide wins as soon as their balance reaches this. */
 export const GREEDY_GOAL = 6_000;
 /** Le Fou (patch 0.2.5) wins as soon as their balance falls to this or below. */
@@ -109,8 +111,6 @@ export const GHOST_STEAL_COINS = 300;
 export const GHOST_LOOT_COINS = 200;
 /** Luna Park: what beating a ghost with an empty loot pays. */
 export const GHOST_EMPTY_LOOT_REWARD = 300;
-/** Luna Park: what a player other than L'Ange-Gardien wins instead of the Bouclier the ghost stole. */
-export const GHOST_SHIELD_COINS = 400;
 /** Luna Park: rounds the ghost stays away after being beaten. */
 export const GHOST_COOLDOWN_ROUNDS = 3;
 /** Luna Park: chance that the ghost vanishes and reappears far away instead of drifting along the roads. */
@@ -473,7 +473,7 @@ export interface QueuedWheel {
 
 /** Something about to affect a Non merci holder, waiting for their answer. */
 export type DeclaredAction =
-  | { type: "item"; entryId: string; itemId: ItemId; targetPlayerId?: PlayerId }
+  | { type: "item"; entryId: string; itemId: ItemId; targetPlayerId?: PlayerId; count?: number }
   /** Bullet Bill is about to hit its victim, as a new round starts. */
   | { type: "bullet-bill"; victimId: PlayerId };
 

@@ -1,6 +1,12 @@
 import { useEffect, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { useMapAuditionStore } from "../../audio/soundtrack-theme";
-import { MAP_CHOICES, getBoardMap, getDrawableMapIds, type MapChoice } from "../../game/maps/map-registry";
+import {
+  MAP_CHOICES,
+  getBoardMap,
+  getDrawableMapIds,
+  isChoiceAvailable,
+  type MapChoice,
+} from "../../game/maps/map-registry";
 import { resolveWorldStyle } from "../../game/maps/world-style";
 import { BoardMap } from "../components/board-map";
 import { WorldStyleSwitch } from "../components/world-style-switch";
@@ -68,7 +74,12 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
   }, [currentIndex]);
 
   const go = (offset: number, focus = false) => {
-    const next = (currentIndex + offset + MAP_CHOICES.length) % MAP_CHOICES.length;
+    // The maps in preparation are skipped: the arrows and the swipe only stop on what can be played.
+    let next = currentIndex;
+    for (let step = 0; step < MAP_CHOICES.length; step += 1) {
+      next = (next + offset + MAP_CHOICES.length) % MAP_CHOICES.length;
+      if (isChoiceAvailable(MAP_CHOICES[next])) break;
+    }
     setChoice(MAP_CHOICES[next]);
     if (focus) optionRefs.current[next]?.focus();
   };
@@ -112,6 +123,7 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
         {MAP_CHOICES.map((option, index) => {
           const info = describeChoice(option, playerCount);
           const isCurrent = index === currentIndex;
+          const unavailable = !isChoiceAvailable(option);
           return (
             <button
               key={option}
@@ -122,9 +134,13 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
               role="radio"
               aria-checked={isCurrent}
               tabIndex={isCurrent ? 0 : -1}
-              className={`mapopt${isCurrent ? " is-current" : ""}`}
+              className={`mapopt${isCurrent ? " is-current" : ""}${unavailable ? " is-unavailable" : ""}`}
               style={{ "--order": index } as CSSProperties}
-              onClick={() => setChoice(option)}
+              aria-disabled={unavailable}
+              title={unavailable ? "Cette carte est en préparation : elle n’est pas encore disponible." : undefined}
+              onClick={() => {
+                if (!unavailable) setChoice(option);
+              }}
             >
               <span
                 className={`mapopt__thumb${option === "random" ? " mapopt__thumb--random" : ""}`}
@@ -141,7 +157,11 @@ export function MapStep({ playerCount, onBack, onLaunch }: MapStepProps) {
                 <small>
                   {option === "random" ? `${getDrawableMapIds(playerCount).length} plateaux` : info.tagline}
                 </small>
-                {info.recommendedPlayers !== null && <em className="mapopt__lock">Grande carte</em>}
+                {unavailable ? (
+                  <em className="mapopt__lock">En préparation</em>
+                ) : (
+                  info.recommendedPlayers !== null && <em className="mapopt__lock">Grande carte</em>
+                )}
               </span>
             </button>
           );

@@ -458,6 +458,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
         ),
       };
       nextState = addLog(nextState, "Draven envoie toute la table en Enfer.", "bad");
+      nextState = dropCalmDownTargetsInHell(nextState);
       break;
     }
 
@@ -592,6 +593,21 @@ function rewindToStartWithPair(state: GameState, userId: PlayerId): GameState {
     "Made In Heaven : le temps s’accélère ! Tout le monde revient au Départ, et deux nouvelles Red Cups apparaissent sur le sable.",
     "event",
   );
+}
+
+/**
+ * A Calme-toi offered before Draven struck (the Red Cup a slipping mage picked up on arrival) no longer offers whoever
+ * the strike sent to Hell, and lapses when its holder, or everybody it offered, went down.
+ */
+function dropCalmDownTargetsInHell(state: GameState): GameState {
+  const pending = state.pendingCalmDown;
+  if (!pending) return state;
+  const inHell = (playerId: PlayerId) => findPlayer(state, playerId)?.position === HELL_NODE_ID;
+  const targetIds = pending.targetIds.filter((playerId) => !inHell(playerId));
+  if (inHell(pending.passivePlayerId) || targetIds.length === 0) {
+    return { ...state, pendingCalmDown: null, turnStage: pending.resumeStage };
+  }
+  return { ...state, pendingCalmDown: { ...pending, targetIds } };
 }
 
 /** Sets a player down on `nodeId`; Hell goes through the usual trip there. */
@@ -751,7 +767,10 @@ export function cancelDeclaredAction(
 
   nextState = base;
   if (CANCELLED_ITEM_IS_CONSUMED) {
-    nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
+    // A volley of Tomates is blocked whole.
+    for (let unit = 0; unit < (action.count ?? 1); unit += 1) {
+      nextState = updatePlayer(nextState, actor.id, (player) => spendItemEntry(player, action.entryId));
+    }
   }
   nextState = spendEnergy(nextState, getItemEnergyCost(action.itemId));
   const itemName = ITEM_CATALOG[action.itemId].name;
@@ -769,6 +788,6 @@ export function carryOutDeclaredAction(state: GameState, pending: PendingReactio
   const base: GameState = { ...state, pendingReaction: null, turnStage: pending.resumeStage };
   const { action } = pending;
   if (action.type !== "item") return base;
-  const plan = planItemUse(base, action.entryId, action.targetPlayerId);
+  const plan = planItemUse(base, action.entryId, action.targetPlayerId, action.count);
   return plan ? applyItemUse(base, action.entryId, plan) : base;
 }

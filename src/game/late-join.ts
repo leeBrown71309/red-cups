@@ -1,4 +1,5 @@
 import { getCards } from "./cards";
+import { isOpenWorld } from "./maps/world-style";
 import { dealOffers, dealUniquePassifs, getDraftPool, getStageOfferSize } from "./draft";
 import { getStartingCurrency } from "./passive-rules";
 import { addLog, randomChoice } from "./state-utils";
@@ -27,13 +28,15 @@ export function canJoinLate(state: GameState): boolean {
 
 /** A card of this kind that nobody holds or was dealt, for a newcomer; any card of the kind when none is left. */
 function drawFreeCard(kind: "actif" | "passif", state: GameState, taken: Set<PassiveId>): PassiveId | undefined {
-  const pool = getDraftPool(kind, state.players.length + 1).filter((cardId) => !ROLE_CARDS.includes(cardId));
+  const pool = getDraftPool(kind, state.players.length + 1, isOpenWorld(state.mapId, state.worldStyle)).filter(
+    (cardId) => !ROLE_CARDS.includes(cardId),
+  );
   return randomChoice(pool.filter((cardId) => !taken.has(cardId))) ?? randomChoice(pool);
 }
 
 /** Cards the newcomer chooses from at the current stage: the ones nobody else was dealt, completed if too few. */
 function dealLateOffer(state: GameState, draft: PassiveDraft): PassiveId[] {
-  const pool = getDraftPool(draft.stage, state.players.length + 1);
+  const pool = getDraftPool(draft.stage, state.players.length + 1, isOpenWorld(state.mapId, state.worldStyle));
   const dealt = new Set(Object.values(draft.offers).flat());
   const free = pool.filter((cardId) => !dealt.has(cardId));
   const size = getStageOfferSize(draft.stage);

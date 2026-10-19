@@ -5,6 +5,7 @@ import { IDLE_STRIKES_WARNING } from "../game/turn-clock";
 import { countBagUnits, countItemUnits, countRedCups } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { BulletFlight, GameState, ItemId, Player } from "../game/types";
+import { BLACK_CUP_MIST_MS, BLACK_CUP_TRANSIT_MS } from "../theme/timing";
 import { GAME_COUNTDOWN_MS, GHOST_ID, HELL_NODE_ID } from "../game/types";
 import {
   ALERT_BANNER_MS,
@@ -34,6 +35,12 @@ function findSpentItem(before: Player, after: Player): ItemId | null {
  * Turns raw state transitions into presentation events. Events caused by a
  * walk are delayed until the pawn lands, so coins pop above the right tile.
  */
+/** How long the camera stays on an event that is not a walk before it turns to the next player. */
+const ACTION_FOCUS_MS: Partial<Record<FeedbackEvent["type"], number>> = {
+  "black-cup-return": BLACK_CUP_MIST_MS + BLACK_CUP_TRANSIT_MS + 400,
+  "ghost-attack": 2_200,
+};
+
 export function startGameFeedback(): () => void {
   const pendingTimers = new Set<number>();
 
@@ -76,8 +83,11 @@ export function startGameFeedback(): () => void {
     // Timeline: the walk (or the camera intro), Bullet Bill's charge, its impact, then the next turn.
     const startsAt = Math.max(gameJustStarted ? 0 : ui.boardBusyUntil, now + walkDuration + introDelay);
     const impactAt = startsAt + flightMs;
-    const nextTurnAt = impactAt + impactPauseMs;
     const events = collectEvents(state, previous, walked ? (movement?.playerId ?? null) : null, flight);
+    // The camera looks at what just happened (the Cup rising from Hell, the ghost's attack) before it turns to the
+    // player whose turn begins (patch 0.3.0).
+    const actionFocusMs = events.reduce((longest, event) => Math.max(longest, ACTION_FOCUS_MS[event.type] ?? 0), 0);
+    const nextTurnAt = impactAt + impactPauseMs + actionFocusMs;
     const celebrates = events.some((event) => event.type === "cup-collected");
     // A Cups Power of patch 0.2.3 plays its own animation once the walk is over: the dialogs wait for it too.
     const powerMs = events.reduce(

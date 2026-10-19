@@ -356,7 +356,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Effet",
       body: [
-        "• La route est impraticable pour TOUT LE MONDE pendant 1 tour de la table du poseur (puis la Barrière tombe; elle tombe aussi si le poseur quitte la partie).",
+        "• La route est impraticable pour TOUT LE MONDE pendant 1 tour de la table du poseur (puis la Barrière tombe, même si son poseur, assommé, saute ce tour — patch 0.3.0; elle tombe aussi si le poseur quitte la partie).",
         "• La Botte posée juste devant peut sauter par-dessus (un seul pas).",
         "• Ne bloque pas : Bullet Bill, les tirages au hasard (Corde, Portails, Cup…), les calculs de distance (Calme-toi, givre) — mais arrête une glissade de Banquise : elle rebondit et prend une autre route.",
         "• La route barrée ne se paie pas par Corrupteur : lui ignore les flèches et sens uniques, pas les Barrières.",
@@ -409,7 +409,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• Chaque Tomate a 2 % de chance d'assommer (5 % pour Tomato Enjoyer); une volée ratée reste une volée ratée, une volée assommée ne saute qu'UN tour, peu importe le nombre de touches.",
-        "• Jamais d'annonce, jamais de réaction : pas de Non merci, pas de Bouclier, pas de Miroir.",
+        "• Pas de Non merci ni de Miroir contre une Tomate, mais le Bouclier de l'[[card:guardian-angel|Ange-Gardien]] la bloque, même hors de son tour, quand elle vise son protégé (patch 0.3.0) : toute la volée est annulée, Bouclier et Tomates perdus.",
         "• Tomate reçue = 5 pièces pour un Tomato Enjoyer (à chaque tomate).",
         "• Un lancer de Tomate ne « fait rien » ce tour : seul, il ne permet pas de finir son tour sans bouger.",
         "• Chance aveugle ne peut pas être arrosé.",
