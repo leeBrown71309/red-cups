@@ -199,10 +199,10 @@ function getRuleSections(mapId: MapId): RuleSection[] {
         `Mage noir : pose un pentagramme et téléporte-toi dessus, à ton tour, contre un objet ou Bullet Bill, ou à ` +
           `la place d’une roue qui te déplace. ${MAGE_MAX_LUCK} pentagrammes, un de moins à chaque téléportation : à zéro, ` +
           "plus de téléportation, mais tu continues de jouer, et un pentagramme revient tous les 15 tours.",
-        `Mi-vu, Mi-vue : « Disparaître » te rend invisible ${MIST_HIDDEN_TURNS} tours (tu ne peux plus être ciblé et tu ne vois plus la table), ` +
+        `Mi-vu, Mi-vue : « Disparaître » te rend invisible ${MIST_HIDDEN_TURNS} tours (tu ne peux plus être ciblé et tu ne vois plus la table ; la Bombe de fumée, elle, te laisse voir), ` +
           `puis il revient au bout de ${MIST_COOLDOWN_ROUNDS} tours ; à une case de la Red Cup, tu es visible.`,
-        "Le Fou : l’inverse de Cupide. Il gagne à −2 500 pièces, le reset à −300 ne l’atteint pas et il ne peut pas être " +
-          "assommé : il perd 100 pièces à chaque fois qu’il devrait l’être.",
+        "Le Fou : l’inverse de Cupide. Il gagne à −2 500 pièces, le reset à −300 ne l’atteint pas, il ne peut pas être " +
+          "assommé (100 pièces perdues à la place) et chaque Red Cup lui coûte 1 000 pièces au lieu d’entrer dans son sac.",
         "Sœur Fantôme : une petite sœur fait en miroir chacun de tes pas, et le Swap te fait changer de place avec elle, " +
           "avec ce qu’elle porte (pièges, Red Cup, Bullet Bill).",
         `L’Ermite : tant que personne n’est à ${HERMIT_DISTANCE} cases ou moins de toi, +${HERMIT_ENERGY_BONUS} point ` +

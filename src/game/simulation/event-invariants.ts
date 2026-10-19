@@ -59,10 +59,12 @@ export function checkBulletBill(previous: GameState, next: GameState, found: Rul
   if (flight.path.length > BULLET_BILL_CHARGE_STEPS) {
     found.push(violation("bullet-range", `Bullet Bill flew ${flight.path.length} tiles`));
   }
+  // The charge leaves at the start of the new round, and on the Archipel the tide of that round decides the roads.
   const board = getOpenBoard(previous);
+  const roundBoard = getOpenBoard({ ...previous, round: next.round });
   let landing = flight.from;
   for (const step of flight.path) {
-    if (!getNeighbors(board, landing, true).includes(step)) {
+    if (!getNeighbors(board, landing, true).includes(step) && !getNeighbors(roundBoard, landing, true).includes(step)) {
       found.push(violation("bullet-follows-roads", `Bullet Bill flew ${landing} → ${step} off the roads`));
     }
     landing = step;

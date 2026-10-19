@@ -1,6 +1,6 @@
 import { hasCard, ownsCard } from "../cards";
 import { canTeleport } from "../mage-queries";
-import { isInvisible } from "../mist";
+import { isBlinded, isInvisible } from "../mist";
 import { earnsStartBonus, getBoard, getNeighbors, getSimplePaths, hasCarousel, isBlockedRoad, isIce } from "../board";
 import {
   avoidsHell,
@@ -131,6 +131,10 @@ function checkPlayer(state: GameState, player: Player): RuleViolation[] {
   // Le Fou is immune to the reset: their balance may sink to their goal.
   if (player.currency <= CURRENCY_RESET_THRESHOLD && !awaitsKnockout(state, player.id) && !hasCard(player, "fool")) {
     found.push(violation("negative-reset", `${name} sits at ${player.currency} coins`));
+  }
+  // Le Fou pays for a Red Cup instead of keeping it (patch 0.3.0).
+  if (hasCard(player, "fool") && countRedCups(player) > 0) {
+    found.push(violation("fool-keeps-cup", `${name} holds ${countRedCups(player)} Red Cup(s)`));
   }
   if (!Number.isInteger(player.skippedTurns) || player.skippedTurns < 0) {
     found.push(violation("skipped-turns", `${name} has skippedTurns = ${player.skippedTurns}`));
@@ -894,8 +898,9 @@ function checkItemEffect(previous: GameState, next: GameState, item: AppliedItem
   if (target && isImmuneToItems(target)) {
     found.push(violation("blind-luck-untargetable", `${label} on Chance aveugle`));
   }
-  // Nobody aims at the player Mi-vu, Mi-vue hides, and the hidden player aims at nobody.
-  if (target && (isInvisible(previous, target) || isInvisible(previous, user))) {
+  // Nobody aims at an invisible player, and the player Mi-vu, Mi-vue blinds aims at nobody (the Bombe de fumée's
+  // user still sees the table).
+  if (target && (isInvisible(previous, target) || isBlinded(previous, user))) {
     found.push(violation("invisible-untargetable", `${label} on ${target.name} in the dark`));
   }
 

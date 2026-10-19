@@ -27,6 +27,12 @@ export interface NoiseOptions {
 }
 
 /**
+ * Every kind of gesture that may wake a suspended audio context: iOS only counts the end of a touch, some desktop
+ * browsers only the release of a click, and a key press counts everywhere.
+ */
+export const AUDIO_UNLOCK_EVENTS = ["pointerdown", "pointerup", "mousedown", "touchend", "click", "keydown"] as const;
+
+/**
  * Tiny synthesiser shared by sound effects and music. Everything is generated
  * at runtime, so the game ships without audio files or licensing concerns.
  */
@@ -38,8 +44,25 @@ class AudioEngine {
   private noiseBuffer: AudioBuffer | null = null;
   private readonly unlockListeners = new Set<() => void>();
 
-  /** Browsers only allow audio after a user gesture; call this from one. */
+  /**
+   * Browsers only allow audio after a user gesture; call this from one. Every gesture that follows tries again, for a
+   * context that stayed suspended (a first gesture the browser did not count, such as a touch start on iOS).
+   */
   unlock(): void {
+    this.ensureContext();
+    if (this.context && this.context.state !== "running") void this.context.resume().catch(() => undefined);
+  }
+
+  /**
+   * The sound of the launch (report 2026-10-15): the context is built and asked to run as soon as the page loads, so
+   * the music starts at once wherever the browser lets a page play (an installed app, a site the visitor already
+   * engaged with). Elsewhere it stays suspended, and the first gesture of any kind wakes it.
+   */
+  prime(): void {
+    this.unlock();
+  }
+
+  private ensureContext(): void {
     if (!this.context) {
       const AudioContextClass =
         window.AudioContext ??
@@ -69,7 +92,6 @@ class AudioEngine {
       useAudioSettings.subscribe(() => this.applySettings());
       this.unlockListeners.forEach((listener) => listener());
     }
-    if (this.context.state === "suspended") void this.context.resume().catch(() => undefined);
   }
 
   onUnlock(listener: () => void): () => void {

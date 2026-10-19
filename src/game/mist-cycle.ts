@@ -13,7 +13,7 @@ export function advanceMist(state: GameState, playerId: PlayerId): GameState {
   if (!player || !isHidden(player)) return state;
   const left = (player.hiddenTurns ?? 0) - 1;
   const nextState = updatePlayer(state, playerId, (current) => {
-    const { hiddenTurns: _spent, ...visible } = current;
+    const { hiddenTurns: _spent, hiddenSighted: _sighted, ...visible } = current;
     return left > 0 ? { ...current, hiddenTurns: left } : visible;
   });
   return left > 0 ? nextState : addOpenLog(nextState, `${player.name} redevient visible.`);
@@ -21,15 +21,19 @@ export function advanceMist(state: GameState, playerId: PlayerId): GameState {
 
 /**
  * Puts the player under an invisibility for `turns` of their own turns, the one in progress included. A longer one
- * already running is kept, and the table is told.
+ * already running is kept, and the table is told. With `sighted` (the Bombe de fumée) they keep seeing the table.
  */
-export function hidePlayer(state: GameState, playerId: PlayerId, turns: number): GameState {
+export function hidePlayer(state: GameState, playerId: PlayerId, turns: number, sighted = false): GameState {
   const player = findPlayer(state, playerId);
   if (!player) return state;
-  const nextState = updatePlayer(state, playerId, (current) => ({
-    ...current,
-    hiddenTurns: Math.max(current.hiddenTurns ?? 0, turns),
-  }));
+  const nextState = updatePlayer(state, playerId, (current) => {
+    const { hiddenSighted: _previous, ...rest } = current;
+    return {
+      ...rest,
+      hiddenTurns: Math.max(current.hiddenTurns ?? 0, turns),
+      ...(sighted ? { hiddenSighted: true } : {}),
+    };
+  });
   return addOpenLog(nextState, `${player.name} devient invisible pour ${turns === 1 ? "un tour" : `${turns} tours`}.`);
 }
 

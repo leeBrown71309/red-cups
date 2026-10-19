@@ -61,7 +61,7 @@ export const PATCH_025_INTERACTIONS: Interaction[] = [
   {
     a: "card:fool",
     b: "system:victory",
-    text: `Le Fou gagne dès que son solde est à ${FOOL_GOAL} pièces ou moins, au tour de qui que ce soit. Il peut aussi gagner par ses Red Cups.`,
+    text: `Le Fou gagne dès que son solde est à ${FOOL_GOAL} pièces ou moins, au tour de qui que ce soit. Il ne ramasse aucune Red Cup : trois Cups (−3 000 pièces) suffisent à le faire gagner.`,
   },
 
   // ————— Bombe de fumée —————
@@ -73,7 +73,7 @@ export const PATCH_025_INTERACTIONS: Interaction[] = [
   {
     a: "item:smoke-bomb",
     b: "card:half-seen",
-    text: `Même invisibilité que Disparaître (${MIST_HIDDEN_TURNS} tours, ${MIST_COOLDOWN_ROUNDS} tours d'attente) mais pour 1 tour seulement, sans limite de Red Cup. Une Bombe de fumée ne s'utilise pas déjà invisible : l'invisibilité ne se cumule pas.`,
+    text: `Même invisibilité que Disparaître (${MIST_HIDDEN_TURNS} tours, ${MIST_COOLDOWN_ROUNDS} tours d'attente) mais pour 1 tour seulement, sans limite de Red Cup, et sans aveugler : l'utilisateur de la Bombe voit toute la table. Une Bombe de fumée ne s'utilise pas déjà invisible : l'invisibilité ne se cumule pas.`,
   },
   {
     a: "item:smoke-bomb",

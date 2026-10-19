@@ -6,6 +6,8 @@ import {
   GHOST_SLAP_IMPACT_MS,
   GHOST_SLAP_MS,
   GHOST_TELEPORT_MS,
+  BLACK_CUP_MIST_MS,
+  BLACK_CUP_TRANSIT_MS,
   MARK_SUCK_MS,
   MARK_TRANSIT_MS,
   SNOWBALL_FLIGHT_MS,
@@ -14,7 +16,7 @@ import {
   TUNNEL_DIVE_MS,
 } from "../theme/timing";
 import { getFog } from "../ui/fog";
-import { audioEngine } from "./audio-engine";
+import { AUDIO_UNLOCK_EVENTS, audioEngine } from "./audio-engine";
 import { getMusicMood } from "./music-mood";
 import { musicPlayer } from "./music-player";
 import { pickSoundtrackTheme, useMapAuditionStore } from "./soundtrack-theme";
@@ -92,9 +94,11 @@ export function startAudioFeedback(): () => void {
     }
   };
 
+  // Sound from the launch where the browser allows it; else from the first gesture, whichever kind it is (iOS only
+  // counts the end of a touch, and a mouse the release of a click on some browsers).
+  audioEngine.prime();
   const unlock = () => audioEngine.unlock();
-  window.addEventListener("pointerdown", unlock, { capture: true });
-  window.addEventListener("keydown", unlock, { capture: true });
+  for (const name of AUDIO_UNLOCK_EVENTS) window.addEventListener(name, unlock, { capture: true });
 
   // Buttons click on press rather than release so the UI feels immediate.
   const clickSound = (event: PointerEvent) => {
@@ -156,6 +160,19 @@ export function startAudioFeedback(): () => void {
         break;
       case "quay-bump":
         if (isSeen(event.playerId)) soundEffects.quayBump();
+        break;
+      case "black-cup-cast":
+        // Whoever cannot see the Red Cup hears nothing of its flight either.
+        if (!getViewerFog().viewerHidden) {
+          soundEffects.ghostWhoosh();
+          soundEffects.hellfire(0.5);
+        }
+        break;
+      case "black-cup-return":
+        if (!getViewerFog().viewerHidden) {
+          soundEffects.ghostWhoosh();
+          window.setTimeout(() => soundEffects.reveal(), BLACK_CUP_MIST_MS + BLACK_CUP_TRANSIT_MS);
+        }
         break;
       case "ice-fall":
         if (isSeen(event.playerId)) soundEffects.iceFall();
@@ -306,8 +323,7 @@ export function startAudioFeedback(): () => void {
   const unsubscribeTunnel = useGameStore.subscribe(playTunnelMove);
 
   return () => {
-    window.removeEventListener("pointerdown", unlock, { capture: true });
-    window.removeEventListener("keydown", unlock, { capture: true });
+    for (const name of AUDIO_UNLOCK_EVENTS) window.removeEventListener(name, unlock, { capture: true });
     window.removeEventListener("pointerdown", clickSound);
     unsubscribeFeedback();
     unsubscribeGameMusic();

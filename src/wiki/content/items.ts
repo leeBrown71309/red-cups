@@ -270,7 +270,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
     {
       title: "Effet",
       body: [
-        "• La Red Cup plonge en Enfer pendant 2 tours de table et retourne ensuite sur sa case.",
+        "• La Red Cup plonge en Enfer pendant 2 tours de table et retourne ensuite sur sa case. À l'écran, une brume ténébreuse la porte jusqu'en Enfer, où elle devient noire ; à sa remontée la même brume la ramène et elle redevient rouge en arrivant.",
         "• Pendant ce temps, le premier joueur qui ARRIVE en Enfer la ramasse (voyageurs uniquement : ceux qui y étaient déjà au moment du sort ne peuvent pas).",
         "• Si elle est ramassée, une nouvelle Cup apparaît normalement ailleurs.",
         "• Un K.O. en Enfer pendant le sort peut quand même ramasser : la Cup attend dans la crevasse.",
@@ -374,7 +374,7 @@ export const ITEM_SECTIONS: Record<string, ContentSection[]> = {
       title: "Effet",
       body: [
         "• Invisible, tu ne peux ni être détecté par [[item:bullet-bill|Bullet Bill]], ni ciblé par les autres joueurs (objets à cible joueur, [[card:calm-down|Calme-toi]], défi de la roue de l'Enfer, copie du [[card:mime|Mime]]). [[item:draven|Draven]] t'épargne.",
-        "• Comme tout invisible, tu ne cibles personne non plus, et l'écran te cache la table jusqu'à la fin de ton tour : les autres ne voient plus ton pion, tes actions, ton sac ni tes pièces. Le journal annonce « X devient invisible pour un tour » à toute la table.",
+        "• Contrairement à [[card:half-seen|Mi-vu, Mi-vue]], tu continues de voir toute la table et de viser les autres (patch 0.3.0) : seuls les autres ne te voient plus — ton pion est translucide pour toi seul, et ils ne voient ni tes actions, ni ton sac, ni tes pièces. Le journal annonce « X devient invisible pour un tour » à toute la table.",
         "• Le tour où tu la lances compte : l'invisibilité dure jusqu'au début de ton tour suivant, donc à travers tous les tours des autres. Elle couvre aussi un tour sauté.",
         "• Contrairement à [[card:half-seen|Mi-vu, Mi-vue]], la Red Cup ne te révèle pas. Ce qui ne vise personne t'atteint quand même : [[item:sentence|Sentence]], [[item:portal|Portails]], [[item:doomsday|Doomsday]], cases piégées, roues, explosion de Bullet Bill sur ta case…",
         "• L'[[card:guardian-angel|Ange-Gardien]] peut en acheter : elle ne nuit à personne.",

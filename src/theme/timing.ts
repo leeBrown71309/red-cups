@@ -94,6 +94,12 @@ export const SISTER_CONDENSE_MS = 500;
 /** Sœur Fantôme: what the sister carries flies over in an arc, from the start of the swap (ends at 1 100). */
 export const SISTER_CARRY_DELAY_MS = 250;
 export const SISTER_CARRY_MS = 850;
+/**
+ * Le diable's Black Cup: the dark mist gathers around the Red Cup, then carries it down to Hell (or back up from it),
+ * the cup darkening (or turning red again) as it goes.
+ */
+export const BLACK_CUP_MIST_MS = 450;
+export const BLACK_CUP_TRANSIT_MS = 1_350;
 /** Sœur Fantôme: a move nobody explains (a trip to Hell sends her back to the start) is a quick fade out and in. */
 export const SISTER_SNAP_OUT_MS = 260;
 export const SISTER_SNAP_IN_MS = 380;
@@ -150,6 +156,19 @@ export function estimatePowerEventMs(event: PowerEvent): number {
   }
 }
 
+/** Index of the first step of a movement that was slid on ice: a thawed player slides every step of their path. */
+export function getSlideStart(movement: Pick<PlayerMovement, "path"> & Partial<PlayerMovement>): number {
+  return movement.slideStart ?? (movement.thawed ? 0 : movement.path.length);
+}
+
+/**
+ * A player who just burst out of their ice goes straight into the slide, unless a Barrière stopped them first (then
+ * they bump into it, and wobble before sliding the other way).
+ */
+export function skipsWobble(movement: Partial<PlayerMovement>, index: number): boolean {
+  return movement.thawed === true && index === 0 && !(movement.bumps ?? []).some((bump) => bump.index < 0);
+}
+
 /**
  * Game rules resolve instantly, while the board animates. The HUD uses this
  * estimate to delay modals and feedback until the pawn has landed.
@@ -158,21 +177,19 @@ export function estimateMovementMs(
   board: Board,
   movement: Pick<PlayerMovement, "from" | "path"> & Partial<PlayerMovement>,
 ): number {
-  if (movement.thawed) {
-    return SHATTER_MS + GLIDE_MS + (movement.portalNodeId !== undefined ? PORTAL_SWALLOW_MS + HELL_DROP_MS : 0);
-  }
   if (movement.flungByGhost) return GHOST_SLAP_MS + GHOST_CARRY_MS;
   // Taupe: the dive into the ground and the pop out of it replace the hop.
   if (movement.tunnel) return TUNNEL_DIVE_MS + TUNNEL_POP_MS;
   // Archipel: the crossing replaces the walk.
   if (movement.ferry) return FERRY_RIDE_MS;
-  const slideStart = movement.slideStart ?? movement.path.length;
-  let total = 0;
+  const slideStart = getSlideStart(movement);
+  // Banquise: a player breaking free of the ice first bursts the block, then slides the path on.
+  let total = movement.thawed ? SHATTER_MS : 0;
   let previous = movement.from;
 
   movement.path.forEach((nodeId: NodeId, index) => {
     if (index >= slideStart) {
-      total += WOBBLE_MS + GLIDE_MS;
+      total += (skipsWobble(movement, index) ? 0 : WOBBLE_MS) + GLIDE_MS;
     } else {
       total += HOP_MS;
       if (findEdge(board, previous, nodeId)?.kind === "tunnel") total += HOP_MS + TUNNEL_EXTRA_MS;

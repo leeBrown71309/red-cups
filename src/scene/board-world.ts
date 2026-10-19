@@ -11,7 +11,7 @@ import { BulletBillActor, type BulletCarry, type BulletView } from "./bullet-bil
 import { CameraRig, type CameraMode } from "./camera-rig";
 import { CaravanActor } from "./caravan-actor";
 import { FerryActor } from "./ferry-actor";
-import { EffectsLayer, SISTER_MIST_COLORS } from "./effects-layer";
+import { DARK_MIST_COLORS, EffectsLayer, SISTER_MIST_COLORS } from "./effects-layer";
 import { GhostActor, type GhostView } from "./ghost-actor";
 import { createSurroundings, GROUND_Y as SURROUNDINGS_GROUND_Y } from "./models/surroundings-model";
 import { createHellPit, createShopStall, createStartFlag, createTunnelPortal } from "./models/landmarks-model";
@@ -30,6 +30,7 @@ import {
   createRedCup,
   type AnimatedProp,
   type HellPortalProp,
+  type RedCupProp,
 } from "./models/props-model";
 import { createMarkProp, type MarkProp } from "./models/mark-model";
 import { createTileArrow } from "./models/tile-arrow-model";
@@ -42,6 +43,8 @@ import { RoadNetwork } from "./road-network";
 import { SisterController, type SisterView } from "./sister-actor";
 import { SceneKit, clamp01, easeInOutCubic, easeOutBack, prefersReducedMotion } from "./scene-kit";
 import {
+  BLACK_CUP_MIST_MS,
+  BLACK_CUP_TRANSIT_MS,
   FERRY_RIDE_MS,
   HELL_DROP_MS,
   MAGE_CRUMBLE_MS,
@@ -202,6 +205,10 @@ interface MarkEntry {
 /** Something the sister carries, flying over the board in an arc until the board has set it down on the new tile. */
 interface FlyingProp {
   prop: AnimatedProp;
+  /** The Black Cup's flight: the Red Cup darkens (or reddens) in the dark mist that carries it. */
+  transit?: { darknessFrom: number; darknessTo: number };
+  /** The mist the flight leaves behind it. */
+  mist: readonly string[];
   kind: "mud" | "portal" | "cup";
   from: THREE.Vector3;
   to: THREE.Vector3;
@@ -244,7 +251,7 @@ export class BoardWorld {
   private readonly sisters: SisterController;
   private readonly effects = new EffectsLayer();
   private readonly animated: AnimatedProp[] = [];
-  private readonly redCup: AnimatedProp;
+  private readonly redCup: RedCupProp;
   private readonly bullet: BulletBillActor;
   /** Only on maps a ghost haunts. */
   private readonly ghost: GhostActor | null = null;
@@ -410,6 +417,8 @@ export class BoardWorld {
     this.sisters.sync(view.sisters, view.lastMovement, this.pendingPower);
     this.refreshHighlights();
 
+    // The Red Cup in Hell is the Black Cup: the only way it gets there is le diable's spell.
+    this.redCup.setDarkness(view.redCupNodeId === HELL_NODE_ID ? 1 : 0);
     if (view.redCupNodeId !== this.cupNodeId) {
       this.cupNodeId = view.redCupNodeId;
       this.redCup.group.visible = view.redCupNodeId !== null && this.redCupFlight === null;
@@ -858,6 +867,8 @@ export class BoardWorld {
     this.updateTunnels(elapsed, delta);
     this.updateMarks(elapsed, delta);
     this.updateFlyingProps(elapsed, delta);
+    // The view may already be at rest when a flight lands: nothing would sync it, so look at every frame.
+    if (this.view && this.flyingProps.length > 0) this.landFlyingProps(this.view);
     for (const prop of this.animated) prop.update(elapsed, delta);
     for (const puddle of this.mudPuddles.values()) puddle.update(elapsed, delta);
     for (const portal of this.portals.values()) portal.update(elapsed, delta);
@@ -1057,6 +1068,12 @@ export class BoardWorld {
         );
         return;
       }
+      case "black-cup-cast":
+        this.playBlackCupTransit(event.from, HELL_NODE_ID, fog);
+        return;
+      case "black-cup-return":
+        this.playBlackCupTransit(HELL_NODE_ID, event.to, fog);
+        return;
       case "cup-collected":
         if (this.isUnseen(fog, event.playerId)) return;
         this.effects.spawnConfetti(this.layout.getNodePosition(event.nodeId).setY(TILE_HEIGHT));
@@ -1395,6 +1412,34 @@ export class BoardWorld {
     }
   }
 
+  /**
+   * Le diable's Black Cup: a dark mist gathers around the Red Cup and carries it over the board to Hell, the cup
+   * turning black as it goes; when its time is up the same mist carries it back up and it turns red again on arrival.
+   * Whoever cannot see the Red Cup (Mi-vu, Mi-vue's dark, Chance aveugle) sees none of it.
+   */
+  private playBlackCupTransit(fromNode: NodeId, toNode: NodeId, fog: Fog): void {
+    const view = this.view;
+    if (this.disposed || !view || view.mode !== "play" || view.hidesProps || fog.viewerHidden) return;
+    if (view.redCupNodeId === null) return;
+    const toHell = toNode === HELL_NODE_ID;
+    const from = this.layout.getNodePosition(fromNode).setY(TILE_HEIGHT);
+    const to = this.layout.getNodePosition(toNode).setY(TILE_HEIGHT);
+
+    // The real Cup waits out of sight while its twin is carried; the mist gathers around it first.
+    const running = this.redCupFlight ? this.flyingProps.indexOf(this.redCupFlight) : -1;
+    if (running >= 0) this.removeFlight(running);
+    this.redCup.group.visible = false;
+    this.redCupFlight = this.launchFlight("cup", createRedCup(this.kit), fromNode, toNode, {
+      transit: toHell ? { darknessFrom: 0, darknessTo: 1 } : { darknessFrom: 1, darknessTo: 0 },
+      delayMs: BLACK_CUP_MIST_MS,
+      durationMs: BLACK_CUP_TRANSIT_MS,
+      mist: DARK_MIST_COLORS,
+    });
+    this.effects.spawnGhostMist(from.clone(), 18, DARK_MIST_COLORS, true);
+    this.effects.spawnMistStream(from, to, DARK_MIST_COLORS, BLACK_CUP_TRANSIT_MS / 1000, BLACK_CUP_MIST_MS / 1000, 14);
+    if (view.followActivePlayer) this.rig.focusOn(from.clone().lerp(to, 0.5), 0.7);
+  }
+
   /** Mi-vu, Mi-vue: a player leaves the sight of the table, or shows again. Only a viewer who can see it sees it. */
   private playInvisibility(playerId: string, fog: Fog): void {
     if (fog.viewerHidden && fog.viewerId !== playerId) return;
@@ -1698,7 +1743,13 @@ export class BoardWorld {
   }
 
   /** Something the sister carries leaves its tile in an arc, and stays in the air over the new one until it is set down. */
-  private launchFlight(kind: FlyingProp["kind"], prop: AnimatedProp, fromNode: NodeId, toNode: NodeId): FlyingProp {
+  private launchFlight(
+    kind: FlyingProp["kind"],
+    prop: AnimatedProp,
+    fromNode: NodeId,
+    toNode: NodeId,
+    options: Pick<FlyingProp, "transit"> & { delayMs?: number; durationMs?: number; mist?: readonly string[] } = {},
+  ): FlyingProp {
     const offset = kind === "mud" ? MUD_OFFSET : kind === "portal" ? PORTAL_OFFSET : new THREE.Vector3();
     const from = this.layout.getNodePosition(fromNode).add(offset).setY(TILE_HEIGHT);
     const to = this.layout.getNodePosition(toNode).add(offset).setY(TILE_HEIGHT);
@@ -1711,10 +1762,12 @@ export class BoardWorld {
       to,
       destNode: toNode,
       elapsed: 0,
-      delay: SISTER_CARRY_DELAY_MS / 1000,
-      duration: SISTER_CARRY_MS / 1000,
+      delay: (options.delayMs ?? SISTER_CARRY_DELAY_MS) / 1000,
+      duration: (options.durationMs ?? SISTER_CARRY_MS) / 1000,
       trail: 0,
       landed: false,
+      mist: options.mist ?? SISTER_MIST_COLORS,
+      ...(options.transit ? { transit: options.transit } : {}),
     };
     this.flyingProps.push(flight);
     return flight;
@@ -1730,16 +1783,28 @@ export class BoardWorld {
       group.position.y += Math.sin(progress * Math.PI) * CARRY_ARC_HEIGHT;
       if (flight.kind !== "cup") group.rotation.y = progress * Math.PI * 4;
       flight.prop.update(elapsed, delta);
+      if (flight.transit && "setDarkness" in flight.prop) {
+        const { darknessFrom, darknessTo } = flight.transit;
+        (flight.prop as RedCupProp).setDarkness(darknessFrom + (darknessTo - darknessFrom) * easeInOutCubic(progress));
+      }
 
       flight.trail += delta;
       if (progress > 0 && progress < 1 && flight.trail > 0.1) {
         flight.trail = 0;
-        this.effects.spawnGhostMist(group.position.clone().setY(group.position.y + 0.2), 1, SISTER_MIST_COLORS, true);
+        this.effects.spawnGhostMist(group.position.clone().setY(group.position.y + 0.2), 1, flight.mist, true);
       }
       if (progress >= 1 && !flight.landed) {
         flight.landed = true;
-        this.effects.spawnPoof(flight.to.clone(), "#cfe9ff");
-        this.effects.spawnSparkleRing(flight.to.clone(), "#cfe9ff", 0.9, 10);
+        if (flight.transit) {
+          this.effects.spawnGhostMist(flight.to.clone(), 16, DARK_MIST_COLORS, true);
+          // Up from Hell the Cup is red again, and says so; down in Hell it only goes dark.
+          if (flight.transit.darknessTo < flight.transit.darknessFrom) {
+            this.effects.spawnSparkleRing(flight.to.clone(), "#ff8a7a", 0.9, 12);
+          }
+        } else {
+          this.effects.spawnPoof(flight.to.clone(), "#cfe9ff");
+          this.effects.spawnSparkleRing(flight.to.clone(), "#cfe9ff", 0.9, 10);
+        }
       }
       if (flight.elapsed > 12) this.removeFlight(index);
     }
@@ -1768,6 +1833,8 @@ export class BoardWorld {
     if (flight === this.redCupFlight) {
       this.redCupFlight = null;
       this.redCup.group.visible = this.cupNodeId !== null;
+      // The transit already showed the Cup arriving: it does not pop out of the ground a second time.
+      if (flight.transit) this.cupPopProgress = 1;
     }
   }
 }

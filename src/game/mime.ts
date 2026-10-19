@@ -3,7 +3,7 @@ import { PASSIVE_CATALOG } from "./catalog";
 import { getEnergyCapacity } from "./energy";
 import { getCopyLimit } from "./passive-rules";
 import { getInventoryCapacity } from "./rules";
-import { isInvisible } from "./mist";
+import { isBlinded, isInvisible } from "./mist";
 import { withPowerEvent } from "./power-event";
 import { addBagLog, addLog, dropCopies, findPlayer, getActivePlayer, updatePlayer } from "./state-utils";
 import type { GameState, PassiveId, Player, PlayerId } from "./types";
@@ -71,7 +71,7 @@ export function canMimeCopy(state: GameState, player: Player | undefined): playe
     state.diceRoll === null &&
     state.moveDistance === 1 &&
     state.round >= (player.mimeReadyRound ?? 0) &&
-    !isInvisible(state, player)
+    !isBlinded(state, player)
   );
 }
 

@@ -263,7 +263,7 @@ export const ITEM_CATALOG: Record<ItemId, ItemDefinition> = {
     symbol: "☁",
     description:
       "Te rend invisible pendant 1 tour : Bullet Bill ne te détecte plus et aucun joueur ne peut te cibler. " +
-      "Comme tout invisible, tu ne vois plus la table non plus.",
+      "Contrairement à Mi-vu, Mi-vue, tu continues de voir toute la table.",
     target: "self",
     energyCost: 2,
   },
@@ -400,7 +400,7 @@ export const PASSIVE_CATALOG: Record<PassiveId, PassiveDefinition> = {
     id: "red-bull",
     name: "Red Bull",
     shortName: "Red Bull",
-    description: "Tu as 4 points d’énergie à chaque tour.",
+    description: "Tu as 5 points d’énergie à chaque tour.",
   },
   eshop: {
     id: "eshop",

@@ -97,10 +97,10 @@ describe("Mime", () => {
     expect(entry.secret?.publicText).toContain("Joueur 2");
   });
 
-  it("recopier Red Bull ajoute son point d’énergie tout de suite", () => {
+  it("recopier Red Bull ajoute ses points d’énergie tout de suite (5 depuis le patch 0.3.0)", () => {
     startTable(["mime", "red-bull"]);
     store().mimeCopy("p2");
-    expect(store().energyLeft).toBe(4);
+    expect(store().energyLeft).toBe(5);
   });
 
   it("une seule copie tous les 3 tours de table", () => {

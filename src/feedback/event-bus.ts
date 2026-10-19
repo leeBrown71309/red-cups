@@ -29,7 +29,10 @@ export type FeedbackEvent =
   | { type: "doomsday-started" }
   /** Online: the player whose turn starts has one chance left before a forfeit. */
   | { type: "last-chance"; playerId: PlayerId }
-  | { type: "black-cup-cast" }
+  /** Le diable's Black Cup: the Red Cup leaves tile `from` for Hell, carried by a dark mist. */
+  | { type: "black-cup-cast"; from: NodeId }
+  /** The Black Cup's time is over (or Made In Heaven set it down): the dark mist carries the Cup up to `to`. */
+  | { type: "black-cup-return"; to: NodeId }
   | { type: "carousel-flipped"; reversed: boolean }
   | { type: "player-left"; playerId: PlayerId }
   | { type: "turn-skipped" }

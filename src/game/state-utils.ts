@@ -52,6 +52,7 @@ export function getCupPowerState(
   | "luckReturnRound"
   | "sisterNodeId"
   | "hiddenTurns"
+  | "hiddenSighted"
   | "vanishReadyRound"
   | "hermitLostUntilRound"
   | "insurerEarned"
@@ -65,6 +66,7 @@ export function getCupPowerState(
     luckReturnRound,
     sisterNodeId,
     hiddenTurns,
+    hiddenSighted,
     vanishReadyRound,
     hermitLostUntilRound,
     insurerEarned,
@@ -80,6 +82,7 @@ export function getCupPowerState(
     ...(luckReturnRound === undefined || exhausted ? {} : { luckReturnRound }),
     ...(sisterNodeId === undefined ? {} : { sisterNodeId }),
     ...(hiddenTurns === undefined ? {} : { hiddenTurns }),
+    ...(hiddenSighted === undefined ? {} : { hiddenSighted }),
     ...(vanishReadyRound === undefined ? {} : { vanishReadyRound }),
     ...(hermitLostUntilRound === undefined ? {} : { hermitLostUntilRound }),
     ...(insurerEarned === undefined ? {} : { insurerEarned }),

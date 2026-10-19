@@ -22,7 +22,7 @@ import {
  */
 
 /** Passives that enlarge the gauge. */
-const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 1 };
+const ENERGY_BONUSES: Partial<Record<PassiveId, number>> = { "red-bull": 2 };
 
 /** Energy a player's turn opens with. */
 export function getEnergyCapacity(

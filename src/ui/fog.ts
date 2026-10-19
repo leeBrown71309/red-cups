@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { getInvisiblePlayerIds } from "../game/mist";
+import { getBlindedPlayerIds, getInvisiblePlayerIds } from "../game/mist";
 import { getDecidingPlayer } from "../game/rules";
 import { useGameStore } from "../game/store";
 import type { GameLogEntry, GameState, PlayerId } from "../game/types";
@@ -14,7 +14,10 @@ import { getLocalPlayerId, useLocalPlayerId } from "../net/room-store";
  */
 export interface Fog {
   viewerId: PlayerId | null;
-  /** The viewer is invisible: they see no other player, no action, no trap, no Red Cup, no Bullet Bill. */
+  /**
+   * The viewer is in the dark (Mi-vu, Mi-vue): they see no other player, no action, no trap, no Red Cup, no Bullet
+   * Bill. The Bombe de fumée hides its user without blinding them: for them this stays false.
+   */
   viewerHidden: boolean;
   /** Players the viewer does not see: their pawn, their bag, their purse and their actions are all hidden. */
   hiddenIds: ReadonlySet<PlayerId>;
@@ -31,7 +34,7 @@ export function getFog(state: GameState, localPlayerId: PlayerId | null): Fog {
   const viewerId = localPlayerId ?? getDecidingPlayer(state)?.id ?? null;
   // Hidden from the table, the player still watches the others play: only their own turn is spent in the fog.
   const viewerHidden =
-    viewerId !== null && invisibleIds.includes(viewerId) && getDecidingPlayer(state)?.id === viewerId;
+    viewerId !== null && getBlindedPlayerIds(state).includes(viewerId) && getDecidingPlayer(state)?.id === viewerId;
   const hiddenIds = new Set(
     viewerHidden
       ? state.players.filter((player) => player.id !== viewerId).map((player) => player.id)

@@ -42,7 +42,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:mime",
     b: "card:red-bull",
-    text: "Red Bull copié ajoute son point d'énergie tout de suite : le Mime joue à 4 points ce tour-là, sans avoir payé la copie.",
+    text: "Red Bull copié ajoute ses points d'énergie tout de suite : le Mime joue à 5 points ce tour-là, sans avoir payé la copie.",
   },
   {
     a: "card:mime",
@@ -573,7 +573,7 @@ export const CUPS_POWER_INTERACTIONS: Interaction[] = [
   {
     a: "card:hermit",
     b: "card:red-bull",
-    text: "Cumulables : Red Bull +1 et L'Ermite +1 quand il est seul, soit 5 points d'énergie.",
+    text: "Cumulables : Red Bull +2 et L'Ermite +1 quand il est seul, soit 6 points d'énergie.",
   },
   {
     a: "card:hermit",

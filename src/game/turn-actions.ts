@@ -462,7 +462,7 @@ export function applyItemUse(state: GameState, entryId: string, plan: ItemPlan):
     }
 
     case "smoke-bomb":
-      nextState = hidePlayer(nextState, player.id, SMOKE_BOMB_HIDDEN_TURNS);
+      nextState = hidePlayer(nextState, player.id, SMOKE_BOMB_HIDDEN_TURNS, true);
       break;
 
     case "made-in-heaven":
